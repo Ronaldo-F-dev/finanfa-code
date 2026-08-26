@@ -11,6 +11,8 @@ export interface CommandInfo {
 
 export interface UIAdapter {
   writeAssistantDelta(text: string): void;
+  /** Signals that the assistant's text for the current turn is fully streamed — flushes/renders it (e.g. as formatted markdown). */
+  endAssistantMessage(): void;
   writeSystem(text: string): void;
   writeError(text: string): void;
   setStatus(status: StatusInfo): void;

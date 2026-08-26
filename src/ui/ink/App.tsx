@@ -5,6 +5,7 @@ import Spinner from "ink-spinner";
 import type { UiStore } from "./store.js";
 import { LogLine } from "./components/LogLine.js";
 import { MultilineText } from "./components/MultilineText.js";
+import { RenderedMarkdown } from "./components/RenderedMarkdown.js";
 import { StatusBar } from "./components/StatusBar.js";
 import { CommandSuggestions } from "./components/CommandSuggestions.js";
 
@@ -77,7 +78,7 @@ export function App({
         {(item, i) => <LogLine key={i} item={item} />}
       </Static>
 
-      {store.streaming.length > 0 && <MultilineText text={store.streaming} />}
+      {store.streaming.length > 0 && <RenderedMarkdown text={store.streaming} />}
 
       {store.busy && (
         <Text dimColor>

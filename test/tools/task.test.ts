@@ -11,6 +11,7 @@ import type { UIAdapter } from "../../src/ui/adapter.js";
 function makeStubUi(): UIAdapter {
   return {
     writeAssistantDelta: vi.fn(),
+    endAssistantMessage: vi.fn(),
     writeSystem: vi.fn(),
     writeError: vi.fn(),
     setStatus: vi.fn(),

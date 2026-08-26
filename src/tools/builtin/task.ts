@@ -28,6 +28,7 @@ function wrapUiForSubagent(ui: UIAdapter, label: string): UIAdapter {
   const prefix = `[task:${label}]`;
   return {
     writeAssistantDelta: () => {}, // the sub-agent's final report comes back as the tool result instead
+    endAssistantMessage: () => {},
     writeSystem: (text) => ui.writeSystem(`${prefix} ${text}`),
     writeError: (text) => ui.writeError(`${prefix} ${text}`),
     setStatus: () => {}, // don't clobber the parent's status bar with sub-agent token counts

@@ -33,6 +33,9 @@ export function createInkAdapter(): UIAdapter {
       if (store.busy) store.setBusy(false);
       store.appendDelta(text);
     },
+    endAssistantMessage(): void {
+      store.commitStreaming();
+    },
     writeSystem(text: string): void {
       store.setBusy(false);
       store.commitStreaming();

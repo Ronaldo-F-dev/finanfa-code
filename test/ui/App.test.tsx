@@ -136,4 +136,29 @@ describe("Ink App", () => {
 
     expect(lastFrame()).not.toContain("running bash");
   });
+
+  it("renders a markdown table (from a committed assistant message) as an aligned table, not raw pipes", () => {
+    const store = new UiStore();
+    store.pushLog({
+      kind: "assistant",
+      text: "| Nom | Langage |\n|---|---|\n| finanfa-code | TypeScript |",
+    });
+
+    const { lastFrame } = render(<App store={store} onSubmit={vi.fn()} />);
+    const frame = lastFrame();
+
+    expect(frame).toContain("finanfa-code");
+    expect(frame).toContain("TypeScript");
+    expect(frame).toMatch(/[┌┬┐├┼┤└┴┘─│]/);
+  });
+
+  it("renders the live-streaming assistant text as markdown too (bold, not literal asterisks)", () => {
+    const store = new UiStore();
+    store.appendDelta("**hello**");
+
+    const { lastFrame } = render(<App store={store} onSubmit={vi.fn()} />);
+
+    expect(lastFrame()).not.toContain("**hello**");
+    expect(lastFrame()).toContain("hello");
+  });
 });

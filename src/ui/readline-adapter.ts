@@ -1,6 +1,7 @@
 import * as readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import type { CommandInfo, StatusInfo, UIAdapter } from "./adapter.js";
+import { renderMarkdown } from "./markdown.js";
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const SPINNER_INTERVAL_MS = 80;
@@ -29,6 +30,11 @@ export function createReadlineAdapter(): UIAdapter {
   let lastStatus: StatusInfo | undefined;
   let spinnerTimer: NodeJS.Timeout | undefined;
   let spinnerFrame = 0;
+  // Assistant text streams into this buffer instead of the terminal directly:
+  // markdown (tables especially) can't be rendered correctly until the whole
+  // message is known, so we show the "thinking" spinner for the full
+  // duration and print the rendered result once endAssistantMessage() fires.
+  let assistantBuffer = "";
 
   // Clears the in-progress spinner line (if any) before any other output is written.
   function clearSpinner(): void {
@@ -39,19 +45,32 @@ export function createReadlineAdapter(): UIAdapter {
     atLineStart = true;
   }
 
+  function flushAssistantBuffer(): void {
+    if (assistantBuffer.length === 0) return;
+    clearSpinner();
+    if (!atLineStart) stdout.write("\n");
+    stdout.write(renderMarkdown(assistantBuffer));
+    stdout.write("\n");
+    atLineStart = true;
+    assistantBuffer = "";
+  }
+
   return {
     writeAssistantDelta(text: string): void {
-      clearSpinner();
-      stdout.write(text);
-      atLineStart = text.endsWith("\n");
+      assistantBuffer += text;
+    },
+    endAssistantMessage(): void {
+      flushAssistantBuffer();
     },
     writeSystem(text: string): void {
+      flushAssistantBuffer();
       clearSpinner();
       if (!atLineStart) stdout.write("\n");
       stdout.write(`\x1b[2m${text}\x1b[0m\n`);
       atLineStart = true;
     },
     writeError(text: string): void {
+      flushAssistantBuffer();
       clearSpinner();
       if (!atLineStart) stdout.write("\n");
       stdout.write(`\x1b[31m${text}\x1b[0m\n`);
@@ -76,6 +95,7 @@ export function createReadlineAdapter(): UIAdapter {
       }, SPINNER_INTERVAL_MS);
     },
     async askUser(prompt: string): Promise<string> {
+      flushAssistantBuffer();
       clearSpinner();
       if (!atLineStart) stdout.write("\n");
       rl.resume();
@@ -94,6 +114,7 @@ export function createReadlineAdapter(): UIAdapter {
       }
     },
     close(): void {
+      flushAssistantBuffer();
       clearSpinner();
       rl.close();
     },

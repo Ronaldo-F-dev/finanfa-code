@@ -96,6 +96,7 @@ export async function runTurn(
     });
 
     ui.setBusy(false);
+    ui.endAssistantMessage();
     session.messages.push(result.assistantMessage);
     session.recordUsage(result.usage.inputTokens, result.usage.outputTokens);
 

@@ -86,3 +86,47 @@ describe("readline UIAdapter busy indicator", () => {
     expect(pauseMock).toHaveBeenCalled();
   });
 });
+
+describe("readline UIAdapter assistant message buffering", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let writeSpy: any;
+
+  beforeEach(() => {
+    writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    writeSpy.mockRestore();
+  });
+
+  it("does not write streamed deltas directly — buffers until endAssistantMessage()", () => {
+    const ui = createReadlineAdapter();
+    ui.writeAssistantDelta("| a | b |\n");
+    ui.writeAssistantDelta("|---|---|\n");
+    ui.writeAssistantDelta("| 1 | 2 |");
+
+    const written = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
+    expect(written).not.toContain("| a | b |");
+  });
+
+  it("renders the full buffered markdown once endAssistantMessage() is called", () => {
+    const ui = createReadlineAdapter();
+    ui.writeAssistantDelta("**hello**");
+    writeSpy.mockClear();
+
+    ui.endAssistantMessage();
+
+    const written = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
+    expect(written).toContain("hello");
+    expect(written).not.toContain("**hello**"); // rendered, not raw markdown
+  });
+
+  it("is a no-op when there is nothing buffered", () => {
+    const ui = createReadlineAdapter();
+    writeSpy.mockClear();
+
+    ui.endAssistantMessage();
+
+    expect(writeSpy).not.toHaveBeenCalled();
+  });
+});

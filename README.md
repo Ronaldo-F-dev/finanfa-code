@@ -8,7 +8,7 @@ All 4 phases implemented, plus a multi-provider backend:
 
 1. Core agent loop — streaming conversation, session persistence, resume, cost tracking, prompt caching.
 2. Built-in tools — file/shell/search/browser/planning tools (full list below) — gated by a three-state permission model (allow/ask/deny) with a session "always allow" allowlist.
-3. Terminal UI — Ink (React) by default, with a `readline` fallback for non-TTY/CI use.
+3. Terminal UI — Ink (React) by default, with a `readline` fallback for non-TTY/CI use. Assistant responses are rendered as real markdown (tables, bold/italic, headings, code) via `marked`/`marked-terminal`, not raw `**`/`|` source.
 4. Extensibility — MCP client (stdio and remote HTTP/SSE + OAuth servers), a filesystem plugin loader, and Markdown skill files.
 5. LLM providers — `AnthropicProvider` and a generic `OpenAiCompatibleProvider`, behind an `LlmProvider` interface; sessions/tools/permissions are provider-agnostic (`src/core/types.ts`'s `NeutralMessage`).
 6. Sub-agents ("co-work") — the `task` tool delegates independent work to a sub-agent with its own conversation but the same tools/permissions; multiple `task` calls in one turn run concurrently.
@@ -50,6 +50,8 @@ npm run dev
 > Streaming usage (`/cost`) reports `$0.00`/`0 tokens` for unrecognized model ids and for backends (like Ollama) that don't return `usage` in streamed responses — this is expected, not a bug.
 
 A loading indicator (spinner + label — "thinking", "running bash", etc.) shows whenever the agent is waiting on the model or a tool, in both UI modes — so a silent gap (e.g. after confirming a risky action) reads as "still working" rather than "did nothing happen?".
+
+**Markdown rendering:** tables/bold/headings/code can't be rendered correctly until the whole message is known (a half-streamed table looks broken either way), so the two UI modes make different trade-offs — Ink re-renders the *live* streaming text as markdown on every chunk (so it visibly settles into shape as more arrives), while the `readline` fallback buffers silently behind the "thinking" spinner and prints the fully rendered message once done (no character-by-character typing effect there, by design).
 
 ## Commands
 
