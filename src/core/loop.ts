@@ -16,7 +16,14 @@ async function runOneToolCall(
     return { toolCallId: call.id, isError: true, content: `Unknown tool "${call.name}"` };
   }
 
-  const ctx: ToolContext = { cwd: session.cwd, sessionId: session.id, signal: new AbortController().signal };
+  const ctx: ToolContext = {
+    cwd: session.cwd,
+    sessionId: session.id,
+    signal: new AbortController().signal,
+    history: session.history,
+    todos: session.todos,
+    ui,
+  };
 
   const decision = await permissions.check(tool, call.input, ctx);
   if (decision === "deny") {

@@ -48,6 +48,7 @@ Type `/` to see live autocomplete suggestions (Ink UI: arrow keys to select, Tab
 - `/help` — list all commands with descriptions
 - `/cost` — token usage and estimated cost for the session
 - `/clear` — clear the conversation history (same session id)
+- `/undo` — revert the most recent `write_file`/`edit_file` change made by the agent (a per-session stack, not just the last one — call it repeatedly to go further back)
 - `/sessions` — list saved sessions for this directory; `/sessions delete <id>` removes one
 - `/mcp list` / `/mcp reload` / `/mcp add <name> -- <command> [args...]` — manage MCP servers
 - `/exit` — quit

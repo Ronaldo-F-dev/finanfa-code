@@ -30,11 +30,15 @@ export const writeFileTool: ToolDefinition<WriteFileInput> = {
   },
   async handler(input, ctx) {
     const filePath = resolveWithinCwd(ctx.cwd, input.path);
-    const before = await readFile(filePath, "utf-8").catch(() => "");
-    const diff = createTwoFilesPatch(input.path, input.path, before, input.content);
+    const existing = await readFile(filePath, "utf-8").then(
+      (content) => ({ existed: true, content }),
+      () => ({ existed: false, content: "" }),
+    );
+    const diff = createTwoFilesPatch(input.path, input.path, existing.content, input.content);
 
     await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(filePath, input.content, "utf-8");
+    ctx.history?.push({ path: filePath, before: existing.existed ? existing.content : undefined });
 
     return { content: diff, isError: false };
   },

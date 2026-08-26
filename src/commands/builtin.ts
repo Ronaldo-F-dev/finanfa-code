@@ -1,5 +1,5 @@
 import path from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, rm, writeFile } from "node:fs/promises";
 import { AgentSession } from "../core/session.js";
 import { loadMcpServers, type McpServerConfig } from "../mcp/config.js";
 import { MCP_TOOL_PREFIX } from "../mcp/client-manager.js";
@@ -83,6 +83,25 @@ function parseMcpAddArgs(name: string, rest: string): McpServerConfig | undefine
   return { name, transport: "stdio", command, args };
 }
 
+async function handleUndo(ctx: CommandContext): Promise<CommandOutcome> {
+  const record = ctx.session.history.pop();
+  if (!record) {
+    ctx.ui.writeSystem("Nothing to undo.");
+    return "continue";
+  }
+
+  const relative = path.relative(ctx.cwd, record.path);
+  if (record.before === undefined) {
+    await rm(record.path, { force: true });
+    ctx.ui.writeSystem(`Undone: deleted ${relative} (it didn't exist before that change).`);
+  } else {
+    await mkdir(path.dirname(record.path), { recursive: true });
+    await writeFile(record.path, record.before, "utf-8");
+    ctx.ui.writeSystem(`Undone: restored ${relative} to its previous content.`);
+  }
+  return "continue";
+}
+
 async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
   const [sub, id] = ctx.args.trim().split(/\s+/);
 
@@ -140,6 +159,12 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
       return "continue";
     },
     "List available commands",
+  );
+
+  commands.register(
+    "undo",
+    handleUndo,
+    "Revert the most recent file write/edit made by the agent",
   );
 
   commands.register(

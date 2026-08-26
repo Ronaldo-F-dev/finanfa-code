@@ -66,6 +66,7 @@ export const editFileTool: ToolDefinition<EditFileInput> = {
     const before = await readFile(filePath, "utf-8");
     const after = applyEdit(before, input);
     await writeFile(filePath, after, "utf-8");
+    ctx.history?.push({ path: filePath, before });
     return { content: createTwoFilesPatch(input.path, input.path, before, after), isError: false };
   },
 };

@@ -1,3 +1,7 @@
+import type { EditHistory } from "./edit-history.js";
+import type { TodoStore } from "./todo-store.js";
+import type { UIAdapter } from "../ui/adapter.js";
+
 export type ToolRiskLevel = "safe" | "ask" | "dangerous";
 
 export interface JsonSchema {
@@ -17,6 +21,12 @@ export interface ToolContext {
   cwd: string;
   sessionId: string;
   signal: AbortSignal;
+  /** Per-session edit history, for /undo. Populated by the real agent loop; optional so direct unit tests don't need it. */
+  history?: EditHistory;
+  /** Per-session checklist, set by the todo_write tool and read by /todos. */
+  todos?: TodoStore;
+  /** The active UI adapter, for tools that want to show live feedback (e.g. todo_write). */
+  ui?: UIAdapter;
 }
 
 export interface ToolDefinition<TInput = any> {
