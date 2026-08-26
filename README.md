@@ -35,9 +35,17 @@ export FINANFA_MODEL=llama3.1:8b
 npm run dev
 ```
 
-For OpenRouter or Poolside: set `FINANFA_BASE_URL` to their API base URL (e.g. `https://openrouter.ai/api/v1`) and `FINANFA_API_KEY` to your key.
+For OpenRouter or Poolside, no code changes needed — just point at their base URL:
 
-> **Tool-calling reliability varies by local model.** Tested against Ollama: `llama3.1:8b` correctly emits structured `tool_calls`, end-to-end, including real `glob`/`bash` execution. `qwen2.5-coder:7b` instead wrote the tool call as plain JSON text rather than a structured delta — the model itself doesn't reliably use function-calling with this Ollama setup, not a bug in this codebase (verified: `toOpenAiMessages`/parsing round-trip correctly in tests). Prefer a model Ollama's library marks as supporting "tools".
+```bash
+export FINANFA_PROVIDER=openai-compatible
+export FINANFA_BASE_URL=https://inference.poolside.ai/v1
+export FINANFA_API_KEY=<your Poolside key>
+export FINANFA_MODEL=poolside/laguna-s-2.1
+npm run dev
+```
+
+> **Tool-calling reliability varies by model/provider.** Verified working end-to-end (real `tool_calls`, e.g. `glob`/`bash` actually executed): Poolside (`poolside/laguna-s-2.1`) and Ollama's `llama3.1:8b`. Poolside's responses include a `reasoning_content` field alongside `content` (thinking-by-default) — harmlessly ignored, since the provider only reads `delta.content`. Ollama's `qwen2.5-coder:7b` instead wrote the tool call as plain JSON text rather than a structured delta — the model itself doesn't reliably use function-calling with that setup, not a bug in this codebase (verified: `toOpenAiMessages`/parsing round-trip correctly in tests). Prefer a model known to support "tools"/function-calling.
 >
 > Streaming usage (`/cost`) reports `$0.00`/`0 tokens` for unrecognized model ids and for backends (like Ollama) that don't return `usage` in streamed responses — this is expected, not a bug.
 
