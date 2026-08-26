@@ -16,6 +16,8 @@ import { loadMcpServers } from "./mcp/config.js";
 import { loadPlugins } from "./plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "./skills/loader.js";
 import { createTaskTool } from "./tools/builtin/task.js";
+import { createBrowserTools } from "./tools/builtin/browser.js";
+import { BrowserManager } from "./browser/manager.js";
 import type { LlmProvider } from "./core/types.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible-provider.js";
@@ -92,7 +94,12 @@ async function resolveSession(
  * handling is redirected into a real SIGINT (see App.tsx) so both UI modes
  * go through this same path.
  */
-function registerShutdownHandlers(session: AgentSession, mcp: McpClientManager, ui: UIAdapter): void {
+function registerShutdownHandlers(
+  session: AgentSession,
+  mcp: McpClientManager,
+  browser: BrowserManager,
+  ui: UIAdapter,
+): void {
   let shuttingDown = false;
 
   const shutdown = async (): Promise<void> => {
@@ -109,6 +116,7 @@ function registerShutdownHandlers(session: AgentSession, mcp: McpClientManager, 
     } catch {
       // Best-effort on the way out.
     }
+    await browser.close().catch(() => {});
     ui.close();
     process.exit(0);
   };
@@ -166,11 +174,13 @@ export async function main(argv: string[]): Promise<void> {
   });
 
   const mcp = new McpClientManager();
-  registerShutdownHandlers(session, mcp, ui);
+  const browser = new BrowserManager();
+  registerShutdownHandlers(session, mcp, browser, ui);
   await connectMcpServers(cwd, mcp, ui);
   for (const def of await mcp.listAllTools()) tools.register(def);
 
   tools.register(createTaskTool({ provider, tools, permissions, ui, model, cwd }));
+  for (const tool of createBrowserTools(browser)) tools.register(tool);
 
   const commands = new CommandRegistry();
   registerBuiltinCommands(commands);
@@ -187,6 +197,7 @@ export async function main(argv: string[]): Promise<void> {
 
   await repl({ session, provider, ui, tools, permissions, mcp, commands, cwd });
   await mcp.disconnectAll();
+  await browser.close();
   ui.close();
 }
 

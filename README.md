@@ -7,7 +7,7 @@ A from-scratch AI coding agent CLI, built in TypeScript, with a pluggable LLM ba
 All 4 phases implemented, plus a multi-provider backend:
 
 1. Core agent loop — streaming conversation, session persistence, resume, cost tracking, prompt caching.
-2. Built-in tools — `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `bash`, `web_search`, `preview_html`, `task` — gated by a three-state permission model (allow/ask/deny) with a session "always allow" allowlist.
+2. Built-in tools — file/shell/search/browser/planning tools (full list below) — gated by a three-state permission model (allow/ask/deny) with a session "always allow" allowlist.
 3. Terminal UI — Ink (React) by default, with a `readline` fallback for non-TTY/CI use.
 4. Extensibility — MCP client (stdio and remote HTTP/SSE + OAuth servers), a filesystem plugin loader, and Markdown skill files.
 5. LLM providers — `AnthropicProvider` and a generic `OpenAiCompatibleProvider`, behind an `LlmProvider` interface; sessions/tools/permissions are provider-agnostic (`src/core/types.ts`'s `NeutralMessage`).
@@ -99,6 +99,7 @@ MCP is how finanfa-code connects to external accounts/services — skills and pl
 - `preview_html` — opens a local HTML file in the default browser, e.g. to show a UI mockup written with `write_file`.
 - `task` — delegates a self-contained piece of work to a sub-agent (same tools/permissions, its own conversation); multiple `task` calls in one assistant turn run concurrently.
 - `todo_write` — sets/replaces the task checklist shown live to the user (and via `/todos`); the agent is nudged to use it for multi-step work.
+- `browser_navigate` / `browser_click` / `browser_screenshot` — real browser automation via [Playwright](https://playwright.dev) (Chromium), for JavaScript-rendered pages `web_fetch` can't handle, or to visually inspect/click through a page. One headless browser session persists across calls within a run. Requires the Chromium binary: `npx playwright-core install chromium` (not `npx playwright install` — this project depends on the lighter `playwright-core`, which has no bundled CLI download step of its own).
 
 ## Tests
 
@@ -107,4 +108,4 @@ npm run typecheck
 npm test
 ```
 
-Includes real end-to-end tests: a fixture MCP server over stdio (`test/mcp/client-manager.test.ts`) and over Streamable HTTP (`test/mcp/client-manager-http.test.ts`), unit tests for the OAuth client provider (`test/mcp/oauth-provider.test.ts`), and orchestration tests for parallel `task` sub-agent execution (`test/tools/task.test.ts`).
+Includes real end-to-end tests: a fixture MCP server over stdio (`test/mcp/client-manager.test.ts`) and over Streamable HTTP (`test/mcp/client-manager-http.test.ts`), unit tests for the OAuth client provider (`test/mcp/oauth-provider.test.ts`), orchestration tests for parallel `task` sub-agent execution (`test/tools/task.test.ts`), and real Chromium navigation/click/screenshot tests (`test/browser/manager.test.ts`) — the latter needs `npx playwright-core install chromium` first, same as running the tool for real.
