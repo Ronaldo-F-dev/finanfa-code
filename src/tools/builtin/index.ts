@@ -5,6 +5,8 @@ import { editFileTool } from "./edit-file.js";
 import { globTool } from "./glob.js";
 import { grepTool } from "./grep.js";
 import { bashTool } from "./bash.js";
+import { webSearchTool } from "./web-search.js";
+import { previewHtmlTool } from "./preview-html.js";
 
 export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(readFileTool);
@@ -13,4 +15,6 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(globTool);
   registry.register(grepTool);
   registry.register(bashTool);
+  registry.register(webSearchTool);
+  registry.register(previewHtmlTool);
 }

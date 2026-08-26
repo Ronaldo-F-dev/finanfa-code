@@ -7,10 +7,11 @@ A from-scratch AI coding agent CLI, built in TypeScript, with a pluggable LLM ba
 All 4 phases implemented, plus a multi-provider backend:
 
 1. Core agent loop — streaming conversation, session persistence, resume, cost tracking, prompt caching.
-2. Built-in tools — `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `bash` — gated by a three-state permission model (allow/ask/deny) with a session "always allow" allowlist.
+2. Built-in tools — `read_file`, `write_file`, `edit_file`, `glob`, `grep`, `bash`, `web_search`, `preview_html`, `task` — gated by a three-state permission model (allow/ask/deny) with a session "always allow" allowlist.
 3. Terminal UI — Ink (React) by default, with a `readline` fallback for non-TTY/CI use.
-4. Extensibility — MCP client (stdio servers), a filesystem plugin loader, and Markdown skill files.
+4. Extensibility — MCP client (stdio and remote HTTP/SSE + OAuth servers), a filesystem plugin loader, and Markdown skill files.
 5. LLM providers — `AnthropicProvider` and a generic `OpenAiCompatibleProvider`, behind an `LlmProvider` interface; sessions/tools/permissions are provider-agnostic (`src/core/types.ts`'s `NeutralMessage`).
+6. Sub-agents ("co-work") — the `task` tool delegates independent work to a sub-agent with its own conversation but the same tools/permissions; multiple `task` calls in one turn run concurrently.
 
 ## Setup
 
@@ -87,6 +88,14 @@ MCP is how finanfa-code connects to external accounts/services — skills and pl
   ```
   If the server responds 401, finanfa-code opens the authorization URL in your browser (and prints it, for headless environments) via a temporary local callback server on `http://127.0.0.1:51789/callback`. Client registration and tokens are persisted per-server under `~/.finanfa-code/mcp-auth/<server-name>/`, so you only authorize once.
 
+**More connectors (Notion, Google Drive, Figma, Trello, Spotify, ...):** the `http`/`sse` + OAuth support above works with *any* MCP server implementing the spec — it's not limited to GitHub. Notion publishes an official hosted MCP server; several of the others have community-maintained ones. Their exact URLs/packages change over time, so look up the current one for the service you want and `/mcp add <name> --url <url>` it (or the stdio form, if it's a local package) — no code changes needed here.
+
+## Other built-in tools
+
+- `web_search` — Brave Search API; requires `BRAVE_API_KEY` (free tier at https://brave.com/search/api/). Without it, the tool returns a clear "not configured" error rather than failing silently.
+- `preview_html` — opens a local HTML file in the default browser, e.g. to show a UI mockup written with `write_file`.
+- `task` — delegates a self-contained piece of work to a sub-agent (same tools/permissions, its own conversation); multiple `task` calls in one assistant turn run concurrently.
+
 ## Tests
 
 ```bash
@@ -94,4 +103,4 @@ npm run typecheck
 npm test
 ```
 
-Includes real end-to-end tests: a fixture MCP server over stdio (`test/mcp/client-manager.test.ts`) and over Streamable HTTP (`test/mcp/client-manager-http.test.ts`), plus unit tests for the OAuth client provider (`test/mcp/oauth-provider.test.ts`).
+Includes real end-to-end tests: a fixture MCP server over stdio (`test/mcp/client-manager.test.ts`) and over Streamable HTTP (`test/mcp/client-manager-http.test.ts`), unit tests for the OAuth client provider (`test/mcp/oauth-provider.test.ts`), and orchestration tests for parallel `task` sub-agent execution (`test/tools/task.test.ts`).

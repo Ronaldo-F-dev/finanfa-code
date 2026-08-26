@@ -32,6 +32,39 @@ async function runOneToolCall(
   }
 }
 
+/**
+ * Runs a batch of tool calls. Regular tools run sequentially (order and
+ * one-at-a-time permission prompts matter for file/shell operations); "task"
+ * sub-agent calls are explicitly independent, so any of those in the same
+ * batch run concurrently for real parallelism ("co-work").
+ */
+async function runToolCallBatch(
+  toolCalls: NeutralToolCall[],
+  session: AgentSession,
+  ui: UIAdapter,
+  tools: ToolRegistry,
+  permissions: PermissionManager,
+): Promise<NeutralToolResult[]> {
+  const results = new Array<NeutralToolResult>(toolCalls.length);
+  const taskIndices: number[] = [];
+
+  for (const [i, call] of toolCalls.entries()) {
+    if (call.name === "task") {
+      taskIndices.push(i);
+      continue;
+    }
+    results[i] = await runOneToolCall(call, session, ui, tools, permissions);
+  }
+
+  await Promise.all(
+    taskIndices.map(async (i) => {
+      results[i] = await runOneToolCall(toolCalls[i], session, ui, tools, permissions);
+    }),
+  );
+
+  return results;
+}
+
 export async function runTurn(
   session: AgentSession,
   provider: LlmProvider,
@@ -66,10 +99,7 @@ export async function runTurn(
       return;
     }
 
-    const results: NeutralToolResult[] = [];
-    for (const call of toolCalls) {
-      results.push(await runOneToolCall(call, session, ui, tools, permissions));
-    }
+    const results = await runToolCallBatch(toolCalls, session, ui, tools, permissions);
 
     session.messages.push({ role: "tool", results });
     await session.persist();

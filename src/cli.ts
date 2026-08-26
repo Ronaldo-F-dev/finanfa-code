@@ -14,13 +14,16 @@ import { McpClientManager } from "./mcp/client-manager.js";
 import { loadMcpServers } from "./mcp/config.js";
 import { loadPlugins } from "./plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "./skills/loader.js";
+import { createTaskTool } from "./tools/builtin/task.js";
 import type { LlmProvider } from "./core/types.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible-provider.js";
 
 const BASE_SYSTEM_PROMPT =
   "You are finanfa-code, a helpful coding assistant with access to file and shell tools. " +
-  "Prefer edit_file over write_file for existing files. Always explain what you're about to do before calling a tool.";
+  "Prefer edit_file over write_file for existing files. Always explain what you're about to do before calling a tool. " +
+  "When asked to design or mock up a UI, write a clean, single-file HTML/CSS/JS mockup with write_file, then offer " +
+  "to open it for the user with preview_html. Delegate independent, parallelizable pieces of work to the task tool.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {
@@ -164,6 +167,8 @@ export async function main(argv: string[]): Promise<void> {
   registerShutdownHandlers(session, mcp, ui);
   await connectMcpServers(cwd, mcp, ui);
   for (const def of await mcp.listAllTools()) tools.register(def);
+
+  tools.register(createTaskTool({ provider, tools, permissions, ui, model, cwd }));
 
   const commands = new CommandRegistry();
   registerBuiltinCommands(commands);

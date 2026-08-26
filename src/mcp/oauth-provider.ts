@@ -8,7 +8,7 @@ import type {
   OAuthClientMetadata,
   OAuthTokens,
 } from "@modelcontextprotocol/sdk/shared/auth.js";
-import { openUrl } from "./open-url.js";
+import { openUrl } from "../util/open-url.js";
 
 const DEFAULT_CALLBACK_PORT = 51789;
 
