@@ -10,6 +10,7 @@ import { PermissionManager } from "./permissions/manager.js";
 import { loadPermissionConfig } from "./permissions/config.js";
 import { CommandRegistry } from "./commands/registry.js";
 import { registerBuiltinCommands } from "./commands/builtin.js";
+import type { CommandOutcome } from "./commands/types.js";
 import { McpClientManager } from "./mcp/client-manager.js";
 import { loadMcpServers } from "./mcp/config.js";
 import { loadPlugins } from "./plugins/loader.js";
@@ -23,7 +24,8 @@ const BASE_SYSTEM_PROMPT =
   "You are finanfa-code, a helpful coding assistant with access to file and shell tools. " +
   "Prefer edit_file over write_file for existing files. Always explain what you're about to do before calling a tool. " +
   "When asked to design or mock up a UI, write a clean, single-file HTML/CSS/JS mockup with write_file, then offer " +
-  "to open it for the user with preview_html. Delegate independent, parallelizable pieces of work to the task tool.";
+  "to open it for the user with preview_html. Delegate independent, parallelizable pieces of work to the task tool. " +
+  "For any multi-step task, use todo_write up front to plan the steps, and update it as you complete each one.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {
@@ -183,35 +185,44 @@ export async function main(argv: string[]): Promise<void> {
   if (opts.yolo) ui.writeSystem("⚠ --yolo: all tool calls will be auto-approved");
   ui.writeSystem(`Type / to see available commands, or /help for details.`);
 
-  await repl(session, provider, ui, tools, permissions, mcp, commands, cwd);
+  await repl({ session, provider, ui, tools, permissions, mcp, commands, cwd });
   await mcp.disconnectAll();
   ui.close();
 }
 
-async function repl(
-  session: AgentSession,
-  provider: LlmProvider,
-  ui: UIAdapter,
-  tools: ToolRegistry,
-  permissions: PermissionManager,
-  mcp: McpClientManager,
-  commands: CommandRegistry,
-  cwd: string,
-): Promise<void> {
+interface ReplDeps {
+  session: AgentSession;
+  provider: LlmProvider;
+  ui: UIAdapter;
+  tools: ToolRegistry;
+  permissions: PermissionManager;
+  mcp: McpClientManager;
+  commands: CommandRegistry;
+  cwd: string;
+}
+
+async function runSlashCommand(deps: ReplDeps, trimmed: string): Promise<CommandOutcome> {
+  const { ui, commands } = deps;
+  const [name, ...rest] = trimmed.slice(1).split(/\s+/);
+  const handler = commands.get(name);
+  if (!handler) {
+    const available = commands.names().map((n) => `/${n}`).join(", ");
+    ui.writeError(`Unknown command "/${name}". Available: ${available}`);
+    return "continue";
+  }
+  return handler({ ...deps, args: rest.join(" ") });
+}
+
+async function repl(deps: ReplDeps): Promise<void> {
+  const { ui, session, provider, tools, permissions } = deps;
+
   for (;;) {
     const input = await ui.askUser("\n> ");
     const trimmed = input.trim();
     if (trimmed === "") continue;
 
     if (trimmed.startsWith("/")) {
-      const [name, ...rest] = trimmed.slice(1).split(/\s+/);
-      const handler = commands.get(name);
-      if (!handler) {
-        ui.writeError(`Unknown command "/${name}". Available: ${commands.names().map((n) => `/${n}`).join(", ")}`);
-        continue;
-      }
-      const outcome = await handler({ session, ui, tools, permissions, mcp, cwd, args: rest.join(" ") });
-      if (outcome === "exit") return;
+      if ((await runSlashCommand(deps, trimmed)) === "exit") return;
       continue;
     }
 

@@ -102,6 +102,11 @@ async function handleUndo(ctx: CommandContext): Promise<CommandOutcome> {
   return "continue";
 }
 
+function handleTodos(ctx: CommandContext): CommandOutcome {
+  ctx.ui.writeSystem(ctx.session.todos.format());
+  return "continue";
+}
+
 async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
   const [sub, id] = ctx.args.trim().split(/\s+/);
 
@@ -166,6 +171,8 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
     handleUndo,
     "Revert the most recent file write/edit made by the agent",
   );
+
+  commands.register("todos", handleTodos, "Show the current task checklist");
 
   commands.register(
     "mcp",

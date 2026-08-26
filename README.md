@@ -49,6 +49,7 @@ Type `/` to see live autocomplete suggestions (Ink UI: arrow keys to select, Tab
 - `/cost` — token usage and estimated cost for the session
 - `/clear` — clear the conversation history (same session id)
 - `/undo` — revert the most recent `write_file`/`edit_file` change made by the agent (a per-session stack, not just the last one — call it repeatedly to go further back)
+- `/todos` — show the current task checklist (set by the agent via the `todo_write` tool)
 - `/sessions` — list saved sessions for this directory; `/sessions delete <id>` removes one
 - `/mcp list` / `/mcp reload` / `/mcp add <name> -- <command> [args...]` — manage MCP servers
 - `/exit` — quit
@@ -96,6 +97,7 @@ MCP is how finanfa-code connects to external accounts/services — skills and pl
 - `web_search` — Brave Search API; requires `BRAVE_API_KEY` (free tier at https://brave.com/search/api/). Without it, the tool returns a clear "not configured" error rather than failing silently.
 - `preview_html` — opens a local HTML file in the default browser, e.g. to show a UI mockup written with `write_file`.
 - `task` — delegates a self-contained piece of work to a sub-agent (same tools/permissions, its own conversation); multiple `task` calls in one assistant turn run concurrently.
+- `todo_write` — sets/replaces the task checklist shown live to the user (and via `/todos`); the agent is nudged to use it for multi-step work.
 
 ## Tests
 
