@@ -1,7 +1,9 @@
 import { Command } from "commander";
 import { AgentSession } from "./core/session.js";
 import { runTurn } from "./core/loop.js";
+import type { UIAdapter } from "./ui/adapter.js";
 import { createReadlineAdapter } from "./ui/readline-adapter.js";
+import { createInkAdapter } from "./ui/ink/ink-adapter.js";
 import { ToolRegistry } from "./tools/registry.js";
 import { registerBuiltins } from "./tools/builtin/index.js";
 import { PermissionManager } from "./permissions/manager.js";
@@ -18,6 +20,14 @@ interface CliOptions {
   model: string;
   yolo?: boolean;
   nonInteractive?: boolean;
+  ui: "ink" | "readline";
+}
+
+function createUi(mode: "ink" | "readline"): UIAdapter {
+  // Ink needs an interactive TTY to manage raw input/output; fall back to the
+  // readline adapter automatically when stdin isn't one (e.g. CI, pipes).
+  if (mode === "ink" && process.stdin.isTTY) return createInkAdapter();
+  return createReadlineAdapter();
 }
 
 async function resolveSession(cwd: string, opts: CliOptions): Promise<AgentSession> {
@@ -41,13 +51,14 @@ export async function main(argv: string[]): Promise<void> {
     .option("-m, --model <model>", "model to use", DEFAULT_MODEL)
     .option("--yolo", "auto-approve every tool call without prompting (dangerous)")
     .option("--non-interactive", "never prompt; auto-deny anything not pre-allowed by config")
+    .option("--ui <mode>", "terminal UI: ink or readline", "ink")
     .parse(argv);
 
   const opts = program.opts<CliOptions>();
   const cwd = process.cwd();
   const session = await resolveSession(cwd, opts);
 
-  const ui = createReadlineAdapter();
+  const ui = createUi(opts.ui);
   const tools = new ToolRegistry();
   registerBuiltins(tools);
 
@@ -68,7 +79,7 @@ export async function main(argv: string[]): Promise<void> {
   ui.close();
 }
 
-function printCost(ui: ReturnType<typeof createReadlineAdapter>): void {
+function printCost(ui: UIAdapter): void {
   const status = ui.getStatus();
   ui.writeSystem(
     status
@@ -79,7 +90,7 @@ function printCost(ui: ReturnType<typeof createReadlineAdapter>): void {
 
 async function repl(
   session: AgentSession,
-  ui: ReturnType<typeof createReadlineAdapter>,
+  ui: UIAdapter,
   tools: ToolRegistry,
   permissions: PermissionManager,
 ): Promise<void> {

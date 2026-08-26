@@ -67,7 +67,7 @@ export class PermissionManager {
   private async promptUser(toolName: string, summary: string, preview?: string): Promise<AskAnswer> {
     const previewBlock = preview ? `\n${preview}\n` : "";
     const prompt = `\nfinanfa-code wants to run "${toolName}": ${summary}${previewBlock}\n[y]es / [n]o / [a]lways this session / [t]ool always allowed > `;
-    const raw = (await this.ui.askUser(prompt)).trim().toLowerCase();
+    const raw = (await this.ui.askUser(prompt, "confirm")).trim().toLowerCase();
     switch (raw) {
       case "a":
       case "always":
