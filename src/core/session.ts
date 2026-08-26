@@ -2,7 +2,7 @@ import { randomUUID, createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import type { AnthropicMessageParam, UsageTotals } from "./types.js";
+import type { NeutralMessage, UsageTotals } from "./types.js";
 import { estimateCostUsd } from "./pricing.js";
 
 export interface SessionFile {
@@ -10,7 +10,7 @@ export interface SessionFile {
   createdAt: string;
   cwd: string;
   model: string;
-  messages: AnthropicMessageParam[];
+  messages: NeutralMessage[];
   usage: UsageTotals;
 }
 
@@ -29,7 +29,7 @@ export class AgentSession {
   readonly cwd: string;
   readonly model: string;
   readonly systemPrompt: string;
-  messages: AnthropicMessageParam[] = [];
+  messages: NeutralMessage[] = [];
   usage: UsageTotals = { inputTokens: 0, outputTokens: 0 };
 
   constructor(opts: { id?: string; cwd: string; model: string; systemPrompt: string }) {

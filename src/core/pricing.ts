@@ -10,6 +10,8 @@ export function estimateCostUsd(
   inputTokens: number,
   outputTokens: number,
 ): number {
-  const rate = PRICING[model] ?? PRICING["claude-sonnet-5"];
+  // Unknown model id (local model, free-tier provider, ...) → assume $0 rather
+  // than silently borrowing Anthropic pricing for an unrelated model.
+  const rate = PRICING[model] ?? { input: 0, output: 0 };
   return (inputTokens / 1_000_000) * rate.input + (outputTokens / 1_000_000) * rate.output;
 }

@@ -1,42 +1,58 @@
-import Anthropic from "@anthropic-ai/sdk";
 import type { AgentSession } from "./session.js";
 import type { UIAdapter } from "../ui/adapter.js";
 import type { ToolRegistry } from "../tools/registry.js";
 import type { PermissionManager } from "../permissions/manager.js";
-import type { ToolContext } from "./types.js";
+import type { LlmProvider, NeutralToolCall, NeutralToolResult, ToolContext } from "./types.js";
 
-const client = new Anthropic();
+async function runOneToolCall(
+  call: NeutralToolCall,
+  session: AgentSession,
+  ui: UIAdapter,
+  tools: ToolRegistry,
+  permissions: PermissionManager,
+): Promise<NeutralToolResult> {
+  const tool = tools.get(call.name);
+  if (!tool) {
+    return { toolCallId: call.id, isError: true, content: `Unknown tool "${call.name}"` };
+  }
+
+  const ctx: ToolContext = { cwd: session.cwd, sessionId: session.id, signal: new AbortController().signal };
+
+  const decision = await permissions.check(tool, call.input, ctx);
+  if (decision === "deny") {
+    return { toolCallId: call.id, isError: true, content: "User declined to run this tool." };
+  }
+
+  ui.writeSystem(`→ ${tool.name}: ${tool.describeCall ? tool.describeCall(call.input) : ""}`);
+  try {
+    const result = await tool.handler(call.input, ctx);
+    return { toolCallId: call.id, isError: result.isError, content: result.content };
+  } catch (err) {
+    return { toolCallId: call.id, isError: true, content: err instanceof Error ? err.message : String(err) };
+  }
+}
 
 export async function runTurn(
   session: AgentSession,
+  provider: LlmProvider,
   ui: UIAdapter,
   tools: ToolRegistry,
   permissions: PermissionManager,
   userInput: string,
 ): Promise<void> {
   session.messages.push({ role: "user", content: userInput });
-  const toolList = tools.toAnthropicToolList();
-  // Mark the system prompt and the (stable, per-session) tool list as cacheable:
-  // both are identical across every turn of a session, so this meaningfully
-  // cuts input-token cost on longer conversations.
-  if (toolList.length > 0) {
-    toolList[toolList.length - 1].cache_control = { type: "ephemeral" };
-  }
 
   for (;;) {
-    const stream = client.messages.stream({
+    const result = await provider.streamTurn({
       model: session.model,
-      max_tokens: 8192,
-      system: [{ type: "text", text: session.systemPrompt, cache_control: { type: "ephemeral" } }],
+      systemPrompt: session.systemPrompt,
       messages: session.messages,
-      tools: toolList.length > 0 ? toolList : undefined,
+      tools: tools.list(),
+      onTextDelta: (text) => ui.writeAssistantDelta(text),
     });
 
-    stream.on("text", (delta) => ui.writeAssistantDelta(delta));
-
-    const message = await stream.finalMessage();
-    session.messages.push({ role: "assistant", content: message.content });
-    session.recordUsage(message.usage.input_tokens, message.usage.output_tokens);
+    session.messages.push(result.assistantMessage);
+    session.recordUsage(result.usage.inputTokens, result.usage.outputTokens);
 
     ui.setStatus({
       tokens: session.usage.inputTokens + session.usage.outputTokens,
@@ -45,64 +61,17 @@ export async function runTurn(
     });
     await session.persist();
 
-    if (message.stop_reason !== "tool_use") {
-      if (message.stop_reason === "refusal") {
-        ui.writeSystem("(the model declined to continue this turn)");
-      }
+    const toolCalls = result.assistantMessage.toolCalls;
+    if (result.stopReason !== "tool_use" || !toolCalls?.length) {
       return;
     }
 
-    const toolUses = message.content.filter(
-      (b): b is Anthropic.ToolUseBlock => b.type === "tool_use",
-    );
-    const results: Anthropic.ToolResultBlockParam[] = [];
-
-    for (const call of toolUses) {
-      const tool = tools.get(call.name);
-      if (!tool) {
-        results.push({
-          type: "tool_result",
-          tool_use_id: call.id,
-          is_error: true,
-          content: `Unknown tool "${call.name}"`,
-        });
-        continue;
-      }
-
-      const controller = new AbortController();
-      const ctx: ToolContext = { cwd: session.cwd, sessionId: session.id, signal: controller.signal };
-
-      const decision = await permissions.check(tool, call.input, ctx);
-      if (decision === "deny") {
-        results.push({
-          type: "tool_result",
-          tool_use_id: call.id,
-          is_error: true,
-          content: "User declined to run this tool.",
-        });
-        continue;
-      }
-
-      ui.writeSystem(`→ ${tool.name}: ${tool.describeCall ? tool.describeCall(call.input) : ""}`);
-      try {
-        const result = await tool.handler(call.input, ctx);
-        results.push({
-          type: "tool_result",
-          tool_use_id: call.id,
-          is_error: result.isError,
-          content: result.content,
-        });
-      } catch (err) {
-        results.push({
-          type: "tool_result",
-          tool_use_id: call.id,
-          is_error: true,
-          content: err instanceof Error ? err.message : String(err),
-        });
-      }
+    const results: NeutralToolResult[] = [];
+    for (const call of toolCalls) {
+      results.push(await runOneToolCall(call, session, ui, tools, permissions));
     }
 
-    session.messages.push({ role: "user", content: results });
+    session.messages.push({ role: "tool", results });
     await session.persist();
   }
 }

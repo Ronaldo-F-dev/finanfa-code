@@ -1,5 +1,3 @@
-import type Anthropic from "@anthropic-ai/sdk";
-
 export type ToolRiskLevel = "safe" | "ask" | "dangerous";
 
 export interface JsonSchema {
@@ -44,4 +42,45 @@ export interface UsageTotals {
   outputTokens: number;
 }
 
-export type AnthropicMessageParam = Anthropic.MessageParam;
+// --- Provider-agnostic conversation model -----------------------------
+// Every LlmProvider speaks its own wire format (Anthropic content blocks,
+// OpenAI-style tool_calls, ...). Sessions are persisted and the agent loop
+// operates on this neutral shape instead, so swapping providers doesn't
+// touch session storage or the loop itself.
+
+export interface NeutralToolCall {
+  id: string;
+  name: string;
+  input: unknown;
+}
+
+export interface NeutralToolResult {
+  toolCallId: string;
+  content: string;
+  isError: boolean;
+}
+
+export type NeutralMessage =
+  | { role: "user"; content: string }
+  | { role: "assistant"; content: string; toolCalls?: NeutralToolCall[] }
+  | { role: "tool"; results: NeutralToolResult[] };
+
+export type StopReason = "tool_use" | "end_turn" | "other";
+
+export interface StreamTurnParams {
+  model: string;
+  systemPrompt: string;
+  messages: NeutralMessage[];
+  tools: ToolDefinition[];
+  onTextDelta: (text: string) => void;
+}
+
+export interface StreamTurnResult {
+  assistantMessage: Extract<NeutralMessage, { role: "assistant" }>;
+  usage: UsageTotals;
+  stopReason: StopReason;
+}
+
+export interface LlmProvider {
+  streamTurn(params: StreamTurnParams): Promise<StreamTurnResult>;
+}

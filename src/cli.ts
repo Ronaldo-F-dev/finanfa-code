@@ -14,19 +14,48 @@ import { McpClientManager } from "./mcp/client-manager.js";
 import { loadMcpServers } from "./mcp/config.js";
 import { loadPlugins } from "./plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "./skills/loader.js";
+import type { LlmProvider } from "./core/types.js";
+import { AnthropicProvider } from "./providers/anthropic-provider.js";
+import { OpenAiCompatibleProvider } from "./providers/openai-compatible-provider.js";
 
 const BASE_SYSTEM_PROMPT =
   "You are finanfa-code, a helpful coding assistant with access to file and shell tools. " +
   "Prefer edit_file over write_file for existing files. Always explain what you're about to do before calling a tool.";
-const DEFAULT_MODEL = "claude-sonnet-5";
+const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {
   resume?: string;
   continue?: boolean;
-  model: string;
+  model?: string;
   yolo?: boolean;
   nonInteractive?: boolean;
   ui: "ink" | "readline";
+}
+
+/**
+ * Picks the LLM backend from environment variables:
+ *  - default: Anthropic, using ANTHROPIC_API_KEY
+ *  - FINANFA_PROVIDER=openai-compatible: any server speaking the OpenAI
+ *    chat-completions wire format — Ollama (local, free), OpenRouter,
+ *    Poolside, LM Studio, vLLM, etc. — configured via FINANFA_BASE_URL /
+ *    FINANFA_API_KEY / FINANFA_MODEL.
+ */
+function selectProvider(): { provider: LlmProvider; defaultModel: string } {
+  if (process.env.FINANFA_PROVIDER === "openai-compatible") {
+    const baseUrl = process.env.FINANFA_BASE_URL;
+    const model = process.env.FINANFA_MODEL;
+    if (!baseUrl || !model) {
+      throw new Error(
+        "FINANFA_PROVIDER=openai-compatible requires FINANFA_BASE_URL and FINANFA_MODEL " +
+          "(FINANFA_API_KEY is optional, e.g. for a local Ollama server that needs no key).",
+      );
+    }
+    return {
+      provider: new OpenAiCompatibleProvider({ baseUrl, apiKey: process.env.FINANFA_API_KEY }),
+      defaultModel: model,
+    };
+  }
+  return { provider: new AnthropicProvider(process.env.ANTHROPIC_API_KEY), defaultModel: DEFAULT_ANTHROPIC_MODEL };
 }
 
 function createUi(mode: "ink" | "readline"): UIAdapter {
@@ -39,6 +68,7 @@ function createUi(mode: "ink" | "readline"): UIAdapter {
 async function resolveSession(
   cwd: string,
   opts: CliOptions,
+  model: string,
   systemPrompt: string,
 ): Promise<AgentSession> {
   if (opts.resume) {
@@ -48,7 +78,7 @@ async function resolveSession(
     const latest = await AgentSession.findLatest(cwd);
     if (latest) return AgentSession.resume(cwd, latest, systemPrompt);
   }
-  return new AgentSession({ cwd, model: opts.model, systemPrompt });
+  return new AgentSession({ cwd, model, systemPrompt });
 }
 
 async function connectMcpServers(cwd: string, mcp: McpClientManager, ui: UIAdapter): Promise<void> {
@@ -69,7 +99,7 @@ export async function main(argv: string[]): Promise<void> {
     .description("finanfa-code: a from-scratch AI coding agent CLI")
     .option("-r, --resume <sessionId>", "resume a specific session by id")
     .option("-c, --continue", "resume the most recent session for this directory")
-    .option("-m, --model <model>", "model to use", DEFAULT_MODEL)
+    .option("-m, --model <model>", "model to use (defaults depend on the active provider)")
     .option("--yolo", "auto-approve every tool call without prompting (dangerous)")
     .option("--non-interactive", "never prompt; auto-deny anything not pre-allowed by config")
     .option("--ui <mode>", "terminal UI: ink or readline", "ink")
@@ -79,6 +109,9 @@ export async function main(argv: string[]): Promise<void> {
   const cwd = process.cwd();
   const ui = createUi(opts.ui);
 
+  const { provider, defaultModel } = selectProvider();
+  const model = opts.model ?? defaultModel;
+
   const tools = new ToolRegistry();
   registerBuiltins(tools);
 
@@ -86,7 +119,7 @@ export async function main(argv: string[]): Promise<void> {
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
   const systemPrompt = BASE_SYSTEM_PROMPT + formatSkillIndex(skills);
 
-  const session = await resolveSession(cwd, opts, systemPrompt);
+  const session = await resolveSession(cwd, opts, model, systemPrompt);
 
   const permissionConfig = await loadPermissionConfig(cwd);
   const permissions = new PermissionManager({
@@ -104,20 +137,22 @@ export async function main(argv: string[]): Promise<void> {
   registerBuiltinCommands(commands);
   const plugins = await loadPlugins(cwd, tools, commands);
 
-  ui.writeSystem(`finanfa-code — session ${session.id} (${session.model})`);
+  const providerLabel = process.env.FINANFA_PROVIDER === "openai-compatible" ? "openai-compatible" : "anthropic";
+  ui.writeSystem(`finanfa-code — session ${session.id} (${session.model} via ${providerLabel})`);
   ui.writeSystem(`Tools: ${tools.list().map((t) => t.name).join(", ")}`);
   if (mcp.connectedServers().length > 0) ui.writeSystem(`MCP servers: ${mcp.connectedServers().join(", ")}`);
   if (plugins.length > 0) ui.writeSystem(`Plugins: ${plugins.join(", ")}`);
   if (opts.yolo) ui.writeSystem("⚠ --yolo: all tool calls will be auto-approved");
   ui.writeSystem(`Commands: ${commands.names().map((n) => `/${n}`).join(", ")}`);
 
-  await repl(session, ui, tools, permissions, mcp, commands, cwd);
+  await repl(session, provider, ui, tools, permissions, mcp, commands, cwd);
   await mcp.disconnectAll();
   ui.close();
 }
 
 async function repl(
   session: AgentSession,
+  provider: LlmProvider,
   ui: UIAdapter,
   tools: ToolRegistry,
   permissions: PermissionManager,
@@ -143,7 +178,7 @@ async function repl(
     }
 
     try {
-      await runTurn(session, ui, tools, permissions, trimmed);
+      await runTurn(session, provider, ui, tools, permissions, trimmed);
     } catch (err) {
       ui.writeError(err instanceof Error ? err.message : String(err));
     }
