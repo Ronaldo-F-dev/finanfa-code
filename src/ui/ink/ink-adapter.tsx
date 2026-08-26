@@ -21,6 +21,11 @@ export function createInkAdapter(): UIAdapter {
         resolve(value);
       }}
     />,
+    // Ink's default Ctrl+C handling just unmounts the app without running our
+    // shutdown logic (session persistence, closing MCP connections). We
+    // handle Ctrl+C ourselves (see App.tsx) and raise a real SIGINT instead,
+    // so both UI modes go through the one shutdown path in cli.ts.
+    { exitOnCtrlC: false },
   );
 
   return {

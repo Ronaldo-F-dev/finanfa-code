@@ -81,6 +81,37 @@ async function resolveSession(
   return new AgentSession({ cwd, model, systemPrompt });
 }
 
+/**
+ * Persists the session and closes MCP connections before exiting, instead of
+ * letting SIGINT/SIGTERM kill the process mid-write. Ink's raw-mode Ctrl+C
+ * handling is redirected into a real SIGINT (see App.tsx) so both UI modes
+ * go through this same path.
+ */
+function registerShutdownHandlers(session: AgentSession, mcp: McpClientManager, ui: UIAdapter): void {
+  let shuttingDown = false;
+
+  const shutdown = async (): Promise<void> => {
+    if (shuttingDown) return;
+    shuttingDown = true;
+    ui.writeSystem("Interrupted — saving session and closing connections...");
+    try {
+      await session.persist();
+    } catch (err) {
+      ui.writeError(`Failed to save session: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    try {
+      await mcp.disconnectAll();
+    } catch {
+      // Best-effort on the way out.
+    }
+    ui.close();
+    process.exit(0);
+  };
+
+  process.on("SIGINT", () => void shutdown());
+  process.on("SIGTERM", () => void shutdown());
+}
+
 async function connectMcpServers(cwd: string, mcp: McpClientManager, ui: UIAdapter): Promise<void> {
   const servers = await loadMcpServers(cwd);
   for (const server of servers) {
@@ -130,6 +161,7 @@ export async function main(argv: string[]): Promise<void> {
   });
 
   const mcp = new McpClientManager();
+  registerShutdownHandlers(session, mcp, ui);
   await connectMcpServers(cwd, mcp, ui);
   for (const def of await mcp.listAllTools()) tools.register(def);
 

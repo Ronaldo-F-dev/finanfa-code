@@ -35,6 +35,16 @@ export function App({
 
   const clampedIndex = Math.min(selectedIndex, Math.max(0, suggestions.length - 1));
 
+  // Ink's raw mode swallows the terminal's own Ctrl+C -> SIGINT handling, so
+  // we translate it back into a real signal ourselves — this lets cli.ts's
+  // process.on("SIGINT", ...) shutdown handler run the same way it does for
+  // the readline UI (persist the session, close MCP connections, exit).
+  useInput((keyInput, key) => {
+    if (key.ctrl && keyInput === "c") {
+      process.kill(process.pid, "SIGINT");
+    }
+  });
+
   useInput(
     (_char, key) => {
       if (key.tab) {

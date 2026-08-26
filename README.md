@@ -51,6 +51,8 @@ Type `/` to see live autocomplete suggestions (Ink UI: arrow keys to select, Tab
 - `/mcp list` / `/mcp reload` / `/mcp add <name> -- <command> [args...]` — manage MCP servers
 - `/exit` — quit
 
+Ctrl+C (or `kill -TERM`) triggers a graceful shutdown in both UI modes: the current session is persisted and MCP connections are closed before exit, instead of an abrupt kill.
+
 ## CLI flags
 
 - `-r, --resume <sessionId>` / `-c, --continue`
