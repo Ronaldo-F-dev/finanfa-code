@@ -5,46 +5,74 @@ interface WebSearchInput {
   count?: number;
 }
 
-interface BraveWebResult {
+interface SearchResult {
   title: string;
   url: string;
-  description: string;
+  snippet: string;
 }
 
-interface BraveSearchResponse {
-  web?: { results?: BraveWebResult[] };
+const DDG_HTML_ENDPOINT = "https://html.duckduckgo.com/html/";
+const USER_AGENT = "Mozilla/5.0 (compatible; finanfa-code/0.1)";
+
+function stripTags(html: string): string {
+  return html
+    .replace(/<[^>]+>/g, "")
+    .replace(/&amp;/g, "&")
+    .replace(/&#x27;/g, "'")
+    .replace(/&quot;/g, '"')
+    .trim();
 }
 
-const BRAVE_ENDPOINT = "https://api.search.brave.com/res/v1/web/search";
+/** DuckDuckGo's HTML results wrap the real URL in a redirect link's `uddg` query param. */
+function resolveResultUrl(href: string): string {
+  try {
+    const url = new URL(href, "https://duckduckgo.com");
+    const target = url.searchParams.get("uddg");
+    return target ? decodeURIComponent(target) : href;
+  } catch {
+    return href;
+  }
+}
 
-async function braveSearch(query: string, count: number, apiKey: string): Promise<string> {
-  const url = new URL(BRAVE_ENDPOINT);
-  url.searchParams.set("q", query);
-  url.searchParams.set("count", String(count));
+function extractResults(html: string, count: number): SearchResult[] {
+  const linkRegex = /<a rel="nofollow" class="result__a" href="([^"]+)">([\s\S]*?)<\/a>/g;
+  const snippetRegex = /<a class="result__snippet"[^>]*>([\s\S]*?)<\/a>/g;
 
-  const response = await fetch(url, {
-    headers: { Accept: "application/json", "X-Subscription-Token": apiKey },
-  });
-
-  if (!response.ok) {
-    const body = await response.text().catch(() => "");
-    throw new Error(`Brave Search API error (${response.status}): ${body}`);
+  const links: { url: string; title: string }[] = [];
+  for (const match of html.matchAll(linkRegex)) {
+    if (links.length >= count) break;
+    links.push({ url: resolveResultUrl(match[1]), title: stripTags(match[2]) });
   }
 
-  const data = (await response.json()) as BraveSearchResponse;
-  const results = data.web?.results ?? [];
+  const snippets: string[] = [];
+  for (const match of html.matchAll(snippetRegex)) {
+    if (snippets.length >= count) break;
+    snippets.push(stripTags(match[1]));
+  }
+
+  return links.map((link, i) => ({ ...link, snippet: snippets[i] ?? "" }));
+}
+
+async function duckDuckGoSearch(query: string, count: number): Promise<string> {
+  const url = new URL(DDG_HTML_ENDPOINT);
+  url.searchParams.set("q", query);
+
+  const response = await fetch(url, { headers: { "User-Agent": USER_AGENT } });
+  if (!response.ok) {
+    throw new Error(`DuckDuckGo search error (${response.status})`);
+  }
+
+  const html = await response.text();
+  const results = extractResults(html, count);
   if (results.length === 0) return "(no results)";
 
-  return results
-    .slice(0, count)
-    .map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.description}`)
-    .join("\n\n");
+  return results.map((r, i) => `${i + 1}. ${r.title}\n   ${r.url}\n   ${r.snippet}`).join("\n\n");
 }
 
 export const webSearchTool: ToolDefinition<WebSearchInput> = {
   name: "web_search",
   description:
-    "Search the web for current information (docs, news, package versions, error messages, etc.) using the Brave Search API. Requires the BRAVE_API_KEY environment variable.",
+    "Search the web for current information (docs, news, package versions, error messages, etc.) via DuckDuckGo — free, no API key required.",
   riskLevel: "safe",
   inputSchema: {
     type: "object",
@@ -56,17 +84,8 @@ export const webSearchTool: ToolDefinition<WebSearchInput> = {
   },
   describeCall: (input) => `search "${input.query}"`,
   async handler(input) {
-    const apiKey = process.env.BRAVE_API_KEY;
-    if (!apiKey) {
-      return {
-        content:
-          "web_search is not configured: set the BRAVE_API_KEY environment variable " +
-          "(free tier available at https://brave.com/search/api/).",
-        isError: true,
-      };
-    }
     const count = Math.min(Math.max(input.count ?? 5, 1), 20);
-    const content = await braveSearch(input.query, count, apiKey);
+    const content = await duckDuckGoSearch(input.query, count);
     return { content, isError: false };
   },
 };
