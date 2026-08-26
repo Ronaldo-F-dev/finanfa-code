@@ -30,9 +30,17 @@ export function createReadlineAdapter(): UIAdapter {
     },
     async askUser(prompt: string): Promise<string> {
       if (!atLineStart) stdout.write("\n");
-      const answer = await rl.question(prompt);
-      atLineStart = true;
-      return answer;
+      try {
+        const answer = await rl.question(prompt);
+        atLineStart = true;
+        return answer;
+      } catch {
+        // stdin closed (EOF / Ctrl+D, or piped input exhausted while a
+        // response was streaming) — treat it as a request to exit cleanly
+        // rather than crashing with an unhandled rejection.
+        atLineStart = true;
+        return "/exit";
+      }
     },
     close(): void {
       rl.close();
