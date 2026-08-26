@@ -2,11 +2,15 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 
 // node:readline/promises' createInterface pulls in real stdin handling;
 // stub just enough of it to drive createReadlineAdapter() in isolation.
-const questionMock = vi.fn();
+const questionMock = vi.fn().mockResolvedValue("answer");
+const pauseMock = vi.fn();
+const resumeMock = vi.fn();
 vi.mock("node:readline/promises", () => ({
   createInterface: () => ({
     question: questionMock,
     close: vi.fn(),
+    pause: pauseMock,
+    resume: resumeMock,
   }),
 }));
 
@@ -58,5 +62,27 @@ describe("readline UIAdapter busy indicator", () => {
     vi.advanceTimersByTime(500);
 
     expect(writeSpy).not.toHaveBeenCalled();
+  });
+
+  it("pauses readline as soon as the interface is created (idle by default)", () => {
+    pauseMock.mockClear();
+    createReadlineAdapter();
+    expect(pauseMock).toHaveBeenCalled();
+  });
+
+  it("resumes readline only while a question is actually pending, then re-pauses", async () => {
+    pauseMock.mockClear();
+    resumeMock.mockClear();
+    const ui = createReadlineAdapter();
+
+    const answer = await ui.askUser("> ");
+
+    expect(answer).toBe("answer");
+    // resume() must happen before question() is called, and pause() after it resolves —
+    // this is the fix for the "output looks frozen until the next keystroke" bug:
+    // Node's readline desyncs its cursor tracking if raw writes happen while the
+    // interface is resumed but no question() is in flight.
+    expect(resumeMock).toHaveBeenCalled();
+    expect(pauseMock).toHaveBeenCalled();
   });
 });

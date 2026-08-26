@@ -17,6 +17,14 @@ export function createReadlineAdapter(): UIAdapter {
   }
 
   const rl = readline.createInterface({ input: stdin, output: stdout, completer });
+  // Node's readline keeps internal cursor-position bookkeeping for its TTY
+  // prompt for as long as the interface is "resumed" (actively listening).
+  // If we write raw output (spinner frames, streamed text, tool logs) while
+  // it's resumed but no question() is pending, that bookkeeping goes stale
+  // and the terminal only repaints correctly on the next keystroke — the
+  // exact "looks frozen until I press a key" symptom. Keeping the interface
+  // paused except while a question() is actually in flight avoids this.
+  rl.pause();
   let atLineStart = true;
   let lastStatus: StatusInfo | undefined;
   let spinnerTimer: NodeJS.Timeout | undefined;
@@ -70,6 +78,7 @@ export function createReadlineAdapter(): UIAdapter {
     async askUser(prompt: string): Promise<string> {
       clearSpinner();
       if (!atLineStart) stdout.write("\n");
+      rl.resume();
       try {
         const answer = await rl.question(prompt);
         atLineStart = true;
@@ -80,6 +89,8 @@ export function createReadlineAdapter(): UIAdapter {
         // rather than crashing with an unhandled rejection.
         atLineStart = true;
         return "/exit";
+      } finally {
+        rl.pause();
       }
     },
     close(): void {
