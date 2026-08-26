@@ -95,6 +95,7 @@ MCP is how finanfa-code connects to external accounts/services — skills and pl
 ## Other built-in tools
 
 - `web_search` — Brave Search API; requires `BRAVE_API_KEY` (free tier at https://brave.com/search/api/). Without it, the tool returns a clear "not configured" error rather than failing silently.
+- `web_fetch` — fetches a specific URL and returns its text content (HTML tags stripped); use for a known link, as opposed to `web_search` for open-ended queries.
 - `preview_html` — opens a local HTML file in the default browser, e.g. to show a UI mockup written with `write_file`.
 - `task` — delegates a self-contained piece of work to a sub-agent (same tools/permissions, its own conversation); multiple `task` calls in one assistant turn run concurrently.
 - `todo_write` — sets/replaces the task checklist shown live to the user (and via `/todos`); the agent is nudged to use it for multi-step work.
