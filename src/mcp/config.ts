@@ -3,9 +3,13 @@ import path from "node:path";
 
 export interface McpServerConfig {
   name: string;
-  transport: "stdio";
-  command: string;
+  transport: "stdio" | "http" | "sse";
+  // stdio
+  command?: string;
   args?: string[];
+  // http / sse (remote servers — OAuth is attempted automatically if the
+  // server responds 401; see src/mcp/oauth-provider.ts)
+  url?: string;
 }
 
 export async function loadMcpServers(cwd: string): Promise<McpServerConfig[]> {

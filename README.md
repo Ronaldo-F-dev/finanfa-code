@@ -64,9 +64,28 @@ Ctrl+C (or `kill -TERM`) triggers a graceful shutdown in both UI modes: the curr
 ## Project-local configuration (`.finanfa-code/`)
 
 - `settings.json` — permission rules (see `src/permissions/config.ts` for the shape)
-- `mcp.json` — `{ "servers": [{ "name": "...", "transport": "stdio", "command": "...", "args": [...] }] }`
+- `mcp.json` — `{ "servers": [ ... ] }`, one entry per MCP server:
+  - stdio (local process): `{ "name": "github", "transport": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] }`
+  - http / sse (remote server): `{ "name": "example", "transport": "http", "url": "https://mcp.example.com/mcp" }`
 - `plugins/<name>/index.js` — exports `registerTools(registry)` and/or `registerCommands(commands)`
 - `skills/*.md` — frontmatter (`name`, `description`) + body; the full body is loaded on demand via the `read_skill` tool
+
+### Connecting third-party services (GitHub, etc.) via MCP
+
+MCP is how finanfa-code connects to external accounts/services — skills and plugins are for local behavior/tools, not remote auth.
+
+- **stdio + a personal access token** (e.g. the official GitHub MCP server) works today:
+  ```bash
+  export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
+  ```
+  ```
+  /mcp add github -- npx -y @modelcontextprotocol/server-github
+  ```
+- **Remote servers requiring OAuth** (e.g. Gmail, or any hosted MCP server behind a login) are supported via the `http`/`sse` transports:
+  ```
+  /mcp add myservice --url https://mcp.example.com/mcp
+  ```
+  If the server responds 401, finanfa-code opens the authorization URL in your browser (and prints it, for headless environments) via a temporary local callback server on `http://127.0.0.1:51789/callback`. Client registration and tokens are persisted per-server under `~/.finanfa-code/mcp-auth/<server-name>/`, so you only authorize once.
 
 ## Tests
 
@@ -75,4 +94,4 @@ npm run typecheck
 npm test
 ```
 
-Includes a real end-to-end test that spawns a fixture MCP server over stdio (`test/mcp/client-manager.test.ts`).
+Includes real end-to-end tests: a fixture MCP server over stdio (`test/mcp/client-manager.test.ts`) and over Streamable HTTP (`test/mcp/client-manager-http.test.ts`), plus unit tests for the OAuth client provider (`test/mcp/oauth-provider.test.ts`).

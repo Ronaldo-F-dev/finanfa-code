@@ -30,30 +30,57 @@ async function handleMcp(ctx: CommandContext): Promise<CommandOutcome> {
   }
 
   if (sub === "add") {
-    // Usage: /mcp add <name> -- <command> [args...]
-    const joined = rest.join(" ");
-    const [namePart, cmdPart] = joined.split("--").map((s) => s.trim());
-    if (!namePart || !cmdPart) {
-      ctx.ui.writeError("Usage: /mcp add <name> -- <command> [args...]");
-      return "continue";
-    }
-    const [command, ...cmdArgs] = cmdPart.split(/\s+/);
-    const file = path.join(ctx.cwd, ".finanfa-code", "mcp.json");
-    const existing = await loadMcpServers(ctx.cwd);
-    const next: McpServerConfig[] = [
-      ...existing.filter((s) => s.name !== namePart),
-      { name: namePart, transport: "stdio", command, args: cmdArgs },
-    ];
-    await mkdir(path.dirname(file), { recursive: true });
-    await writeFile(file, JSON.stringify({ servers: next }, null, 2), "utf-8");
-    await ctx.mcp.connect(next[next.length - 1]);
-    await reloadMcpTools(ctx);
-    ctx.ui.writeSystem(`Added and connected MCP server "${namePart}".`);
+    return addMcpServer(ctx, rest);
+  }
+
+  ctx.ui.writeError(
+    "Usage: /mcp list | /mcp reload | /mcp add <name> -- <command> [args...] | /mcp add <name> --url <url> [--transport sse]",
+  );
+  return "continue";
+}
+
+async function addMcpServer(ctx: CommandContext, rest: string[]): Promise<CommandOutcome> {
+  const joined = rest.join(" ");
+  const namePart = rest[0];
+  const config = namePart ? parseMcpAddArgs(namePart, joined.slice(namePart.length).trim()) : undefined;
+
+  if (!namePart || !config) {
+    ctx.ui.writeError(
+      "Usage: /mcp add <name> -- <command> [args...]  |  /mcp add <name> --url <url> [--transport sse]",
+    );
     return "continue";
   }
 
-  ctx.ui.writeError("Usage: /mcp list | /mcp reload | /mcp add <name> -- <command> [args...]");
+  const file = path.join(ctx.cwd, ".finanfa-code", "mcp.json");
+  const existing = await loadMcpServers(ctx.cwd);
+  const next: McpServerConfig[] = [...existing.filter((s) => s.name !== namePart), config];
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, JSON.stringify({ servers: next }, null, 2), "utf-8");
+
+  if (config.transport !== "stdio") {
+    ctx.ui.writeSystem(`Connecting to "${namePart}" — if it requires authorization, a browser tab will open...`);
+  }
+  await ctx.mcp.connect(config);
+  await reloadMcpTools(ctx);
+  ctx.ui.writeSystem(`Added and connected MCP server "${namePart}".`);
   return "continue";
+}
+
+function parseMcpAddArgs(name: string, rest: string): McpServerConfig | undefined {
+  const urlMatch = rest.match(/--url\s+(\S+)/);
+  if (urlMatch) {
+    const transportMatch = rest.match(/--transport\s+(\S+)/);
+    const transport = transportMatch?.[1] === "sse" ? "sse" : "http";
+    return { name, transport, url: urlMatch[1] };
+  }
+
+  // Fall back to the stdio form: /mcp add <name> -- <command> [args...]
+  const dashDashIndex = rest.indexOf("--");
+  if (dashDashIndex === -1) return undefined;
+  const commandPart = rest.slice(dashDashIndex + 2).trim();
+  if (!commandPart) return undefined;
+  const [command, ...args] = commandPart.split(/\s+/);
+  return { name, transport: "stdio", command, args };
 }
 
 async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
