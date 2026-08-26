@@ -32,6 +32,7 @@ function wrapUiForSubagent(ui: UIAdapter, label: string): UIAdapter {
     writeError: (text) => ui.writeError(`${prefix} ${text}`),
     setStatus: () => {}, // don't clobber the parent's status bar with sub-agent token counts
     getStatus: () => ui.getStatus(),
+    setBusy: (busy, subLabel) => ui.setBusy(busy, busy ? `${prefix} ${subLabel ?? "working"}` : undefined),
     setCommands: () => {},
     askUser: (prompt, kind) => ui.askUser(`${prefix} ${prompt}`, kind),
     close: () => {},

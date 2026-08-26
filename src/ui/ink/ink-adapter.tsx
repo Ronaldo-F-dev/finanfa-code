@@ -30,13 +30,16 @@ export function createInkAdapter(): UIAdapter {
 
   return {
     writeAssistantDelta(text: string): void {
+      if (store.busy) store.setBusy(false);
       store.appendDelta(text);
     },
     writeSystem(text: string): void {
+      store.setBusy(false);
       store.commitStreaming();
       store.pushLog({ kind: "system", text });
     },
     writeError(text: string): void {
+      store.setBusy(false);
       store.commitStreaming();
       store.pushLog({ kind: "error", text });
     },
@@ -49,7 +52,11 @@ export function createInkAdapter(): UIAdapter {
     setCommands(commands: CommandInfo[]): void {
       store.setCommands(commands);
     },
+    setBusy(busy: boolean, label?: string): void {
+      store.setBusy(busy, label);
+    },
     askUser(prompt: string, kind: "input" | "confirm" = "input"): Promise<string> {
+      store.setBusy(false);
       store.commitStreaming();
       return new Promise<string>((resolve) => {
         resolveInput = resolve;

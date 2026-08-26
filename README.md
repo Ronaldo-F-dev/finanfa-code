@@ -49,6 +49,8 @@ npm run dev
 >
 > Streaming usage (`/cost`) reports `$0.00`/`0 tokens` for unrecognized model ids and for backends (like Ollama) that don't return `usage` in streamed responses — this is expected, not a bug.
 
+A loading indicator (spinner + label — "thinking", "running bash", etc.) shows whenever the agent is waiting on the model or a tool, in both UI modes — so a silent gap (e.g. after confirming a risky action) reads as "still working" rather than "did nothing happen?".
+
 ## Commands
 
 Type `/` to see live autocomplete suggestions (Ink UI: arrow keys to select, Tab to complete; `readline` fallback: Tab-completion).

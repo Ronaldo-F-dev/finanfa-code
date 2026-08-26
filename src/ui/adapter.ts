@@ -17,6 +17,8 @@ export interface UIAdapter {
   getStatus(): StatusInfo | undefined;
   /** Registers the available slash commands, used to drive autocomplete/suggestions. */
   setCommands(commands: CommandInfo[]): void;
+  /** Shows/hides a loading indicator (e.g. while waiting on the model or a slow tool), with an optional label. */
+  setBusy(busy: boolean, label?: string): void;
   /** `kind: "confirm"` is used for permission prompts; `"input"` for normal chat input. */
   askUser(prompt: string, kind?: "input" | "confirm"): Promise<string>;
   close(): void;

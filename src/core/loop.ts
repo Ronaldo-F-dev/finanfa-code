@@ -31,11 +31,14 @@ async function runOneToolCall(
   }
 
   ui.writeSystem(`→ ${tool.name}: ${tool.describeCall ? tool.describeCall(call.input) : ""}`);
+  ui.setBusy(true, tool.name);
   try {
     const result = await tool.handler(call.input, ctx);
     return { toolCallId: call.id, isError: result.isError, content: result.content };
   } catch (err) {
     return { toolCallId: call.id, isError: true, content: err instanceof Error ? err.message : String(err) };
+  } finally {
+    ui.setBusy(false);
   }
 }
 
@@ -83,6 +86,7 @@ export async function runTurn(
   session.messages.push({ role: "user", content: userInput });
 
   for (;;) {
+    ui.setBusy(true, "thinking");
     const result = await provider.streamTurn({
       model: session.model,
       systemPrompt: session.systemPrompt,
@@ -91,6 +95,7 @@ export async function runTurn(
       onTextDelta: (text) => ui.writeAssistantDelta(text),
     });
 
+    ui.setBusy(false);
     session.messages.push(result.assistantMessage);
     session.recordUsage(result.usage.inputTokens, result.usage.outputTokens);
 

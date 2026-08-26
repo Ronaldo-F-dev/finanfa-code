@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Box, Static, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
+import Spinner from "ink-spinner";
 import type { UiStore } from "./store.js";
 import { LogLine } from "./components/LogLine.js";
 import { MultilineText } from "./components/MultilineText.js";
@@ -77,6 +78,15 @@ export function App({
       </Static>
 
       {store.streaming.length > 0 && <MultilineText text={store.streaming} />}
+
+      {store.busy && (
+        <Text dimColor>
+          <Text color="cyan">
+            <Spinner type="dots" />
+          </Text>
+          {" "}{store.busyLabel ?? "working"}...
+        </Text>
+      )}
 
       <Box marginTop={1} flexDirection="column">
         {showPromptLabel && <MultilineText text={store.prompt!.text} dimColor />}

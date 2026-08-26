@@ -18,6 +18,8 @@ export class UiStore extends EventEmitter {
   status: StatusInfo | undefined;
   prompt: PendingPrompt | undefined;
   commands: CommandInfo[] = [];
+  busy = false;
+  busyLabel: string | undefined;
 
   pushLog(item: LogItem): void {
     this.log = [...this.log, item];
@@ -48,6 +50,12 @@ export class UiStore extends EventEmitter {
 
   setCommands(commands: CommandInfo[]): void {
     this.commands = commands;
+    this.emit("change");
+  }
+
+  setBusy(busy: boolean, label?: string): void {
+    this.busy = busy;
+    this.busyLabel = label;
     this.emit("change");
   }
 }

@@ -117,4 +117,23 @@ describe("Ink App", () => {
 
     expect(lastFrame()).not.toContain("Show usage");
   });
+
+  it("shows a busy indicator with its label when busy", () => {
+    const store = new UiStore();
+    store.setBusy(true, "thinking");
+
+    const { lastFrame } = render(<App store={store} onSubmit={vi.fn()} />);
+
+    expect(lastFrame()).toContain("thinking...");
+  });
+
+  it("hides the busy indicator once work finishes", () => {
+    const store = new UiStore();
+    store.setBusy(true, "running bash");
+    store.setBusy(false);
+
+    const { lastFrame } = render(<App store={store} onSubmit={vi.fn()} />);
+
+    expect(lastFrame()).not.toContain("running bash");
+  });
 });
