@@ -2,7 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import type { ToolDefinition } from "../core/types.js";
 
 export class ToolRegistry {
-  private tools = new Map<string, ToolDefinition>();
+  private readonly tools = new Map<string, ToolDefinition>();
 
   register(tool: ToolDefinition): void {
     if (this.tools.has(tool.name)) {
@@ -13,6 +13,13 @@ export class ToolRegistry {
 
   get(name: string): ToolDefinition | undefined {
     return this.tools.get(name);
+  }
+
+  /** Removes every registered tool whose name starts with `prefix` (used to reload MCP-provided tools). */
+  unregisterByPrefix(prefix: string): void {
+    for (const name of this.tools.keys()) {
+      if (name.startsWith(prefix)) this.tools.delete(name);
+    }
   }
 
   list(): ToolDefinition[] {

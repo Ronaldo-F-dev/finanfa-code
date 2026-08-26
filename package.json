@@ -15,9 +15,11 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.65.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
     "commander": "^12.1.0",
     "diff": "^9.0.0",
     "fast-glob": "^3.3.3",
+    "gray-matter": "^4.0.3",
     "ink": "^7.1.1",
     "ink-text-input": "^6.0.0",
     "react": "^19.2.8"

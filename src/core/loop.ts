@@ -16,12 +16,18 @@ export async function runTurn(
 ): Promise<void> {
   session.messages.push({ role: "user", content: userInput });
   const toolList = tools.toAnthropicToolList();
+  // Mark the system prompt and the (stable, per-session) tool list as cacheable:
+  // both are identical across every turn of a session, so this meaningfully
+  // cuts input-token cost on longer conversations.
+  if (toolList.length > 0) {
+    toolList[toolList.length - 1].cache_control = { type: "ephemeral" };
+  }
 
   for (;;) {
     const stream = client.messages.stream({
       model: session.model,
       max_tokens: 8192,
-      system: session.systemPrompt,
+      system: [{ type: "text", text: session.systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: session.messages,
       tools: toolList.length > 0 ? toolList : undefined,
     });

@@ -1,6 +1,5 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, readFile, rename, writeFile } from "node:fs/promises";
-import { createHash } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
+import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import type { AnthropicMessageParam, UsageTotals } from "./types.js";
@@ -40,7 +39,7 @@ export class AgentSession {
     this.systemPrompt = opts.systemPrompt;
   }
 
-  static async resume(cwd: string, sessionId: string): Promise<AgentSession> {
+  static async resume(cwd: string, sessionId: string, systemPrompt: string): Promise<AgentSession> {
     const file = path.join(sessionDir(cwd), `${sessionId}.json`);
     const raw = await readFile(file, "utf-8");
     const data = JSON.parse(raw) as SessionFile;
@@ -48,29 +47,39 @@ export class AgentSession {
       id: data.id,
       cwd: data.cwd,
       model: data.model,
-      systemPrompt: "You are finanfa-code, a helpful coding assistant.",
+      systemPrompt,
     });
     session.messages = data.messages;
     session.usage = data.usage;
     return session;
   }
 
-  static async findLatest(cwd: string): Promise<string | undefined> {
+  /** Lists session ids for `cwd`, most recently modified first. */
+  static async list(cwd: string): Promise<{ id: string; mtime: Date }[]> {
     const dir = sessionDir(cwd);
     try {
-      const { readdir, stat } = await import("node:fs/promises");
       const entries = await readdir(dir);
-      let latest: { id: string; mtime: number } | undefined;
-      for (const entry of entries) {
-        if (!entry.endsWith(".json")) continue;
-        const st = await stat(path.join(dir, entry));
-        const id = entry.replace(/\.json$/, "");
-        if (!latest || st.mtimeMs > latest.mtime) latest = { id, mtime: st.mtimeMs };
-      }
-      return latest?.id;
+      const withMtime = await Promise.all(
+        entries
+          .filter((entry) => entry.endsWith(".json"))
+          .map(async (entry) => {
+            const st = await stat(path.join(dir, entry));
+            return { id: entry.replace(/\.json$/, ""), mtime: st.mtime };
+          }),
+      );
+      return withMtime.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
     } catch {
-      return undefined;
+      return [];
     }
+  }
+
+  static async findLatest(cwd: string): Promise<string | undefined> {
+    const sessions = await AgentSession.list(cwd);
+    return sessions[0]?.id;
+  }
+
+  static async delete(cwd: string, sessionId: string): Promise<void> {
+    await rm(path.join(sessionDir(cwd), `${sessionId}.json`), { force: true });
   }
 
   recordUsage(inputTokens: number, outputTokens: number): void {
