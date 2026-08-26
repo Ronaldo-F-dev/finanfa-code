@@ -79,18 +79,50 @@ async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
 }
 
 export function registerBuiltinCommands(commands: CommandRegistry): void {
-  commands.register("exit", () => "exit");
+  commands.register("exit", () => "exit", "Quit finanfa-code");
 
-  commands.register("cost", (ctx) => {
-    const status = ctx.ui.getStatus();
-    ctx.ui.writeSystem(
-      status
-        ? `tokens=${status.tokens} cost=$${status.costUsd.toFixed(4)} model=${status.model}`
-        : "No usage recorded yet.",
-    );
-    return "continue";
-  });
+  commands.register(
+    "cost",
+    (ctx) => {
+      const status = ctx.ui.getStatus();
+      ctx.ui.writeSystem(
+        status
+          ? `tokens=${status.tokens} cost=$${status.costUsd.toFixed(4)} model=${status.model}`
+          : "No usage recorded yet.",
+      );
+      return "continue";
+    },
+    "Show token usage and estimated cost for this session",
+  );
 
-  commands.register("mcp", handleMcp);
-  commands.register("sessions", handleSessions);
+  commands.register(
+    "clear",
+    async (ctx): Promise<CommandOutcome> => {
+      ctx.session.messages = [];
+      await ctx.session.persist();
+      ctx.ui.writeSystem("Conversation history cleared (session id unchanged).");
+      return "continue";
+    },
+    "Clear the conversation history, keeping the same session",
+  );
+
+  commands.register(
+    "help",
+    (ctx) => {
+      ctx.ui.writeSystem(commands.list().map((c) => `/${c.name} — ${c.description}`).join("\n"));
+      return "continue";
+    },
+    "List available commands",
+  );
+
+  commands.register(
+    "mcp",
+    handleMcp,
+    "Manage MCP servers: /mcp list | /mcp reload | /mcp add <name> -- <command> [args...]",
+  );
+  commands.register(
+    "sessions",
+    handleSessions,
+    "List saved sessions for this directory, or /sessions delete <id>",
+  );
 }

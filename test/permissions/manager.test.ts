@@ -11,6 +11,7 @@ function makeUi(answer: string): UIAdapter {
     writeError: vi.fn(),
     setStatus: vi.fn(),
     getStatus: vi.fn().mockReturnValue(undefined),
+    setCommands: vi.fn(),
     askUser: vi.fn().mockResolvedValue(answer),
     close: vi.fn(),
   };

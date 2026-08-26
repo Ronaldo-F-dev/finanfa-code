@@ -136,6 +136,7 @@ export async function main(argv: string[]): Promise<void> {
   const commands = new CommandRegistry();
   registerBuiltinCommands(commands);
   const plugins = await loadPlugins(cwd, tools, commands);
+  ui.setCommands(commands.list());
 
   const providerLabel = process.env.FINANFA_PROVIDER === "openai-compatible" ? "openai-compatible" : "anthropic";
   ui.writeSystem(`finanfa-code — session ${session.id} (${session.model} via ${providerLabel})`);
@@ -143,7 +144,7 @@ export async function main(argv: string[]): Promise<void> {
   if (mcp.connectedServers().length > 0) ui.writeSystem(`MCP servers: ${mcp.connectedServers().join(", ")}`);
   if (plugins.length > 0) ui.writeSystem(`Plugins: ${plugins.join(", ")}`);
   if (opts.yolo) ui.writeSystem("⚠ --yolo: all tool calls will be auto-approved");
-  ui.writeSystem(`Commands: ${commands.names().map((n) => `/${n}`).join(", ")}`);
+  ui.writeSystem(`Type / to see available commands, or /help for details.`);
 
   await repl(session, provider, ui, tools, permissions, mcp, commands, cwd);
   await mcp.disconnectAll();

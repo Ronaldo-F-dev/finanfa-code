@@ -4,12 +4,19 @@ export interface StatusInfo {
   model: string;
 }
 
+export interface CommandInfo {
+  name: string;
+  description: string;
+}
+
 export interface UIAdapter {
   writeAssistantDelta(text: string): void;
   writeSystem(text: string): void;
   writeError(text: string): void;
   setStatus(status: StatusInfo): void;
   getStatus(): StatusInfo | undefined;
+  /** Registers the available slash commands, used to drive autocomplete/suggestions. */
+  setCommands(commands: CommandInfo[]): void;
   /** `kind: "confirm"` is used for permission prompts; `"input"` for normal chat input. */
   askUser(prompt: string, kind?: "input" | "confirm"): Promise<string>;
   close(): void;

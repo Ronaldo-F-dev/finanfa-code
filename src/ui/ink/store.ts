@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { StatusInfo } from "../adapter.js";
+import type { CommandInfo, StatusInfo } from "../adapter.js";
 
 export type LogItem =
   | { kind: "user"; text: string }
@@ -17,6 +17,7 @@ export class UiStore extends EventEmitter {
   streaming = "";
   status: StatusInfo | undefined;
   prompt: PendingPrompt | undefined;
+  commands: CommandInfo[] = [];
 
   pushLog(item: LogItem): void {
     this.log = [...this.log, item];
@@ -42,6 +43,11 @@ export class UiStore extends EventEmitter {
 
   setPrompt(prompt: PendingPrompt | undefined): void {
     this.prompt = prompt;
+    this.emit("change");
+  }
+
+  setCommands(commands: CommandInfo[]): void {
+    this.commands = commands;
     this.emit("change");
   }
 }

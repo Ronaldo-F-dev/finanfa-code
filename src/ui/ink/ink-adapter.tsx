@@ -1,6 +1,6 @@
 import React from "react";
 import { render } from "ink";
-import type { StatusInfo, UIAdapter } from "../adapter.js";
+import type { CommandInfo, StatusInfo, UIAdapter } from "../adapter.js";
 import { UiStore } from "./store.js";
 import { App } from "./App.js";
 
@@ -40,6 +40,9 @@ export function createInkAdapter(): UIAdapter {
     },
     getStatus(): StatusInfo | undefined {
       return store.status;
+    },
+    setCommands(commands: CommandInfo[]): void {
+      store.setCommands(commands);
     },
     askUser(prompt: string, kind: "input" | "confirm" = "input"): Promise<string> {
       store.commitStreaming();

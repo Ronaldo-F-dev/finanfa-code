@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from "react";
-import { Box, Static, Text } from "ink";
+import React, { useEffect, useMemo, useState } from "react";
+import { Box, Static, Text, useInput } from "ink";
 import TextInput from "ink-text-input";
 import type { UiStore } from "./store.js";
 import { LogLine } from "./components/LogLine.js";
 import { MultilineText } from "./components/MultilineText.js";
 import { StatusBar } from "./components/StatusBar.js";
+import { CommandSuggestions } from "./components/CommandSuggestions.js";
 
 export function App({
   store,
@@ -15,6 +16,7 @@ export function App({
 }) {
   const [, forceRender] = useState(0);
   const [input, setInput] = useState("");
+  const [selectedIndex, setSelectedIndex] = useState(0);
 
   useEffect(() => {
     const handler = () => forceRender((n) => n + 1);
@@ -23,6 +25,38 @@ export function App({
       store.off("change", handler);
     };
   }, [store]);
+
+  const isChatInput = (store.prompt?.kind ?? "input") === "input";
+  const suggestions = useMemo(() => {
+    if (!isChatInput || !input.startsWith("/")) return [];
+    const query = input.slice(1).toLowerCase();
+    return store.commands.filter((c) => c.name.toLowerCase().startsWith(query));
+  }, [isChatInput, input, store.commands]);
+
+  const clampedIndex = Math.min(selectedIndex, Math.max(0, suggestions.length - 1));
+
+  useInput(
+    (_char, key) => {
+      if (key.tab) {
+        const chosen = suggestions[clampedIndex];
+        if (chosen) setInput(`/${chosen.name} `);
+        return;
+      }
+      if (key.upArrow) {
+        setSelectedIndex((i) => Math.max(0, i - 1));
+        return;
+      }
+      if (key.downArrow) {
+        setSelectedIndex((i) => Math.min(suggestions.length - 1, i + 1));
+      }
+    },
+    { isActive: suggestions.length > 0 },
+  );
+
+  function handleChange(value: string): void {
+    setInput(value);
+    setSelectedIndex(0);
+  }
 
   const showPromptLabel = store.prompt?.kind === "confirm" && store.prompt.text.trim().length > 0;
 
@@ -40,13 +74,15 @@ export function App({
           <Text color="cyan">{"> "}</Text>
           <TextInput
             value={input}
-            onChange={setInput}
+            onChange={handleChange}
             onSubmit={(value) => {
               setInput("");
+              setSelectedIndex(0);
               onSubmit(value);
             }}
           />
         </Box>
+        <CommandSuggestions suggestions={suggestions} selectedIndex={clampedIndex} />
       </Box>
 
       <StatusBar status={store.status} />

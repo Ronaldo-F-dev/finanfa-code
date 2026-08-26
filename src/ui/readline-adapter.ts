@@ -1,9 +1,19 @@
 import * as readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
-import type { StatusInfo, UIAdapter } from "./adapter.js";
+import type { CommandInfo, StatusInfo, UIAdapter } from "./adapter.js";
 
 export function createReadlineAdapter(): UIAdapter {
-  const rl = readline.createInterface({ input: stdin, output: stdout });
+  let commands: CommandInfo[] = [];
+
+  // Tab-completion for slash commands (e.g. "/mc<Tab>" -> "/mcp").
+  function completer(line: string): [string[], string] {
+    if (!line.startsWith("/")) return [[], line];
+    const names = commands.map((c) => `/${c.name}`);
+    const hits = names.filter((name) => name.startsWith(line));
+    return [hits.length > 0 ? hits : names, line];
+  }
+
+  const rl = readline.createInterface({ input: stdin, output: stdout, completer });
   let atLineStart = true;
   let lastStatus: StatusInfo | undefined;
 
@@ -27,6 +37,9 @@ export function createReadlineAdapter(): UIAdapter {
     },
     getStatus(): StatusInfo | undefined {
       return lastStatus;
+    },
+    setCommands(next: CommandInfo[]): void {
+      commands = next;
     },
     async askUser(prompt: string): Promise<string> {
       if (!atLineStart) stdout.write("\n");

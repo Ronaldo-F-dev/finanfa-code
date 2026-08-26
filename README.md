@@ -42,7 +42,11 @@ For OpenRouter or Poolside: set `FINANFA_BASE_URL` to their API base URL (e.g. `
 
 ## Commands
 
+Type `/` to see live autocomplete suggestions (Ink UI: arrow keys to select, Tab to complete; `readline` fallback: Tab-completion).
+
+- `/help` — list all commands with descriptions
 - `/cost` — token usage and estimated cost for the session
+- `/clear` — clear the conversation history (same session id)
 - `/sessions` — list saved sessions for this directory; `/sessions delete <id>` removes one
 - `/mcp list` / `/mcp reload` / `/mcp add <name> -- <command> [args...]` — manage MCP servers
 - `/exit` — quit
