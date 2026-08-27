@@ -60,13 +60,15 @@ interface ToolBatchOutcome {
 }
 
 /**
- * Runs a batch of tool calls. Regular tools run sequentially (order and
- * one-at-a-time permission prompts matter for file/shell operations); "task"
- * sub-agent calls are explicitly independent, so any of those in the same
- * batch run concurrently for real parallelism ("co-work"). Any images
- * returned by tools (e.g. a screenshot) are collected separately — most
- * providers don't support images inside tool-result content itself, so the
- * caller surfaces them as a follow-up user message instead.
+ * Runs a batch of tool calls. Tools registered with riskLevel "safe" (no side
+ * effects — reads, searches, "task" sub-agents which permission-check their
+ * own calls individually, etc.) run concurrently via Promise.all: order
+ * between them doesn't matter and there's nothing to conflict. Tools that can
+ * write or have side effects ("ask"/"dangerous") run strictly sequentially,
+ * one at a time — order matters, and each may show an interactive permission
+ * prompt. Any images returned by tools (e.g. a screenshot) are collected
+ * separately — most providers don't support images inside tool-result
+ * content itself, so the caller surfaces them as a follow-up user message.
  */
 async function runToolCallBatch(
   toolCalls: NeutralToolCall[],
@@ -76,18 +78,18 @@ async function runToolCallBatch(
   permissions: PermissionManager,
 ): Promise<ToolBatchOutcome> {
   const outcomes = new Array<ToolCallOutcome>(toolCalls.length);
-  const taskIndices: number[] = [];
+  const parallelIndices: number[] = [];
 
   for (const [i, call] of toolCalls.entries()) {
-    if (call.name === "task") {
-      taskIndices.push(i);
+    if (tools.get(call.name)?.riskLevel === "safe") {
+      parallelIndices.push(i);
       continue;
     }
     outcomes[i] = await runOneToolCall(call, session, ui, tools, permissions);
   }
 
   await Promise.all(
-    taskIndices.map(async (i) => {
+    parallelIndices.map(async (i) => {
       outcomes[i] = await runOneToolCall(toolCalls[i], session, ui, tools, permissions);
     }),
   );
@@ -103,6 +105,45 @@ export interface VisionRoute {
   model: string;
 }
 
+// Backstops for a model that ignores the system prompt's own "stop after ~3
+// attempts" guidance (common with smaller/free models) — nothing else in the
+// loop enforces either limit.
+const MAX_ITERATIONS = 50;
+const REPEAT_LIMIT = 3;
+
+function toolCallBatchSignature(toolCalls: NeutralToolCall[]): string {
+  return JSON.stringify(toolCalls.map((c) => ({ name: c.name, input: c.input })));
+}
+
+/** Tracks per-turn iteration/repetition state so runTurn's own control flow stays flat. */
+class LoopGuard {
+  private iterations = 0;
+  private lastSignature: string | undefined;
+  private repeatCount = 0;
+
+  /** A message to show and stop on, once MAX_ITERATIONS is exceeded — else undefined. */
+  checkIterationLimit(): string | undefined {
+    this.iterations++;
+    if (this.iterations <= MAX_ITERATIONS) return undefined;
+    return (
+      `(stopped after ${MAX_ITERATIONS} steps without finishing — the task may be stuck or too large; ` +
+      "try breaking it into smaller requests)"
+    );
+  }
+
+  /** A message to show and stop on, once the exact same tool call batch repeats REPEAT_LIMIT times — else undefined. */
+  checkRepetition(toolCalls: NeutralToolCall[]): string | undefined {
+    const signature = toolCallBatchSignature(toolCalls);
+    this.repeatCount = signature === this.lastSignature ? this.repeatCount + 1 : 1;
+    this.lastSignature = signature;
+    if (this.repeatCount < REPEAT_LIMIT) return undefined;
+    return (
+      `(stopped — the same tool call${toolCalls.length > 1 ? "s" : ""} repeated ${REPEAT_LIMIT} times in a ` +
+      "row with no apparent progress)"
+    );
+  }
+}
+
 export async function runTurn(
   session: AgentSession,
   provider: LlmProvider,
@@ -114,8 +155,15 @@ export async function runTurn(
 ): Promise<void> {
   session.messages.push({ role: "user", content: userInput });
   let nextCallNeedsVision = false;
+  const guard = new LoopGuard();
 
   for (;;) {
+    const iterationStop = guard.checkIterationLimit();
+    if (iterationStop) {
+      ui.writeSystem(iterationStop);
+      return;
+    }
+
     // Route only the one call right after a tool produced an image — not
     // every later call in the session, even though that image message stays
     // in history (compactForProvider never strips it). Otherwise a single
@@ -150,6 +198,12 @@ export async function runTurn(
       if (result.assistantMessage.content.trim() === "") {
         ui.writeSystem("(the model returned an empty response — try rephrasing, or check /cost for context size)");
       }
+      return;
+    }
+
+    const repeatStop = guard.checkRepetition(toolCalls);
+    if (repeatStop) {
+      ui.writeSystem(repeatStop);
       return;
     }
 
