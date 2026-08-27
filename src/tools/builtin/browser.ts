@@ -1,6 +1,6 @@
 import type { ToolDefinition } from "../../core/types.js";
 import type { BrowserManager } from "../../browser/manager.js";
-import { resolveWithinCwd } from "./path-guard.js";
+import { resolveAllowedPath } from "./path-guard.js";
 import { readImageFile } from "../../util/image.js";
 import { wrapUntrustedContent } from "../../core/untrusted-content.js";
 
@@ -77,7 +77,7 @@ export function createBrowserTools(manager: BrowserManager): ToolDefinition[] {
     },
     describeCall: (input) => `screenshot -> ${input.path}`,
     async handler(input, ctx) {
-      const filePath = resolveWithinCwd(ctx.cwd, input.path);
+      const filePath = resolveAllowedPath(ctx.cwd, input.path);
       await manager.screenshot(filePath);
       const read = await readImageFile(filePath, input.path);
       if (!read.ok) {

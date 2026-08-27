@@ -43,7 +43,11 @@ const BASE_SYSTEM_PROMPT =
   "When the user states a lasting preference, corrects your approach, or shares project context that isn't " +
   "obvious from the code (a deadline, a past incident, why something is built a certain way), use write_memory " +
   "so the next session in this project starts with that context — but not for things already derivable by " +
-  "reading the repo or git history.";
+  "reading the repo or git history. " +
+  "read_file/write_file/edit_file only work within the current project or the user's home directory, e.g. asked " +
+  "to create something \"on the Desktop\" or \"in Documents\" still works with these tools directly — but a path " +
+  "genuinely outside the home directory is rejected. If one of these tools rejects a path for that reason, use " +
+  "bash instead (e.g. a heredoc) rather than giving up.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {

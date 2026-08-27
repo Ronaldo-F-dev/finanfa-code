@@ -1,7 +1,7 @@
 import { readFile, writeFile } from "node:fs/promises";
 import { createTwoFilesPatch } from "diff";
 import type { ToolDefinition } from "../../core/types.js";
-import { resolveWithinCwd } from "./path-guard.js";
+import { resolveAllowedPath } from "./path-guard.js";
 
 interface EditFileInput {
   path: string;
@@ -56,13 +56,13 @@ export const editFileTool: ToolDefinition<EditFileInput> = {
   riskKey: (input) => input.path,
   describeCall: (input) => `edit ${input.path}`,
   async preview(input, ctx) {
-    const filePath = resolveWithinCwd(ctx.cwd, input.path);
+    const filePath = resolveAllowedPath(ctx.cwd, input.path);
     const before = await readFile(filePath, "utf-8");
     const after = applyEdit(before, input);
     return createTwoFilesPatch(input.path, input.path, before, after);
   },
   async handler(input, ctx) {
-    const filePath = resolveWithinCwd(ctx.cwd, input.path);
+    const filePath = resolveAllowedPath(ctx.cwd, input.path);
     const before = await readFile(filePath, "utf-8");
     const staleWarning = ctx.fileFreshness?.checkStale(filePath, before);
     const after = applyEdit(before, input);

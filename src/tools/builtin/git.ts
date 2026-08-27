@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import type { ToolDefinition, ToolResult } from "../../core/types.js";
-import { resolveWithinCwd } from "./path-guard.js";
+import { resolveAllowedPath } from "./path-guard.js";
 
 const TIMEOUT_MS = 15_000;
 const MAX_OUTPUT = 50_000;
@@ -51,7 +51,7 @@ function runGit(cwd: string, args: string[]): Promise<ToolResult> {
 
 function relativePaths(cwd: string, paths: string[]): string[] {
   return paths.map((p) => {
-    resolveWithinCwd(cwd, p); // throws if it escapes cwd
+    resolveAllowedPath(cwd, p); // throws if it escapes cwd
     return p;
   });
 }

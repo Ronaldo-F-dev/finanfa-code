@@ -1,6 +1,6 @@
 import { readFile } from "node:fs/promises";
 import type { ToolDefinition } from "../../core/types.js";
-import { resolveWithinCwd } from "./path-guard.js";
+import { resolveAllowedPath } from "./path-guard.js";
 
 interface ReadFileInput {
   path: string;
@@ -25,7 +25,7 @@ export const readFileTool: ToolDefinition<ReadFileInput> = {
   },
   describeCall: (input) => `read ${input.path}`,
   async handler(input, ctx) {
-    const filePath = resolveWithinCwd(ctx.cwd, input.path);
+    const filePath = resolveAllowedPath(ctx.cwd, input.path);
     const raw = await readFile(filePath, "utf-8");
     const lines = raw.split("\n");
 

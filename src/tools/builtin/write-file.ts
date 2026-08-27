@@ -2,7 +2,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { createTwoFilesPatch } from "diff";
 import type { ToolDefinition } from "../../core/types.js";
-import { resolveWithinCwd } from "./path-guard.js";
+import { resolveAllowedPath } from "./path-guard.js";
 
 interface WriteFileInput {
   path: string;
@@ -24,12 +24,12 @@ export const writeFileTool: ToolDefinition<WriteFileInput> = {
   riskKey: (input) => input.path,
   describeCall: (input) => `write ${input.path} (${input.content.length} bytes)`,
   async preview(input, ctx) {
-    const filePath = resolveWithinCwd(ctx.cwd, input.path);
+    const filePath = resolveAllowedPath(ctx.cwd, input.path);
     const before = await readFile(filePath, "utf-8").catch(() => "");
     return createTwoFilesPatch(input.path, input.path, before, input.content);
   },
   async handler(input, ctx) {
-    const filePath = resolveWithinCwd(ctx.cwd, input.path);
+    const filePath = resolveAllowedPath(ctx.cwd, input.path);
     const existing = await readFile(filePath, "utf-8").then(
       (content) => ({ existed: true, content }),
       () => ({ existed: false, content: "" }),

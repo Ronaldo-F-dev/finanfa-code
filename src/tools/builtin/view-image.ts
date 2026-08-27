@@ -1,5 +1,5 @@
 import type { ToolDefinition } from "../../core/types.js";
-import { resolveWithinCwd } from "./path-guard.js";
+import { resolveAllowedPath } from "./path-guard.js";
 import { readImageFile } from "../../util/image.js";
 
 interface ViewImageInput {
@@ -21,7 +21,7 @@ export const viewImageTool: ToolDefinition<ViewImageInput> = {
   },
   describeCall: (input) => `view ${input.path}`,
   async handler(input, ctx) {
-    const filePath = resolveWithinCwd(ctx.cwd, input.path);
+    const filePath = resolveAllowedPath(ctx.cwd, input.path);
     const read = await readImageFile(filePath, input.path);
     if (!read.ok) {
       return { content: read.error, isError: true };
