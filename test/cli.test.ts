@@ -27,4 +27,9 @@ describe("system prompt: path guidance", () => {
     expect(BASE_SYSTEM_PROMPT).toContain("Desktop");
     expect(BASE_SYSTEM_PROMPT).toContain("Bureau");
   });
+
+  it("forbids guessing/hardcoding a username, and warns that '~' isn't expanded", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/never guess or hardcode a username/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/not expanded/i);
+  });
 });
