@@ -12,6 +12,7 @@ import {
   gitAdd,
   gitCommit,
   gitCheckout,
+  gitPush,
 } from "../../src/tools/builtin/git.js";
 
 const execFileAsync = promisify(execFile);
@@ -117,5 +118,55 @@ describe("git tools (real git repo)", () => {
   it("git_checkout fails cleanly for a branch that doesn't exist", async () => {
     const result = await gitCheckout.handler({ branch: "does-not-exist" }, ctx());
     expect(result.isError).toBe(true);
+  });
+
+  describe("git_push (against a real local bare repo acting as the remote)", () => {
+    let remoteDir: string;
+
+    beforeEach(async () => {
+      remoteDir = await mkdtemp(path.join(tmpdir(), "finanfa-git-remote-"));
+      await execFileAsync("git", ["init", "-q", "--bare"], { cwd: remoteDir });
+      await execFileAsync("git", ["remote", "add", "origin", remoteDir], { cwd: dir });
+    });
+
+    afterEach(async () => {
+      await rm(remoteDir, { recursive: true, force: true });
+    });
+
+    it("pushes the current branch to origin, verified by cloning the remote afterward", async () => {
+      const result = await gitPush.handler({ setUpstream: true }, ctx());
+      expect(result.isError).toBe(false);
+
+      const cloneDir = await mkdtemp(path.join(tmpdir(), "finanfa-git-clone-"));
+      try {
+        await execFileAsync("git", ["clone", "-q", remoteDir, cloneDir]);
+        const { stdout } = await execFileAsync("git", ["log", "--oneline"], { cwd: cloneDir });
+        expect(stdout).toContain("initial");
+      } finally {
+        await rm(cloneDir, { recursive: true, force: true });
+      }
+    });
+
+    it("pushes an explicitly named branch to an explicitly named remote", async () => {
+      await gitCheckout.handler({ branch: "feature-x", create: true }, ctx());
+      await writeFile(path.join(dir, "b.txt"), "new\n");
+      await gitAdd.handler({ paths: ["b.txt"] }, ctx());
+      await gitCommit.handler({ message: "add b.txt" }, ctx());
+
+      const result = await gitPush.handler({ remote: "origin", branch: "feature-x", setUpstream: true }, ctx());
+      expect(result.isError).toBe(false);
+
+      const { stdout } = await execFileAsync("git", ["branch", "-r"], { cwd: dir });
+      expect(stdout).toContain("origin/feature-x");
+    });
+
+    it("fails cleanly when the remote doesn't exist", async () => {
+      const result = await gitPush.handler({ remote: "does-not-exist" }, ctx());
+      expect(result.isError).toBe(true);
+    });
+
+    it("has no force option at all — never force-pushes", () => {
+      expect(gitPush.inputSchema.properties).not.toHaveProperty("force");
+    });
   });
 });

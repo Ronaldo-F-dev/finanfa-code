@@ -47,8 +47,14 @@ export const BASE_SYSTEM_PROMPT =
   "browser_navigate followed by browser_screenshot instead (call browser_navigate again first if the page isn't " +
   "already open from earlier in the conversation) — never answer a visual request with web_fetch's text dump. " +
   "Use view_image the same way for an existing local image file. " +
-  "Prefer the dedicated git_status/git_diff/git_log/git_branch/git_add/git_commit/git_checkout tools over bash " +
-  "for git operations they cover — bash still works for anything else (push, merge, rebase, ...). " +
+  "Prefer the dedicated git_status/git_diff/git_log/git_branch/git_add/git_commit/git_checkout/git_push tools " +
+  "over bash for git operations they cover — bash still works for anything else (merge, rebase, stash, ...). " +
+  "If mcp__github__* tools are available (a GitHub MCP server is connected), you can carry an issue through to " +
+  "a PR end-to-end: read the issue (mcp__github__issue_read), git_checkout a new branch instead of working on " +
+  "the default one, make the change, run_tests until it passes, git_add + git_commit, git_push with " +
+  "setUpstream: true (it's a new branch), then mcp__github__create_pull_request referencing the issue. Treat " +
+  "git_push and opening a PR as real, visible actions on a shared repo — if you're not confident the change is " +
+  "ready, say so and check with the user before either, rather than pushing/opening a PR just to make progress. " +
   "After changing code, run run_tests, read any failures carefully, fix the underlying cause, and re-run — " +
   "repeat this test/fix loop until it passes. If the same failure survives about 3 fix attempts, stop and " +
   "explain what's blocking you instead of continuing to guess. " +

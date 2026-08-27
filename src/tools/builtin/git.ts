@@ -185,4 +185,54 @@ export const gitCheckout: ToolDefinition<GitCheckoutInput> = {
   handler: (input, ctx) => runGit(ctx.cwd, input.create ? ["checkout", "-b", input.branch] : ["checkout", input.branch]),
 };
 
-export const gitTools: ToolDefinition[] = [gitStatus, gitDiff, gitLog, gitBranch, gitAdd, gitCommit, gitCheckout];
+interface GitPushInput {
+  remote?: string;
+  branch?: string;
+  setUpstream?: boolean;
+}
+
+export const gitPush: ToolDefinition<GitPushInput> = {
+  name: "git_push",
+  description:
+    "Push the current branch to a remote (default: origin). Use setUpstream: true the first time you push a " +
+    "newly created branch. Never force-pushes — there's no force option, by design.",
+  riskLevel: "ask",
+  inputSchema: {
+    type: "object",
+    properties: {
+      remote: { type: "string", description: 'Remote name (default: "origin")' },
+      branch: { type: "string", description: "Branch to push (default: the current branch)" },
+      setUpstream: { type: "boolean", description: "Set upstream tracking (-u) — needed the first push of a new branch" },
+    },
+  },
+  riskKey: (input) => input.branch ?? "current-branch",
+  describeCall: (input) => `push ${input.branch ?? "current branch"} to ${input.remote ?? "origin"}`,
+  async handler(input, ctx) {
+    // `git push -u origin` with no explicit branch fails outright the first
+    // time a new branch is pushed ("no upstream branch") — always resolve
+    // and name the branch explicitly rather than relying on git's implicit
+    // current-branch resolution, which behaves differently depending on
+    // whether upstream tracking already exists.
+    let branch = input.branch;
+    if (!branch) {
+      const current = await runGit(ctx.cwd, ["rev-parse", "--abbrev-ref", "HEAD"]);
+      if (current.isError) return current;
+      branch = current.content.trim();
+    }
+    const args = ["push"];
+    if (input.setUpstream) args.push("-u");
+    args.push(input.remote ?? "origin", branch);
+    return runGit(ctx.cwd, args);
+  },
+};
+
+export const gitTools: ToolDefinition[] = [
+  gitStatus,
+  gitDiff,
+  gitLog,
+  gitBranch,
+  gitAdd,
+  gitCommit,
+  gitCheckout,
+  gitPush,
+];

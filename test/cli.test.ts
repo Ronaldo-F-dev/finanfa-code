@@ -58,3 +58,16 @@ describe("system prompt: background process tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/guessing at `pkill -f/);
   });
 });
+
+describe("system prompt: GitHub issue-to-PR workflow", () => {
+  it("prefers git_push over bash, and sequences the full issue-to-PR flow", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/git_push/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/mcp__github__issue_read/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/mcp__github__create_pull_request/);
+  });
+
+  it("tells the model to treat pushing/opening a PR as real, visible actions worth checking on", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/real, visible actions on a shared repo/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/check with the user before either/i);
+  });
+});
