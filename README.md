@@ -135,6 +135,8 @@ MCP is how finanfa-code connects to external accounts/services — skills and pl
 
 `browser_screenshot` and `view_image` return the image itself, not just a saved path — both `AnthropicProvider` and `OpenAiCompatibleProvider` know how to pass it to the model (Anthropic image content blocks / OpenAI `image_url` data URLs). Mechanically: a tool's `ToolResult` can carry `images: [{ mimeType, base64 }]`; the agent loop surfaces those as a follow-up `user` message (most chat APIs don't support images inside a *tool result* itself, only in user/assistant turns) rather than attaching them to the tool result directly. Requires a vision-capable model — verified end-to-end with a real Chromium screenshot converted correctly for both providers (`test/core/loop-images.test.ts`).
 
+> **Not every model actually supports vision.** finanfa-code doesn't know your model's capabilities — it always sends the image if a vision tool was called. `poolside/laguna-s-2.1` (a default some users have configured) is text-only and cannot see images at all; a screenshot sent to it is silently dropped or rejected server-side. If you want screenshots/`view_image` to actually work, point `/config` (or `FINANFA_*`) at a vision-capable model — e.g. an Anthropic model, or a vision-capable model via OpenRouter — for that session.
+
 ## Tests
 
 ```bash
