@@ -88,7 +88,10 @@ export const BASE_SYSTEM_PROMPT =
   "shell backgrounding kept getting wrong in practice: the wrong process killed, an orphaned server left holding " +
   "a port, or a stale log read after the real process had already died without that being obvious from the " +
   "output. Use list_background_processes to check what's running and stop_background_process to shut one down " +
-  "by name, instead of guessing at `pkill -f <pattern>`.";
+  "by name, instead of guessing at `pkill -f <pattern>`. " +
+  "Use read_document (not bash/read_file) to get text out of a PDF, .docx, or .xlsx file — those are binary " +
+  "formats and read_file will return garbage bytes. It only handles the modern .docx/.xlsx formats, not the " +
+  "legacy binary .doc/.xls ones. Use write_spreadsheet to create a .xlsx file from structured row data.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {

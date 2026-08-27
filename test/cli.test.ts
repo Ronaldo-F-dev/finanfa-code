@@ -59,6 +59,18 @@ describe("system prompt: background process tools", () => {
   });
 });
 
+describe("system prompt: document tools", () => {
+  it("tells the model to use read_document instead of bash/read_file for binary document formats", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/read_document/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/not bash\/read_file/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/legacy binary \.doc\/\.xls/);
+  });
+
+  it("mentions write_spreadsheet for creating .xlsx files", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/write_spreadsheet/);
+  });
+});
+
 describe("system prompt: GitHub issue-to-PR workflow", () => {
   it("prefers git_push over bash, and sequences the full issue-to-PR flow", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/git_push/);
