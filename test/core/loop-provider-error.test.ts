@@ -86,7 +86,75 @@ describe("runTurn: a provider call that throws ends the turn cleanly instead of 
     expect(call).toBeDefined();
     expect(String(call?.[0])).toContain("poolside/laguna-s-2.1");
     expect(String(call?.[0])).toContain("Vision routing");
+
+    // The image must not linger in history — see the next test for why.
+    const stillHasImage = session.messages.some((m) => m.role === "user" && m.images?.length);
+    expect(stillHasImage).toBe(false);
   });
+
+  it(
+    "real, reported bug: a failed image call must not keep breaking every later, unrelated turn in the session",
+    async () => {
+      const tools = new ToolRegistry();
+      tools.register({
+        name: "screenshot",
+        description: "fake screenshot tool",
+        riskLevel: "safe",
+        inputSchema: { type: "object" },
+        async handler() {
+          return {
+            content: "Saved screenshot",
+            isError: false,
+            images: [{ mimeType: "image/png", base64: "AAAA" }],
+          };
+        },
+      });
+
+      class ImageOnceThenFineProvider implements LlmProvider {
+        calls = 0;
+        async streamTurn(): Promise<StreamTurnResult> {
+          this.calls++;
+          if (this.calls === 1) {
+            return {
+              assistantMessage: {
+                role: "assistant",
+                content: "",
+                toolCalls: [{ id: "c1", name: "screenshot", input: {} }],
+              },
+              usage: { inputTokens: 1, outputTokens: 1 },
+              stopReason: "tool_use",
+            };
+          }
+          if (this.calls === 2) {
+            // The follow-up call that's supposed to see the screenshot — this model can't.
+            throw new Error("This model does not support multimodal (image/video/audio) inputs.");
+          }
+          // A later, completely unrelated turn — must succeed now that the
+          // image has been dropped from history, not fail with the same error.
+          return {
+            assistantMessage: { role: "assistant", content: "sure, here's the CSS fix" },
+            usage: { inputTokens: 1, outputTokens: 1 },
+            stopReason: "end_turn",
+          };
+        }
+      }
+
+      const ui = makeStubUi();
+      const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+      const session = new AgentSession({ cwd: "/tmp", model: "poolside/laguna-s-2.1", systemPrompt: "sys" });
+      const provider = new ImageOnceThenFineProvider();
+
+      await runTurn(session, provider, ui, tools, permissions, "take a screenshot");
+      (ui.writeSystem as ReturnType<typeof vi.fn>).mockClear();
+
+      // A brand new, unrelated turn afterward.
+      await runTurn(session, provider, ui, tools, permissions, "ok forget the screenshot, fix the CSS instead");
+
+      expect(ui.writeSystem).not.toHaveBeenCalledWith(expect.stringContaining("doesn't support image input"));
+      const last = session.messages.at(-1);
+      expect(last).toMatchObject({ role: "assistant", content: "sure, here's the CSS fix" });
+    },
+  );
 
   it("does not falsely blame vision when the failure is unrelated to an image call", async () => {
     class FailingProvider implements LlmProvider {

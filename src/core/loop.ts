@@ -140,6 +140,28 @@ function toolCallBatchSignature(toolCalls: NeutralToolCall[]): string {
   return JSON.stringify(toolCalls.map((c) => ({ name: c.name, input: c.input })));
 }
 
+/**
+ * Strips the image(s) from the most recent image-bearing user message,
+ * replacing them with a short text note. compactForProvider() only ever
+ * compacts old *tool* results — an image message is never touched, so
+ * without this it gets resent, unchanged, on every later call for the rest
+ * of the session. On a model that can't handle multimodal input, that means
+ * every subsequent turn — even ones with nothing to do with the image —
+ * fails with the same error forever. Called once, right after the one call
+ * the image was actually meant for (success or failure), never left in
+ * history longer than that.
+ */
+function consumeImageMessage(session: AgentSession, note: string): void {
+  for (let i = session.messages.length - 1; i >= 0; i--) {
+    const m = session.messages[i];
+    if (m.role === "user" && m.images?.length) {
+      m.content = m.content.length > 0 ? `${m.content} (${note})` : `(${note})`;
+      delete m.images;
+      return;
+    }
+  }
+}
+
 /** Tracks per-turn iteration/repetition state so runTurn's own control flow stays flat. */
 class LoopGuard {
   private iterations = 0;
@@ -190,12 +212,15 @@ export async function runTurn(
     }
 
     // Route only the one call right after a tool produced an image — not
-    // every later call in the session, even though that image message stays
-    // in history (compactForProvider never strips it). Otherwise a single
-    // screenshot early in a long session would pin every future turn onto
-    // the (likely pricier/slower) vision model long after it's relevant.
+    // every later call in the session. Otherwise a single screenshot early
+    // in a long session would pin every future turn onto the (likely
+    // pricier/slower) vision model long after it's relevant. The image
+    // itself is stripped from history right after this one call, too (see
+    // consumeImageMessage) — compactForProvider never touches it, so
+    // without that it would get resent, unchanged, on every later call.
     const active = nextCallNeedsVision && visionRoute ? visionRoute : { provider, model: session.model };
     const sendingImageWithoutVisionRoute = nextCallNeedsVision && !visionRoute;
+    const wasShowingImage = nextCallNeedsVision;
     nextCallNeedsVision = false;
 
     ui.setBusy(true, "thinking");
@@ -219,9 +244,12 @@ export async function runTurn(
       ui.setBusy(false);
       const message = err instanceof Error ? err.message : String(err);
       if (sendingImageWithoutVisionRoute) {
+        consumeImageMessage(session, `not shown — ${active.model} doesn't support image input`);
+        await session.persist();
         ui.writeSystem(
           `(the model call failed — ${active.model} likely doesn't support image input, and no vision route is ` +
-            'configured for this session; see "Vision routing" in the README, or /config set visionModel. ' +
+            'configured for this session; see "Vision routing" in the README, or /config set visionModel. The ' +
+            "image has been dropped from this conversation so it won't keep failing every later turn too. " +
             `Original error: ${message})`,
         );
       } else {
@@ -234,6 +262,7 @@ export async function runTurn(
     ui.endAssistantMessage();
     session.messages.push(result.assistantMessage);
     session.recordUsage(result.usage.inputTokens, result.usage.outputTokens);
+    if (wasShowingImage) consumeImageMessage(session, "already shown to the model above");
 
     ui.setStatus({
       tokens: session.usage.inputTokens + session.usage.outputTokens,

@@ -28,7 +28,13 @@ class ScriptedProvider implements LlmProvider {
   seenMessages: StreamTurnParams["messages"][] = [];
 
   async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {
-    this.seenMessages.push(params.messages);
+    // Snapshot deeply — a real provider serializes the request onto the wire
+    // synchronously before returning, but this test double just holds onto
+    // the array/object references, which the loop legitimately mutates
+    // afterward (stripping a consumed image from history). Without cloning,
+    // that later mutation would retroactively change what this test
+    // observes as "sent", which isn't what actually happens over HTTP.
+    this.seenMessages.push(JSON.parse(JSON.stringify(params.messages)));
     this.callCount++;
     if (this.callCount === 1) {
       return {
@@ -73,17 +79,22 @@ describe("runTurn: images returned by a tool", () => {
 
     await runTurn(session, provider, ui, tools, permissions, "take a screenshot");
 
-    const imageMessage = session.messages.find((m) => m.role === "user" && m.images?.length);
-    expect(imageMessage).toBeDefined();
-    if (imageMessage?.role === "user") {
-      expect(imageMessage.images).toEqual([{ mimeType: "image/png", base64: "AAAA" }]);
-    }
-
     // The second streamTurn call (the one that produces the final answer) must
     // have actually received that image message in its conversation history.
     const secondCallMessages = provider.seenMessages[1];
     const sentImageMessage = secondCallMessages.find((m) => m.role === "user" && m.images?.length);
     expect(sentImageMessage).toBeDefined();
+    if (sentImageMessage?.role === "user") {
+      expect(sentImageMessage.images).toEqual([{ mimeType: "image/png", base64: "AAAA" }]);
+    }
+
+    // But once that one call is done, the image is stripped from history —
+    // otherwise it would get resent, unchanged, on every later unrelated
+    // call for the rest of the session (a real bug: on a model that can't
+    // handle it, that means every subsequent turn fails forever, not just
+    // the one that triggered it).
+    const imageMessageAfter = session.messages.find((m) => m.role === "user" && m.images?.length);
+    expect(imageMessageAfter).toBeUndefined();
   });
 
   it("does not add an image follow-up message when no tool returned images", async () => {
