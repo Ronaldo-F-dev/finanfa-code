@@ -6,6 +6,8 @@ interface GlobInput {
   path?: string;
 }
 
+const MAX_MATCHES = 1000;
+
 export const globTool: ToolDefinition<GlobInput> = {
   name: "glob",
   description: "List files matching a glob pattern, relative to the project root (or a given subdirectory).",
@@ -28,8 +30,13 @@ export const globTool: ToolDefinition<GlobInput> = {
       onlyFiles: true,
     });
     matches.sort();
+    const shown = matches.slice(0, MAX_MATCHES);
+    let content = shown.length > 0 ? shown.join("\n") : "(no matches)";
+    if (matches.length > MAX_MATCHES) {
+      content += `\n... (truncated, showing first ${MAX_MATCHES} of ${matches.length} matches)`;
+    }
     return {
-      content: matches.length > 0 ? matches.join("\n") : "(no matches)",
+      content,
       isError: false,
       metadata: { count: matches.length },
     };

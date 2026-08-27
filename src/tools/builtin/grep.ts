@@ -10,6 +10,23 @@ interface GrepInput {
   caseInsensitive?: boolean;
 }
 
+const MAX_MATCH_LINES = 500;
+const MAX_OUTPUT_CHARS = 20_000;
+
+/** A broad pattern across a large repo has no natural bound otherwise — cap both match count and total size. */
+function truncateOutput(output: string): string {
+  const lines = output.split("\n");
+  const lineTruncated = lines.length > MAX_MATCH_LINES;
+  let result = (lineTruncated ? lines.slice(0, MAX_MATCH_LINES) : lines).join("\n");
+  const charTruncated = result.length > MAX_OUTPUT_CHARS;
+  if (charTruncated) result = result.slice(0, MAX_OUTPUT_CHARS);
+  if (lineTruncated || charTruncated) {
+    const lineNote = lineTruncated ? `, showing first ${MAX_MATCH_LINES} of ${lines.length} matching lines` : "";
+    result += `\n... (truncated${lineNote} — narrow the pattern/path for a complete result)`;
+  }
+  return result;
+}
+
 function runRipgrep(input: GrepInput, cwd: string): Promise<string | undefined> {
   return new Promise((resolve) => {
     const args = ["--line-number", "--color=never"];
@@ -69,9 +86,9 @@ export const grepTool: ToolDefinition<GrepInput> = {
   describeCall: (input) => `grep "${input.pattern}"${input.path ? ` in ${input.path}` : ""}`,
   async handler(input, ctx) {
     const rgResult = await runRipgrep(input, ctx.cwd);
-    const output = rgResult ?? (await fallbackGrep(input, ctx.cwd));
+    const output = (rgResult ?? (await fallbackGrep(input, ctx.cwd))).trim();
     return {
-      content: output.trim().length > 0 ? output : "(no matches)",
+      content: output.length > 0 ? truncateOutput(output) : "(no matches)",
       isError: false,
     };
   },
