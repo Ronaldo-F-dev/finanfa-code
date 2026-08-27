@@ -76,7 +76,7 @@ Type `/` to see live autocomplete suggestions (Ink UI: arrow keys to select, Tab
 - `/undo` — revert the most recent `write_file`/`edit_file` change made by the agent (a per-session stack, not just the last one — call it repeatedly to go further back)
 - `/todos` — show the current task checklist (set by the agent via the `todo_write` tool)
 - `/memory` — list saved project memory notes (name, type, description) — see below
-- `/sessions` — list saved sessions for this directory; `/sessions delete <id>` removes one
+- `/sessions` — list saved sessions for this directory; `/sessions delete <id>` removes one, `/sessions delete all` removes every other saved session for this directory (keeps the current one — deleting it while active would just recreate it on the next save, so that's refused with an explanation instead)
 - `/mcp list` / `/mcp reload` / `/mcp add <name> -- <command> [args...]` / `/mcp enable <name>` / `/mcp disable <name>` — manage MCP servers. `disable` excludes a server's tools from what's offered to the model (without disconnecting it — its tools stay reachable, just not advertised) — useful with several servers connected at once, so the token cost of every tool schema from every server isn't paid on every single call regardless of the current task.
 - `/config [show]` / `/config set <provider|model|baseUrl|apiKey> <value>` / `/config clear` — persistent defaults, so you don't have to re-export `FINANFA_*`/`ANTHROPIC_API_KEY` every session (see below)
 - `/exit` — quit

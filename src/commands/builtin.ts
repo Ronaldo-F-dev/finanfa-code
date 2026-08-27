@@ -151,7 +151,26 @@ async function handleMemory(ctx: CommandContext): Promise<CommandOutcome> {
 async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
   const [sub, id] = ctx.args.trim().split(/\s+/);
 
+  if (sub === "delete" && id === "all") {
+    const sessions = await AgentSession.list(ctx.cwd);
+    const toDelete = sessions.filter((s) => s.id !== ctx.session.id);
+    await Promise.all(toDelete.map((s) => AgentSession.delete(ctx.cwd, s.id)));
+    ctx.ui.writeSystem(
+      toDelete.length > 0
+        ? `Deleted ${toDelete.length} session(s) for this directory (kept the current one — it's still active).`
+        : "No other saved sessions to delete.",
+    );
+    return "continue";
+  }
+
   if (sub === "delete" && id) {
+    if (id === ctx.session.id) {
+      ctx.ui.writeError(
+        "Can't delete the current session while it's active — it would just get recreated on the next save. " +
+          "/exit first, then delete it from a different session.",
+      );
+      return "continue";
+    }
     await AgentSession.delete(ctx.cwd, id);
     ctx.ui.writeSystem(`Deleted session ${id}.`);
     return "continue";
@@ -290,6 +309,6 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
   commands.register(
     "sessions",
     handleSessions,
-    "List saved sessions for this directory, or /sessions delete <id>",
+    "List saved sessions for this directory, /sessions delete <id>, or /sessions delete all (keeps the current one)",
   );
 }
