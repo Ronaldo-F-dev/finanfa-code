@@ -17,14 +17,20 @@ export interface SessionFile {
   usage: UsageTotals;
 }
 
-const SESSIONS_ROOT = path.join(os.homedir(), ".finanfa-code", "sessions");
+// Computed lazily (not memoized as a module constant) so it reflects the
+// current $HOME/os.homedir() at call time rather than whatever it was when
+// this module first loaded — matters for tests that override $HOME (see
+// core/config.ts's globalConfigPath for the same pattern/reasoning).
+function sessionsRoot(): string {
+  return path.join(os.homedir(), ".finanfa-code", "sessions");
+}
 
 function projectHash(cwd: string): string {
   return createHash("sha256").update(cwd).digest("hex").slice(0, 12);
 }
 
 function sessionDir(cwd: string): string {
-  return path.join(SESSIONS_ROOT, projectHash(cwd));
+  return path.join(sessionsRoot(), projectHash(cwd));
 }
 
 export class AgentSession {
