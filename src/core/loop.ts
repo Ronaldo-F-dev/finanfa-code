@@ -2,7 +2,15 @@ import type { AgentSession } from "./session.js";
 import type { UIAdapter } from "../ui/adapter.js";
 import type { ToolRegistry } from "../tools/registry.js";
 import type { PermissionManager } from "../permissions/manager.js";
-import type { LlmProvider, NeutralImage, NeutralToolCall, NeutralToolResult, ToolContext, ToolDefinition } from "./types.js";
+import type {
+  LlmProvider,
+  NeutralImage,
+  NeutralToolCall,
+  NeutralToolResult,
+  StreamTurnResult,
+  ToolContext,
+  ToolDefinition,
+} from "./types.js";
 import { compactForProvider } from "./context.js";
 import { mcpToolServerName } from "../mcp/client-manager.js";
 
@@ -187,16 +195,40 @@ export async function runTurn(
     // screenshot early in a long session would pin every future turn onto
     // the (likely pricier/slower) vision model long after it's relevant.
     const active = nextCallNeedsVision && visionRoute ? visionRoute : { provider, model: session.model };
+    const sendingImageWithoutVisionRoute = nextCallNeedsVision && !visionRoute;
     nextCallNeedsVision = false;
 
     ui.setBusy(true, "thinking");
-    const result = await active.provider.streamTurn({
-      model: active.model,
-      systemPrompt: session.systemPrompt,
-      messages: compactForProvider(session.messages),
-      tools: toolsForProvider(tools, session),
-      onTextDelta: (text) => ui.writeAssistantDelta(text),
-    });
+    let result: StreamTurnResult;
+    try {
+      result = await active.provider.streamTurn({
+        model: active.model,
+        systemPrompt: session.systemPrompt,
+        messages: compactForProvider(session.messages),
+        tools: toolsForProvider(tools, session),
+        onTextDelta: (text) => ui.writeAssistantDelta(text),
+      });
+    } catch (err) {
+      // A provider call can throw outright (not just return an empty/odd
+      // result) — e.g. a real case: sending an image to a model that
+      // rejects multimodal input with an HTTP 400. Left uncaught, this
+      // aborted the whole turn with a raw, scary-looking error dump and no
+      // way for the model (or user) to react. Ending the turn cleanly here,
+      // with a message tailored to the likely cause, matches how the other
+      // "can't continue" cases below already behave.
+      ui.setBusy(false);
+      const message = err instanceof Error ? err.message : String(err);
+      if (sendingImageWithoutVisionRoute) {
+        ui.writeSystem(
+          `(the model call failed — ${active.model} likely doesn't support image input, and no vision route is ` +
+            'configured for this session; see "Vision routing" in the README, or /config set visionModel. ' +
+            `Original error: ${message})`,
+        );
+      } else {
+        ui.writeSystem(`(the model call failed: ${message})`);
+      }
+      return;
+    }
 
     ui.setBusy(false);
     ui.endAssistantMessage();
