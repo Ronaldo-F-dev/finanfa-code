@@ -65,7 +65,12 @@ export const BASE_SYSTEM_PROMPT =
   "real name before writing into it. Never guess or hardcode a username in a path (e.g. \"/home/someuser/...\") " +
   "— if you don't already know it from this conversation, get the real one first (`bash: echo $HOME` or `whoami`) " +
   "and reuse exactly that value; a guessed username will resolve to the wrong machine's home directory and get " +
-  "rejected. `~` is not expanded by these tools — always use the real absolute path, never a literal \"~/...\".";
+  "rejected. `~` is not expanded by these tools — always use the real absolute path, never a literal \"~/...\". " +
+  "When you start a server (or anything else that takes a moment to become ready) in the background to test it, " +
+  "poll for it instead of a fixed `sleep N` — a dev server with a debug/reload mode can take longer to bind its " +
+  "port than a guessed sleep duration, and testing too early looks exactly like a crash when it isn't. Loop a " +
+  "few short curl attempts with brief pauses between them, or a `while ! curl -s ... ; do sleep 1; done` with a " +
+  "cap, and only conclude the server failed if it never responds within that budget.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {

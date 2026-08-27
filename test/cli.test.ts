@@ -33,3 +33,10 @@ describe("system prompt: path guidance", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/not expanded/i);
   });
 });
+
+describe("system prompt: server-readiness guidance", () => {
+  it("tells the model to poll a server it just started instead of a fixed sleep", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/poll for it instead of a fixed/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/looks exactly like a crash when it isn't/i);
+  });
+});
