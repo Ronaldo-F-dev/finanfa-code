@@ -130,6 +130,9 @@ export async function runTurn(
 
     const toolCalls = result.assistantMessage.toolCalls;
     if (result.stopReason !== "tool_use" || !toolCalls?.length) {
+      if (result.assistantMessage.content.trim() === "") {
+        ui.writeSystem("(the model returned an empty response — try rephrasing, or check /cost for context size)");
+      }
       return;
     }
 
