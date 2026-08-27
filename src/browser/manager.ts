@@ -3,6 +3,7 @@ import { chromium, type Browser, type Page } from "playwright-core";
 export interface PageContent {
   title: string;
   text: string;
+  url: string;
 }
 
 /**
@@ -46,7 +47,7 @@ export class BrowserManager {
     const page = await this.ensurePage();
     const title = await page.title();
     const text = await page.locator("body").innerText();
-    return { title, text };
+    return { title, text, url: page.url() };
   }
 
   async screenshot(path: string): Promise<void> {

@@ -1,4 +1,5 @@
 import type { ToolDefinition } from "../../core/types.js";
+import { wrapUntrustedContent } from "../../core/untrusted-content.js";
 
 interface WebSearchInput {
   query: string;
@@ -86,6 +87,9 @@ export const webSearchTool: ToolDefinition<WebSearchInput> = {
   async handler(input) {
     const count = Math.min(Math.max(input.count ?? 5, 1), 20);
     const content = await duckDuckGoSearch(input.query, count);
-    return { content, isError: false };
+    return {
+      content: content === "(no results)" ? content : wrapUntrustedContent(`web_search: ${input.query}`, content),
+      isError: false,
+    };
   },
 };

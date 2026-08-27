@@ -1,4 +1,5 @@
 import type { ToolDefinition } from "../../core/types.js";
+import { wrapUntrustedContent } from "../../core/untrusted-content.js";
 
 interface WebFetchInput {
   url: string;
@@ -45,6 +46,9 @@ export const webFetchTool: ToolDefinition<WebFetchInput> = {
     const text = contentType.includes("html") ? stripHtml(raw) : raw.trim();
     const truncated = text.length > MAX_CONTENT_LENGTH ? `${text.slice(0, MAX_CONTENT_LENGTH)}\n... (truncated)` : text;
 
-    return { content: truncated || "(empty response)", isError: false };
+    return {
+      content: truncated ? wrapUntrustedContent(input.url, truncated) : "(empty response)",
+      isError: false,
+    };
   },
 };

@@ -2,12 +2,13 @@ import type { ToolDefinition } from "../../core/types.js";
 import type { BrowserManager } from "../../browser/manager.js";
 import { resolveWithinCwd } from "./path-guard.js";
 import { readImageFile } from "../../util/image.js";
+import { wrapUntrustedContent } from "../../core/untrusted-content.js";
 
 const MAX_TEXT_LENGTH = 8000;
 
-function formatPage(title: string, text: string): string {
+function formatPage(url: string, title: string, text: string): string {
   const truncated = text.length > MAX_TEXT_LENGTH ? `${text.slice(0, MAX_TEXT_LENGTH)}\n... (truncated)` : text;
-  return `# ${title}\n\n${truncated}`;
+  return wrapUntrustedContent(url, `# ${title}\n\n${truncated}`);
 }
 
 function hostnameOf(url: string): string {
@@ -39,8 +40,8 @@ export function createBrowserTools(manager: BrowserManager): ToolDefinition[] {
     riskKey: (input) => hostnameOf(input.url),
     describeCall: (input) => `navigate to ${input.url}`,
     async handler(input) {
-      const { title, text } = await manager.navigate(input.url);
-      return { content: formatPage(title, text), isError: false };
+      const { title, text, url } = await manager.navigate(input.url);
+      return { content: formatPage(url, title, text), isError: false };
     },
   };
 
@@ -58,8 +59,8 @@ export function createBrowserTools(manager: BrowserManager): ToolDefinition[] {
     describeCall: (input) => `click "${input.selector}"`,
     async handler(input) {
       await manager.click(input.selector);
-      const { title, text } = await manager.content();
-      return { content: formatPage(title, text), isError: false };
+      const { title, text, url } = await manager.content();
+      return { content: formatPage(url, title, text), isError: false };
     },
   };
 

@@ -12,9 +12,9 @@ const ONE_PIXEL_PNG = Buffer.from(
 
 function makeFakeManager(): BrowserManager {
   return {
-    navigate: vi.fn().mockResolvedValue({ title: "Fake Page", text: "some page text" }),
+    navigate: vi.fn().mockResolvedValue({ title: "Fake Page", text: "some page text", url: "https://example.com" }),
     click: vi.fn().mockResolvedValue(undefined),
-    content: vi.fn().mockResolvedValue({ title: "Fake Page", text: "clicked text" }),
+    content: vi.fn().mockResolvedValue({ title: "Fake Page", text: "clicked text", url: "https://example.com" }),
     screenshot: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
   } as unknown as BrowserManager;
@@ -33,7 +33,7 @@ describe("browser_* tools", () => {
 
   it("browser_navigate formats the page title and text, truncating long content", async () => {
     const manager = makeFakeManager();
-    vi.mocked(manager.navigate).mockResolvedValue({ title: "Big Page", text: "x".repeat(9000) });
+    vi.mocked(manager.navigate).mockResolvedValue({ title: "Big Page", text: "x".repeat(9000), url: "https://example.com" });
     const [navigate] = createBrowserTools(manager);
 
     const result = await navigate.handler({ url: "https://example.com" }, {
@@ -44,6 +44,7 @@ describe("browser_* tools", () => {
 
     expect(result.content).toContain("# Big Page");
     expect(result.content).toContain("(truncated)");
+    expect(result.content).toContain("untrusted-external-content");
     expect(manager.navigate).toHaveBeenCalledWith("https://example.com");
   });
 
