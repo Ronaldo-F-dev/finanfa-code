@@ -11,8 +11,27 @@ import type {
 
 type AnthropicImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
 
+/**
+ * Marks the last content block of `message` as an ephemeral cache
+ * breakpoint, converting bare string content to a one-block array first
+ * (cache_control lives on a content block, not on the message itself).
+ */
+function markCacheBreakpoint(message: Anthropic.MessageParam): void {
+  if (typeof message.content === "string") {
+    message.content = [{ type: "text", text: message.content, cache_control: { type: "ephemeral" } }];
+    return;
+  }
+  const last = message.content.at(-1);
+  // We only ever construct text/tool_use/tool_result/image blocks above —
+  // never thinking/redacted_thinking, the two block types that don't carry
+  // cache_control — but guard narrowly rather than assume.
+  if (last && last.type !== "thinking" && last.type !== "redacted_thinking") {
+    last.cache_control = { type: "ephemeral" };
+  }
+}
+
 export function toAnthropicMessages(messages: NeutralMessage[]): Anthropic.MessageParam[] {
-  return messages.map((m): Anthropic.MessageParam => {
+  const out = messages.map((m): Anthropic.MessageParam => {
     if (m.role === "user") {
       if (!m.images?.length) return { role: "user", content: m.content };
       const blocks: Anthropic.ContentBlockParam[] = [];
@@ -42,6 +61,19 @@ export function toAnthropicMessages(messages: NeutralMessage[]): Anthropic.Messa
     }));
     return { role: "user", content: blocks };
   });
+
+  // Cache everything up through the second-to-last message — the "stable"
+  // prefix a growing multi-turn conversation already sent before — so only
+  // the newest message is processed at full price on the next call, instead
+  // of the entire history being reprocessed from scratch every turn. (system
+  // prompt and tool list are already cached separately, see streamTurn/
+  // toAnthropicTools below — this extends the same idea to the transcript,
+  // which is usually the fastest-growing and costliest part in a long
+  // tool-calling session.)
+  const secondToLast = out.length >= 2 ? out.at(-2) : undefined;
+  if (secondToLast) markCacheBreakpoint(secondToLast);
+
+  return out;
 }
 
 export function toAnthropicTools(tools: ToolDefinition[]): Anthropic.Tool[] {

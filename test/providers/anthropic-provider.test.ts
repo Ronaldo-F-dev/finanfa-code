@@ -71,6 +71,61 @@ describe("anthropic-provider conversions", () => {
     ]);
   });
 
+  it("marks a cache breakpoint on the second-to-last message, not the last", () => {
+    const neutral: NeutralMessage[] = [
+      { role: "user", content: "first" },
+      { role: "assistant", content: "second" },
+    ];
+    const out = toAnthropicMessages(neutral);
+
+    expect(out[0].content).toEqual([{ type: "text", text: "first", cache_control: { type: "ephemeral" } }]);
+    // The newest message is left as plain content — nothing to cache yet, it's new every call.
+    expect(out[1].content).toEqual([{ type: "text", text: "second" }]);
+  });
+
+  it("marks the cache breakpoint on the LAST block when the second-to-last message has multiple blocks", () => {
+    const neutral: NeutralMessage[] = [
+      {
+        role: "assistant",
+        content: "checking",
+        toolCalls: [{ id: "t1", name: "read_file", input: { path: "a.txt" } }],
+      },
+      { role: "tool", results: [{ toolCallId: "t1", content: "file contents", isError: false }] },
+    ];
+    const out = toAnthropicMessages(neutral);
+
+    expect(out[0].content).toEqual([
+      { type: "text", text: "checking" },
+      { type: "tool_use", id: "t1", name: "read_file", input: { path: "a.txt" }, cache_control: { type: "ephemeral" } },
+    ]);
+  });
+
+  it("does not add a cache breakpoint for a single-message conversation", () => {
+    const neutral: NeutralMessage[] = [{ role: "user", content: "hello" }];
+    expect(toAnthropicMessages(neutral)).toEqual([{ role: "user", content: "hello" }]);
+  });
+
+  it("moves the cache breakpoint forward as the conversation grows (incremental caching)", () => {
+    const turnOne: NeutralMessage[] = [
+      { role: "user", content: "first" },
+      { role: "assistant", content: "second" },
+    ];
+    const turnTwo: NeutralMessage[] = [...turnOne, { role: "user", content: "third" }];
+
+    const outOne = toAnthropicMessages(turnOne);
+    const outTwo = toAnthropicMessages(turnTwo);
+
+    // Call 1 marks a breakpoint after "first". Call 2 moves the (single)
+    // breakpoint forward to "second" — Anthropic's cache lookup matches the
+    // longest previously-cached prefix under that new breakpoint, so the
+    // "first" portion is still a cache read even though it's no longer
+    // marked directly; only "third" (after the new breakpoint) is fresh.
+    expect(outOne[0].content).toEqual([{ type: "text", text: "first", cache_control: { type: "ephemeral" } }]);
+    expect(outTwo[0].content).toBe("first");
+    expect(outTwo[1].content).toEqual([{ type: "text", text: "second", cache_control: { type: "ephemeral" } }]);
+    expect(outTwo[2].content).toBe("third");
+  });
+
   it("converts an Anthropic response back into a neutral assistant message", () => {
     const message = {
       content: [
