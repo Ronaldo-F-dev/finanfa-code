@@ -86,6 +86,12 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/edit_document/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/splits a sentence across several runs/);
   });
+
+  it("tells the model to use read_notebook/edit_notebook for Jupyter .ipynb files", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/read_notebook/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/edit_notebook/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/0-based index/);
+  });
 });
 
 describe("system prompt: GitHub issue-to-PR workflow", () => {

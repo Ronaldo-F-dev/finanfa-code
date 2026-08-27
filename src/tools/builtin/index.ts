@@ -21,6 +21,7 @@ import {
   writeDocumentTool,
   editDocumentTool,
 } from "./documents.js";
+import { readNotebookTool, editNotebookTool } from "./notebook.js";
 
 export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(readFileTool);
@@ -42,5 +43,7 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(mergePdfTool);
   registry.register(writeDocumentTool);
   registry.register(editDocumentTool);
+  registry.register(readNotebookTool);
+  registry.register(editNotebookTool);
   for (const tool of gitTools) registry.register(tool);
 }

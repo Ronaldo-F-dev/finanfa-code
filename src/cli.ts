@@ -101,7 +101,11 @@ export const BASE_SYSTEM_PROMPT =
   "does exact-text replacement in an existing .docx, but only works when old_string falls entirely within one " +
   "internal XML run — Word often splits a sentence across several runs, and the tool fails with a clear " +
   "explanation rather than silently missing the edit in that case; prefer a short, distinctive fragment as " +
-  "old_string to raise the odds it's captured in a single run.";
+  "old_string to raise the odds it's captured in a single run. " +
+  "Use read_notebook (not read_file) to look at a Jupyter .ipynb file — it shows cells and a summary of their " +
+  "outputs instead of the raw, very verbose JSON (execution counts, output MIME bundles, etc.). Use " +
+  "edit_notebook to update/insert/delete a cell by 0-based index; updating a cell leaves its old outputs in " +
+  "place, now stale until the cell is re-run — same as editing a cell in Jupyter itself without re-executing it.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {
