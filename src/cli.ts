@@ -21,6 +21,7 @@ import { BrowserManager } from "./browser/manager.js";
 import type { LlmProvider } from "./core/types.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible-provider.js";
+import { loadConfig, type FinanfaConfig } from "./core/config.js";
 
 const BASE_SYSTEM_PROMPT =
   "You are finanfa-code, a helpful coding assistant with access to file and shell tools. " +
@@ -40,29 +41,37 @@ interface CliOptions {
 }
 
 /**
- * Picks the LLM backend from environment variables:
- *  - default: Anthropic, using ANTHROPIC_API_KEY
- *  - FINANFA_PROVIDER=openai-compatible: any server speaking the OpenAI
+ * Picks the LLM backend. Priority per setting: environment variable > config
+ * file (project-local .finanfa-code/config.json, then global
+ * ~/.finanfa-code/config.json, see /config) > built-in default.
+ *  - provider "anthropic" (default): uses ANTHROPIC_API_KEY / config.apiKey.
+ *  - provider "openai-compatible": any server speaking the OpenAI
  *    chat-completions wire format — Ollama (local, free), OpenRouter,
- *    Poolside, LM Studio, vLLM, etc. — configured via FINANFA_BASE_URL /
- *    FINANFA_API_KEY / FINANFA_MODEL.
+ *    Poolside, LM Studio, vLLM, etc. — needs baseUrl + model (apiKey optional,
+ *    e.g. for a local Ollama server that needs no key).
  */
-function selectProvider(): { provider: LlmProvider; defaultModel: string } {
-  if (process.env.FINANFA_PROVIDER === "openai-compatible") {
-    const baseUrl = process.env.FINANFA_BASE_URL;
-    const model = process.env.FINANFA_MODEL;
+function selectProvider(config: FinanfaConfig): { provider: LlmProvider; defaultModel: string; kind: string } {
+  const kind = process.env.FINANFA_PROVIDER ?? config.provider ?? "anthropic";
+
+  if (kind === "openai-compatible") {
+    const baseUrl = process.env.FINANFA_BASE_URL ?? config.baseUrl;
+    const model = process.env.FINANFA_MODEL ?? config.model;
+    const apiKey = process.env.FINANFA_API_KEY ?? config.apiKey;
     if (!baseUrl || !model) {
       throw new Error(
-        "FINANFA_PROVIDER=openai-compatible requires FINANFA_BASE_URL and FINANFA_MODEL " +
-          "(FINANFA_API_KEY is optional, e.g. for a local Ollama server that needs no key).",
+        "provider openai-compatible requires a base URL and model — set FINANFA_BASE_URL/FINANFA_MODEL, " +
+          "or /config set baseUrl <url> and /config set model <model>.",
       );
     }
-    return {
-      provider: new OpenAiCompatibleProvider({ baseUrl, apiKey: process.env.FINANFA_API_KEY }),
-      defaultModel: model,
-    };
+    return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey }), defaultModel: model, kind };
   }
-  return { provider: new AnthropicProvider(process.env.ANTHROPIC_API_KEY), defaultModel: DEFAULT_ANTHROPIC_MODEL };
+
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? config.apiKey;
+  return {
+    provider: new AnthropicProvider(apiKey),
+    defaultModel: config.model ?? DEFAULT_ANTHROPIC_MODEL,
+    kind: "anthropic",
+  };
 }
 
 function createUi(mode: "ink" | "readline"): UIAdapter {
@@ -153,7 +162,8 @@ export async function main(argv: string[]): Promise<void> {
   const cwd = process.cwd();
   const ui = createUi(opts.ui);
 
-  const { provider, defaultModel } = selectProvider();
+  const config = await loadConfig(cwd);
+  const { provider, defaultModel, kind: providerKind } = selectProvider(config);
   const model = opts.model ?? defaultModel;
 
   const tools = new ToolRegistry();
@@ -187,8 +197,7 @@ export async function main(argv: string[]): Promise<void> {
   const plugins = await loadPlugins(cwd, tools, commands);
   ui.setCommands(commands.list());
 
-  const providerLabel = process.env.FINANFA_PROVIDER === "openai-compatible" ? "openai-compatible" : "anthropic";
-  ui.writeSystem(`finanfa-code — session ${session.id} (${session.model} via ${providerLabel})`);
+  ui.writeSystem(`finanfa-code — session ${session.id} (${session.model} via ${providerKind})`);
   ui.writeSystem(`Tools: ${tools.list().map((t) => t.name).join(", ")}`);
   if (mcp.connectedServers().length > 0) ui.writeSystem(`MCP servers: ${mcp.connectedServers().join(", ")}`);
   if (plugins.length > 0) ui.writeSystem(`Plugins: ${plugins.join(", ")}`);

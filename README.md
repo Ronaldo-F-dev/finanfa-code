@@ -49,6 +49,19 @@ npm run dev
 >
 > Streaming usage (`/cost`) reports `$0.00`/`0 tokens` for unrecognized model ids and for backends (like Ollama) that don't return `usage` in streamed responses — this is expected, not a bug.
 
+### Persistent config (skip the `export`s)
+
+Instead of setting `FINANFA_PROVIDER`/`FINANFA_BASE_URL`/`FINANFA_MODEL`/`FINANFA_API_KEY` (or `ANTHROPIC_API_KEY`) every session, set them once:
+
+```
+/config set provider openai-compatible
+/config set baseUrl https://inference.poolside.ai/v1
+/config set model poolside/laguna-s-2.1
+/config set apiKey <your key>
+```
+
+Saved to `~/.finanfa-code/config.json` (owner-only permissions, `chmod 600` — it may hold an API key in plain text, same trust level as an SSH key). A project-local `.finanfa-code/config.json` overrides the global one for just that directory. Priority order: environment variable/CLI flag > project config > global config > built-in default — so a one-off `FINANFA_MODEL=... npm run dev` still works without touching the saved config. Changes take effect on the next `npm run dev` (not the current session).
+
 A loading indicator (spinner + label — "thinking", "running bash", etc.) shows whenever the agent is waiting on the model or a tool, in both UI modes — so a silent gap (e.g. after confirming a risky action) reads as "still working" rather than "did nothing happen?".
 
 **Markdown rendering:** tables/bold/headings/code can't be rendered correctly until the whole message is known (a half-streamed table looks broken either way), so the two UI modes make different trade-offs — Ink re-renders the *live* streaming text as markdown on every chunk (so it visibly settles into shape as more arrives), while the `readline` fallback buffers silently behind the "thinking" spinner and prints the fully rendered message once done (no character-by-character typing effect there, by design).
@@ -64,6 +77,7 @@ Type `/` to see live autocomplete suggestions (Ink UI: arrow keys to select, Tab
 - `/todos` — show the current task checklist (set by the agent via the `todo_write` tool)
 - `/sessions` — list saved sessions for this directory; `/sessions delete <id>` removes one
 - `/mcp list` / `/mcp reload` / `/mcp add <name> -- <command> [args...]` — manage MCP servers
+- `/config [show]` / `/config set <provider|model|baseUrl|apiKey> <value>` / `/config clear` — persistent defaults, so you don't have to re-export `FINANFA_*`/`ANTHROPIC_API_KEY` every session (see below)
 - `/exit` — quit
 
 Ctrl+C (or `kill -TERM`) triggers a graceful shutdown in both UI modes: the current session is persisted and MCP connections are closed before exit, instead of an abrupt kill.

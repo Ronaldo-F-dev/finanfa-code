@@ -3,6 +3,7 @@ import { mkdir, rm, writeFile } from "node:fs/promises";
 import { AgentSession } from "../core/session.js";
 import { loadMcpServers, type McpServerConfig } from "../mcp/config.js";
 import { MCP_TOOL_PREFIX } from "../mcp/client-manager.js";
+import { loadConfig, saveGlobalConfig, globalConfigPath, type FinanfaConfig } from "../core/config.js";
 import type { CommandContext, CommandOutcome } from "./types.js";
 import type { CommandRegistry } from "./registry.js";
 
@@ -129,6 +130,55 @@ async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
   return "continue";
 }
 
+const CONFIG_KEYS = ["provider", "model", "baseUrl", "apiKey"] as const;
+type ConfigKey = (typeof CONFIG_KEYS)[number];
+
+function isConfigKey(key: string): key is ConfigKey {
+  return (CONFIG_KEYS as readonly string[]).includes(key);
+}
+
+function maskSecret(value: string): string {
+  return value.length <= 8 ? "****" : `${value.slice(0, 4)}...${value.slice(-4)}`;
+}
+
+function formatConfig(config: FinanfaConfig): string {
+  const entries = Object.entries(config) as [ConfigKey, string][];
+  if (entries.length === 0) return "No config set. Use /config set <provider|model|baseUrl|apiKey> <value>.";
+  return entries.map(([k, v]) => `${k}: ${k === "apiKey" ? maskSecret(v) : v}`).join("\n");
+}
+
+async function handleConfig(ctx: CommandContext): Promise<CommandOutcome> {
+  const parts = ctx.args.trim().split(/\s+/).filter(Boolean);
+  const [sub] = parts;
+
+  if (!sub || sub === "show") {
+    ctx.ui.writeSystem(formatConfig(await loadConfig(ctx.cwd)));
+    return "continue";
+  }
+
+  if (sub === "set") {
+    const key = parts[1];
+    const value = parts.slice(2).join(" ");
+    if (!key || !isConfigKey(key) || !value) {
+      ctx.ui.writeError(`Usage: /config set <${CONFIG_KEYS.join("|")}> <value>`);
+      return "continue";
+    }
+    const current = await loadConfig(ctx.cwd);
+    await saveGlobalConfig({ ...current, [key]: value });
+    ctx.ui.writeSystem(`Saved ${key} to ${globalConfigPath()}. Restart finanfa-code for it to take effect.`);
+    return "continue";
+  }
+
+  if (sub === "clear") {
+    await saveGlobalConfig({});
+    ctx.ui.writeSystem("Config cleared.");
+    return "continue";
+  }
+
+  ctx.ui.writeError("Usage: /config [show] | /config set <provider|model|baseUrl|apiKey> <value> | /config clear");
+  return "continue";
+}
+
 export function registerBuiltinCommands(commands: CommandRegistry): void {
   commands.register("exit", () => "exit", "Quit finanfa-code");
 
@@ -173,6 +223,12 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
   );
 
   commands.register("todos", handleTodos, "Show the current task checklist");
+
+  commands.register(
+    "config",
+    handleConfig,
+    "Show/set persistent defaults (provider, model, baseUrl, apiKey): /config [show] | /config set <key> <value> | /config clear",
+  );
 
   commands.register(
     "mcp",
