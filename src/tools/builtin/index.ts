@@ -22,6 +22,7 @@ import {
   editDocumentTool,
 } from "./documents.js";
 import { readNotebookTool, editNotebookTool } from "./notebook.js";
+import { checkPythonTypesTool } from "./check-python-types.js";
 
 export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(readFileTool);
@@ -45,5 +46,6 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(editDocumentTool);
   registry.register(readNotebookTool);
   registry.register(editNotebookTool);
+  registry.register(checkPythonTypesTool);
   for (const tool of gitTools) registry.register(tool);
 }

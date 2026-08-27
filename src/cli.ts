@@ -105,7 +105,9 @@ export const BASE_SYSTEM_PROMPT =
   "Use read_notebook (not read_file) to look at a Jupyter .ipynb file — it shows cells and a summary of their " +
   "outputs instead of the raw, very verbose JSON (execution counts, output MIME bundles, etc.). Use " +
   "edit_notebook to update/insert/delete a cell by 0-based index; updating a cell leaves its old outputs in " +
-  "place, now stale until the cell is re-run — same as editing a cell in Jupyter itself without re-executing it.";
+  "place, now stale until the cell is re-run — same as editing a cell in Jupyter itself without re-executing it. " +
+  "Use check_python_types (not bash/run_tests) to type-check a Python file or project with Pyright — it's " +
+  "static analysis, safe to run any time, not just after a change you're ready to test.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {

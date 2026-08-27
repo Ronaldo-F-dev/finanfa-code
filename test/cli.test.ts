@@ -92,6 +92,11 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/edit_notebook/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/0-based index/);
   });
+
+  it("tells the model to use check_python_types for Python type-checking via Pyright", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/check_python_types/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/Pyright/);
+  });
 });
 
 describe("system prompt: GitHub issue-to-PR workflow", () => {
