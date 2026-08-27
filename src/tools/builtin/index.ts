@@ -11,6 +11,7 @@ import { previewHtmlTool } from "./preview-html.js";
 import { todoWriteTool } from "./todo-write.js";
 import { viewImageTool } from "./view-image.js";
 import { gitTools } from "./git.js";
+import { runTestsTool } from "./run-tests.js";
 
 export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(readFileTool);
@@ -24,5 +25,6 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(previewHtmlTool);
   registry.register(todoWriteTool);
   registry.register(viewImageTool);
+  registry.register(runTestsTool);
   for (const tool of gitTools) registry.register(tool);
 }

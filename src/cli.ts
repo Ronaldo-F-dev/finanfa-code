@@ -35,7 +35,10 @@ const BASE_SYSTEM_PROMPT =
   "already open from earlier in the conversation) — never answer a visual request with web_fetch's text dump. " +
   "Use view_image the same way for an existing local image file. " +
   "Prefer the dedicated git_status/git_diff/git_log/git_branch/git_add/git_commit/git_checkout tools over bash " +
-  "for git operations they cover — bash still works for anything else (push, merge, rebase, ...).";
+  "for git operations they cover — bash still works for anything else (push, merge, rebase, ...). " +
+  "After changing code, run run_tests, read any failures carefully, fix the underlying cause, and re-run — " +
+  "repeat this test/fix loop until it passes. If the same failure survives about 3 fix attempts, stop and " +
+  "explain what's blocking you instead of continuing to guess.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {
