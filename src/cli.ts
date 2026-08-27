@@ -21,6 +21,8 @@ import { createBrowserTools } from "./tools/builtin/browser.js";
 import { BrowserManager } from "./browser/manager.js";
 import { createBackgroundProcessTools } from "./tools/builtin/background-process.js";
 import { BackgroundProcessManager } from "./core/background-process.js";
+import { createPythonReplTool } from "./tools/builtin/python-repl.js";
+import { PythonReplManager } from "./core/python-repl.js";
 import type { LlmProvider } from "./core/types.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible-provider.js";
@@ -110,7 +112,12 @@ export const BASE_SYSTEM_PROMPT =
   "static analysis, safe to run any time, not just after a change you're ready to test. " +
   "Use resize_image to resize/convert an image — with both width and height given, the default fit \"inside\" " +
   "scales to fit within that box without cropping, so the actual output size may not exactly match what was " +
-  "asked; use fit \"cover\" for an exact-size crop instead. Without outputPath it overwrites the original file.";
+  "asked; use fit \"cover\" for an exact-size crop instead. Without outputPath it overwrites the original file. " +
+  "Use python_repl for exploratory Python — trying something quickly, iterating on a snippet, inspecting a " +
+  "value — instead of `bash: python3 -c \"...\"`, which starts a fresh interpreter every call and throws away " +
+  "variables, imports, and function defs between calls. python_repl keeps all of that across calls, the same " +
+  "way an interactive session would. Pass reset: true to clear it and start over. It has no interactive stdin, " +
+  "so code calling input() will hang until it times out.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {
@@ -309,6 +316,7 @@ export async function main(argv: string[]): Promise<void> {
   tools.register(createTaskTool({ provider, tools, permissions, ui, model, cwd }));
   for (const tool of createBrowserTools(browser)) tools.register(tool);
   for (const tool of createBackgroundProcessTools(new BackgroundProcessManager())) tools.register(tool);
+  tools.register(createPythonReplTool(new PythonReplManager()));
 
   const commands = new CommandRegistry();
   registerBuiltinCommands(commands);

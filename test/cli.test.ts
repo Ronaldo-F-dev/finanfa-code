@@ -103,6 +103,12 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/scales to fit within that box without cropping/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/Without outputPath it overwrites the original file/);
   });
+
+  it("tells the model python_repl persists state across calls, unlike bash: python3 -c", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/python_repl/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/starts a fresh interpreter every call/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/input\(\) will hang/);
+  });
 });
 
 describe("system prompt: GitHub issue-to-PR workflow", () => {
