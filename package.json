@@ -32,13 +32,15 @@
     "pdf-lib": "^1.17.1",
     "pdf-parse": "^2.4.5",
     "playwright-core": "^1.62.1",
-    "react": "^19.2.8"
+    "react": "^19.2.8",
+    "word-extractor": "^1.0.4"
   },
   "devDependencies": {
     "@types/diff": "^8.0.0",
     "@types/marked-terminal": "^6.1.1",
     "@types/node": "^22.10.0",
     "@types/react": "^19.2.18",
+    "@types/word-extractor": "^1.0.6",
     "ink-testing-library": "^4.0.0",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",

@@ -89,9 +89,10 @@ export const BASE_SYSTEM_PROMPT =
   "a port, or a stale log read after the real process had already died without that being obvious from the " +
   "output. Use list_background_processes to check what's running and stop_background_process to shut one down " +
   "by name, instead of guessing at `pkill -f <pattern>`. " +
-  "Use read_document (not bash/read_file) to get text out of a PDF, .docx, or .xlsx file — those are binary " +
-  "formats and read_file will return garbage bytes. It only handles the modern .docx/.xlsx formats, not the " +
-  "legacy binary .doc/.xls ones. Use write_spreadsheet to create a .xlsx from structured row data, " +
+  "Use read_document (not bash/read_file) to get text out of a PDF, Word (.doc/.docx), Excel (.xlsx), or CSV " +
+  "file — the non-CSV ones are binary formats and read_file will return garbage bytes. Legacy .xls isn't " +
+  "supported (no lightweight library reads it); legacy .doc is, via a different extractor than .docx. " +
+  "Use write_spreadsheet to create a .xlsx from structured row data, " +
   "edit_spreadsheet to update specific cells in one that already exists (read_document first to see current " +
   "values and figure out row/column numbers), and merge_spreadsheets to combine several files into one. " +
   "Use merge_pdf to combine PDFs — there's no tool for editing existing PDF text in place, since that isn't " +

@@ -1,8 +1,11 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
-import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
+import { mkdtemp, rm, writeFile, readFile, copyFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import { fileURLToPath } from "node:url";
 import ExcelJS from "exceljs";
+
+const sampleDocFixture = path.join(path.dirname(fileURLToPath(import.meta.url)), "../fixtures/sample.doc");
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import { PDFDocument, StandardFonts } from "pdf-lib";
 import {
@@ -124,11 +127,37 @@ describe("document tools (real files, real libraries)", () => {
       expect(result.content).toContain("Alice\t90");
     });
 
+    it("doesn't garble non-primitive cell values (e.g. a Date) into '[object Object]'", async () => {
+      const workbook = new ExcelJS.Workbook();
+      const sheet = workbook.addWorksheet("Dates");
+      sheet.addRow([new Date("2024-01-15T00:00:00.000Z")]);
+      await writeFile(path.join(dir, "dates.xlsx"), (await workbook.xlsx.writeBuffer()) as unknown as Buffer);
+
+      const result = await readDocumentTool.handler({ path: "dates.xlsx" }, ctx());
+      expect(result.content).not.toContain("[object Object]");
+      expect(result.content).toContain("2024-01-15");
+    });
+
+    it("extracts text from a real .csv file, handling quoted commas correctly", async () => {
+      await writeFile(path.join(dir, "sample.csv"), 'Name,Score,Note\nAlice,90,"Contains, a comma"\n');
+      const result = await readDocumentTool.handler({ path: "sample.csv" }, ctx());
+      expect(result.isError).toBe(false);
+      expect(result.content).toContain("Name\tScore\tNote");
+      expect(result.content).toContain("Alice\t90\tContains, a comma");
+    });
+
+    it("extracts text from a real legacy .doc file (from word-extractor's own test suite)", async () => {
+      await copyFile(sampleDocFixture, path.join(dir, "sample.doc"));
+      const result = await readDocumentTool.handler({ path: "sample.doc" }, ctx());
+      expect(result.isError).toBe(false);
+      expect(result.content).toContain("This is a test of reviewing");
+    });
+
     it("rejects an unsupported extension without touching disk further", async () => {
       await writeFile(path.join(dir, "notes.txt"), "plain text");
       const result = await readDocumentTool.handler({ path: "notes.txt" }, ctx());
       expect(result.isError).toBe(true);
-      expect(result.content).toContain(".pdf, .docx, .xlsx");
+      expect(result.content).toContain(".pdf, .doc, .docx, .xlsx, .csv");
     });
 
     it("rejects a path escaping the project root", async () => {

@@ -63,7 +63,11 @@ describe("system prompt: document tools", () => {
   it("tells the model to use read_document instead of bash/read_file for binary document formats", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/read_document/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/not bash\/read_file/);
-    expect(BASE_SYSTEM_PROMPT).toMatch(/legacy binary \.doc\/\.xls/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/Legacy \.xls isn't/);
+  });
+
+  it("says legacy .doc is supported (unlike .xls), via a different extractor than .docx", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/legacy \.doc is, via a different extractor/);
   });
 
   it("mentions write_spreadsheet, edit_spreadsheet, and merge_spreadsheets", () => {

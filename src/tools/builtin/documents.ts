@@ -6,6 +6,7 @@ import mammoth from "mammoth";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import ExcelJS from "exceljs";
 import JSZip from "jszip";
+import WordExtractor from "word-extractor";
 import type { ToolDefinition } from "../../core/types.js";
 import { resolveAllowedPath } from "./path-guard.js";
 
@@ -69,11 +70,31 @@ async function extractXlsx(buffer: Buffer): Promise<string> {
     const lines: string[] = [`# ${sheet.name}`];
     sheet.eachRow((row) => {
       const cells = (row.values as unknown[]).slice(1);
-      lines.push(cells.map((c) => (c === null || c === undefined ? "" : String(c))).join("\t"));
+      lines.push(cells.map(cellToString).join("\t"));
     });
     sections.push(lines.join("\n"));
   }
   return sections.join("\n\n").trim();
+}
+
+async function extractCsv(filePath: string): Promise<string> {
+  // exceljs's csv reader only takes a path, not a buffer, but it's the same
+  // proper quote/escape-aware CSV parser used elsewhere in the project, so
+  // it's worth the extra readFile-by-path rather than hand-rolling one.
+  const workbook = new ExcelJS.Workbook();
+  const sheet = await workbook.csv.readFile(filePath);
+  const lines: string[] = [];
+  sheet.eachRow((row) => {
+    const cells = (row.values as unknown[]).slice(1);
+    lines.push(cells.map(cellToString).join("\t"));
+  });
+  return lines.join("\n").trim();
+}
+
+async function extractDoc(buffer: Buffer): Promise<string> {
+  const extractor = new WordExtractor();
+  const doc = await extractor.extract(buffer);
+  return doc.getBody().trim();
 }
 
 interface ReadDocumentInput {
@@ -82,7 +103,7 @@ interface ReadDocumentInput {
 
 export const readDocumentTool: ToolDefinition<ReadDocumentInput> = {
   name: "read_document",
-  description: "Extract text from a PDF, Word (.docx), or Excel (.xlsx) file. Not for legacy .doc/.xls formats.",
+  description: "Extract text from a PDF, Word (.doc/.docx), Excel (.xlsx), or CSV file. Not for legacy .xls.",
   riskLevel: "safe",
   inputSchema: {
     type: "object",
@@ -95,25 +116,30 @@ export const readDocumentTool: ToolDefinition<ReadDocumentInput> = {
   async handler(input, ctx) {
     const filePath = resolveAllowedPath(ctx.cwd, input.path);
     const ext = path.extname(filePath).toLowerCase();
-    const buffer = await readFile(filePath);
 
     let text: string;
     switch (ext) {
       case ".pdf":
-        text = await extractPdf(buffer);
+        text = await extractPdf(await readFile(filePath));
         if (!text) {
           return { content: "This PDF has no extractable text layer (likely a scanned image).", isError: false };
         }
         break;
       case ".docx":
-        text = await extractDocx(buffer);
+        text = await extractDocx(await readFile(filePath));
+        break;
+      case ".doc":
+        text = await extractDoc(await readFile(filePath));
         break;
       case ".xlsx":
-        text = await extractXlsx(buffer);
+        text = await extractXlsx(await readFile(filePath));
+        break;
+      case ".csv":
+        text = await extractCsv(filePath);
         break;
       default:
         return {
-          content: `Unsupported document type "${ext || "(no extension)"}". Supported: .pdf, .docx, .xlsx (not legacy .doc/.xls).`,
+          content: `Unsupported document type "${ext || "(no extension)"}". Supported: .pdf, .doc, .docx, .xlsx, .csv (not legacy .xls).`,
           isError: true,
         };
     }
