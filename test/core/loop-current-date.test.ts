@@ -52,6 +52,10 @@ describe("runTurn: injects the current date into the system prompt", () => {
 
     expect(provider.seenSystemPrompts[0]).toContain("Today's date is 2026-08-27");
     expect(provider.seenSystemPrompts[0]).toContain("base prompt");
+    // Real, reported case: the model still typed a stale/habitual year into
+    // a web_search query despite knowing today's date — tell it explicitly
+    // to derive the year for time-sensitive searches from the injected date.
+    expect(provider.seenSystemPrompts[0]).toContain("derive the year from 2026-08-27");
     // The stored session prompt itself stays untouched — only the outgoing call is augmented.
     expect(session.systemPrompt).toBe("base prompt");
   });

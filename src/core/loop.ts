@@ -25,9 +25,11 @@ import { mcpToolServerName } from "../mcp/client-manager.js";
  */
 function systemPromptWithDate(session: AgentSession): string {
   const today = new Date().toISOString().slice(0, 10);
-  return `${session.systemPrompt}\n\nToday's date is ${today}. Use it for anything time-sensitive — search ` +
-    "queries, judging whether information might be outdated, or answering questions about the current date — " +
-    "instead of guessing or assuming your training cutoff is current.";
+  return `${session.systemPrompt}\n\nToday's date is ${today}. Use it for anything time-sensitive — judging ` +
+    "whether information might be outdated, or answering questions about the current date — instead of " +
+    "guessing or assuming your training cutoff is current. When a web_search query is time-sensitive (asking " +
+    `who currently holds a role, the latest version of something, recent events), derive the year from ${today} ` +
+    "rather than a remembered or habitual one — a wrong year in the query can silently return stale results.";
 }
 
 /**
