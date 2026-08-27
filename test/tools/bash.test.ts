@@ -1,4 +1,7 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { mkdtemp, rm, readdir } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { bashTool } from "../../src/tools/builtin/bash.js";
 
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
@@ -51,5 +54,37 @@ describe("bash tool", () => {
     expect(result.isError).toBe(false);
     expect(result.content).toContain("done");
     expect(elapsed).toBeLessThan(2000);
+  });
+
+  describe("uses bash, not the OS default /bin/sh (dash on Debian/Ubuntu)", () => {
+    let dir: string;
+
+    beforeEach(async () => {
+      dir = await mkdtemp(path.join(tmpdir(), "finanfa-bash-shell-"));
+    });
+
+    afterEach(async () => {
+      await rm(dir, { recursive: true, force: true });
+    });
+
+    it("expands brace patterns ({a,b,c}) — real bug: dash creates one literal garbage path instead", async () => {
+      // Reproduces the exact failure seen in a real session: dash doesn't
+      // support brace expansion, so `mkdir -p project/{app,models}` created
+      // a single directory literally named "{app,models}" instead of two.
+      const result = await bashTool.handler(
+        { command: "mkdir -p proj/{app,models,views} && echo done" },
+        { ...ctx, cwd: dir },
+      );
+      expect(result.isError).toBe(false);
+
+      const entries = await readdir(path.join(dir, "proj"));
+      expect(entries.sort()).toEqual(["app", "models", "views"]);
+    });
+
+    it("reports itself as bash via $BASH_VERSION (unset under dash/sh)", async () => {
+      const result = await bashTool.handler({ command: "echo v=$BASH_VERSION" }, ctx);
+      expect(result.isError).toBe(false);
+      expect(result.content).not.toContain("v=\n");
+    });
   });
 });

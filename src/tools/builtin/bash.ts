@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 import type { ToolDefinition } from "../../core/types.js";
-import { killProcessGroup } from "../../util/process.js";
+import { killProcessGroup, SHELL } from "../../util/process.js";
 
 interface BashInput {
   command: string;
@@ -52,7 +52,7 @@ export const bashTool: ToolDefinition<BashInput> = {
       // that orphaned process keeps holding the inherited stdout/stderr pipe
       // open, and Node's "close" event (and this whole call) never fires,
       // even after killing just the immediate shell process.
-      const child = spawn(input.command, { cwd, shell: true, signal: ctx.signal, detached: true });
+      const child = spawn(input.command, { cwd, shell: SHELL, signal: ctx.signal, detached: true });
       let stdout = "";
       let stderr = "";
       let timedOut = false;
