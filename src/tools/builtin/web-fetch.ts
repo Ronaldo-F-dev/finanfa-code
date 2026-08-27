@@ -23,8 +23,10 @@ function stripHtml(html: string): string {
 export const webFetchTool: ToolDefinition<WebFetchInput> = {
   name: "web_fetch",
   description:
-    "Fetch a specific URL and return its text content (HTML tags stripped). Use this when the user gives you " +
-    "a link or you already know the exact page to read; for open-ended searching, use web_search instead.",
+    "Fetch a specific URL and return its text content (HTML tags stripped) — text only, you will not see how " +
+    "the page actually looks. Use this when the user gives you a link or you already know the exact page to " +
+    "read; for open-ended searching, use web_search instead. If the user wants to see, describe the appearance " +
+    "of, or capture/screenshot a page, use browser_navigate + browser_screenshot instead, not this tool.",
   riskLevel: "safe",
   inputSchema: {
     type: "object",

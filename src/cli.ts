@@ -28,7 +28,12 @@ const BASE_SYSTEM_PROMPT =
   "Prefer edit_file over write_file for existing files. Always explain what you're about to do before calling a tool. " +
   "When asked to design or mock up a UI, write a clean, single-file HTML/CSS/JS mockup with write_file, then offer " +
   "to open it for the user with preview_html. Delegate independent, parallelizable pieces of work to the task tool. " +
-  "For any multi-step task, use todo_write up front to plan the steps, and update it as you complete each one.";
+  "For any multi-step task, use todo_write up front to plan the steps, and update it as you complete each one. " +
+  "web_fetch only returns stripped text — it cannot show you what a page actually looks like. Whenever the user " +
+  "asks you to look at, see, describe the appearance of, or take a screenshot/capture of a web page, use " +
+  "browser_navigate followed by browser_screenshot instead (call browser_navigate again first if the page isn't " +
+  "already open from earlier in the conversation) — never answer a visual request with web_fetch's text dump. " +
+  "Use view_image the same way for an existing local image file.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {
