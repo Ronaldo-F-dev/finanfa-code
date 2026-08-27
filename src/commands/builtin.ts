@@ -14,13 +14,38 @@ async function reloadMcpTools(ctx: CommandContext): Promise<void> {
   for (const def of definitions) ctx.tools.register(def);
 }
 
+function handleMcpEnableDisable(ctx: CommandContext, enable: boolean, name: string | undefined): CommandOutcome {
+  if (!name) {
+    ctx.ui.writeError(`Usage: /mcp ${enable ? "enable" : "disable"} <name>`);
+    return "continue";
+  }
+  if (!ctx.mcp.connectedServers().includes(name)) {
+    ctx.ui.writeError(`No connected MCP server named "${name}".`);
+    return "continue";
+  }
+  if (enable) ctx.session.disabledMcpServers.delete(name);
+  else ctx.session.disabledMcpServers.add(name);
+  ctx.ui.writeSystem(
+    enable
+      ? `"${name}" tools will be offered to the model again.`
+      : `"${name}" stays connected, but its tools won't be offered to the model until re-enabled.`,
+  );
+  return "continue";
+}
+
 async function handleMcp(ctx: CommandContext): Promise<CommandOutcome> {
   const [sub, ...rest] = ctx.args.trim().split(/\s+/);
 
   if (sub === "list") {
     const connected = ctx.mcp.connectedServers();
+    if (connected.length === 0) {
+      ctx.ui.writeSystem("No MCP servers connected.");
+      return "continue";
+    }
     ctx.ui.writeSystem(
-      connected.length > 0 ? `Connected MCP servers: ${connected.join(", ")}` : "No MCP servers connected.",
+      connected
+        .map((name) => `${name}${ctx.session.disabledMcpServers.has(name) ? " (disabled)" : ""}`)
+        .join(", "),
     );
     return "continue";
   }
@@ -35,8 +60,12 @@ async function handleMcp(ctx: CommandContext): Promise<CommandOutcome> {
     return addMcpServer(ctx, rest);
   }
 
+  if (sub === "enable") return handleMcpEnableDisable(ctx, true, rest[0]);
+  if (sub === "disable") return handleMcpEnableDisable(ctx, false, rest[0]);
+
   ctx.ui.writeError(
-    "Usage: /mcp list | /mcp reload | /mcp add <name> -- <command> [args...] | /mcp add <name> --url <url> [--transport sse]",
+    "Usage: /mcp list | /mcp reload | /mcp add <name> -- <command> [args...] | /mcp add <name> --url <url> " +
+      "[--transport sse] | /mcp enable <name> | /mcp disable <name>",
   );
   return "continue";
 }
@@ -255,7 +284,8 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
   commands.register(
     "mcp",
     handleMcp,
-    "Manage MCP servers: /mcp list | /mcp reload | /mcp add <name> -- <command> [args...]",
+    "Manage MCP servers: /mcp list | /mcp reload | /mcp add <name> -- <command> [args...] | " +
+      "/mcp enable <name> | /mcp disable <name>",
   );
   commands.register(
     "sessions",

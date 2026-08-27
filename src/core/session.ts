@@ -37,6 +37,8 @@ export class AgentSession {
   readonly history = new EditHistory();
   readonly todos = new TodoStore();
   readonly fileFreshness = new FileFreshnessTracker();
+  /** MCP server names currently excluded from the tool list sent to the model (still connected — /mcp enable brings them back without reconnecting). */
+  readonly disabledMcpServers = new Set<string>();
 
   constructor(opts: { id?: string; cwd: string; model: string; systemPrompt: string }) {
     this.id = opts.id ?? randomUUID();

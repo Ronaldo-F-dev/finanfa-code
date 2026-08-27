@@ -2,8 +2,25 @@ import type { AgentSession } from "./session.js";
 import type { UIAdapter } from "../ui/adapter.js";
 import type { ToolRegistry } from "../tools/registry.js";
 import type { PermissionManager } from "../permissions/manager.js";
-import type { LlmProvider, NeutralImage, NeutralToolCall, NeutralToolResult, ToolContext } from "./types.js";
+import type { LlmProvider, NeutralImage, NeutralToolCall, NeutralToolResult, ToolContext, ToolDefinition } from "./types.js";
 import { compactForProvider } from "./context.js";
+import { mcpToolServerName } from "../mcp/client-manager.js";
+
+/**
+ * Tools to actually offer the model this call — every registered MCP tool
+ * whose server is in `session.disabledMcpServers` (toggled via /mcp disable,
+ * without disconnecting the server) is left out, so a session juggling many
+ * connected servers doesn't pay the token cost of every tool schema from
+ * every server on every single call regardless of task relevance. Built-in
+ * tools are never filtered.
+ */
+function toolsForProvider(tools: ToolRegistry, session: AgentSession): ToolDefinition[] {
+  if (session.disabledMcpServers.size === 0) return tools.list();
+  return tools.list().filter((tool) => {
+    const server = mcpToolServerName(tool.name);
+    return !server || !session.disabledMcpServers.has(server);
+  });
+}
 
 interface ToolCallOutcome {
   result: NeutralToolResult;
@@ -177,7 +194,7 @@ export async function runTurn(
       model: active.model,
       systemPrompt: session.systemPrompt,
       messages: compactForProvider(session.messages),
-      tools: tools.list(),
+      tools: toolsForProvider(tools, session),
       onTextDelta: (text) => ui.writeAssistantDelta(text),
     });
 

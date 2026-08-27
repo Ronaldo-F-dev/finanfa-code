@@ -16,6 +16,14 @@ function toolPrefix(serverName: string): string {
   return `${MCP_TOOL_PREFIX}${serverName}__`;
 }
 
+/** Extracts the server name from a namespaced MCP tool name (`mcp__github__list_issues` → `github`), or undefined for a non-MCP tool name. */
+export function mcpToolServerName(toolName: string): string | undefined {
+  if (!toolName.startsWith(MCP_TOOL_PREFIX)) return undefined;
+  const rest = toolName.slice(MCP_TOOL_PREFIX.length);
+  const separatorIndex = rest.indexOf("__");
+  return separatorIndex === -1 ? undefined : rest.slice(0, separatorIndex);
+}
+
 interface BuiltTransport {
   transport: StdioClientTransport | RemoteTransport;
   authProvider?: FileOAuthClientProvider;
