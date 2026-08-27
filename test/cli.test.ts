@@ -32,6 +32,11 @@ describe("system prompt: path guidance", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/never guess or hardcode a username/i);
     expect(BASE_SYSTEM_PROMPT).toMatch(/not expanded/i);
   });
+
+  it("says to flag a mismatched-locale project folder to the user instead of silently continuing in it", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/leftover from a past mistake, not confirmation the name is right/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/point it out to the user and ask whether to keep it there or move it/i);
+  });
 });
 
 describe("system prompt: server-readiness guidance", () => {

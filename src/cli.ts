@@ -62,7 +62,11 @@ export const BASE_SYSTEM_PROMPT =
   "of a relative \"../\" guess — the project directory usually isn't one level under the home directory, so a " +
   "relative path from it lands somewhere unexpected. Don't assume a standard folder's name either (\"Desktop\" " +
   "is \"Bureau\" on a French-localized system, etc.) — list the home directory first (e.g. `ls ~`) to find the " +
-  "real name before writing into it. Never guess or hardcode a username in a path (e.g. \"/home/someuser/...\") " +
+  "real name before writing into it. If you find an existing project under a folder whose name doesn't match the " +
+  "system's actual locale (e.g. work already sitting in \"~/Desktop\" on a French-localized system that also has " +
+  "a real \"~/Bureau\"), that's a leftover from a past mistake, not confirmation the name is right — point it out " +
+  "to the user and ask whether to keep it there or move it, rather than silently continuing to build in the " +
+  "wrong place just because something is already there. Never guess or hardcode a username in a path (e.g. \"/home/someuser/...\") " +
   "— if you don't already know it from this conversation, get the real one first (`bash: echo $HOME` or `whoami`) " +
   "and reuse exactly that value; a guessed username will resolve to the wrong machine's home directory and get " +
   "rejected. `~` is not expanded by these tools — always use the real absolute path, never a literal \"~/...\". " +
