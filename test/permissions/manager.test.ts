@@ -72,6 +72,37 @@ describe("PermissionManager", () => {
     expect(ui.askUser).toHaveBeenCalledTimes(2);
   });
 
+  it("'t' (always allow this tool) covers every risk key of that tool, but not other tools", async () => {
+    const ui = makeUi("t");
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+
+    const first = await manager.check(bashLikeTool, { command: "git status" }, ctx);
+    expect(first).toBe("allow");
+    expect(ui.askUser).toHaveBeenCalledTimes(1);
+
+    // Same tool, a totally different risk key (would have re-prompted under "a") → no new prompt.
+    const second = await manager.check(bashLikeTool, { command: "rm -rf /" }, ctx);
+    expect(second).toBe("allow");
+    expect(ui.askUser).toHaveBeenCalledTimes(1);
+
+    // A different tool entirely is not covered — the real confusion this was
+    // built to prevent: choosing "always allow" for bash must not silently
+    // also cover write_file/edit_file/etc.
+    const otherTool: ToolDefinition = { ...safeTool, name: "write_file", riskLevel: "dangerous" };
+    await manager.check(otherTool, {}, ctx);
+    expect(ui.askUser).toHaveBeenCalledTimes(2);
+  });
+
+  it("names the specific tool in the prompt, so \"always allow\" scope isn't ambiguous", async () => {
+    const ui = makeUi("y");
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+
+    await manager.check(bashLikeTool, { command: "git status" }, ctx);
+
+    const promptText = (ui.askUser as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(promptText).toContain('always allow "bash" this session');
+  });
+
   it("--yolo bypasses all prompts", async () => {
     const ui = makeUi("n");
     const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });

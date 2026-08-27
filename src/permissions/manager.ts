@@ -66,7 +66,14 @@ export class PermissionManager {
 
   private async promptUser(toolName: string, summary: string, preview?: string): Promise<AskAnswer> {
     const previewBlock = preview ? `\n${preview}\n` : "";
-    const prompt = `\nfinanfa-code wants to run "${toolName}": ${summary}${previewBlock}\n[y]es / [n]o / [a]lways this session / [t]ool always allowed > `;
+    // Spelled out explicitly which tool "always" scopes to — "[t]ool always
+    // allowed" alone reads to some users as "any tool", when it only ever
+    // covers this exact tool name (e.g. choosing it for "bash" never covers
+    // "write_file" or "edit_file" — those are separate tools needing their
+    // own opt-in).
+    const prompt =
+      `\nfinanfa-code wants to run "${toolName}": ${summary}${previewBlock}\n` +
+      `[y]es / [n]o / [a]lways this exact action this session / [t] always allow "${toolName}" this session > `;
     const raw = (await this.ui.askUser(prompt, "confirm")).trim().toLowerCase();
     switch (raw) {
       case "a":
