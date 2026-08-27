@@ -15,6 +15,22 @@ import { compactForProvider } from "./context.js";
 import { mcpToolServerName } from "../mcp/client-manager.js";
 
 /**
+ * The model otherwise has no idea what "today" is — nothing in this
+ * codebase ever told it, so it either guesses from its training data (a
+ * real, observed case: searching "... 2025" when the actual date was well
+ * into 2026) or, asked directly, correctly says it doesn't know. Computed
+ * fresh per call rather than baked into the static session.systemPrompt, so
+ * a session left running for hours or days (a real, repeated occurrence in
+ * this project) doesn't end up with a stale date baked in from startup.
+ */
+function systemPromptWithDate(session: AgentSession): string {
+  const today = new Date().toISOString().slice(0, 10);
+  return `${session.systemPrompt}\n\nToday's date is ${today}. Use it for anything time-sensitive — search ` +
+    "queries, judging whether information might be outdated, or answering questions about the current date — " +
+    "instead of guessing or assuming your training cutoff is current.";
+}
+
+/**
  * Tools to actually offer the model this call — every registered MCP tool
  * whose server is in `session.disabledMcpServers` (toggled via /mcp disable,
  * without disconnecting the server) is left out, so a session juggling many
@@ -228,7 +244,7 @@ export async function runTurn(
     try {
       result = await active.provider.streamTurn({
         model: active.model,
-        systemPrompt: session.systemPrompt,
+        systemPrompt: systemPromptWithDate(session),
         messages: compactForProvider(session.messages),
         tools: toolsForProvider(tools, session),
         onTextDelta: (text) => ui.writeAssistantDelta(text),

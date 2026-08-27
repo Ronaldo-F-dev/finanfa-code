@@ -34,7 +34,10 @@ class ScriptedProvider implements LlmProvider {
   capturedSubagentTools: string[] | undefined;
 
   async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {
-    if (params.systemPrompt === SUBAGENT_SYSTEM_PROMPT) {
+    // runTurn appends the current date to whatever system prompt it's given
+    // (see systemPromptWithDate in core/loop.ts), so this is no longer an
+    // exact match — just a prefix check for "is this the sub-agent's prompt".
+    if (params.systemPrompt.startsWith(SUBAGENT_SYSTEM_PROMPT)) {
       this.capturedSubagentTools = params.tools.map((t) => t.name);
       const userPrompt = params.messages.find((m) => m.role === "user")?.content ?? "";
       return {
