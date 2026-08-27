@@ -45,3 +45,16 @@ describe("system prompt: server-readiness guidance", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/looks exactly like a crash when it isn't/i);
   });
 });
+
+describe("system prompt: background process tools", () => {
+  it("prefers start_background_process over manual bash backgrounding", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/start_background_process/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/not `bash \.\.\. &`\/`nohup`\/`setsid`/);
+  });
+
+  it("mentions list/stop by name instead of guessing pkill patterns", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/list_background_processes/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/stop_background_process/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/guessing at `pkill -f/);
+  });
+});

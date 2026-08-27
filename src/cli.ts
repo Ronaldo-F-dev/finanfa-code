@@ -19,6 +19,8 @@ import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool 
 import { createTaskTool } from "./tools/builtin/task.js";
 import { createBrowserTools } from "./tools/builtin/browser.js";
 import { BrowserManager } from "./browser/manager.js";
+import { createBackgroundProcessTools } from "./tools/builtin/background-process.js";
+import { BackgroundProcessManager } from "./core/background-process.js";
 import type { LlmProvider } from "./core/types.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible-provider.js";
@@ -74,7 +76,13 @@ export const BASE_SYSTEM_PROMPT =
   "poll for it instead of a fixed `sleep N` — a dev server with a debug/reload mode can take longer to bind its " +
   "port than a guessed sleep duration, and testing too early looks exactly like a crash when it isn't. Loop a " +
   "few short curl attempts with brief pauses between them, or a `while ! curl -s ... ; do sleep 1; done` with a " +
-  "cap, and only conclude the server failed if it never responds within that budget.";
+  "cap, and only conclude the server failed if it never responds within that budget. " +
+  "Use start_background_process (not `bash ... &`/`nohup`/`setsid`) for anything meant to keep running after the " +
+  "call returns — a dev server, a watcher. It redirects output and tracks the real PID for you, which manual " +
+  "shell backgrounding kept getting wrong in practice: the wrong process killed, an orphaned server left holding " +
+  "a port, or a stale log read after the real process had already died without that being obvious from the " +
+  "output. Use list_background_processes to check what's running and stop_background_process to shut one down " +
+  "by name, instead of guessing at `pkill -f <pattern>`.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {
@@ -272,6 +280,7 @@ export async function main(argv: string[]): Promise<void> {
 
   tools.register(createTaskTool({ provider, tools, permissions, ui, model, cwd }));
   for (const tool of createBrowserTools(browser)) tools.register(tool);
+  for (const tool of createBackgroundProcessTools(new BackgroundProcessManager())) tools.register(tool);
 
   const commands = new CommandRegistry();
   registerBuiltinCommands(commands);
