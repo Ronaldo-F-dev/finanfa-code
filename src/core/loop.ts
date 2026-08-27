@@ -3,6 +3,7 @@ import type { UIAdapter } from "../ui/adapter.js";
 import type { ToolRegistry } from "../tools/registry.js";
 import type { PermissionManager } from "../permissions/manager.js";
 import type { LlmProvider, NeutralImage, NeutralToolCall, NeutralToolResult, ToolContext } from "./types.js";
+import { compactForProvider } from "./context.js";
 
 interface ToolCallOutcome {
   result: NeutralToolResult;
@@ -111,7 +112,7 @@ export async function runTurn(
     const result = await provider.streamTurn({
       model: session.model,
       systemPrompt: session.systemPrompt,
-      messages: session.messages,
+      messages: compactForProvider(session.messages),
       tools: tools.list(),
       onTextDelta: (text) => ui.writeAssistantDelta(text),
     });

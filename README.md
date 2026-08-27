@@ -6,7 +6,7 @@ A from-scratch AI coding agent CLI, built in TypeScript, with a pluggable LLM ba
 
 All 4 phases implemented, plus a multi-provider backend:
 
-1. Core agent loop — streaming conversation, session persistence, resume, cost tracking, prompt caching.
+1. Core agent loop — streaming conversation, session persistence, resume, cost tracking, prompt caching, and context compaction (`src/core/context.ts`): once a conversation's estimated size passes a token budget, older tool results are collapsed to a placeholder before the request is sent (the full session is still persisted/resumable — only the outgoing request is trimmed).
 2. Built-in tools — file/shell/search/browser/planning tools (full list below) — gated by a three-state permission model (allow/ask/deny) with a session "always allow" allowlist.
 3. Terminal UI — Ink (React) by default, with a `readline` fallback for non-TTY/CI use. Assistant responses are rendered as real markdown (tables, bold/italic, headings, code) via `marked`/`marked-terminal`, not raw `**`/`|` source.
 4. Extensibility — MCP client (stdio and remote HTTP/SSE + OAuth servers), a filesystem plugin loader, and Markdown skill files.
