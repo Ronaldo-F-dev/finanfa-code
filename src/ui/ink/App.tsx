@@ -81,10 +81,8 @@ export function App({
       {store.streaming.length > 0 && <RenderedMarkdown text={store.streaming} />}
 
       {store.busy && (
-        <Text dimColor>
-          <Text color="cyan">
-            <Spinner type="dots" />
-          </Text>
+        <Text color="cyan" bold>
+          <Spinner type="dots" />
           {" "}{store.busyLabel ?? "working"}...
         </Text>
       )}

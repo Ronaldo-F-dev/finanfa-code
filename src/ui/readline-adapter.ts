@@ -90,9 +90,11 @@ export function createReadlineAdapter(): UIAdapter {
       if (!busy) return;
       if (!atLineStart) stdout.write("\n");
       atLineStart = false;
-      spinnerTimer = setInterval(() => {
-        stdout.write(`\r\x1b[2m${SPINNER_FRAMES[spinnerFrame++ % SPINNER_FRAMES.length]} ${label ?? "working"}...\x1b[0m`);
-      }, SPINNER_INTERVAL_MS);
+      const draw = (): void => {
+        stdout.write(`\r\x1b[1;36m${SPINNER_FRAMES[spinnerFrame++ % SPINNER_FRAMES.length]} ${label ?? "working"}...\x1b[0m`);
+      };
+      draw(); // show a frame immediately instead of waiting for the first interval tick
+      spinnerTimer = setInterval(draw, SPINNER_INTERVAL_MS);
     },
     async askUser(prompt: string): Promise<string> {
       flushAssistantBuffer();

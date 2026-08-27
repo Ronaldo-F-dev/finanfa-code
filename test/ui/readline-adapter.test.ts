@@ -41,6 +41,24 @@ describe("readline UIAdapter busy indicator", () => {
     expect(written).toContain("thinking...");
   });
 
+  it("draws the first spinner frame immediately, not after waiting for the first interval tick", () => {
+    const ui = createReadlineAdapter();
+    ui.setBusy(true, "thinking");
+
+    // No time advanced at all — a frame must already have been written.
+    const written = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
+    expect(written).toContain("thinking...");
+  });
+
+  it("renders the spinner in a bold/bright color, not dimmed", () => {
+    const ui = createReadlineAdapter();
+    ui.setBusy(true, "thinking");
+
+    const written = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
+    expect(written).toContain("\x1b[1;36m"); // bold cyan
+    expect(written).not.toContain("\x1b[2m"); // no longer dimmed
+  });
+
   it("clears the spinner line when busy is set back to false", () => {
     const ui = createReadlineAdapter();
     ui.setBusy(true, "thinking");
