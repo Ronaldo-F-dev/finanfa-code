@@ -38,6 +38,8 @@ export const readFileTool: ToolDefinition<ReadFileInput> = {
       .map((line, i) => `${String(start + i + 1).padStart(6)}\t${line}`)
       .join("\n");
 
+    if (start === 0 && !truncated) ctx.fileFreshness?.record(filePath, raw);
+
     return {
       content: truncated ? `${numbered}\n... (truncated, ${lines.length} lines total)` : numbered,
       isError: false,

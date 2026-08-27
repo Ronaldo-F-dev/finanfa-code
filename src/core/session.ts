@@ -6,6 +6,7 @@ import type { NeutralMessage, UsageTotals } from "./types.js";
 import { estimateCostUsd } from "./pricing.js";
 import { EditHistory } from "./edit-history.js";
 import { TodoStore } from "./todo-store.js";
+import { FileFreshnessTracker } from "./file-freshness.js";
 
 export interface SessionFile {
   id: string;
@@ -35,6 +36,7 @@ export class AgentSession {
   usage: UsageTotals = { inputTokens: 0, outputTokens: 0 };
   readonly history = new EditHistory();
   readonly todos = new TodoStore();
+  readonly fileFreshness = new FileFreshnessTracker();
 
   constructor(opts: { id?: string; cwd: string; model: string; systemPrompt: string }) {
     this.id = opts.id ?? randomUUID();

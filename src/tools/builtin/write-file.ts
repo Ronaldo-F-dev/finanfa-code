@@ -34,12 +34,14 @@ export const writeFileTool: ToolDefinition<WriteFileInput> = {
       (content) => ({ existed: true, content }),
       () => ({ existed: false, content: "" }),
     );
+    const staleWarning = existing.existed ? ctx.fileFreshness?.checkStale(filePath, existing.content) : undefined;
     const diff = createTwoFilesPatch(input.path, input.path, existing.content, input.content);
 
     await mkdir(path.dirname(filePath), { recursive: true });
     await writeFile(filePath, input.content, "utf-8");
     ctx.history?.push({ path: filePath, before: existing.existed ? existing.content : undefined });
+    ctx.fileFreshness?.record(filePath, input.content);
 
-    return { content: diff, isError: false };
+    return { content: staleWarning ? `${staleWarning}\n${diff}` : diff, isError: false };
   },
 };

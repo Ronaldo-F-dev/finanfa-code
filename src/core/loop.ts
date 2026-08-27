@@ -28,6 +28,7 @@ async function runOneToolCall(
     signal: new AbortController().signal,
     history: session.history,
     todos: session.todos,
+    fileFreshness: session.fileFreshness,
     ui,
   };
 

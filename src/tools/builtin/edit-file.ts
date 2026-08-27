@@ -64,9 +64,12 @@ export const editFileTool: ToolDefinition<EditFileInput> = {
   async handler(input, ctx) {
     const filePath = resolveWithinCwd(ctx.cwd, input.path);
     const before = await readFile(filePath, "utf-8");
+    const staleWarning = ctx.fileFreshness?.checkStale(filePath, before);
     const after = applyEdit(before, input);
     await writeFile(filePath, after, "utf-8");
     ctx.history?.push({ path: filePath, before });
-    return { content: createTwoFilesPatch(input.path, input.path, before, after), isError: false };
+    ctx.fileFreshness?.record(filePath, after);
+    const diff = createTwoFilesPatch(input.path, input.path, before, after);
+    return { content: staleWarning ? `${staleWarning}\n${diff}` : diff, isError: false };
   },
 };
