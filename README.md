@@ -130,6 +130,7 @@ MCP is how finanfa-code connects to external accounts/services — skills and pl
 - `todo_write` — sets/replaces the task checklist shown live to the user (and via `/todos`); the agent is nudged to use it for multi-step work.
 - `browser_navigate` / `browser_click` / `browser_screenshot` — real browser automation via [Playwright](https://playwright.dev) (Chromium), for JavaScript-rendered pages `web_fetch` can't handle, or to visually inspect/click through a page. One headless browser session persists across calls within a run. Requires the Chromium binary: `npx playwright-core install chromium` (not `npx playwright install` — this project depends on the lighter `playwright-core`, which has no bundled CLI download step of its own).
 - `view_image` — shows an image file (PNG/JPEG/GIF/WebP, ≤5 MB) to the model, not just its path.
+- `git_status` / `git_diff` / `git_log` / `git_branch` (safe, read-only) and `git_add` / `git_commit` / `git_checkout` (ask — modify the repo, but never push) — dedicated local Git tools, run via `spawn` with an argv array (never a shell), so a path or commit message can't be interpreted as a shell command the way it could through `bash`. Pushing/merging/rebasing still go through `bash` if needed.
 
 ### Vision (the agent can actually see images)
 

@@ -33,7 +33,9 @@ const BASE_SYSTEM_PROMPT =
   "asks you to look at, see, describe the appearance of, or take a screenshot/capture of a web page, use " +
   "browser_navigate followed by browser_screenshot instead (call browser_navigate again first if the page isn't " +
   "already open from earlier in the conversation) — never answer a visual request with web_fetch's text dump. " +
-  "Use view_image the same way for an existing local image file.";
+  "Use view_image the same way for an existing local image file. " +
+  "Prefer the dedicated git_status/git_diff/git_log/git_branch/git_add/git_commit/git_checkout tools over bash " +
+  "for git operations they cover — bash still works for anything else (push, merge, rebase, ...).";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {

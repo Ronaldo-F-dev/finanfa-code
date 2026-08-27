@@ -10,6 +10,7 @@ import { webFetchTool } from "./web-fetch.js";
 import { previewHtmlTool } from "./preview-html.js";
 import { todoWriteTool } from "./todo-write.js";
 import { viewImageTool } from "./view-image.js";
+import { gitTools } from "./git.js";
 
 export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(readFileTool);
@@ -23,4 +24,5 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(previewHtmlTool);
   registry.register(todoWriteTool);
   registry.register(viewImageTool);
+  for (const tool of gitTools) registry.register(tool);
 }
