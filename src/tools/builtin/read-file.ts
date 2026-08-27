@@ -17,7 +17,7 @@ export const readFileTool: ToolDefinition<ReadFileInput> = {
   inputSchema: {
     type: "object",
     properties: {
-      path: { type: "string", description: "Path relative to the project root" },
+      path: { type: "string", description: "Path relative to the project root, or an absolute path (e.g. under the user's home directory)" },
       offset: { type: "number", description: "1-based line number to start from" },
       limit: { type: "number", description: "Maximum number of lines to return" },
     },

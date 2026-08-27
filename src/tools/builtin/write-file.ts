@@ -16,7 +16,7 @@ export const writeFileTool: ToolDefinition<WriteFileInput> = {
   inputSchema: {
     type: "object",
     properties: {
-      path: { type: "string", description: "Path relative to the project root" },
+      path: { type: "string", description: "Path relative to the project root, or an absolute path (e.g. under the user's home directory)" },
       content: { type: "string", description: "Full file content to write" },
     },
     required: ["path", "content"],

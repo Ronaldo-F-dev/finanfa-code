@@ -46,7 +46,7 @@ export const editFileTool: ToolDefinition<EditFileInput> = {
   inputSchema: {
     type: "object",
     properties: {
-      path: { type: "string", description: "Path relative to the project root" },
+      path: { type: "string", description: "Path relative to the project root, or an absolute path (e.g. under the user's home directory)" },
       old_string: { type: "string", description: "Exact text to find" },
       new_string: { type: "string", description: "Text to replace it with" },
       replace_all: { type: "boolean", description: "Replace every occurrence instead of requiring uniqueness" },
