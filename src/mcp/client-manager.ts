@@ -6,6 +6,7 @@ import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { ToolDefinition } from "../core/types.js";
 import type { McpServerConfig } from "./config.js";
 import { FileOAuthClientProvider } from "./oauth-provider.js";
+import { retryWithBackoff } from "../util/retry.js";
 
 export const MCP_TOOL_PREFIX = "mcp__";
 
@@ -42,7 +43,15 @@ export class McpClientManager {
     const client = new Client({ name: "finanfa-code", version: "0.1.0" }, { capabilities: {} });
 
     try {
-      await client.connect(transport);
+      // Retries a transient connection failure (a stdio server process not
+      // ready yet, a momentary network blip for a remote transport) — but
+      // never retries UnauthorizedError, so the OAuth flow below still
+      // triggers immediately instead of being delayed behind backoff waits.
+      await retryWithBackoff(() => client.connect(transport), {
+        attempts: 3,
+        baseDelayMs: 500,
+        shouldRetry: (err) => !(err instanceof UnauthorizedError),
+      });
     } catch (err) {
       if (!(err instanceof UnauthorizedError) || !authProvider) throw err;
 

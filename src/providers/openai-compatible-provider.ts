@@ -7,6 +7,7 @@ import type {
   StreamTurnResult,
   ToolDefinition,
 } from "../core/types.js";
+import { retryWithBackoff } from "../util/retry.js";
 
 // A generic client for any server implementing the OpenAI chat-completions
 // wire format: Ollama, OpenRouter, Poolside, LM Studio, vLLM, etc. all speak
@@ -91,17 +92,53 @@ interface ChatCompletionResult {
   usage?: { prompt_tokens: number; completion_tokens: number };
 }
 
+const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+
+class RetryableHttpError extends Error {}
+
+/**
+ * The initial request, before any streaming has started — safe to redo from
+ * scratch on a transient failure (network blip, rate limit, momentary 5xx).
+ * Once we start reading the response body below, we never retry: some of it
+ * may already be visible to the user, and redoing it would duplicate output.
+ */
+async function fetchInitialResponse(
+  url: string,
+  headers: Record<string, string>,
+  body: Record<string, unknown>,
+): Promise<Response> {
+  return retryWithBackoff(
+    async () => {
+      const response = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", ...headers },
+        body: JSON.stringify({ ...body, stream: true }),
+      });
+      if (RETRYABLE_STATUSES.has(response.status)) {
+        const text = await response.text().catch(() => "");
+        throw new RetryableHttpError(`OpenAI-compatible API error (${response.status}): ${text}`);
+      }
+      return response;
+    },
+    {
+      attempts: 3,
+      baseDelayMs: 500,
+      // Node's fetch (undici) throws a TypeError for network-level failures
+      // (connection refused, DNS, timeout) — worth retrying the same as a
+      // transient HTTP status. Anything else (a programming error, an
+      // unexpected exception type) is not assumed retryable.
+      shouldRetry: (err) => err instanceof RetryableHttpError || err instanceof TypeError,
+    },
+  );
+}
+
 async function streamChatCompletion(
   url: string,
   headers: Record<string, string>,
   body: Record<string, unknown>,
   onTextDelta: (text: string) => void,
 ): Promise<ChatCompletionResult> {
-  const response = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json", ...headers },
-    body: JSON.stringify({ ...body, stream: true }),
-  });
+  const response = await fetchInitialResponse(url, headers, body);
 
   if (!response.ok || !response.body) {
     const text = await response.text().catch(() => "");

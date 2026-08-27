@@ -84,4 +84,68 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
       provider.streamTurn({ model: "m", systemPrompt: "s", messages: [], tools: [], onTextDelta: () => {} }),
     ).rejects.toThrow(/401/);
   });
+
+  it("does not retry a non-retryable status like 401 — fails on the first attempt", async () => {
+    const fetchMock = vi.fn().mockResolvedValue(new Response("unauthorized", { status: 401 }));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+    await expect(
+      provider.streamTurn({ model: "m", systemPrompt: "s", messages: [], tools: [], onTextDelta: () => {} }),
+    ).rejects.toThrow(/401/);
+
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a transient 503 and succeeds once the server recovers", async () => {
+    vi.useFakeTimers();
+    try {
+      const events = [JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })];
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response("unavailable", { status: 503 }))
+        .mockResolvedValueOnce(sseResponse(events));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+      const promise = provider.streamTurn({
+        model: "m",
+        systemPrompt: "s",
+        messages: [],
+        tools: [],
+        onTextDelta: () => {},
+      });
+      await vi.runAllTimersAsync();
+
+      const result = await promise;
+      expect(result.stopReason).toBe("end_turn");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives up after exhausting retries on a persistent 503", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn().mockResolvedValue(new Response("unavailable", { status: 503 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+      const promise = provider.streamTurn({
+        model: "m",
+        systemPrompt: "s",
+        messages: [],
+        tools: [],
+        onTextDelta: () => {},
+      });
+      const assertion = expect(promise).rejects.toThrow(/503/);
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
 });
