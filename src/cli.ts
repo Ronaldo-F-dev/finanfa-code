@@ -15,6 +15,7 @@ import { McpClientManager } from "./mcp/client-manager.js";
 import { loadMcpServers } from "./mcp/config.js";
 import { loadPlugins } from "./plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "./skills/loader.js";
+import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "./memory/loader.js";
 import { createTaskTool } from "./tools/builtin/task.js";
 import { createBrowserTools } from "./tools/builtin/browser.js";
 import { BrowserManager } from "./browser/manager.js";
@@ -38,7 +39,11 @@ const BASE_SYSTEM_PROMPT =
   "for git operations they cover — bash still works for anything else (push, merge, rebase, ...). " +
   "After changing code, run run_tests, read any failures carefully, fix the underlying cause, and re-run — " +
   "repeat this test/fix loop until it passes. If the same failure survives about 3 fix attempts, stop and " +
-  "explain what's blocking you instead of continuing to guess.";
+  "explain what's blocking you instead of continuing to guess. " +
+  "When the user states a lasting preference, corrects your approach, or shares project context that isn't " +
+  "obvious from the code (a deadline, a past incident, why something is built a certain way), use write_memory " +
+  "so the next session in this project starts with that context — but not for things already derivable by " +
+  "reading the repo or git history.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {
@@ -181,7 +186,12 @@ export async function main(argv: string[]): Promise<void> {
 
   const skills = await loadSkills(cwd);
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
-  const systemPrompt = BASE_SYSTEM_PROMPT + formatSkillIndex(skills);
+
+  tools.register(writeMemoryTool);
+  const memories = await loadMemories(cwd);
+  if (memories.length > 0) tools.register(createReadMemoryTool(cwd));
+
+  const systemPrompt = BASE_SYSTEM_PROMPT + formatSkillIndex(skills) + formatMemoryIndex(memories);
 
   const session = await resolveSession(cwd, opts, model, systemPrompt);
 

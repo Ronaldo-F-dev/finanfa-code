@@ -4,6 +4,7 @@ import { AgentSession } from "../core/session.js";
 import { loadMcpServers, type McpServerConfig } from "../mcp/config.js";
 import { MCP_TOOL_PREFIX } from "../mcp/client-manager.js";
 import { loadConfig, saveGlobalConfig, globalConfigPath, type FinanfaConfig } from "../core/config.js";
+import { loadMemories } from "../memory/loader.js";
 import type { CommandContext, CommandOutcome } from "./types.js";
 import type { CommandRegistry } from "./registry.js";
 
@@ -105,6 +106,16 @@ async function handleUndo(ctx: CommandContext): Promise<CommandOutcome> {
 
 function handleTodos(ctx: CommandContext): CommandOutcome {
   ctx.ui.writeSystem(ctx.session.todos.format());
+  return "continue";
+}
+
+async function handleMemory(ctx: CommandContext): Promise<CommandOutcome> {
+  const memories = await loadMemories(ctx.cwd);
+  if (memories.length === 0) {
+    ctx.ui.writeSystem("No memories saved for this project yet.");
+    return "continue";
+  }
+  ctx.ui.writeSystem(memories.map((m) => `${m.name} (${m.type}): ${m.description}`).join("\n"));
   return "continue";
 }
 
@@ -223,6 +234,7 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
   );
 
   commands.register("todos", handleTodos, "Show the current task checklist");
+  commands.register("memory", handleMemory, "List saved project memory notes (name, type, description)");
 
   commands.register(
     "config",

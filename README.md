@@ -9,7 +9,7 @@ All 4 phases implemented, plus a multi-provider backend:
 1. Core agent loop — streaming conversation, session persistence, resume, cost tracking, prompt caching, and context compaction (`src/core/context.ts`): once a conversation's estimated size passes a token budget, older tool results are collapsed to a placeholder before the request is sent (the full session is still persisted/resumable — only the outgoing request is trimmed).
 2. Built-in tools — file/shell/search/browser/planning tools (full list below) — gated by a three-state permission model (allow/ask/deny) with a session "always allow" allowlist.
 3. Terminal UI — Ink (React) by default, with a `readline` fallback for non-TTY/CI use. Assistant responses are rendered as real markdown (tables, bold/italic, headings, code) via `marked`/`marked-terminal`, not raw `**`/`|` source.
-4. Extensibility — MCP client (stdio and remote HTTP/SSE + OAuth servers), a filesystem plugin loader, and Markdown skill files.
+4. Extensibility — MCP client (stdio and remote HTTP/SSE + OAuth servers), a filesystem plugin loader, Markdown skill files, and persistent project memory (`.finanfa-code/memory/*.md` — same frontmatter/progressive-disclosure pattern as skills; the agent saves durable notes via `write_memory`, loads one on demand via `read_memory`, and the index is listed with `/memory`).
 5. LLM providers — `AnthropicProvider` and a generic `OpenAiCompatibleProvider`, behind an `LlmProvider` interface; sessions/tools/permissions are provider-agnostic (`src/core/types.ts`'s `NeutralMessage`).
 6. Sub-agents ("co-work") — the `task` tool delegates independent work to a sub-agent with its own conversation but the same tools/permissions; multiple `task` calls in one turn run concurrently.
 
@@ -75,6 +75,7 @@ Type `/` to see live autocomplete suggestions (Ink UI: arrow keys to select, Tab
 - `/clear` — clear the conversation history (same session id)
 - `/undo` — revert the most recent `write_file`/`edit_file` change made by the agent (a per-session stack, not just the last one — call it repeatedly to go further back)
 - `/todos` — show the current task checklist (set by the agent via the `todo_write` tool)
+- `/memory` — list saved project memory notes (name, type, description) — see below
 - `/sessions` — list saved sessions for this directory; `/sessions delete <id>` removes one
 - `/mcp list` / `/mcp reload` / `/mcp add <name> -- <command> [args...]` — manage MCP servers
 - `/config [show]` / `/config set <provider|model|baseUrl|apiKey> <value>` / `/config clear` — persistent defaults, so you don't have to re-export `FINANFA_*`/`ANTHROPIC_API_KEY` every session (see below)
@@ -98,6 +99,7 @@ Ctrl+C (or `kill -TERM`) triggers a graceful shutdown in both UI modes: the curr
   - http / sse (remote server): `{ "name": "example", "transport": "http", "url": "https://mcp.example.com/mcp" }`
 - `plugins/<name>/index.js` — exports `registerTools(registry)` and/or `registerCommands(commands)`
 - `skills/*.md` — frontmatter (`name`, `description`) + body; the full body is loaded on demand via the `read_skill` tool
+- `memory/*.md` — same shape as skills, plus `metadata.type` (`user`/`feedback`/`project`/`reference`); written by the agent itself via `write_memory` (not hand-authored like skills, though nothing stops you from adding one), loaded into the system prompt index at startup, full content loaded on demand via `read_memory`. Meant for things a future session in this project needs but can't derive from the code — a stated user preference, a correction to how the agent should approach something, project context/decisions, or a pointer to an external system — not code details or task-scoped state.
 
 ### Connecting third-party services (GitHub, etc.) via MCP
 
