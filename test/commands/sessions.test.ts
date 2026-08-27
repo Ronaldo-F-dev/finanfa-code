@@ -105,4 +105,37 @@ describe("/sessions command", () => {
 
     expect(ctx.ui.writeSystem).toHaveBeenCalledWith("No other saved sessions to delete.");
   });
+
+  it("a typo'd subcommand (e.g. 'deletee') errors instead of silently listing sessions", async () => {
+    const current = new AgentSession({ cwd: projectDir, model: "m", systemPrompt: "s" });
+    await current.persist();
+
+    const ctx = baseCtx(current, "deletee all");
+    await commands.get("sessions")!(ctx);
+
+    expect(ctx.ui.writeError).toHaveBeenCalledWith(expect.stringContaining('Unknown "/sessions deletee"'));
+    expect(ctx.ui.writeSystem).not.toHaveBeenCalled();
+  });
+
+  it("'/sessions delete' with no id shows usage instead of silently listing sessions", async () => {
+    const current = new AgentSession({ cwd: projectDir, model: "m", systemPrompt: "s" });
+    await current.persist();
+
+    const ctx = baseCtx(current, "delete");
+    await commands.get("sessions")!(ctx);
+
+    expect(ctx.ui.writeError).toHaveBeenCalledWith(expect.stringContaining("Usage: /sessions delete"));
+    expect(ctx.ui.writeSystem).not.toHaveBeenCalled();
+  });
+
+  it("bare /sessions (no args) still lists normally", async () => {
+    const current = new AgentSession({ cwd: projectDir, model: "m", systemPrompt: "s" });
+    await current.persist();
+
+    const ctx = baseCtx(current, "");
+    await commands.get("sessions")!(ctx);
+
+    expect(ctx.ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining(current.id));
+    expect(ctx.ui.writeError).not.toHaveBeenCalled();
+  });
 });

@@ -176,6 +176,19 @@ async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
     return "continue";
   }
 
+  if (sub === "delete") {
+    ctx.ui.writeError("Usage: /sessions delete <id> | /sessions delete all");
+    return "continue";
+  }
+
+  // An unrecognized subcommand (typo, e.g. "deletee") must not silently fall
+  // through to a plain listing — that reads as "my command did nothing" or,
+  // worse, as if it had actually done what was typed.
+  if (sub) {
+    ctx.ui.writeError(`Unknown "/sessions ${sub}". Usage: /sessions | /sessions delete <id> | /sessions delete all`);
+    return "continue";
+  }
+
   const sessions = await AgentSession.list(ctx.cwd);
   if (sessions.length === 0) {
     ctx.ui.writeSystem("No saved sessions for this directory.");
