@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile, access } from "node:fs/promises";
 import path from "node:path";
 import type { ToolDefinition } from "../../core/types.js";
+import { killProcessGroup } from "../../util/process.js";
 
 const DEFAULT_TIMEOUT_MS = 300_000;
 const MAX_BUFFER = 100_000; // bytes per stream
@@ -63,14 +64,17 @@ export async function detectTestCommand(cwd: string): Promise<string | undefined
 
 function runCommand(command: string, cwd: string, timeoutMs: number): Promise<{ content: string; isError: boolean }> {
   return new Promise((resolve) => {
-    const child = spawn(command, { cwd, shell: true });
+    // detached: true — see killProcessGroup: a test script that backgrounds
+    // a server/watcher without redirecting its output would otherwise hold
+    // the stdio pipe open forever, past a plain kill of just the shell.
+    const child = spawn(command, { cwd, shell: true, detached: true });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
 
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGKILL");
+      killProcessGroup(child);
     }, timeoutMs);
 
     child.stdout?.on("data", (d) => (stdout += d));

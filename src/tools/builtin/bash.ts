@@ -1,5 +1,6 @@
 import { spawn } from "node:child_process";
 import type { ToolDefinition } from "../../core/types.js";
+import { killProcessGroup } from "../../util/process.js";
 
 interface BashInput {
   command: string;
@@ -21,7 +22,13 @@ function commandPrefix(command: string): string {
 
 export const bashTool: ToolDefinition<BashInput> = {
   name: "bash",
-  description: "Run a shell command in the project directory and capture its output.",
+  description:
+    "Run a shell command in the project directory and capture its output. Each call is a fresh " +
+    "non-interactive shell — job control (`kill %1`, `fg`, `bg`) doesn't work; to stop a process you " +
+    "started earlier, use its actual PID (capture it with `cmd & echo $!`, or a pidfile) or `pkill -f pattern`. " +
+    "When backgrounding a long-running process (a dev server, a watcher), redirect its output " +
+    "(`cmd > /tmp/out.log 2>&1 &`) — otherwise the orphaned process keeps the pipe open and this call " +
+    "won't return until the timeout.",
   riskLevel: "dangerous",
   inputSchema: {
     type: "object",
@@ -39,14 +46,20 @@ export const bashTool: ToolDefinition<BashInput> = {
     const timeoutMs = input.timeout_ms ?? DEFAULT_TIMEOUT_MS;
 
     return new Promise((resolve) => {
-      const child = spawn(input.command, { cwd, shell: true, signal: ctx.signal });
+      // detached: true makes the shell its own process group leader, so a
+      // command that backgrounds something (`server &`) without redirecting
+      // its output can be reaped as a whole group on timeout — otherwise
+      // that orphaned process keeps holding the inherited stdout/stderr pipe
+      // open, and Node's "close" event (and this whole call) never fires,
+      // even after killing just the immediate shell process.
+      const child = spawn(input.command, { cwd, shell: true, signal: ctx.signal, detached: true });
       let stdout = "";
       let stderr = "";
       let timedOut = false;
 
       const timer = setTimeout(() => {
         timedOut = true;
-        child.kill("SIGKILL");
+        killProcessGroup(child);
       }, timeoutMs);
 
       child.stdout?.on("data", (d) => (stdout += d));
