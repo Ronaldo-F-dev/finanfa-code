@@ -33,6 +33,7 @@
     "pdf-parse": "^2.4.5",
     "playwright-core": "^1.62.1",
     "react": "^19.2.8",
+    "sharp": "^0.35.4",
     "word-extractor": "^1.0.4"
   },
   "devDependencies": {

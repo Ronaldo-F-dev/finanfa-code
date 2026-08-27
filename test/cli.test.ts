@@ -97,6 +97,12 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/check_python_types/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/Pyright/);
   });
+
+  it("tells the model resize_image's default fit doesn't crop, and warns it overwrites without outputPath", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/resize_image/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/scales to fit within that box without cropping/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/Without outputPath it overwrites the original file/);
+  });
 });
 
 describe("system prompt: GitHub issue-to-PR workflow", () => {

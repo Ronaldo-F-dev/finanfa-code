@@ -107,7 +107,10 @@ export const BASE_SYSTEM_PROMPT =
   "edit_notebook to update/insert/delete a cell by 0-based index; updating a cell leaves its old outputs in " +
   "place, now stale until the cell is re-run — same as editing a cell in Jupyter itself without re-executing it. " +
   "Use check_python_types (not bash/run_tests) to type-check a Python file or project with Pyright — it's " +
-  "static analysis, safe to run any time, not just after a change you're ready to test.";
+  "static analysis, safe to run any time, not just after a change you're ready to test. " +
+  "Use resize_image to resize/convert an image — with both width and height given, the default fit \"inside\" " +
+  "scales to fit within that box without cropping, so the actual output size may not exactly match what was " +
+  "asked; use fit \"cover\" for an exact-size crop instead. Without outputPath it overwrites the original file.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {
