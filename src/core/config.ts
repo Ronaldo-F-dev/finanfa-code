@@ -7,6 +7,17 @@ export interface FinanfaConfig {
   baseUrl?: string;
   apiKey?: string;
   model?: string;
+  /**
+   * A second, vision-capable model used only for the follow-up turn right
+   * after a tool (browser_screenshot, view_image) returns an image — the
+   * primary model/provider is often chosen for cost/availability and may not
+   * support image input at all (e.g. poolside/laguna-s-2.1 is text-only).
+   * Unset by default: no routing, everything uses the primary model.
+   */
+  visionProvider?: "anthropic" | "openai-compatible";
+  visionBaseUrl?: string;
+  visionApiKey?: string;
+  visionModel?: string;
 }
 
 // Computed lazily (not memoized as a module constant) so it reflects the

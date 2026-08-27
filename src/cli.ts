@@ -1,6 +1,6 @@
 import { Command } from "commander";
 import { AgentSession } from "./core/session.js";
-import { runTurn } from "./core/loop.js";
+import { runTurn, type VisionRoute } from "./core/loop.js";
 import type { UIAdapter } from "./ui/adapter.js";
 import { createReadlineAdapter } from "./ui/readline-adapter.js";
 import { createInkAdapter } from "./ui/ink/ink-adapter.js";
@@ -87,6 +87,35 @@ function selectProvider(config: FinanfaConfig): { provider: LlmProvider; default
     defaultModel: config.model ?? DEFAULT_ANTHROPIC_MODEL,
     kind: "anthropic",
   };
+}
+
+/**
+ * Optional second provider used only for the turn right after a vision tool
+ * (browser_screenshot, view_image) returns an image — see VisionRoute in
+ * loop.ts. Unset unless FINANFA_VISION_MODEL/config.visionModel is
+ * configured; the primary provider's apiKey is never reused here, since it's
+ * scoped to the primary provider's own service and reusing it for a
+ * different provider kind would send the wrong secret to the wrong API.
+ */
+function selectVisionProvider(config: FinanfaConfig): { provider: LlmProvider; model: string } | undefined {
+  const model = process.env.FINANFA_VISION_MODEL ?? config.visionModel;
+  if (!model) return undefined;
+
+  const kind = process.env.FINANFA_VISION_PROVIDER ?? config.visionProvider ?? "anthropic";
+  if (kind === "openai-compatible") {
+    const baseUrl = process.env.FINANFA_VISION_BASE_URL ?? config.visionBaseUrl;
+    const apiKey = process.env.FINANFA_VISION_API_KEY ?? config.visionApiKey;
+    if (!baseUrl) {
+      throw new Error(
+        "visionProvider openai-compatible requires a base URL — set FINANFA_VISION_BASE_URL, " +
+          "or /config set visionBaseUrl <url>.",
+      );
+    }
+    return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey }), model };
+  }
+
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? config.visionApiKey;
+  return { provider: new AnthropicProvider(apiKey), model };
 }
 
 function createUi(mode: "ink" | "readline"): UIAdapter {
@@ -180,6 +209,7 @@ export async function main(argv: string[]): Promise<void> {
   const config = await loadConfig(cwd);
   const { provider, defaultModel, kind: providerKind } = selectProvider(config);
   const model = opts.model ?? defaultModel;
+  const visionRoute = selectVisionProvider(config);
 
   const tools = new ToolRegistry();
   registerBuiltins(tools);
@@ -222,9 +252,10 @@ export async function main(argv: string[]): Promise<void> {
   if (mcp.connectedServers().length > 0) ui.writeSystem(`MCP servers: ${mcp.connectedServers().join(", ")}`);
   if (plugins.length > 0) ui.writeSystem(`Plugins: ${plugins.join(", ")}`);
   if (opts.yolo) ui.writeSystem("⚠ --yolo: all tool calls will be auto-approved");
+  if (visionRoute) ui.writeSystem(`Vision routing: image turns use ${visionRoute.model}`);
   ui.writeSystem(`Type / to see available commands, or /help for details.`);
 
-  await repl({ session, provider, ui, tools, permissions, mcp, commands, cwd });
+  await repl({ session, provider, ui, tools, permissions, mcp, commands, cwd, visionRoute });
   await mcp.disconnectAll();
   await browser.close();
   ui.close();
@@ -239,6 +270,7 @@ interface ReplDeps {
   mcp: McpClientManager;
   commands: CommandRegistry;
   cwd: string;
+  visionRoute?: VisionRoute;
 }
 
 async function runSlashCommand(deps: ReplDeps, trimmed: string): Promise<CommandOutcome> {
@@ -254,7 +286,7 @@ async function runSlashCommand(deps: ReplDeps, trimmed: string): Promise<Command
 }
 
 async function repl(deps: ReplDeps): Promise<void> {
-  const { ui, session, provider, tools, permissions } = deps;
+  const { ui, session, provider, tools, permissions, visionRoute } = deps;
 
   for (;;) {
     const input = await ui.askUser("\n> ");
@@ -267,7 +299,7 @@ async function repl(deps: ReplDeps): Promise<void> {
     }
 
     try {
-      await runTurn(session, provider, ui, tools, permissions, trimmed);
+      await runTurn(session, provider, ui, tools, permissions, trimmed, visionRoute);
     } catch (err) {
       ui.writeError(err instanceof Error ? err.message : String(err));
     }

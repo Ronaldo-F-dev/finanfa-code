@@ -97,6 +97,11 @@ async function runToolCallBatch(
   };
 }
 
+export interface VisionRoute {
+  provider: LlmProvider;
+  model: string;
+}
+
 export async function runTurn(
   session: AgentSession,
   provider: LlmProvider,
@@ -104,13 +109,23 @@ export async function runTurn(
   tools: ToolRegistry,
   permissions: PermissionManager,
   userInput: string,
+  visionRoute?: VisionRoute,
 ): Promise<void> {
   session.messages.push({ role: "user", content: userInput });
+  let nextCallNeedsVision = false;
 
   for (;;) {
+    // Route only the one call right after a tool produced an image — not
+    // every later call in the session, even though that image message stays
+    // in history (compactForProvider never strips it). Otherwise a single
+    // screenshot early in a long session would pin every future turn onto
+    // the (likely pricier/slower) vision model long after it's relevant.
+    const active = nextCallNeedsVision && visionRoute ? visionRoute : { provider, model: session.model };
+    nextCallNeedsVision = false;
+
     ui.setBusy(true, "thinking");
-    const result = await provider.streamTurn({
-      model: session.model,
+    const result = await active.provider.streamTurn({
+      model: active.model,
       systemPrompt: session.systemPrompt,
       messages: compactForProvider(session.messages),
       tools: tools.list(),
@@ -141,6 +156,7 @@ export async function runTurn(
 
     session.messages.push({ role: "tool", results });
     if (images.length > 0) {
+      nextCallNeedsVision = true;
       session.messages.push({ role: "user", content: "(image result from the tool call above)", images });
     }
     await session.persist();

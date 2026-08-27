@@ -10,7 +10,7 @@ All 4 phases implemented, plus a multi-provider backend:
 2. Built-in tools — file/shell/search/browser/planning tools (full list below) — gated by a three-state permission model (allow/ask/deny) with a session "always allow" allowlist.
 3. Terminal UI — Ink (React) by default, with a `readline` fallback for non-TTY/CI use. Assistant responses are rendered as real markdown (tables, bold/italic, headings, code) via `marked`/`marked-terminal`, not raw `**`/`|` source.
 4. Extensibility — MCP client (stdio and remote HTTP/SSE + OAuth servers), a filesystem plugin loader, Markdown skill files, and persistent project memory (`.finanfa-code/memory/*.md` — same frontmatter/progressive-disclosure pattern as skills; the agent saves durable notes via `write_memory`, loads one on demand via `read_memory`, and the index is listed with `/memory`).
-5. LLM providers — `AnthropicProvider` and a generic `OpenAiCompatibleProvider`, behind an `LlmProvider` interface; sessions/tools/permissions are provider-agnostic (`src/core/types.ts`'s `NeutralMessage`).
+5. LLM providers — `AnthropicProvider` and a generic `OpenAiCompatibleProvider`, behind an `LlmProvider` interface; sessions/tools/permissions are provider-agnostic (`src/core/types.ts`'s `NeutralMessage`). Optional vision routing: a second, vision-capable model/provider can be configured for just the turn right after a screenshot/image tool runs, since the primary model (chosen for cost/availability) may not support image input at all — see "Vision routing" below.
 6. Sub-agents ("co-work") — the `task` tool delegates independent work to a sub-agent with its own conversation but the same tools/permissions; multiple `task` calls in one turn run concurrently.
 
 ## Setup
@@ -139,7 +139,19 @@ MCP is how finanfa-code connects to external accounts/services — skills and pl
 
 `browser_screenshot` and `view_image` return the image itself, not just a saved path — both `AnthropicProvider` and `OpenAiCompatibleProvider` know how to pass it to the model (Anthropic image content blocks / OpenAI `image_url` data URLs). Mechanically: a tool's `ToolResult` can carry `images: [{ mimeType, base64 }]`; the agent loop surfaces those as a follow-up `user` message (most chat APIs don't support images inside a *tool result* itself, only in user/assistant turns) rather than attaching them to the tool result directly. Requires a vision-capable model — verified end-to-end with a real Chromium screenshot converted correctly for both providers (`test/core/loop-images.test.ts`).
 
-> **Not every model actually supports vision.** finanfa-code doesn't know your model's capabilities — it always sends the image if a vision tool was called. `poolside/laguna-s-2.1` (a default some users have configured) is text-only and cannot see images at all; a screenshot sent to it is silently dropped or rejected server-side. If you want screenshots/`view_image` to actually work, point `/config` (or `FINANFA_*`) at a vision-capable model — e.g. an Anthropic model, or a vision-capable model via OpenRouter — for that session.
+> **Not every model actually supports vision.** finanfa-code doesn't know your model's capabilities — it always sends the image if a vision tool was called. `poolside/laguna-s-2.1` (a default some users have configured) is text-only and cannot see images at all; a screenshot sent to it is silently dropped or rejected server-side. If you want screenshots/`view_image` to actually work, either switch your primary model to a vision-capable one, or configure vision routing below to send just those turns elsewhere.
+
+### Vision routing (a first, narrow step toward model routing)
+
+If your primary model can't see images, configure a second one used *only* for the one turn right after `browser_screenshot`/`view_image` returns an image — every other turn still uses the primary model:
+
+```
+/config set visionProvider anthropic
+/config set visionModel claude-sonnet-5
+/config set visionApiKey <your Anthropic key>
+```
+
+Or `visionProvider openai-compatible` + `visionBaseUrl`/`visionModel`/`visionApiKey` for any vision-capable OpenAI-compatible endpoint. `FINANFA_VISION_PROVIDER`/`FINANFA_VISION_BASE_URL`/`FINANFA_VISION_MODEL`/`FINANFA_VISION_API_KEY` env vars work the same way and take priority, same precedence as the primary provider's settings. The primary provider's own `apiKey` is never reused for vision — it's scoped to a different service, so reusing it would send the wrong secret to the wrong API. Routing is per-call, not sticky: only the turn immediately following an image-producing tool call uses the vision model (`VisionRoute` in `src/core/loop.ts`) — a screenshot from earlier in a long conversation doesn't keep pinning every later turn to it, even though the image message itself stays in history. This is intentionally narrow — not the difficulty-based "small model for simple tasks, big model for hard ones" router some agent frameworks have; that would need an evaluation harness to route on, which doesn't exist yet.
 
 ## Tests
 

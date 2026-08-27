@@ -86,6 +86,24 @@ describe("/config command", () => {
     expect(shown).toContain("apiKey:");
   });
 
+  it("/config set visionModel persists it, separate from the primary model", async () => {
+    await commands.get("config")!(baseCtx("set model claude-opus-5"));
+    await commands.get("config")!(baseCtx("set visionModel claude-sonnet-5"));
+
+    expect(await loadConfig(projectDir)).toEqual({ model: "claude-opus-5", visionModel: "claude-sonnet-5" });
+  });
+
+  it("masks the visionApiKey value the same way as apiKey", async () => {
+    await commands.get("config")!(baseCtx("set visionApiKey sk-ant-1234567890abcdef"));
+
+    const showCtx = baseCtx("show");
+    await commands.get("config")!(showCtx);
+
+    const shown = (showCtx.ui.writeSystem as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(shown).not.toContain("sk-ant-1234567890abcdef");
+    expect(shown).toContain("visionApiKey:");
+  });
+
   it("rejects an unknown key", async () => {
     const ctx = baseCtx("set notarealkey value");
     await commands.get("config")!(ctx);

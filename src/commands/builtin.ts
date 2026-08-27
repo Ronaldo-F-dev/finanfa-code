@@ -141,8 +141,18 @@ async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
   return "continue";
 }
 
-const CONFIG_KEYS = ["provider", "model", "baseUrl", "apiKey"] as const;
+const CONFIG_KEYS = [
+  "provider",
+  "model",
+  "baseUrl",
+  "apiKey",
+  "visionProvider",
+  "visionModel",
+  "visionBaseUrl",
+  "visionApiKey",
+] as const;
 type ConfigKey = (typeof CONFIG_KEYS)[number];
+const SECRET_KEYS: readonly ConfigKey[] = ["apiKey", "visionApiKey"];
 
 function isConfigKey(key: string): key is ConfigKey {
   return (CONFIG_KEYS as readonly string[]).includes(key);
@@ -154,8 +164,8 @@ function maskSecret(value: string): string {
 
 function formatConfig(config: FinanfaConfig): string {
   const entries = Object.entries(config) as [ConfigKey, string][];
-  if (entries.length === 0) return "No config set. Use /config set <provider|model|baseUrl|apiKey> <value>.";
-  return entries.map(([k, v]) => `${k}: ${k === "apiKey" ? maskSecret(v) : v}`).join("\n");
+  if (entries.length === 0) return `No config set. Use /config set <${CONFIG_KEYS.join("|")}> <value>.`;
+  return entries.map(([k, v]) => `${k}: ${SECRET_KEYS.includes(k) ? maskSecret(v) : v}`).join("\n");
 }
 
 async function handleConfig(ctx: CommandContext): Promise<CommandOutcome> {
@@ -186,7 +196,7 @@ async function handleConfig(ctx: CommandContext): Promise<CommandOutcome> {
     return "continue";
   }
 
-  ctx.ui.writeError("Usage: /config [show] | /config set <provider|model|baseUrl|apiKey> <value> | /config clear");
+  ctx.ui.writeError(`Usage: /config [show] | /config set <${CONFIG_KEYS.join("|")}> <value> | /config clear`);
   return "continue";
 }
 
