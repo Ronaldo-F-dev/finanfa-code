@@ -2,7 +2,12 @@ import type { AgentSession } from "./session.js";
 import type { UIAdapter } from "../ui/adapter.js";
 import type { ToolRegistry } from "../tools/registry.js";
 import type { PermissionManager } from "../permissions/manager.js";
-import type { LlmProvider, NeutralToolCall, NeutralToolResult, ToolContext } from "./types.js";
+import type { LlmProvider, NeutralImage, NeutralToolCall, NeutralToolResult, ToolContext } from "./types.js";
+
+interface ToolCallOutcome {
+  result: NeutralToolResult;
+  images?: NeutralImage[];
+}
 
 async function runOneToolCall(
   call: NeutralToolCall,
@@ -10,10 +15,10 @@ async function runOneToolCall(
   ui: UIAdapter,
   tools: ToolRegistry,
   permissions: PermissionManager,
-): Promise<NeutralToolResult> {
+): Promise<ToolCallOutcome> {
   const tool = tools.get(call.name);
   if (!tool) {
-    return { toolCallId: call.id, isError: true, content: `Unknown tool "${call.name}"` };
+    return { result: { toolCallId: call.id, isError: true, content: `Unknown tool "${call.name}"` } };
   }
 
   const ctx: ToolContext = {
@@ -27,26 +32,39 @@ async function runOneToolCall(
 
   const decision = await permissions.check(tool, call.input, ctx);
   if (decision === "deny") {
-    return { toolCallId: call.id, isError: true, content: "User declined to run this tool." };
+    return { result: { toolCallId: call.id, isError: true, content: "User declined to run this tool." } };
   }
 
   ui.writeSystem(`→ ${tool.name}: ${tool.describeCall ? tool.describeCall(call.input) : ""}`);
   ui.setBusy(true, tool.name);
   try {
     const result = await tool.handler(call.input, ctx);
-    return { toolCallId: call.id, isError: result.isError, content: result.content };
+    return {
+      result: { toolCallId: call.id, isError: result.isError, content: result.content },
+      images: result.images,
+    };
   } catch (err) {
-    return { toolCallId: call.id, isError: true, content: err instanceof Error ? err.message : String(err) };
+    return {
+      result: { toolCallId: call.id, isError: true, content: err instanceof Error ? err.message : String(err) },
+    };
   } finally {
     ui.setBusy(false);
   }
+}
+
+interface ToolBatchOutcome {
+  results: NeutralToolResult[];
+  images: NeutralImage[];
 }
 
 /**
  * Runs a batch of tool calls. Regular tools run sequentially (order and
  * one-at-a-time permission prompts matter for file/shell operations); "task"
  * sub-agent calls are explicitly independent, so any of those in the same
- * batch run concurrently for real parallelism ("co-work").
+ * batch run concurrently for real parallelism ("co-work"). Any images
+ * returned by tools (e.g. a screenshot) are collected separately — most
+ * providers don't support images inside tool-result content itself, so the
+ * caller surfaces them as a follow-up user message instead.
  */
 async function runToolCallBatch(
   toolCalls: NeutralToolCall[],
@@ -54,8 +72,8 @@ async function runToolCallBatch(
   ui: UIAdapter,
   tools: ToolRegistry,
   permissions: PermissionManager,
-): Promise<NeutralToolResult[]> {
-  const results = new Array<NeutralToolResult>(toolCalls.length);
+): Promise<ToolBatchOutcome> {
+  const outcomes = new Array<ToolCallOutcome>(toolCalls.length);
   const taskIndices: number[] = [];
 
   for (const [i, call] of toolCalls.entries()) {
@@ -63,16 +81,19 @@ async function runToolCallBatch(
       taskIndices.push(i);
       continue;
     }
-    results[i] = await runOneToolCall(call, session, ui, tools, permissions);
+    outcomes[i] = await runOneToolCall(call, session, ui, tools, permissions);
   }
 
   await Promise.all(
     taskIndices.map(async (i) => {
-      results[i] = await runOneToolCall(toolCalls[i], session, ui, tools, permissions);
+      outcomes[i] = await runOneToolCall(toolCalls[i], session, ui, tools, permissions);
     }),
   );
 
-  return results;
+  return {
+    results: outcomes.map((o) => o.result),
+    images: outcomes.flatMap((o) => o.images ?? []),
+  };
 }
 
 export async function runTurn(
@@ -112,9 +133,12 @@ export async function runTurn(
       return;
     }
 
-    const results = await runToolCallBatch(toolCalls, session, ui, tools, permissions);
+    const { results, images } = await runToolCallBatch(toolCalls, session, ui, tools, permissions);
 
     session.messages.push({ role: "tool", results });
+    if (images.length > 0) {
+      session.messages.push({ role: "user", content: "(image result from the tool call above)", images });
+    }
     await session.persist();
   }
 }

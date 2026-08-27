@@ -11,10 +11,18 @@ export interface JsonSchema {
   [key: string]: unknown;
 }
 
+export interface ToolImage {
+  mimeType: string;
+  /** Raw base64-encoded image bytes (no "data:" prefix). */
+  base64: string;
+}
+
 export interface ToolResult {
   content: string;
   isError: boolean;
   metadata?: Record<string, unknown>;
+  /** Images the model should see (e.g. a screenshot just taken) — surfaced as a follow-up multimodal message, not part of `content`. */
+  images?: ToolImage[];
 }
 
 export interface ToolContext {
@@ -70,8 +78,13 @@ export interface NeutralToolResult {
   isError: boolean;
 }
 
+export interface NeutralImage {
+  mimeType: string;
+  base64: string;
+}
+
 export type NeutralMessage =
-  | { role: "user"; content: string }
+  | { role: "user"; content: string; images?: NeutralImage[] }
   | { role: "assistant"; content: string; toolCalls?: NeutralToolCall[] }
   | { role: "tool"; results: NeutralToolResult[] };
 

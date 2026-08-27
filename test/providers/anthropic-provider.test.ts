@@ -28,6 +28,37 @@ describe("anthropic-provider conversions", () => {
     ]);
   });
 
+  it("converts a user message with images into text + image content blocks", () => {
+    const neutral: NeutralMessage[] = [
+      {
+        role: "user",
+        content: "(image result from the tool call above)",
+        images: [{ mimeType: "image/png", base64: "AAAA" }],
+      },
+    ];
+    expect(toAnthropicMessages(neutral)).toEqual([
+      {
+        role: "user",
+        content: [
+          { type: "text", text: "(image result from the tool call above)" },
+          { type: "image", source: { type: "base64", media_type: "image/png", data: "AAAA" } },
+        ],
+      },
+    ]);
+  });
+
+  it("omits the text block when an image message has no text content", () => {
+    const neutral: NeutralMessage[] = [
+      { role: "user", content: "", images: [{ mimeType: "image/jpeg", base64: "BBBB" }] },
+    ];
+    expect(toAnthropicMessages(neutral)).toEqual([
+      {
+        role: "user",
+        content: [{ type: "image", source: { type: "base64", media_type: "image/jpeg", data: "BBBB" } }],
+      },
+    ]);
+  });
+
   it("converts a tool result message into a user message with tool_result blocks", () => {
     const neutral: NeutralMessage[] = [
       { role: "tool", results: [{ toolCallId: "t1", content: "file contents", isError: false }] },

@@ -9,10 +9,21 @@ import type {
   ToolDefinition,
 } from "../core/types.js";
 
+type AnthropicImageMediaType = "image/jpeg" | "image/png" | "image/gif" | "image/webp";
+
 export function toAnthropicMessages(messages: NeutralMessage[]): Anthropic.MessageParam[] {
   return messages.map((m): Anthropic.MessageParam => {
     if (m.role === "user") {
-      return { role: "user", content: m.content };
+      if (!m.images?.length) return { role: "user", content: m.content };
+      const blocks: Anthropic.ContentBlockParam[] = [];
+      if (m.content.length > 0) blocks.push({ type: "text", text: m.content });
+      for (const img of m.images) {
+        blocks.push({
+          type: "image",
+          source: { type: "base64", media_type: img.mimeType as AnthropicImageMediaType, data: img.base64 },
+        });
+      }
+      return { role: "user", content: blocks };
     }
     if (m.role === "assistant") {
       const blocks: Anthropic.ContentBlockParam[] = [];

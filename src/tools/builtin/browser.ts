@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "../../core/types.js";
 import type { BrowserManager } from "../../browser/manager.js";
 import { resolveWithinCwd } from "./path-guard.js";
+import { readImageFile } from "../../util/image.js";
 
 const MAX_TEXT_LENGTH = 8000;
 
@@ -65,8 +66,8 @@ export function createBrowserTools(manager: BrowserManager): ToolDefinition[] {
   const screenshot: ToolDefinition<{ path: string }> = {
     name: "browser_screenshot",
     description:
-      "Take a full-page screenshot of the currently open browser page and save it as a PNG file. " +
-      "Requires browser_navigate to have been called first.",
+      "Take a full-page screenshot of the currently open browser page, save it as a PNG file, and show it to " +
+      "you so you can see what the page actually looks like. Requires browser_navigate to have been called first.",
     riskLevel: "safe",
     inputSchema: {
       type: "object",
@@ -77,7 +78,12 @@ export function createBrowserTools(manager: BrowserManager): ToolDefinition[] {
     async handler(input, ctx) {
       const filePath = resolveWithinCwd(ctx.cwd, input.path);
       await manager.screenshot(filePath);
-      return { content: `Saved screenshot to ${input.path}`, isError: false };
+      const read = await readImageFile(filePath, input.path);
+      if (!read.ok) {
+        // The screenshot was still saved to disk — just couldn't be shown inline.
+        return { content: `Saved screenshot to ${input.path} (${read.error})`, isError: false };
+      }
+      return { content: `Saved screenshot to ${input.path}`, isError: false, images: [read.image] };
     },
   };
 

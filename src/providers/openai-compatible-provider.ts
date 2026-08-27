@@ -12,9 +12,11 @@ import type {
 // wire format: Ollama, OpenRouter, Poolside, LM Studio, vLLM, etc. all speak
 // this same dialect at POST {baseUrl}/chat/completions.
 
+type OpenAiContentPart = { type: "text"; text: string } | { type: "image_url"; image_url: { url: string } };
+
 interface OpenAiMessage {
   role: "system" | "user" | "assistant" | "tool";
-  content?: string | null;
+  content?: string | OpenAiContentPart[] | null;
   tool_calls?: { id: string; type: "function"; function: { name: string; arguments: string } }[];
   tool_call_id?: string;
 }
@@ -23,7 +25,16 @@ export function toOpenAiMessages(systemPrompt: string, messages: NeutralMessage[
   const out: OpenAiMessage[] = [{ role: "system", content: systemPrompt }];
   for (const m of messages) {
     if (m.role === "user") {
-      out.push({ role: "user", content: m.content });
+      if (!m.images?.length) {
+        out.push({ role: "user", content: m.content });
+      } else {
+        const parts: OpenAiContentPart[] = [];
+        if (m.content.length > 0) parts.push({ type: "text", text: m.content });
+        for (const img of m.images) {
+          parts.push({ type: "image_url", image_url: { url: `data:${img.mimeType};base64,${img.base64}` } });
+        }
+        out.push({ role: "user", content: parts });
+      }
     } else if (m.role === "assistant") {
       out.push({
         role: "assistant",

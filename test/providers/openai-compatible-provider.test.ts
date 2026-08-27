@@ -30,6 +30,31 @@ describe("openai-compatible-provider conversions", () => {
     });
   });
 
+  it("converts a user message with images into OpenAI's image_url content parts", () => {
+    const messages: NeutralMessage[] = [
+      { role: "user", content: "look", images: [{ mimeType: "image/png", base64: "AAAA" }] },
+    ];
+    const [, converted] = toOpenAiMessages("sys", messages);
+    expect(converted).toEqual({
+      role: "user",
+      content: [
+        { type: "text", text: "look" },
+        { type: "image_url", image_url: { url: "data:image/png;base64,AAAA" } },
+      ],
+    });
+  });
+
+  it("omits the text part when an image message has no text content", () => {
+    const messages: NeutralMessage[] = [
+      { role: "user", content: "", images: [{ mimeType: "image/jpeg", base64: "BBBB" }] },
+    ];
+    const [, converted] = toOpenAiMessages("sys", messages);
+    expect(converted).toEqual({
+      role: "user",
+      content: [{ type: "image_url", image_url: { url: "data:image/jpeg;base64,BBBB" } }],
+    });
+  });
+
   it("expands a batched tool result message into one OpenAI 'tool' message per result", () => {
     const messages: NeutralMessage[] = [
       {

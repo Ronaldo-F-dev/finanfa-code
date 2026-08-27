@@ -1,9 +1,14 @@
 import { describe, expect, it, vi } from "vitest";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createBrowserTools } from "../../src/tools/builtin/browser.js";
 import type { BrowserManager } from "../../src/browser/manager.js";
+
+const ONE_PIXEL_PNG = Buffer.from(
+  "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
+  "base64",
+);
 
 function makeFakeManager(): BrowserManager {
   return {
@@ -70,6 +75,30 @@ describe("browser_* tools", () => {
 
       expect(result.isError).toBe(false);
       expect(manager.screenshot).toHaveBeenCalledWith(path.join(dir, "out.png"));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("browser_screenshot returns the saved PNG as image data for the model to see", async () => {
+    const dir = await mkdtemp(path.join(tmpdir(), "finanfa-browser-tool-"));
+    try {
+      const manager = makeFakeManager();
+      vi.mocked(manager.screenshot).mockImplementation(async (filePath: string) => {
+        await writeFile(filePath, ONE_PIXEL_PNG);
+      });
+      const [, , screenshot] = createBrowserTools(manager);
+
+      const result = await screenshot.handler({ path: "out.png" }, {
+        cwd: dir,
+        sessionId: "s",
+        signal: new AbortController().signal,
+      });
+
+      expect(result.isError).toBe(false);
+      expect(result.images).toHaveLength(1);
+      expect(result.images![0].mimeType).toBe("image/png");
+      expect(Buffer.from(result.images![0].base64, "base64")).toEqual(ONE_PIXEL_PNG);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

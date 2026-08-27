@@ -89,14 +89,17 @@ Ctrl+C (or `kill -TERM`) triggers a graceful shutdown in both UI modes: the curr
 
 MCP is how finanfa-code connects to external accounts/services — skills and plugins are for local behavior/tools, not remote auth.
 
-- **stdio + a personal access token** (e.g. the official GitHub MCP server) works today:
+- **stdio + a personal access token** — verified working end-to-end. The official GitHub MCP server ships as a Docker image, not an npm package:
   ```bash
+  docker pull ghcr.io/github/github-mcp-server
   export GITHUB_PERSONAL_ACCESS_TOKEN=ghp_...
   ```
   ```
-  /mcp add github -- npx -y @modelcontextprotocol/server-github
+  /mcp add github -- docker run -i --rm -e GITHUB_PERSONAL_ACCESS_TOKEN ghcr.io/github/github-mcp-server
   ```
-- **Remote servers requiring OAuth** (e.g. Gmail, or any hosted MCP server behind a login) are supported via the `http`/`sse` transports:
+  Real end-to-end test: listed and browsed actual GitHub repos through it. If `GITHUB_PERSONAL_ACCESS_TOKEN` is unset, the server itself falls back to GitHub's device-code flow (visit `github.com/login/device`, enter the printed code) instead of failing — slower (a manual round trip) but works without a token.
+  Community Gmail server, same stdio pattern, requires its own one-time Google Cloud OAuth app setup (not finanfa-code's OAuth flow — see the server's own docs): `/mcp add gmail -- npx @gongrzhe/server-gmail-autoauth-mcp`.
+- **Remote servers requiring OAuth** (e.g. any hosted MCP server behind a login) are supported via the `http`/`sse` transports:
   ```
   /mcp add myservice --url https://mcp.example.com/mcp
   ```
@@ -112,6 +115,11 @@ MCP is how finanfa-code connects to external accounts/services — skills and pl
 - `task` — delegates a self-contained piece of work to a sub-agent (same tools/permissions, its own conversation); multiple `task` calls in one assistant turn run concurrently.
 - `todo_write` — sets/replaces the task checklist shown live to the user (and via `/todos`); the agent is nudged to use it for multi-step work.
 - `browser_navigate` / `browser_click` / `browser_screenshot` — real browser automation via [Playwright](https://playwright.dev) (Chromium), for JavaScript-rendered pages `web_fetch` can't handle, or to visually inspect/click through a page. One headless browser session persists across calls within a run. Requires the Chromium binary: `npx playwright-core install chromium` (not `npx playwright install` — this project depends on the lighter `playwright-core`, which has no bundled CLI download step of its own).
+- `view_image` — shows an image file (PNG/JPEG/GIF/WebP, ≤5 MB) to the model, not just its path.
+
+### Vision (the agent can actually see images)
+
+`browser_screenshot` and `view_image` return the image itself, not just a saved path — both `AnthropicProvider` and `OpenAiCompatibleProvider` know how to pass it to the model (Anthropic image content blocks / OpenAI `image_url` data URLs). Mechanically: a tool's `ToolResult` can carry `images: [{ mimeType, base64 }]`; the agent loop surfaces those as a follow-up `user` message (most chat APIs don't support images inside a *tool result* itself, only in user/assistant turns) rather than attaching them to the tool result directly. Requires a vision-capable model — verified end-to-end with a real Chromium screenshot converted correctly for both providers (`test/core/loop-images.test.ts`).
 
 ## Tests
 
