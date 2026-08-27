@@ -4,7 +4,35 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import ExcelJS from "exceljs";
 import { Document, Packer, Paragraph, TextRun } from "docx";
-import { readDocumentTool, writeSpreadsheetTool } from "../../src/tools/builtin/documents.js";
+import { PDFDocument, StandardFonts } from "pdf-lib";
+import {
+  readDocumentTool,
+  writeSpreadsheetTool,
+  editSpreadsheetTool,
+  mergeSpreadsheetsTool,
+  mergePdfTool,
+  writeDocumentTool,
+  editDocumentTool,
+} from "../../src/tools/builtin/documents.js";
+
+async function buildRealPdf(text: string): Promise<Buffer> {
+  const doc = await PDFDocument.create();
+  const page = doc.addPage([300, 200]);
+  const font = await doc.embedFont(StandardFonts.Helvetica);
+  page.drawText(text, { x: 20, y: 150, size: 14, font });
+  return Buffer.from(await doc.save());
+}
+
+async function buildDocxWithParagraphs(paragraphs: string[][]): Promise<Buffer> {
+  const doc = new Document({
+    sections: [
+      {
+        children: paragraphs.map((runs) => new Paragraph({ children: runs.map((text) => new TextRun(text)) })),
+      },
+    ],
+  });
+  return Packer.toBuffer(doc);
+}
 
 /**
  * Hand-rolled minimal single-page PDF with a real text-drawing content
@@ -147,6 +175,170 @@ describe("document tools (real files, real libraries)", () => {
       const workbook = new ExcelJS.Workbook();
       await workbook.xlsx.load((await readFile(path.join(dir, "nested/dir/out.xlsx"))) as any);
       expect(workbook.worksheets[0].name).toBe("Sheet1");
+    });
+  });
+
+  describe("edit_spreadsheet", () => {
+    it("updates specific cells, leaving the rest untouched", async () => {
+      await writeSpreadsheetTool.handler({ path: "sheet.xlsx", rows: [["a", "b"], ["c", "d"]] }, ctx());
+
+      const result = await editSpreadsheetTool.handler(
+        { path: "sheet.xlsx", edits: [{ row: 2, col: 2, value: "changed" }] },
+        ctx(),
+      );
+      expect(result.isError).toBe(false);
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load((await readFile(path.join(dir, "sheet.xlsx"))) as any);
+      const sheet = workbook.worksheets[0];
+      expect((sheet.getRow(1).values as unknown[]).slice(1)).toEqual(["a", "b"]);
+      expect((sheet.getRow(2).values as unknown[]).slice(1)).toEqual(["c", "changed"]);
+    });
+
+    it("targets a named sheet when given", async () => {
+      const workbook = new ExcelJS.Workbook();
+      workbook.addWorksheet("First").addRow(["x"]);
+      workbook.addWorksheet("Second").addRow(["y"]);
+      await writeFile(path.join(dir, "multi.xlsx"), (await workbook.xlsx.writeBuffer()) as unknown as Buffer);
+
+      await editSpreadsheetTool.handler(
+        { path: "multi.xlsx", sheetName: "Second", edits: [{ row: 1, col: 1, value: "changed" }] },
+        ctx(),
+      );
+
+      const reloaded = new ExcelJS.Workbook();
+      await reloaded.xlsx.load((await readFile(path.join(dir, "multi.xlsx"))) as any);
+      expect((reloaded.getWorksheet("First")!.getRow(1).values as unknown[]).slice(1)).toEqual(["x"]);
+      expect((reloaded.getWorksheet("Second")!.getRow(1).values as unknown[]).slice(1)).toEqual(["changed"]);
+    });
+
+    it("reports an error for a sheet name that doesn't exist", async () => {
+      await writeSpreadsheetTool.handler({ path: "sheet.xlsx", rows: [["a"]] }, ctx());
+      const result = await editSpreadsheetTool.handler(
+        { path: "sheet.xlsx", sheetName: "NoSuchSheet", edits: [{ row: 1, col: 1, value: "x" }] },
+        ctx(),
+      );
+      expect(result.isError).toBe(true);
+      expect(result.content).toContain("NoSuchSheet");
+    });
+  });
+
+  describe("merge_spreadsheets", () => {
+    it("combines worksheets from multiple files into one output workbook", async () => {
+      await writeSpreadsheetTool.handler({ path: "a.xlsx", sheetName: "Data", rows: [["from a"]] }, ctx());
+      await writeSpreadsheetTool.handler({ path: "b.xlsx", sheetName: "Data", rows: [["from b"]] }, ctx());
+
+      const result = await mergeSpreadsheetsTool.handler(
+        { paths: ["a.xlsx", "b.xlsx"], outputPath: "merged.xlsx" },
+        ctx(),
+      );
+      expect(result.isError).toBe(false);
+
+      const workbook = new ExcelJS.Workbook();
+      await workbook.xlsx.load((await readFile(path.join(dir, "merged.xlsx"))) as any);
+      expect(workbook.worksheets).toHaveLength(2);
+      const names = workbook.worksheets.map((s) => s.name);
+      expect(names).toContain("Data");
+      expect(names).toContain("Data (2)");
+    });
+
+    it("requires at least 2 files", async () => {
+      await writeSpreadsheetTool.handler({ path: "a.xlsx", rows: [["a"]] }, ctx());
+      const result = await mergeSpreadsheetsTool.handler({ paths: ["a.xlsx"], outputPath: "out.xlsx" }, ctx());
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("merge_pdf", () => {
+    it("combines pages from multiple real PDFs, in order", async () => {
+      await writeFile(path.join(dir, "a.pdf"), await buildRealPdf("Document A page"));
+      await writeFile(path.join(dir, "b.pdf"), await buildRealPdf("Document B page"));
+
+      const result = await mergePdfTool.handler({ paths: ["a.pdf", "b.pdf"], outputPath: "merged.pdf" }, ctx());
+      expect(result.isError).toBe(false);
+      expect(result.content).toContain("2 pages");
+
+      const readBack = await readDocumentTool.handler({ path: "merged.pdf" }, ctx());
+      expect(readBack.content).toContain("Document A page");
+      expect(readBack.content).toContain("Document B page");
+      expect(readBack.content.indexOf("Document A page")).toBeLessThan(readBack.content.indexOf("Document B page"));
+    });
+
+    it("requires at least 2 files", async () => {
+      await writeFile(path.join(dir, "a.pdf"), await buildRealPdf("solo"));
+      const result = await mergePdfTool.handler({ paths: ["a.pdf"], outputPath: "out.pdf" }, ctx());
+      expect(result.isError).toBe(true);
+    });
+  });
+
+  describe("write_document", () => {
+    it("creates a real .docx readable back through read_document", async () => {
+      const result = await writeDocumentTool.handler(
+        { path: "out.docx", paragraphs: ["First paragraph.", "Second paragraph."] },
+        ctx(),
+      );
+      expect(result.isError).toBe(false);
+
+      const readBack = await readDocumentTool.handler({ path: "out.docx" }, ctx());
+      expect(readBack.content).toContain("First paragraph.");
+      expect(readBack.content).toContain("Second paragraph.");
+    });
+  });
+
+  describe("edit_document", () => {
+    it("replaces text that falls within a single XML run", async () => {
+      await writeFile(path.join(dir, "doc.docx"), await buildDocxWithParagraphs([["Hello world, this is a test."]]));
+
+      const result = await editDocumentTool.handler(
+        { path: "doc.docx", old_string: "world", new_string: "there" },
+        ctx(),
+      );
+      expect(result.isError).toBe(false);
+
+      const readBack = await readDocumentTool.handler({ path: "doc.docx" }, ctx());
+      expect(readBack.content).toContain("Hello there, this is a test.");
+    });
+
+    it("fails with a clear explanation when the text is split across multiple runs", async () => {
+      await writeFile(
+        path.join(dir, "split.docx"),
+        await buildDocxWithParagraphs([["Hello ", "world, this is split."]]),
+      );
+
+      await expect(
+        editDocumentTool.handler({ path: "split.docx", old_string: "Hello world", new_string: "Hi there" }, ctx()),
+      ).rejects.toThrow(/across multiple runs/);
+    });
+
+    it("fails when old_string isn't found at all", async () => {
+      await writeFile(path.join(dir, "doc.docx"), await buildDocxWithParagraphs([["Hello world."]]));
+      await expect(
+        editDocumentTool.handler({ path: "doc.docx", old_string: "nonexistent", new_string: "x" }, ctx()),
+      ).rejects.toThrow(/not found/);
+    });
+
+    it("requires replace_all when old_string occurs more than once", async () => {
+      await writeFile(path.join(dir, "doc.docx"), await buildDocxWithParagraphs([["cat cat cat"]]));
+      await expect(
+        editDocumentTool.handler({ path: "doc.docx", old_string: "cat", new_string: "dog" }, ctx()),
+      ).rejects.toThrow(/occurs 3 times/);
+    });
+
+    it("replace_all replaces every occurrence, including across separate runs", async () => {
+      await writeFile(
+        path.join(dir, "doc.docx"),
+        await buildDocxWithParagraphs([["cat"], ["cat"], ["cat"]]),
+      );
+
+      const result = await editDocumentTool.handler(
+        { path: "doc.docx", old_string: "cat", new_string: "dog", replace_all: true },
+        ctx(),
+      );
+      expect(result.isError).toBe(false);
+
+      const readBack = await readDocumentTool.handler({ path: "doc.docx" }, ctx());
+      expect(readBack.content).not.toContain("cat");
+      expect(readBack.content.match(/dog/g) ?? []).toHaveLength(3);
     });
   });
 });

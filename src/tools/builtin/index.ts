@@ -12,7 +12,15 @@ import { todoWriteTool } from "./todo-write.js";
 import { viewImageTool } from "./view-image.js";
 import { gitTools } from "./git.js";
 import { runTestsTool } from "./run-tests.js";
-import { readDocumentTool, writeSpreadsheetTool } from "./documents.js";
+import {
+  readDocumentTool,
+  writeSpreadsheetTool,
+  editSpreadsheetTool,
+  mergeSpreadsheetsTool,
+  mergePdfTool,
+  writeDocumentTool,
+  editDocumentTool,
+} from "./documents.js";
 
 export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(readFileTool);
@@ -29,5 +37,10 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(runTestsTool);
   registry.register(readDocumentTool);
   registry.register(writeSpreadsheetTool);
+  registry.register(editSpreadsheetTool);
+  registry.register(mergeSpreadsheetsTool);
+  registry.register(mergePdfTool);
+  registry.register(writeDocumentTool);
+  registry.register(editDocumentTool);
   for (const tool of gitTools) registry.register(tool);
 }

@@ -66,8 +66,21 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/legacy binary \.doc\/\.xls/);
   });
 
-  it("mentions write_spreadsheet for creating .xlsx files", () => {
+  it("mentions write_spreadsheet, edit_spreadsheet, and merge_spreadsheets", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/write_spreadsheet/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/edit_spreadsheet/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/merge_spreadsheets/);
+  });
+
+  it("mentions merge_pdf and explains why there's no in-place PDF text editor", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/merge_pdf/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/no tool for editing existing PDF text in place/);
+  });
+
+  it("mentions write_document and edit_document, and warns about Word's multi-run splitting", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/write_document/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/edit_document/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/splits a sentence across several runs/);
   });
 });
 

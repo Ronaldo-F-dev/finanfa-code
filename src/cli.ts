@@ -91,7 +91,16 @@ export const BASE_SYSTEM_PROMPT =
   "by name, instead of guessing at `pkill -f <pattern>`. " +
   "Use read_document (not bash/read_file) to get text out of a PDF, .docx, or .xlsx file — those are binary " +
   "formats and read_file will return garbage bytes. It only handles the modern .docx/.xlsx formats, not the " +
-  "legacy binary .doc/.xls ones. Use write_spreadsheet to create a .xlsx file from structured row data.";
+  "legacy binary .doc/.xls ones. Use write_spreadsheet to create a .xlsx from structured row data, " +
+  "edit_spreadsheet to update specific cells in one that already exists (read_document first to see current " +
+  "values and figure out row/column numbers), and merge_spreadsheets to combine several files into one. " +
+  "Use merge_pdf to combine PDFs — there's no tool for editing existing PDF text in place, since that isn't " +
+  "reliably possible with any lightweight library; say so rather than attempting something that'll likely " +
+  "corrupt the file. write_document creates a new, plain-text-only .docx (no bold/tables/images). edit_document " +
+  "does exact-text replacement in an existing .docx, but only works when old_string falls entirely within one " +
+  "internal XML run — Word often splits a sentence across several runs, and the tool fails with a clear " +
+  "explanation rather than silently missing the edit in that case; prefer a short, distinctive fragment as " +
+  "old_string to raise the odds it's captured in a single run.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {
