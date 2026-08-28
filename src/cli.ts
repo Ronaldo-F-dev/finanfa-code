@@ -126,7 +126,11 @@ export const BASE_SYSTEM_PROMPT =
   "Use http_request (not web_fetch) to test an API endpoint — an app you're developing, running locally or " +
   "elsewhere — with any HTTP method, headers, and a body. web_fetch is GET-only and strips HTML for reading a " +
   "page; this doesn't strip anything and returns status, headers, and body as-is, which is what testing an API " +
-  "actually needs.";
+  "actually needs. " +
+  "Use lint_javascript (not bash/run_tests) to run ESLint on a JS/TS file or project. Unlike " +
+  "check_python_types/Pyright, this needs the project to already have its own ESLint config — ESLint has no " +
+  "usable defaults and refuses to run at all without one, so don't try to work around that by creating one " +
+  "yourself unless asked; just report that none was found.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {

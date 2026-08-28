@@ -120,6 +120,12 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/http_request/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/web_fetch is GET-only/);
   });
+
+  it("tells the model lint_javascript needs an existing ESLint config and won't create one unasked", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/lint_javascript/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/refuses to run at all without one/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/don't try to work around that by creating one yourself unless asked/);
+  });
 });
 
 describe("system prompt: GitHub issue-to-PR workflow", () => {
