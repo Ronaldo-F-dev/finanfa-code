@@ -226,6 +226,14 @@ export async function runTurn(
     const iterationStop = guard.checkIterationLimit();
     if (iterationStop) {
       ui.writeSystem(iterationStop);
+      // Recorded into history, not just shown in the terminal — otherwise
+      // the model has no way to know this turn ended because the guard cut
+      // it off rather than because it actually finished. A real, observed
+      // case: asked "did you finish?" right after a cutoff, the model
+      // confidently said yes, since from its own perspective the
+      // conversation had just ended cleanly with no sign anything was wrong.
+      session.messages.push({ role: "assistant", content: iterationStop });
+      await session.persist();
       return;
     }
 
@@ -300,6 +308,20 @@ export async function runTurn(
     const repeatStop = guard.checkRepetition(toolCalls);
     if (repeatStop) {
       ui.writeSystem(repeatStop);
+      // The assistant message with these tool_calls is already in history
+      // (pushed above) but the calls themselves were never run — leaving
+      // them unresolved would mean every tool_use block has no matching
+      // tool_result, which providers like Anthropic reject outright on the
+      // next request, breaking the session from here on. Stub results keep
+      // the transcript structurally valid; the follow-up assistant note
+      // (same reasoning as the iteration-limit case above) lets the model
+      // know on the next turn that this ended via the guard, not naturally.
+      session.messages.push({
+        role: "tool",
+        results: toolCalls.map((call) => ({ toolCallId: call.id, content: "(skipped — repetition guard triggered)", isError: true })),
+      });
+      session.messages.push({ role: "assistant", content: repeatStop });
+      await session.persist();
       return;
     }
 

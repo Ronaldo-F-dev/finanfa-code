@@ -75,6 +75,14 @@ describe("runTurn: loop guards", () => {
     expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("stopped after 50 steps"));
     // 50 iterations run the model, but the 51st is refused before calling it again.
     expect(n).toBe(50);
+
+    // Not just shown in the terminal — recorded into history too, or the
+    // model has no way to know on the next turn that this ended via the
+    // guard rather than by actually finishing (a real, observed failure:
+    // asked "did you finish?" right after a cutoff, the model confidently
+    // said yes).
+    const last = session.messages.at(-1);
+    expect(last).toEqual({ role: "assistant", content: expect.stringContaining("stopped after 50 steps") });
   });
 
   it("stops after the same tool call batch repeats 3 times, without executing the 3rd repeat", async () => {
@@ -103,6 +111,20 @@ describe("runTurn: loop guards", () => {
 
     expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("repeated 3 times in a row"));
     expect(getCalls()).toBe(2);
+
+    // The 3rd repeat's assistant message (with its tool_calls) is in history,
+    // but the calls themselves were never run — without a stub tool result,
+    // that tool_use would have no matching tool_result, which a provider
+    // like Anthropic rejects outright on the next request, breaking the
+    // session from here on. And, same reasoning as the iteration-limit case,
+    // a trailing assistant note so the model knows this wasn't a natural stop.
+    const toolMessage = session.messages.at(-2);
+    expect(toolMessage).toEqual({
+      role: "tool",
+      results: [{ toolCallId: "c1", content: expect.stringContaining("repetition guard"), isError: true }],
+    });
+    const last = session.messages.at(-1);
+    expect(last).toEqual({ role: "assistant", content: expect.stringContaining("repeated 3 times in a row") });
   });
 
   it("does not trigger the repetition guard when consecutive tool calls differ", async () => {
