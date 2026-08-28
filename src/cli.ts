@@ -117,7 +117,12 @@ export const BASE_SYSTEM_PROMPT =
   "value — instead of `bash: python3 -c \"...\"`, which starts a fresh interpreter every call and throws away " +
   "variables, imports, and function defs between calls. python_repl keeps all of that across calls, the same " +
   "way an interactive session would. Pass reset: true to clear it and start over. It has no interactive stdin, " +
-  "so code calling input() will hang until it times out.";
+  "so code calling input() will hang until it times out. " +
+  "Use query_database to run SQL against SQLite/PostgreSQL/MySQL, picked from the connectionString's scheme " +
+  "(sqlite://, postgres://, mysql://) — works against any app's database regardless of what language/framework " +
+  "it's written in, since it talks to the database directly. Placeholder syntax isn't portable across engines: " +
+  "SQLite/MySQL use \"?\", Postgres uses \"$1\"/\"$2\". \"sqlite::memory:\" does not persist between calls — a " +
+  "fresh empty database is created every time.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {

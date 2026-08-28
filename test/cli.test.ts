@@ -109,6 +109,12 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/starts a fresh interpreter every call/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/input\(\) will hang/);
   });
+
+  it("tells the model query_database works against any language/framework's database, and warns about non-portable placeholders", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/query_database/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/regardless of what language\/framework/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/does not persist between calls/);
+  });
 });
 
 describe("system prompt: GitHub issue-to-PR workflow", () => {
