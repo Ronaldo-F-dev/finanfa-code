@@ -115,6 +115,11 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/regardless of what language\/framework/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/does not persist between calls/);
   });
+
+  it("tells the model to use http_request (not web_fetch) for testing an API endpoint", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/http_request/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/web_fetch is GET-only/);
+  });
 });
 
 describe("system prompt: GitHub issue-to-PR workflow", () => {

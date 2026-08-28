@@ -25,6 +25,7 @@ import { readNotebookTool, editNotebookTool } from "./notebook.js";
 import { checkPythonTypesTool } from "./check-python-types.js";
 import { resizeImageTool } from "./resize-image.js";
 import { queryDatabaseTool } from "./query-database.js";
+import { httpRequestTool } from "./http-request.js";
 
 export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(readFileTool);
@@ -51,5 +52,6 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(checkPythonTypesTool);
   registry.register(resizeImageTool);
   registry.register(queryDatabaseTool);
+  registry.register(httpRequestTool);
   for (const tool of gitTools) registry.register(tool);
 }
