@@ -156,6 +156,30 @@ describe("runTurn: a provider call that throws ends the turn cleanly instead of 
     },
   );
 
+  it(
+    "real, reported bug: unwraps a fetch TypeError's .cause instead of surfacing the useless " +
+      '"fetch failed" alone',
+    async () => {
+      class NetworkFailureProvider implements LlmProvider {
+        async streamTurn(): Promise<StreamTurnResult> {
+          // Matches Node's real shape exactly (verified directly against a
+          // genuine DNS failure): a bare fetch() throws a TypeError whose own
+          // .message is always literally "fetch failed" — the actually
+          // useful detail is one level down in .cause.
+          throw new TypeError("fetch failed", { cause: new Error("getaddrinfo ENOTFOUND inference.poolside.ai") });
+        }
+      }
+
+      const ui = makeStubUi();
+      const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+      const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+      await runTurn(session, new NetworkFailureProvider(), ui, new ToolRegistry(), permissions, "hello");
+
+      expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("getaddrinfo ENOTFOUND"));
+    },
+  );
+
   it("does not falsely blame vision when the failure is unrelated to an image call", async () => {
     class FailingProvider implements LlmProvider {
       async streamTurn(): Promise<StreamTurnResult> {

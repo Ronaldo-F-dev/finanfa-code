@@ -180,6 +180,22 @@ function consumeImageMessage(session: AgentSession, note: string): void {
   }
 }
 
+/**
+ * Node's fetch (undici) wraps a network-level failure (DNS, connection
+ * refused, TLS, ...) in a `TypeError` whose own `.message` is always just
+ * "fetch failed" — the actually useful detail sits one level down in
+ * `.cause` (verified directly: a real DNS failure surfaces as `cause: Error:
+ * getaddrinfo ENOTFOUND ...`, completely absent from `.message`). Without
+ * unwrapping it, a transient network blip during a provider call showed the
+ * user/model an undiagnosable "(the model call failed: fetch failed)" with
+ * no way to tell a DNS problem from a bad URL from the provider being down.
+ */
+function describeError(err: unknown): string {
+  if (!(err instanceof Error)) return String(err);
+  const cause = err.cause instanceof Error ? err.cause.message : undefined;
+  return cause ? `${err.message}: ${cause}` : err.message;
+}
+
 /** Tracks per-turn iteration/repetition state so runTurn's own control flow stays flat. */
 class LoopGuard {
   private iterations = 0;
@@ -268,7 +284,7 @@ export async function runTurn(
       // with a message tailored to the likely cause, matches how the other
       // "can't continue" cases below already behave.
       ui.setBusy(false);
-      const message = err instanceof Error ? err.message : String(err);
+      const message = describeError(err);
       if (sendingImageWithoutVisionRoute) {
         consumeImageMessage(session, `not shown — ${active.model} doesn't support image input`);
         await session.persist();
