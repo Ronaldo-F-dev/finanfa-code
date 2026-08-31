@@ -1,4 +1,5 @@
 import { readFile, readdir } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import matter from "gray-matter";
 import type { ToolDefinition } from "../core/types.js";
@@ -9,8 +10,16 @@ export interface Skill {
   content: string;
 }
 
-export async function loadSkills(cwd: string): Promise<Skill[]> {
-  const dir = path.join(cwd, ".finanfa-code", "skills");
+/** ~/.finanfa-code/skills — computed fresh per call, not memoized (a test overriding $HOME must see it). */
+function globalSkillsDir(): string {
+  return path.join(os.homedir(), ".finanfa-code", "skills");
+}
+
+function projectSkillsDir(cwd: string): string {
+  return path.join(cwd, ".finanfa-code", "skills");
+}
+
+async function readSkillsFromDir(dir: string): Promise<Skill[]> {
   let entries: string[];
   try {
     entries = await readdir(dir);
@@ -30,6 +39,22 @@ export async function loadSkills(cwd: string): Promise<Skill[]> {
     });
   }
   return skills;
+}
+
+/**
+ * Global skills (~/.finanfa-code/skills, apply in every project — a
+ * systemwide personal tool/workflow) plus project-local ones
+ * (.finanfa-code/skills, this repo only). Project-local wins on a name
+ * collision, since it's the more specific of the two.
+ */
+export async function loadSkills(cwd: string): Promise<Skill[]> {
+  const [global, project] = await Promise.all([
+    readSkillsFromDir(globalSkillsDir()),
+    readSkillsFromDir(projectSkillsDir(cwd)),
+  ]);
+  const byName = new Map(global.map((s) => [s.name, s]));
+  for (const skill of project) byName.set(skill.name, skill);
+  return [...byName.values()];
 }
 
 /** Short index of available skills, meant to be appended to the system prompt. */

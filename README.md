@@ -103,6 +103,8 @@ Ctrl+C (or `kill -TERM`) triggers a graceful shutdown in both UI modes: the curr
 - `skills/*.md` — frontmatter (`name`, `description`) + body; the full body is loaded on demand via the `read_skill` tool
 - `memory/*.md` — same shape as skills, plus `metadata.type` (`user`/`feedback`/`project`/`reference`); written by the agent itself via `write_memory` (not hand-authored like skills, though nothing stops you from adding one), loaded into the system prompt index at startup, full content loaded on demand via `read_memory`. Meant for things a future session in this project needs but can't derive from the code — a stated user preference, a correction to how the agent should approach something, project context/decisions, or a pointer to an external system — not code details or task-scoped state.
 
+**Both also have a global counterpart** — `~/.finanfa-code/skills/*.md` and `~/.finanfa-code/memory/*.md` — merged with the project-local ones on every load (project-local wins on a name collision). Use global for something true in *every* project, not just this one: a systemwide CLI tool the agent should know to reach for, or a durable preference that isn't project-specific. `write_memory` takes an optional `scope: "global"` (default `"project"`) to write there directly; skills are hand-authored either way, so just drop the file in `~/.finanfa-code/skills/` yourself.
+
 ### Connecting third-party services (GitHub, etc.) via MCP
 
 MCP is how finanfa-code connects to external accounts/services — skills and plugins are for local behavior/tools, not remote auth.

@@ -6,20 +6,62 @@ import { loadSkills, formatSkillIndex, createReadSkillTool } from "../../src/ski
 
 describe("skills loader", () => {
   let dir: string;
+  let homeDir: string;
+  let originalHome: string | undefined;
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(tmpdir(), "finanfa-skills-"));
     await mkdir(path.join(dir, ".finanfa-code", "skills"), { recursive: true });
+    // loadSkills also reads the *real* ~/.finanfa-code/skills unless $HOME is
+    // overridden — without this, these tests would start failing the moment
+    // any real global skill exists on the machine running them.
+    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-skills-home-"));
+    originalHome = process.env.HOME;
+    process.env.HOME = homeDir;
   });
 
   afterEach(async () => {
+    process.env.HOME = originalHome;
     await rm(dir, { recursive: true, force: true });
+    await rm(homeDir, { recursive: true, force: true });
   });
 
   it("returns an empty list when there is no skills directory", async () => {
     const empty = await mkdtemp(path.join(tmpdir(), "finanfa-empty-"));
     expect(await loadSkills(empty)).toEqual([]);
     await rm(empty, { recursive: true, force: true });
+  });
+
+  it("merges global (~/.finanfa-code/skills) and project-local skills", async () => {
+    await mkdir(path.join(homeDir, ".finanfa-code", "skills"), { recursive: true });
+    await writeFile(
+      path.join(homeDir, ".finanfa-code", "skills", "mydevops.md"),
+      "---\nname: mydevops\ndescription: A systemwide devops CLI\n---\nUse `mydevops <command>`.",
+    );
+    await writeFile(
+      path.join(dir, ".finanfa-code", "skills", "deploy.md"),
+      "---\nname: deploy\ndescription: How to deploy the app\n---\nRun `npm run deploy`.",
+    );
+
+    const skills = await loadSkills(dir);
+    const names = skills.map((s) => s.name).sort();
+    expect(names).toEqual(["deploy", "mydevops"]);
+  });
+
+  it("project-local skill wins over a global one with the same name", async () => {
+    await mkdir(path.join(homeDir, ".finanfa-code", "skills"), { recursive: true });
+    await writeFile(
+      path.join(homeDir, ".finanfa-code", "skills", "deploy.md"),
+      "---\nname: deploy\ndescription: global version\n---\nglobal content",
+    );
+    await writeFile(
+      path.join(dir, ".finanfa-code", "skills", "deploy.md"),
+      "---\nname: deploy\ndescription: project version\n---\nproject content",
+    );
+
+    const skills = await loadSkills(dir);
+    expect(skills).toHaveLength(1);
+    expect(skills[0].description).toBe("project version");
   });
 
   it("parses frontmatter and body from skill files", async () => {

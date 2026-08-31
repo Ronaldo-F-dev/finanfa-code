@@ -6,19 +6,78 @@ import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool 
 
 describe("memory loader", () => {
   let dir: string;
+  let homeDir: string;
+  let originalHome: string | undefined;
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(tmpdir(), "finanfa-memory-"));
+    // loadMemories also reads the *real* ~/.finanfa-code/memory unless $HOME
+    // is overridden — without this, these tests would start failing the
+    // moment any real global memory exists on the machine running them.
+    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-memory-home-"));
+    originalHome = process.env.HOME;
+    process.env.HOME = homeDir;
   });
 
   afterEach(async () => {
+    process.env.HOME = originalHome;
     await rm(dir, { recursive: true, force: true });
+    await rm(homeDir, { recursive: true, force: true });
   });
 
   const ctx = () => ({ cwd: dir, sessionId: "s", signal: new AbortController().signal });
 
   it("returns an empty list when there is no memory directory", async () => {
     expect(await loadMemories(dir)).toEqual([]);
+  });
+
+  it("merges global (~/.finanfa-code/memory) and project-local memories", async () => {
+    await mkdir(path.join(homeDir, ".finanfa-code", "memory"), { recursive: true });
+    await writeFile(
+      path.join(homeDir, ".finanfa-code", "memory", "global-note.md"),
+      "---\nname: global-note\ndescription: applies everywhere\nmetadata:\n  type: user\n---\n\nglobal content",
+    );
+    await mkdir(path.join(dir, ".finanfa-code", "memory"), { recursive: true });
+    await writeFile(
+      path.join(dir, ".finanfa-code", "memory", "project-note.md"),
+      "---\nname: project-note\ndescription: this repo only\nmetadata:\n  type: project\n---\n\nproject content",
+    );
+
+    const memories = await loadMemories(dir);
+    const names = memories.map((m) => m.name).sort();
+    expect(names).toEqual(["global-note", "project-note"]);
+  });
+
+  it("project-local memory wins over a global one with the same name", async () => {
+    await mkdir(path.join(homeDir, ".finanfa-code", "memory"), { recursive: true });
+    await writeFile(
+      path.join(homeDir, ".finanfa-code", "memory", "note.md"),
+      "---\nname: note\ndescription: global version\nmetadata:\n  type: user\n---\n\nglobal",
+    );
+    await mkdir(path.join(dir, ".finanfa-code", "memory"), { recursive: true });
+    await writeFile(
+      path.join(dir, ".finanfa-code", "memory", "note.md"),
+      "---\nname: note\ndescription: project version\nmetadata:\n  type: project\n---\n\nproject",
+    );
+
+    const memories = await loadMemories(dir);
+    expect(memories).toHaveLength(1);
+    expect(memories[0].description).toBe("project version");
+  });
+
+  it("write_memory scope: global writes to ~/.finanfa-code/memory instead of the project", async () => {
+    const result = await writeMemoryTool.handler(
+      { name: "always-use-mydevops", description: "systemwide preference", type: "user", content: "c", scope: "global" },
+      ctx(),
+    );
+    expect(result.isError).toBe(false);
+    expect(result.content).toContain("global");
+
+    const globalFile = await readFile(path.join(homeDir, ".finanfa-code", "memory", "always-use-mydevops.md"), "utf-8");
+    expect(globalFile).toContain("always-use-mydevops");
+
+    const memories = await loadMemories(dir);
+    expect(memories.map((m) => m.name)).toContain("always-use-mydevops");
   });
 
   it("parses frontmatter (including nested metadata.type) and body from memory files", async () => {

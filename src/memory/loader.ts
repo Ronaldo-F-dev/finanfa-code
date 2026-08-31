@@ -1,4 +1,5 @@
 import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
+import os from "node:os";
 import path from "node:path";
 import matter from "gray-matter";
 import type { ToolDefinition } from "../core/types.js";
@@ -13,7 +14,12 @@ export interface Memory {
 const MEMORY_TYPES = ["user", "feedback", "project", "reference"] as const;
 export type MemoryType = (typeof MEMORY_TYPES)[number];
 
-function memoryDir(cwd: string): string {
+/** ~/.finanfa-code/memory — computed fresh per call, not memoized (a test overriding $HOME must see it). */
+function globalMemoryDir(): string {
+  return path.join(os.homedir(), ".finanfa-code", "memory");
+}
+
+function projectMemoryDir(cwd: string): string {
   return path.join(cwd, ".finanfa-code", "memory");
 }
 
@@ -25,9 +31,7 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-/** Project-local memory notes (`.finanfa-code/memory/*.md`) — durable context about the user/project that isn't derivable from the code itself. */
-export async function loadMemories(cwd: string): Promise<Memory[]> {
-  const dir = memoryDir(cwd);
+async function readMemoriesFromDir(dir: string): Promise<Memory[]> {
   let entries: string[];
   try {
     entries = await readdir(dir);
@@ -49,6 +53,23 @@ export async function loadMemories(cwd: string): Promise<Memory[]> {
     });
   }
   return memories;
+}
+
+/**
+ * Global memory (~/.finanfa-code/memory, applies in every project — e.g. a
+ * durable user preference or a systemwide tool the agent should know about)
+ * plus project-local notes (.finanfa-code/memory, this repo only).
+ * Project-local wins on a name collision, since it's the more specific of
+ * the two.
+ */
+export async function loadMemories(cwd: string): Promise<Memory[]> {
+  const [global, project] = await Promise.all([
+    readMemoriesFromDir(globalMemoryDir()),
+    readMemoriesFromDir(projectMemoryDir(cwd)),
+  ]);
+  const byName = new Map(global.map((m) => [m.name, m]));
+  for (const memory of project) byName.set(memory.name, memory);
+  return [...byName.values()];
 }
 
 /** Short index of saved memories, meant to be appended to the system prompt. */
@@ -83,6 +104,7 @@ interface WriteMemoryInput {
   description: string;
   type: MemoryType;
   content: string;
+  scope?: "project" | "global";
 }
 
 export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
@@ -91,7 +113,10 @@ export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
     "Save a durable note about this project or user so a future session starts with that context instead " +
     "of relearning it: user preferences/role, feedback about how to approach work here, project decisions " +
     "not derivable from the code, or pointers to external systems (issue tracker, docs). Do not use for " +
-    "code details, git history, or task-scoped state — those are already derivable by reading the repo.",
+    "code details, git history, or task-scoped state — those are already derivable by reading the repo. " +
+    'scope: "global" (default "project") applies the note in every project instead of just this one — use ' +
+    "it for something true regardless of which repo you're in (e.g. a systemwide tool the user always wants " +
+    "used for a certain kind of task), not for anything specific to this project.",
   riskLevel: "ask",
   inputSchema: {
     type: "object",
@@ -100,21 +125,22 @@ export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
       description: { type: "string", description: "One-line summary shown in the memory index" },
       type: { type: "string", enum: [...MEMORY_TYPES] },
       content: { type: "string", description: "The memory content — a sentence or two" },
+      scope: { type: "string", enum: ["project", "global"], description: 'Default "project"' },
     },
     required: ["name", "description", "type", "content"],
   },
-  describeCall: (input) => `write_memory ${input.name} (${input.type})`,
+  describeCall: (input) => `write_memory ${input.name} (${input.type}${input.scope === "global" ? ", global" : ""})`,
   async handler(input, ctx) {
     const slug = slugify(input.name);
     if (slug.length === 0) {
       return { content: "Memory name must contain at least one letter or digit.", isError: true };
     }
-    const dir = memoryDir(ctx.cwd);
+    const dir = input.scope === "global" ? globalMemoryDir() : projectMemoryDir(ctx.cwd);
     await mkdir(dir, { recursive: true });
     const frontmatter =
       `---\nname: ${slug}\ndescription: ${JSON.stringify(input.description)}\n` +
       `metadata:\n  type: ${input.type}\n---\n\n`;
     await writeFile(path.join(dir, `${slug}.md`), frontmatter + input.content.trim() + "\n", "utf-8");
-    return { content: `Saved memory "${slug}".`, isError: false };
+    return { content: `Saved ${input.scope === "global" ? "global " : ""}memory "${slug}".`, isError: false };
   },
 };
