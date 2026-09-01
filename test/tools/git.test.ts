@@ -13,6 +13,9 @@ import {
   gitCommit,
   gitCheckout,
   gitPush,
+  gitFetch,
+  gitPull,
+  gitStash,
 } from "../../src/tools/builtin/git.js";
 
 const execFileAsync = promisify(execFile);
@@ -167,6 +170,108 @@ describe("git tools (real git repo)", () => {
 
     it("has no force option at all — never force-pushes", () => {
       expect(gitPush.inputSchema.properties).not.toHaveProperty("force");
+    });
+
+    it("git_fetch downloads new commits into a remote-tracking branch, without touching the working tree", async () => {
+      const cloneDir = await mkdtemp(path.join(tmpdir(), "finanfa-git-clone-"));
+      try {
+        await gitPush.handler({ setUpstream: true }, ctx());
+        await execFileAsync("git", ["clone", "-q", remoteDir, cloneDir]);
+        await writeFile(path.join(cloneDir, "c.txt"), "from clone\n");
+        await execFileAsync("git", ["add", "c.txt"], { cwd: cloneDir });
+        await execFileAsync("git", ["commit", "-q", "-m", "add c.txt"], { cwd: cloneDir });
+        await execFileAsync("git", ["push", "-q", "origin", "master"], { cwd: cloneDir });
+
+        const result = await gitFetch.handler({}, ctx());
+        expect(result.isError).toBe(false);
+
+        const status = await gitStatus.handler({}, ctx());
+        expect(status.content).not.toContain("c.txt"); // working tree untouched
+        const { stdout } = await execFileAsync("git", ["log", "origin/master", "--oneline"], { cwd: dir });
+        expect(stdout).toContain("add c.txt"); // but the remote-tracking ref sees it
+      } finally {
+        await rm(cloneDir, { recursive: true, force: true });
+      }
+    });
+
+    it("git_pull fetches and merges the new commit into the current branch", async () => {
+      const cloneDir = await mkdtemp(path.join(tmpdir(), "finanfa-git-clone-"));
+      try {
+        await gitPush.handler({ setUpstream: true }, ctx());
+        await execFileAsync("git", ["clone", "-q", remoteDir, cloneDir]);
+        await writeFile(path.join(cloneDir, "c.txt"), "from clone\n");
+        await execFileAsync("git", ["add", "c.txt"], { cwd: cloneDir });
+        await execFileAsync("git", ["commit", "-q", "-m", "add c.txt"], { cwd: cloneDir });
+        await execFileAsync("git", ["push", "-q", "origin", "master"], { cwd: cloneDir });
+
+        const result = await gitPull.handler({}, ctx());
+        expect(result.isError).toBe(false);
+
+        const log = await gitLog.handler({}, ctx());
+        expect(log.content).toContain("add c.txt");
+      } finally {
+        await rm(cloneDir, { recursive: true, force: true });
+      }
+    });
+
+    it("fails cleanly on git_pull merge conflict, instead of leaving an unclear result", async () => {
+      const cloneDir = await mkdtemp(path.join(tmpdir(), "finanfa-git-clone-"));
+      try {
+        await gitPush.handler({ setUpstream: true }, ctx());
+        await execFileAsync("git", ["clone", "-q", remoteDir, cloneDir]);
+        await writeFile(path.join(cloneDir, "a.txt"), "conflicting change\n");
+        await execFileAsync("git", ["add", "a.txt"], { cwd: cloneDir });
+        await execFileAsync("git", ["commit", "-q", "-m", "conflict"], { cwd: cloneDir });
+        await execFileAsync("git", ["push", "-q", "origin", "master"], { cwd: cloneDir });
+
+        await writeFile(path.join(dir, "a.txt"), "local conflicting change\n");
+        await gitAdd.handler({ paths: ["a.txt"] }, ctx());
+        await gitCommit.handler({ message: "local conflict" }, ctx());
+
+        const result = await gitPull.handler({}, ctx());
+        expect(result.isError).toBe(true);
+      } finally {
+        await rm(cloneDir, { recursive: true, force: true });
+      }
+    });
+  });
+
+  describe("git_stash", () => {
+    it("push stashes working-tree changes, restoring a clean status", async () => {
+      await writeFile(path.join(dir, "a.txt"), "modified\n");
+      const dirty = await gitStatus.handler({}, ctx());
+      expect(dirty.content).toContain("a.txt");
+
+      const result = await gitStash.handler({}, ctx());
+      expect(result.isError).toBe(false);
+
+      const clean = await gitStatus.handler({}, ctx());
+      expect(clean.content).toContain("clean");
+    });
+
+    it("pop restores stashed changes", async () => {
+      await writeFile(path.join(dir, "a.txt"), "modified\n");
+      await gitStash.handler({}, ctx());
+
+      const result = await gitStash.handler({ action: "pop" }, ctx());
+      expect(result.isError).toBe(false);
+
+      const status = await gitStatus.handler({}, ctx());
+      expect(status.content).toContain("a.txt");
+    });
+
+    it("list shows a labeled stash entry", async () => {
+      await writeFile(path.join(dir, "a.txt"), "modified\n");
+      await gitStash.handler({ message: "my label" }, ctx());
+
+      const result = await gitStash.handler({ action: "list" }, ctx());
+      expect(result.isError).toBe(false);
+      expect(result.content).toContain("my label");
+    });
+
+    it("fails cleanly when popping with nothing stashed", async () => {
+      const result = await gitStash.handler({ action: "pop" }, ctx());
+      expect(result.isError).toBe(true);
     });
   });
 });

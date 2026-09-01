@@ -226,6 +226,73 @@ export const gitPush: ToolDefinition<GitPushInput> = {
   },
 };
 
+interface GitFetchInput {
+  remote?: string;
+}
+
+export const gitFetch: ToolDefinition<GitFetchInput> = {
+  name: "git_fetch",
+  description: "Download objects and refs from a remote (default: origin), updating remote-tracking branches. Doesn't touch the working tree or local branches.",
+  riskLevel: "safe",
+  inputSchema: {
+    type: "object",
+    properties: { remote: { type: "string", description: 'Remote name (default: "origin")' } },
+  },
+  describeCall: (input) => `fetch ${input.remote ?? "origin"}`,
+  handler: (input, ctx) => runGit(ctx.cwd, ["fetch", input.remote ?? "origin"]),
+};
+
+interface GitPullInput {
+  remote?: string;
+  branch?: string;
+}
+
+export const gitPull: ToolDefinition<GitPullInput> = {
+  name: "git_pull",
+  description: "Fetch and merge/fast-forward the current branch from a remote (default: origin/current branch).",
+  riskLevel: "ask",
+  inputSchema: {
+    type: "object",
+    properties: {
+      remote: { type: "string", description: 'Remote name (default: "origin")' },
+      branch: { type: "string", description: "Branch to pull (default: the current branch's own tracking config)" },
+    },
+  },
+  riskKey: (input) => input.branch ?? "current-branch",
+  describeCall: (input) => `pull ${[input.remote ?? "origin", input.branch].filter(Boolean).join(" ")}`,
+  handler: (input, ctx) => {
+    const args = ["pull", input.remote ?? "origin"];
+    if (input.branch) args.push(input.branch);
+    return runGit(ctx.cwd, args);
+  },
+};
+
+interface GitStashInput {
+  action?: "push" | "pop" | "list" | "drop";
+  message?: string;
+}
+
+export const gitStash: ToolDefinition<GitStashInput> = {
+  name: "git_stash",
+  description: 'Stash working-tree changes ("push", the default), or "pop"/"list"/"drop" them.',
+  riskLevel: "ask",
+  inputSchema: {
+    type: "object",
+    properties: {
+      action: { type: "string", enum: ["push", "pop", "list", "drop"], description: 'Default "push"' },
+      message: { type: "string", description: 'Optional label, only used with action "push"' },
+    },
+  },
+  riskKey: (input) => input.action ?? "push",
+  describeCall: (input) => `stash ${input.action ?? "push"}`,
+  handler: (input, ctx) => {
+    const action = input.action ?? "push";
+    const args: string[] = ["stash", action];
+    if (action === "push" && input.message) args.push("-m", input.message);
+    return runGit(ctx.cwd, args);
+  },
+};
+
 export const gitTools: ToolDefinition[] = [
   gitStatus,
   gitDiff,
@@ -235,4 +302,7 @@ export const gitTools: ToolDefinition[] = [
   gitCommit,
   gitCheckout,
   gitPush,
+  gitFetch,
+  gitPull,
+  gitStash,
 ];

@@ -49,8 +49,9 @@ export const BASE_SYSTEM_PROMPT =
   "browser_navigate followed by browser_screenshot instead (call browser_navigate again first if the page isn't " +
   "already open from earlier in the conversation) — never answer a visual request with web_fetch's text dump. " +
   "Use view_image the same way for an existing local image file. " +
-  "Prefer the dedicated git_status/git_diff/git_log/git_branch/git_add/git_commit/git_checkout/git_push tools " +
-  "over bash for git operations they cover — bash still works for anything else (merge, rebase, stash, ...). " +
+  "Prefer the dedicated git_status/git_diff/git_log/git_branch/git_add/git_commit/git_checkout/git_push/" +
+  "git_fetch/git_pull/git_stash tools over bash for git operations they cover — bash still works for anything " +
+  "else (merge, rebase, ...). " +
   "If mcp__github__* tools are available (a GitHub MCP server is connected), you can carry an issue through to " +
   "a PR end-to-end: read the issue (mcp__github__issue_read), git_checkout a new branch instead of working on " +
   "the default one, make the change, run_tests until it passes, git_add + git_commit, git_push with " +
