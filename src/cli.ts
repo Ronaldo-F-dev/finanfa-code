@@ -130,7 +130,11 @@ export const BASE_SYSTEM_PROMPT =
   "Use lint_javascript (not bash/run_tests) to run ESLint on a JS/TS file or project. Unlike " +
   "check_python_types/Pyright, this needs the project to already have its own ESLint config — ESLint has no " +
   "usable defaults and refuses to run at all without one, so don't try to work around that by creating one " +
-  "yourself unless asked; just report that none was found.";
+  "yourself unless asked; just report that none was found. " +
+  "Use check_typescript_types to run tsc --noEmit on a TS/JS project — it's always whole-project, never a " +
+  "single path, since tsc refuses to combine a tsconfig.json with a file given on the command line. " +
+  "Use lint_python (not bash) for ruff — it needs `uvx` (from uv) if `ruff` itself isn't already installed; if " +
+  "neither is available, tell the user rather than trying to install one yourself.";
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
 interface CliOptions {

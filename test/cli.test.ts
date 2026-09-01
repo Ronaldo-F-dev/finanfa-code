@@ -126,6 +126,16 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/refuses to run at all without one/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/don't try to work around that by creating one yourself unless asked/);
   });
+
+  it("tells the model check_typescript_types is always whole-project", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/check_typescript_types/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/always whole-project/);
+  });
+
+  it("tells the model lint_python needs uvx/ruff and not to self-install one", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/lint_python/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/tell the user rather than trying to install one yourself/);
+  });
 });
 
 describe("system prompt: GitHub issue-to-PR workflow", () => {
