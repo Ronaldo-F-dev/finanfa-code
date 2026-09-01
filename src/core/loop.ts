@@ -84,17 +84,37 @@ async function runOneToolCall(
   ui.setBusy(true, tool.name);
   try {
     const result = await tool.handler(call.input, ctx);
+    // The full content always reaches the model via the tool_result message
+    // regardless — this is a compact echo for the human. Without it, once a
+    // tool is session-allowlisted (no more preview/confirmation), the only
+    // thing shown for e.g. every later `npm test`/`npm run build` was the
+    // one-line invocation — no exit code, no stderr — until the model chose
+    // to paraphrase it, so a failure it glossed over had no direct
+    // visibility short of asking it to repeat itself or re-running by hand.
+    echoToolOutput(ui, result.content, result.isError);
     return {
       result: { toolCallId: call.id, isError: result.isError, content: result.content },
       images: result.images,
     };
   } catch (err) {
+    const message = err instanceof Error ? err.message : String(err);
+    echoToolOutput(ui, message, true);
     return {
-      result: { toolCallId: call.id, isError: true, content: err instanceof Error ? err.message : String(err) },
+      result: { toolCallId: call.id, isError: true, content: message },
     };
   } finally {
     ui.setBusy(false);
   }
+}
+
+const TOOL_OUTPUT_ECHO_LIMIT = 2000;
+
+function echoToolOutput(ui: UIAdapter, content: string, isError: boolean): void {
+  const trimmed = content.trim();
+  if (trimmed.length === 0) return;
+  const truncated = trimmed.length > TOOL_OUTPUT_ECHO_LIMIT ? `${trimmed.slice(0, TOOL_OUTPUT_ECHO_LIMIT)}\n... (truncated)` : trimmed;
+  if (isError) ui.writeError(truncated);
+  else ui.writeSystem(truncated);
 }
 
 interface ToolBatchOutcome {
