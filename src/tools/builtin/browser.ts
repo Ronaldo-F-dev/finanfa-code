@@ -3,12 +3,10 @@ import type { BrowserManager } from "../../browser/manager.js";
 import { resolveAllowedPath } from "./path-guard.js";
 import { readImageFile } from "../../util/image.js";
 import { wrapUntrustedContent } from "../../core/untrusted-content.js";
-
-const MAX_TEXT_LENGTH = 8000;
+import { truncate, TRUNCATE_TINY } from "../../util/truncate.js";
 
 function formatPage(url: string, title: string, text: string): string {
-  const truncated = text.length > MAX_TEXT_LENGTH ? `${text.slice(0, MAX_TEXT_LENGTH)}\n... (truncated)` : text;
-  return wrapUntrustedContent(url, `# ${title}\n\n${truncated}`);
+  return wrapUntrustedContent(url, `# ${title}\n\n${truncate(text, TRUNCATE_TINY)}`);
 }
 
 function hostnameOf(url: string): string {

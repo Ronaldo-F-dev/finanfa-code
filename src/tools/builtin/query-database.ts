@@ -3,6 +3,7 @@ import { Client as PgClient } from "pg";
 import mysql from "mysql2/promise";
 import type { ToolDefinition } from "../../core/types.js";
 import { resolveAllowedPath } from "./path-guard.js";
+import { truncate, TRUNCATE_MEDIUM } from "../../util/truncate.js";
 
 // node:sqlite is experimental, so Node's own `module.builtinModules` list
 // deliberately omits it (verified directly) — Vite/vite-node's builtin
@@ -17,12 +18,6 @@ import { resolveAllowedPath } from "./path-guard.js";
 const { DatabaseSync } = createRequire(import.meta.url)("node:sqlite") as typeof import("node:sqlite");
 
 type DbParam = string | number | boolean | null;
-
-const MAX_OUTPUT = 50_000;
-
-function truncate(s: string): string {
-  return s.length > MAX_OUTPUT ? `${s.slice(0, MAX_OUTPUT)}\n... (truncated)` : s;
-}
 
 // node:sqlite returns BigInt for integer columns once readBigInts is on
 // (needed — see runSqlite) — JSON.stringify throws on a bare BigInt, so it
@@ -166,7 +161,7 @@ export const queryDatabaseTool: ToolDefinition<QueryDatabaseInput> = {
       } else {
         content = await runMysql(input.connectionString, input.query, params);
       }
-      return { content: truncate(content), isError: false };
+      return { content: truncate(content, TRUNCATE_MEDIUM), isError: false };
     } catch (err) {
       return { content: err instanceof Error ? err.message : String(err), isError: true };
     }

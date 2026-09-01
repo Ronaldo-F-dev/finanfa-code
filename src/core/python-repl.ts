@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import readline from "node:readline";
+import { truncate, TRUNCATE_MEDIUM } from "../util/truncate.js";
 
 export interface PythonReplResult {
   stdout: string;
@@ -7,12 +8,6 @@ export interface PythonReplResult {
   result: string | null;
   error: string | null;
   timedOut?: boolean;
-}
-
-const MAX_OUTPUT = 50_000;
-
-function truncate(s: string): string {
-  return s.length > MAX_OUTPUT ? `${s.slice(0, MAX_OUTPUT)}\n... (truncated)` : s;
 }
 
 // Reads one JSON object per line from stdin (namespace persists across
@@ -126,10 +121,10 @@ export class PythonReplManager {
         try {
           const parsed = JSON.parse(line) as PythonReplResult;
           resolve({
-            stdout: truncate(parsed.stdout),
-            stderr: truncate(parsed.stderr),
-            result: parsed.result ? truncate(parsed.result) : parsed.result,
-            error: parsed.error ? truncate(parsed.error) : parsed.error,
+            stdout: truncate(parsed.stdout, TRUNCATE_MEDIUM),
+            stderr: truncate(parsed.stderr, TRUNCATE_MEDIUM),
+            result: parsed.result ? truncate(parsed.result, TRUNCATE_MEDIUM) : parsed.result,
+            error: parsed.error ? truncate(parsed.error, TRUNCATE_MEDIUM) : parsed.error,
           });
         } catch {
           resolve({ stdout: "", stderr: "", result: null, error: `Malformed REPL response: ${line}` });

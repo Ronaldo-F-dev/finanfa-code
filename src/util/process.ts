@@ -1,4 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
+import { truncate, TRUNCATE_LARGE } from "./truncate.js";
 
 /**
  * Shell to use for spawn's `shell` option. `shell: true` alone uses the OS
@@ -28,12 +29,6 @@ export function killProcessGroup(child: ChildProcess): void {
   } catch {
     child.kill("SIGKILL");
   }
-}
-
-const MAX_SUBPROCESS_OUTPUT = 100_000;
-
-function truncateOutput(s: string): string {
-  return s.length > MAX_SUBPROCESS_OUTPUT ? `${s.slice(0, MAX_SUBPROCESS_OUTPUT)}\n... (truncated)` : s;
 }
 
 export interface RunSubprocessOptions {
@@ -89,10 +84,10 @@ export function runSubprocess(command: string, opts: RunSubprocessOptions): Prom
       const header = timedOut ? `(timed out after ${opts.timeoutMs}ms)\n` : `(exit code ${code})\n`;
       let content: string;
       if (opts.format === "compact") {
-        const stderrBlock = stderr ? `\n--- stderr ---\n${truncateOutput(stderr)}` : "";
-        content = `${header}${truncateOutput(stdout)}${stderrBlock}`;
+        const stderrBlock = stderr ? `\n--- stderr ---\n${truncate(stderr, TRUNCATE_LARGE)}` : "";
+        content = `${header}${truncate(stdout, TRUNCATE_LARGE)}${stderrBlock}`;
       } else {
-        content = `${header}--- stdout ---\n${truncateOutput(stdout)}\n--- stderr ---\n${truncateOutput(stderr)}`;
+        content = `${header}--- stdout ---\n${truncate(stdout, TRUNCATE_LARGE)}\n--- stderr ---\n${truncate(stderr, TRUNCATE_LARGE)}`;
       }
       const isError = timedOut || (opts.isError ? opts.isError(code) : code !== 0);
       resolve({ content, isError });

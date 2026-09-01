@@ -1,11 +1,10 @@
 import type { ToolDefinition } from "../../core/types.js";
 import { wrapUntrustedContent } from "../../core/untrusted-content.js";
+import { truncate, TRUNCATE_TINY } from "../../util/truncate.js";
 
 interface WebFetchInput {
   url: string;
 }
-
-const MAX_CONTENT_LENGTH = 8000;
 
 function stripHtml(html: string): string {
   return html
@@ -44,7 +43,7 @@ export const webFetchTool: ToolDefinition<WebFetchInput> = {
     const contentType = response.headers.get("content-type") ?? "";
     const raw = await response.text();
     const text = contentType.includes("html") ? stripHtml(raw) : raw.trim();
-    const truncated = text.length > MAX_CONTENT_LENGTH ? `${text.slice(0, MAX_CONTENT_LENGTH)}\n... (truncated)` : text;
+    const truncated = truncate(text, TRUNCATE_TINY);
 
     return {
       content: truncated ? wrapUntrustedContent(input.url, truncated) : "(empty response)",

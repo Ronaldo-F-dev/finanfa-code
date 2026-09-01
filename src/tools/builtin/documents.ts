@@ -9,6 +9,7 @@ import JSZip from "jszip";
 import WordExtractor from "word-extractor";
 import type { ToolDefinition } from "../../core/types.js";
 import { resolveAllowedPath } from "./path-guard.js";
+import { TRUNCATE_LARGE } from "../../util/truncate.js";
 
 // exceljs's own .d.ts shadows the global `Buffer` name with a local
 // `interface Buffer extends ArrayBuffer {}`, unrelated to Node's real
@@ -25,10 +26,8 @@ async function xlsxWorkbookToBuffer(workbook: ExcelJS.Workbook): Promise<Buffer>
   return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
 }
 
-const MAX_CHARS = 100_000;
-
 function truncate(s: string): string {
-  return s.length > MAX_CHARS ? `${s.slice(0, MAX_CHARS)}\n... (truncated, ${s.length} characters total)` : s;
+  return s.length > TRUNCATE_LARGE ? `${s.slice(0, TRUNCATE_LARGE)}\n... (truncated, ${s.length} characters total)` : s;
 }
 
 async function extractPdf(buffer: Buffer): Promise<string> {

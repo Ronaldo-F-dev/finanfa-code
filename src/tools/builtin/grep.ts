@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import fg from "fast-glob";
 import type { ToolDefinition } from "../../core/types.js";
+import { TRUNCATE_SMALL } from "../../util/truncate.js";
 
 interface GrepInput {
   pattern: string;
@@ -11,7 +12,7 @@ interface GrepInput {
 }
 
 const MAX_MATCH_LINES = 500;
-const MAX_OUTPUT_CHARS = 20_000;
+const MAX_OUTPUT_CHARS = TRUNCATE_SMALL;
 
 /** A broad pattern across a large repo has no natural bound otherwise — cap both match count and total size. */
 function truncateOutput(output: string): string {

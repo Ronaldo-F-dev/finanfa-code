@@ -1,13 +1,9 @@
 import { spawn } from "node:child_process";
 import type { ToolDefinition, ToolResult } from "../../core/types.js";
 import { resolveAllowedPath } from "./path-guard.js";
+import { truncate, TRUNCATE_MEDIUM } from "../../util/truncate.js";
 
 const TIMEOUT_MS = 15_000;
-const MAX_OUTPUT = 50_000;
-
-function truncate(s: string): string {
-  return s.length > MAX_OUTPUT ? `${s.slice(0, MAX_OUTPUT)}\n... (truncated)` : s;
-}
 
 /**
  * Runs `git <args>` in `cwd` via spawn with an argv array (never a shell) —
@@ -38,7 +34,7 @@ function runGit(cwd: string, args: string[]): Promise<ToolResult> {
         resolve({ content: `git ${args.join(" ")} timed out after ${TIMEOUT_MS}ms`, isError: true });
         return;
       }
-      const content = truncate(stdout.trim().length > 0 ? stdout.trim() : stderr.trim() || "(no output)");
+      const content = truncate(stdout.trim().length > 0 ? stdout.trim() : stderr.trim() || "(no output)", TRUNCATE_MEDIUM);
       resolve({ content, isError: code !== 0 });
     });
 

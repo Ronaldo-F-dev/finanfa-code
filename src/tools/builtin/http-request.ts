@@ -1,12 +1,8 @@
 import type { ToolDefinition } from "../../core/types.js";
 import { wrapUntrustedContent } from "../../core/untrusted-content.js";
+import { truncate, TRUNCATE_SMALL } from "../../util/truncate.js";
 
-const MAX_BODY_LENGTH = 20_000;
 const DEFAULT_TIMEOUT_MS = 30_000;
-
-function truncate(s: string): string {
-  return s.length > MAX_BODY_LENGTH ? `${s.slice(0, MAX_BODY_LENGTH)}\n... (truncated)` : s;
-}
 
 interface HttpRequestInput {
   url: string;
@@ -52,7 +48,7 @@ export const httpRequestTool: ToolDefinition<HttpRequestInput> = {
 
     const headerLines = [...response.headers.entries()].map(([k, v]) => `${k}: ${v}`).join("\n");
     const bodyText = await response.text();
-    const content = `HTTP ${response.status} ${response.statusText}\n${headerLines}\n\n${truncate(bodyText)}`;
+    const content = `HTTP ${response.status} ${response.statusText}\n${headerLines}\n\n${truncate(bodyText, TRUNCATE_SMALL)}`;
 
     return { content: wrapUntrustedContent(input.url, content), isError: !response.ok };
   },
