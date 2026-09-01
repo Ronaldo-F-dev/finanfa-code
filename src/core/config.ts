@@ -34,7 +34,14 @@ function projectConfigPath(cwd: string): string {
 async function readJsonIfExists(file: string): Promise<Partial<FinanfaConfig> | undefined> {
   try {
     return JSON.parse(await readFile(file, "utf-8")) as Partial<FinanfaConfig>;
-  } catch {
+  } catch (err) {
+    // A missing file is normal and silent. Anything else (malformed JSON, a
+    // permission error) used to look identical — silently falling back to
+    // defaults with no diagnostic, so a typo'd config file just quietly
+    // stopped applying with nothing pointing at why.
+    if ((err as NodeJS.ErrnoException)?.code !== "ENOENT") {
+      console.error(`Warning: failed to read ${file}: ${err instanceof Error ? err.message : String(err)}`);
+    }
     return undefined;
   }
 }

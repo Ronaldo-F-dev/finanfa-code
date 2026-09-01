@@ -29,7 +29,15 @@ async function readJsonIfExists(file: string): Promise<Partial<PermissionConfig>
   try {
     const raw = await readFile(file, "utf-8");
     return JSON.parse(raw) as Partial<PermissionConfig>;
-  } catch {
+  } catch (err) {
+    // A missing file is normal and silent. Anything else (malformed JSON, a
+    // permission error) used to look identical and fall back to defaults
+    // with no diagnostic — a typo'd settings.json silently drops the user's
+    // own allow-rules, and under --non-interactive an "ask" resolves to a
+    // deny worded exactly like a real refusal.
+    if ((err as NodeJS.ErrnoException)?.code !== "ENOENT") {
+      console.error(`Warning: failed to read ${file}: ${err instanceof Error ? err.message : String(err)}`);
+    }
     return undefined;
   }
 }

@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -58,5 +58,22 @@ describe("core/config", () => {
     await mkdir(path.dirname(globalConfigPath()), { recursive: true });
     await writeFile(globalConfigPath(), "{ not valid json", "utf-8");
     await expect(loadConfig(projectDir)).resolves.toEqual({});
+  });
+
+  it("warns (but doesn't throw) on malformed JSON, unlike a plain missing file", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      expect(errorSpy).not.toHaveBeenCalled();
+      await loadConfig(projectDir); // no file at all — silent
+      expect(errorSpy).not.toHaveBeenCalled();
+
+      await mkdir(path.dirname(globalConfigPath()), { recursive: true });
+      await writeFile(globalConfigPath(), "{ not valid json", "utf-8");
+      await loadConfig(projectDir);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0][0]).toContain(globalConfigPath());
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 });
