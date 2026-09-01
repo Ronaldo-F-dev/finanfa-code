@@ -7,7 +7,6 @@ import { grepTool } from "./grep.js";
 import { bashTool } from "./bash.js";
 import { webSearchTool } from "./web-search.js";
 import { webFetchTool } from "./web-fetch.js";
-import { previewHtmlTool } from "./preview-html.js";
 import { todoWriteTool } from "./todo-write.js";
 import { viewImageTool } from "./view-image.js";
 import { gitTools } from "./git.js";
@@ -40,7 +39,6 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(bashTool);
   registry.register(webSearchTool);
   registry.register(webFetchTool);
-  registry.register(previewHtmlTool);
   registry.register(todoWriteTool);
   registry.register(viewImageTool);
   registry.register(runTestsTool);

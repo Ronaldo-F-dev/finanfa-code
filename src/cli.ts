@@ -23,6 +23,8 @@ import { createBackgroundProcessTools } from "./tools/builtin/background-process
 import { BackgroundProcessManager } from "./core/background-process.js";
 import { createPythonReplTool } from "./tools/builtin/python-repl.js";
 import { PythonReplManager } from "./core/python-repl.js";
+import { createPreviewHtmlTool } from "./tools/builtin/preview-html.js";
+import { PreviewServer } from "./core/preview-server.js";
 import type { LlmProvider } from "./core/types.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible-provider.js";
@@ -334,6 +336,7 @@ export async function main(argv: string[]): Promise<void> {
   for (const tool of createBrowserTools(browser)) tools.register(tool);
   for (const tool of createBackgroundProcessTools(new BackgroundProcessManager())) tools.register(tool);
   tools.register(createPythonReplTool(new PythonReplManager()));
+  tools.register(createPreviewHtmlTool(new PreviewServer()));
 
   const commands = new CommandRegistry();
   registerBuiltinCommands(commands);
