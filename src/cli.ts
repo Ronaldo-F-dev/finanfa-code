@@ -80,11 +80,10 @@ export const BASE_SYSTEM_PROMPT =
   "— if you don't already know it from this conversation, get the real one first (`bash: echo $HOME` or `whoami`) " +
   "and reuse exactly that value; a guessed username will resolve to the wrong machine's home directory and get " +
   "rejected. `~` is not expanded by these tools — always use the real absolute path, never a literal \"~/...\". " +
-  "When you start a server (or anything else that takes a moment to become ready) in the background to test it, " +
-  "poll for it instead of a fixed `sleep N` — a dev server with a debug/reload mode can take longer to bind its " +
-  "port than a guessed sleep duration, and testing too early looks exactly like a crash when it isn't. Loop a " +
-  "few short curl attempts with brief pauses between them, or a `while ! curl -s ... ; do sleep 1; done` with a " +
-  "cap, and only conclude the server failed if it never responds within that budget. " +
+  "When you start a server in the background to test it, use wait_for_port instead of a fixed `sleep N` or a " +
+  "hand-rolled bash retry loop — a dev server with a debug/reload mode can take longer to bind its port than a " +
+  "guessed sleep duration, and testing too early looks exactly like a crash when it isn't. Only conclude the " +
+  "server failed to start if wait_for_port itself times out. " +
   "Use start_background_process (not `bash ... &`/`nohup`/`setsid`) for anything meant to keep running after the " +
   "call returns — a dev server, a watcher. It redirects output and tracks the real PID for you, which manual " +
   "shell backgrounding kept getting wrong in practice: the wrong process killed, an orphaned server left holding " +

@@ -26,6 +26,7 @@ import { checkPythonTypesTool } from "./check-python-types.js";
 import { resizeImageTool } from "./resize-image.js";
 import { queryDatabaseTool } from "./query-database.js";
 import { httpRequestTool } from "./http-request.js";
+import { waitForPortTool } from "./wait-for-port.js";
 import { lintJavascriptTool } from "./lint-javascript.js";
 
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -55,5 +56,6 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(queryDatabaseTool);
   registry.register(httpRequestTool);
   registry.register(lintJavascriptTool);
+  registry.register(waitForPortTool);
   for (const tool of gitTools) registry.register(tool);
 }
