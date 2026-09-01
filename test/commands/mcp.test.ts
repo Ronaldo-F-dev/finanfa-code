@@ -1,7 +1,11 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { CommandRegistry } from "../../src/commands/registry.js";
 import { registerBuiltinCommands } from "../../src/commands/builtin.js";
 import { AgentSession } from "../../src/core/session.js";
+import { ToolRegistry } from "../../src/tools/registry.js";
 import type { McpClientManager } from "../../src/mcp/client-manager.js";
 import type { UIAdapter } from "../../src/ui/adapter.js";
 
@@ -96,5 +100,81 @@ describe("/mcp command: enable/disable", () => {
     const ctx = baseCtx(makeFakeMcp(["github"]), "disable");
     await commands.get("mcp")!(ctx);
     expect(ctx.ui.writeError).toHaveBeenCalledWith(expect.stringContaining("Usage:"));
+  });
+});
+
+describe("/mcp add", () => {
+  const commands = new CommandRegistry();
+  registerBuiltinCommands(commands);
+  let dir: string;
+
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "finanfa-mcp-add-"));
+  });
+
+  afterEach(async () => {
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  function addCtx(mcp: McpClientManager, args: string) {
+    const session = new AgentSession({ cwd: dir, model: "m", systemPrompt: "s" });
+    return { session, ui: makeUi(), tools: new ToolRegistry(), permissions: undefined as never, mcp, cwd: dir, args };
+  }
+
+  async function readServers(): Promise<{ name: string }[]> {
+    const raw = await readFile(path.join(dir, ".finanfa-code", "mcp.json"), "utf-8");
+    return (JSON.parse(raw) as { servers: { name: string }[] }).servers;
+  }
+
+  it("persists a stdio server (name -- command args) and connects it", async () => {
+    const mcp = makeFakeMcp([]);
+    const ctx = addCtx(mcp, "add github -- docker run -i ghcr.io/github/github-mcp-server");
+    await commands.get("mcp")!(ctx);
+
+    expect(mcp.connect).toHaveBeenCalledWith(
+      expect.objectContaining({ name: "github", transport: "stdio", command: "docker" }),
+    );
+    const servers = await readServers();
+    expect(servers).toEqual([
+      expect.objectContaining({ name: "github", command: "docker", args: ["run", "-i", "ghcr.io/github/github-mcp-server"] }),
+    ]);
+  });
+
+  it("persists an http/sse server (name --url ...)", async () => {
+    const mcp = makeFakeMcp([]);
+    const ctx = addCtx(mcp, "add notion --url https://mcp.notion.com/sse --transport sse");
+    await commands.get("mcp")!(ctx);
+
+    const servers = await readServers();
+    expect(servers).toEqual([{ name: "notion", transport: "sse", url: "https://mcp.notion.com/sse" }]);
+  });
+
+  it("adding a server with an existing name replaces it, instead of duplicating", async () => {
+    const mcp = makeFakeMcp([]);
+    await commands.get("mcp")!(addCtx(mcp, "add github -- old-command"));
+    await commands.get("mcp")!(addCtx(mcp, "add github -- new-command"));
+
+    const servers = await readServers();
+    expect(servers).toHaveLength(1);
+    expect(servers[0]).toMatchObject({ command: "new-command" });
+  });
+
+  it("adding a second, differently-named server keeps both", async () => {
+    const mcp = makeFakeMcp([]);
+    await commands.get("mcp")!(addCtx(mcp, "add github -- cmd-a"));
+    await commands.get("mcp")!(addCtx(mcp, "add notion -- cmd-b"));
+
+    const servers = await readServers();
+    expect(servers.map((s) => s.name).sort()).toEqual(["github", "notion"]);
+  });
+
+  it("malformed args (missing -- or --url) show usage and write nothing", async () => {
+    const mcp = makeFakeMcp([]);
+    const ctx = addCtx(mcp, "add github not-a-valid-form");
+    await commands.get("mcp")!(ctx);
+
+    expect(ctx.ui.writeError).toHaveBeenCalledWith(expect.stringContaining("Usage:"));
+    expect(mcp.connect).not.toHaveBeenCalled();
+    await expect(readServers()).rejects.toThrow();
   });
 });
