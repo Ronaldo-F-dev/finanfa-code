@@ -1,15 +1,9 @@
-import { spawn } from "node:child_process";
 import { readFile, access } from "node:fs/promises";
 import path from "node:path";
 import type { ToolDefinition } from "../../core/types.js";
-import { killProcessGroup, SHELL } from "../../util/process.js";
+import { runSubprocess } from "../../util/process.js";
 
 const DEFAULT_TIMEOUT_MS = 300_000;
-const MAX_BUFFER = 100_000; // bytes per stream
-
-function truncate(s: string): string {
-  return s.length > MAX_BUFFER ? `${s.slice(0, MAX_BUFFER)}\n... (truncated)` : s;
-}
 
 async function exists(p: string): Promise<boolean> {
   try {
@@ -62,38 +56,6 @@ export async function detectTestCommand(cwd: string): Promise<string | undefined
   return undefined;
 }
 
-function runCommand(command: string, cwd: string, timeoutMs: number): Promise<{ content: string; isError: boolean }> {
-  return new Promise((resolve) => {
-    // detached: true — see killProcessGroup: a test script that backgrounds
-    // a server/watcher without redirecting its output would otherwise hold
-    // the stdio pipe open forever, past a plain kill of just the shell.
-    const child = spawn(command, { cwd, shell: SHELL, detached: true });
-    let stdout = "";
-    let stderr = "";
-    let timedOut = false;
-
-    const timer = setTimeout(() => {
-      timedOut = true;
-      killProcessGroup(child);
-    }, timeoutMs);
-
-    child.stdout?.on("data", (d) => (stdout += d));
-    child.stderr?.on("data", (d) => (stderr += d));
-
-    child.on("close", (code) => {
-      clearTimeout(timer);
-      const header = timedOut ? `(timed out after ${timeoutMs}ms)\n` : `(exit code ${code})\n`;
-      const content = `${header}--- stdout ---\n${truncate(stdout)}\n--- stderr ---\n${truncate(stderr)}`;
-      resolve({ content, isError: timedOut || code !== 0 });
-    });
-
-    child.on("error", (err) => {
-      clearTimeout(timer);
-      resolve({ content: `Failed to start "${command}": ${err.message}`, isError: true });
-    });
-  });
-}
-
 interface RunTestsInput {
   command?: string;
   timeout_ms?: number;
@@ -124,6 +86,6 @@ export const runTestsTool: ToolDefinition<RunTestsInput> = {
         isError: true,
       };
     }
-    return runCommand(command, ctx.cwd, input.timeout_ms ?? DEFAULT_TIMEOUT_MS);
+    return runSubprocess(command, { cwd: ctx.cwd, timeoutMs: input.timeout_ms ?? DEFAULT_TIMEOUT_MS });
   },
 };

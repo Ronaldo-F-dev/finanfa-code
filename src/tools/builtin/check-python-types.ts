@@ -1,16 +1,10 @@
-import { spawn } from "node:child_process";
 import { access, readdir } from "node:fs/promises";
 import path from "node:path";
 import type { ToolDefinition } from "../../core/types.js";
-import { killProcessGroup, SHELL } from "../../util/process.js";
+import { runSubprocess } from "../../util/process.js";
 import { resolveAllowedPath } from "./path-guard.js";
 
 const DEFAULT_TIMEOUT_MS = 120_000;
-const MAX_BUFFER = 100_000;
-
-function truncate(s: string): string {
-  return s.length > MAX_BUFFER ? `${s.slice(0, MAX_BUFFER)}\n... (truncated)` : s;
-}
 
 async function exists(p: string): Promise<boolean> {
   try {
@@ -67,37 +61,14 @@ export const checkPythonTypesTool: ToolDefinition<CheckPythonTypesInput> = {
       };
     }
 
-    return new Promise((resolve) => {
-      // detached: true / killProcessGroup — same reasoning as run_tests: a
-      // hung or backgrounding subprocess shouldn't be able to hold this
-      // call open past the configured timeout.
-      const child = spawn("npx", ["-y", "pyright", target], { cwd: ctx.cwd, shell: SHELL, detached: true });
-      let stdout = "";
-      let stderr = "";
-      let timedOut = false;
-
-      const timeoutMs = input.timeout_ms ?? DEFAULT_TIMEOUT_MS;
-      const timer = setTimeout(() => {
-        timedOut = true;
-        killProcessGroup(child);
-      }, timeoutMs);
-
-      child.stdout?.on("data", (d) => (stdout += d));
-      child.stderr?.on("data", (d) => (stderr += d));
-
-      child.on("close", (code) => {
-        clearTimeout(timer);
-        const header = timedOut ? `(timed out after ${timeoutMs}ms)\n` : `(exit code ${code})\n`;
-        const content = `${header}${truncate(stdout)}${stderr ? `\n--- stderr ---\n${truncate(stderr)}` : ""}`;
-        // pyright exits 1 when it finds type errors (not a tool failure) and
-        // 0 when clean — either way that's a successful run to report back.
-        resolve({ content, isError: timedOut || (code !== 0 && code !== 1) });
-      });
-
-      child.on("error", (err) => {
-        clearTimeout(timer);
-        resolve({ content: `Failed to start pyright: ${err.message}`, isError: true });
-      });
+    // pyright exits 1 when it finds type errors (not a tool failure) and 0
+    // when clean — either way that's a successful run to report back.
+    return runSubprocess("npx", {
+      args: ["-y", "pyright", target],
+      cwd: ctx.cwd,
+      timeoutMs: input.timeout_ms ?? DEFAULT_TIMEOUT_MS,
+      format: "compact",
+      isError: (code) => code !== 0 && code !== 1,
     });
   },
 };

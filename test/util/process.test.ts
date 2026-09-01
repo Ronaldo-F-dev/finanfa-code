@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
-import { killProcessGroup } from "../../src/util/process.js";
+import { killProcessGroup, runSubprocess } from "../../src/util/process.js";
 
 function waitForExit(child: ReturnType<typeof spawn>): Promise<void> {
   return new Promise((resolve) => child.on("exit", () => resolve()));
@@ -35,5 +35,62 @@ describe("killProcessGroup", () => {
   it("does not throw when pid is missing (spawn failed)", () => {
     const fakeChild = { pid: undefined, kill: () => true } as unknown as ReturnType<typeof spawn>;
     expect(() => killProcessGroup(fakeChild)).not.toThrow();
+  });
+});
+
+describe("runSubprocess (shared by bash/run_tests/check_python_types/lint_javascript)", () => {
+  it("as a raw shell command (no args), captures stdout and a zero exit code", async () => {
+    const result = await runSubprocess("echo hello", { cwd: process.cwd(), timeoutMs: 5000 });
+    expect(result.isError).toBe(false);
+    expect(result.content).toContain("exit code 0");
+    expect(result.content).toContain("hello");
+  });
+
+  it("as a program + args (no shell string), still runs correctly", async () => {
+    const result = await runSubprocess("echo", { args: ["hello-args"], cwd: process.cwd(), timeoutMs: 5000 });
+    expect(result.isError).toBe(false);
+    expect(result.content).toContain("hello-args");
+  });
+
+  it("default isError treats any nonzero exit as failure", async () => {
+    const result = await runSubprocess("exit 1", { cwd: process.cwd(), timeoutMs: 5000 });
+    expect(result.isError).toBe(true);
+  });
+
+  it("a custom isError predicate can treat a nonzero exit as success (e.g. pyright/eslint's exit 1 = findings)", async () => {
+    const result = await runSubprocess("exit 1", { cwd: process.cwd(), timeoutMs: 5000, isError: (code) => code !== 0 && code !== 1 });
+    expect(result.isError).toBe(false);
+  });
+
+  it('format "labeled" always shows both stdout/stderr sections, even empty', async () => {
+    const result = await runSubprocess("true", { cwd: process.cwd(), timeoutMs: 5000, format: "labeled" });
+    expect(result.content).toContain("--- stdout ---");
+    expect(result.content).toContain("--- stderr ---");
+  });
+
+  it('format "compact" omits the stderr section entirely when there is no stderr output', async () => {
+    const result = await runSubprocess("echo only-stdout", { cwd: process.cwd(), timeoutMs: 5000, format: "compact" });
+    expect(result.content).not.toContain("--- stdout ---");
+    expect(result.content).not.toContain("--- stderr ---");
+  });
+
+  it("kills a backgrounded, non-redirected child on timeout instead of hanging forever", async () => {
+    const start = Date.now();
+    const result = await runSubprocess("sleep 5 & echo done", { cwd: process.cwd(), timeoutMs: 300 });
+    expect(Date.now() - start).toBeLessThan(2000);
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain("timed out");
+  });
+
+  it("a command not found on PATH is a normal nonzero exit (127), not a spawn-level error — everything goes through the shell", async () => {
+    const result = await runSubprocess("this-binary-does-not-exist-xyz", { cwd: process.cwd(), timeoutMs: 5000 });
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain("exit code 127");
+  });
+
+  it("reports a clean error when spawn itself can't start (e.g. cwd doesn't exist)", async () => {
+    const result = await runSubprocess("echo hi", { cwd: "/nonexistent-dir-xyz", timeoutMs: 5000 });
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain("Failed to start");
   });
 });
