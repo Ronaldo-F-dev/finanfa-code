@@ -216,6 +216,20 @@ function describeError(err: unknown): string {
   return cause ? `${err.message}: ${cause}` : err.message;
 }
 
+// Both LoopGuard messages below start with this — a distinctive marker so
+// callers (task.ts) can tell "the turn was cut off by the guard" apart from
+// "the model naturally finished", without runTurn needing a richer return
+// type. A real gap this closes: task's tool result used to hardcode
+// isError: false unconditionally, so a delegated sub-agent that silently
+// ran out of budget (hit the iteration/repetition cap) was indistinguishable
+// from one that actually completed — nothing downstream could branch on it.
+const LOOP_GUARD_MESSAGE_PREFIX = "(stopped";
+
+/** True if `text` is a stop message LoopGuard itself produced, not the model's own final text. */
+export function isLoopGuardStopMessage(text: string): boolean {
+  return text.startsWith(LOOP_GUARD_MESSAGE_PREFIX);
+}
+
 /** Tracks per-turn iteration/repetition state so runTurn's own control flow stays flat. */
 class LoopGuard {
   private iterations = 0;
@@ -227,8 +241,8 @@ class LoopGuard {
     this.iterations++;
     if (this.iterations <= MAX_ITERATIONS) return undefined;
     return (
-      `(stopped after ${MAX_ITERATIONS} steps without finishing — the task may be stuck or too large; ` +
-      "try breaking it into smaller requests)"
+      `${LOOP_GUARD_MESSAGE_PREFIX} after ${MAX_ITERATIONS} steps without finishing — the task may be stuck or ` +
+      "too large; try breaking it into smaller requests)"
     );
   }
 
@@ -239,8 +253,8 @@ class LoopGuard {
     this.lastSignature = signature;
     if (this.repeatCount < REPEAT_LIMIT) return undefined;
     return (
-      `(stopped — the same tool call${toolCalls.length > 1 ? "s" : ""} repeated ${REPEAT_LIMIT} times in a ` +
-      "row with no apparent progress)"
+      `${LOOP_GUARD_MESSAGE_PREFIX} — the same tool call${toolCalls.length > 1 ? "s" : ""} repeated ${REPEAT_LIMIT} ` +
+      "times in a row with no apparent progress)"
     );
   }
 }

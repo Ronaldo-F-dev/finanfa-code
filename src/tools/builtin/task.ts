@@ -1,6 +1,6 @@
 import type { LlmProvider, ToolDefinition } from "../../core/types.js";
 import { AgentSession } from "../../core/session.js";
-import { runTurn } from "../../core/loop.js";
+import { runTurn, isLoopGuardStopMessage } from "../../core/loop.js";
 import { ToolRegistry } from "../registry.js";
 import type { PermissionManager } from "../../permissions/manager.js";
 import type { UIAdapter } from "../../ui/adapter.js";
@@ -83,7 +83,13 @@ export function createTaskTool(deps: TaskToolDeps): ToolDefinition<TaskInput> {
         ? lastAssistant.content
         : "(sub-agent finished with no final text)";
 
-      return { content: finalText, isError: false };
+      // Used to hardcode isError: false unconditionally — a sub-agent that
+      // silently ran out of budget (hit LoopGuard's iteration/repetition
+      // cap) was indistinguishable from one that actually finished, so
+      // nothing downstream (e.g. the system prompt's own "implement, test,
+      // push, open PR" pattern) could reliably branch on whether a
+      // delegated step actually completed.
+      return { content: finalText, isError: isLoopGuardStopMessage(finalText) };
     },
   };
 }

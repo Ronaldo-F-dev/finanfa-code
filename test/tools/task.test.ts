@@ -99,4 +99,66 @@ describe("task tool (sub-agent delegation)", () => {
     expect(provider.capturedSubagentTools).toBeDefined();
     expect(provider.capturedSubagentTools).not.toContain("task");
   });
+
+  it("marks the task result as isError when the sub-agent hits the repetition guard, instead of always false", async () => {
+    // A sub-agent stuck calling the same tool forever — enough to trip
+    // checkRepetition's REPEAT_LIMIT (3), never enough to finish naturally.
+    class StuckSubagentProvider implements LlmProvider {
+      parentCallCount = 0;
+      async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {
+        if (params.systemPrompt.startsWith(SUBAGENT_SYSTEM_PROMPT)) {
+          return {
+            assistantMessage: {
+              role: "assistant",
+              content: "",
+              toolCalls: [{ id: "stuck", name: "noop", input: {} }],
+            },
+            usage: { inputTokens: 1, outputTokens: 1 },
+            stopReason: "tool_use",
+          };
+        }
+        this.parentCallCount++;
+        if (this.parentCallCount === 1) {
+          return {
+            assistantMessage: {
+              role: "assistant",
+              content: "",
+              toolCalls: [{ id: "c1", name: "task", input: { prompt: "get stuck" } }],
+            },
+            usage: { inputTokens: 1, outputTokens: 1 },
+            stopReason: "tool_use",
+          };
+        }
+        return {
+          assistantMessage: { role: "assistant", content: "done" },
+          usage: { inputTokens: 1, outputTokens: 1 },
+          stopReason: "end_turn",
+        };
+      }
+    }
+
+    const tools = new ToolRegistry();
+    tools.register({
+      name: "noop",
+      description: "",
+      riskLevel: "safe",
+      inputSchema: { type: "object" },
+      handler: async () => ({ content: "ok", isError: false }),
+    });
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const provider = new StuckSubagentProvider();
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "parent system prompt" });
+
+    tools.register(createTaskTool({ provider, tools, permissions, ui, model: "test-model", cwd: "/tmp" }));
+
+    await runTurn(session, provider, ui, tools, permissions, "delegate the stuck task");
+
+    const toolResultMsg = session.messages.find((m) => m.role === "tool");
+    expect(toolResultMsg?.role).toBe("tool");
+    if (toolResultMsg?.role === "tool") {
+      expect(toolResultMsg.results[0].isError).toBe(true);
+      expect(toolResultMsg.results[0].content).toContain("repeated");
+    }
+  });
 });
