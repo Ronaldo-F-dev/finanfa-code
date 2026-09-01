@@ -148,4 +148,90 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
       vi.useRealTimers();
     }
   });
+
+  it("times out and cancels the reader when the stream stalls mid-response, instead of hanging forever", async () => {
+    vi.useFakeTimers();
+    try {
+      let wasCancelled = false;
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(
+              `data: ${JSON.stringify({ choices: [{ delta: { content: "partial" } }] })}\n\n`,
+            ),
+          );
+          // deliberately never enqueue again or close — simulates a stalled connection
+        },
+        cancel() {
+          wasCancelled = true;
+        },
+      });
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body, { status: 200 })));
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+      const promise = provider.streamTurn({
+        model: "m",
+        systemPrompt: "s",
+        messages: [],
+        tools: [],
+        onTextDelta: () => {},
+      });
+      const assertion = expect(promise).rejects.toThrow(/stalled/);
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(wasCancelled).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("treats fully-formed pending tool calls as tool_use even with no terminal finish_reason", async () => {
+    const events = [
+      JSON.stringify({
+        choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "read_file", arguments: '{"path":"a.txt"}' } }] } }],
+      }),
+      // stream ends right here — no finish_reason chunk at all
+    ];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sseResponse(events)));
+
+    const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+    const result = await provider.streamTurn({
+      model: "m",
+      systemPrompt: "s",
+      messages: [],
+      tools: [],
+      onTextDelta: () => {},
+    });
+
+    expect(result.stopReason).toBe("tool_use");
+    expect(result.assistantMessage.toolCalls).toEqual([{ id: "call_1", name: "read_file", input: { path: "a.txt" } }]);
+  });
+
+  it("warns and substitutes {} for malformed tool-call arguments, instead of silently guessing", async () => {
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const events = [
+        JSON.stringify({
+          choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "edit_file", arguments: "{not valid json" } }] } }],
+        }),
+        JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }),
+      ];
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sseResponse(events)));
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+      const result = await provider.streamTurn({
+        model: "m",
+        systemPrompt: "s",
+        messages: [],
+        tools: [],
+        onTextDelta: () => {},
+      });
+
+      expect(result.assistantMessage.toolCalls).toEqual([{ id: "call_1", name: "edit_file", input: {} }]);
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("edit_file"));
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
 });

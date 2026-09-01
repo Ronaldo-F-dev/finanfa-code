@@ -102,6 +102,9 @@ class RetryableHttpError extends Error {}
  * Once we start reading the response body below, we never retry: some of it
  * may already be visible to the user, and redoing it would duplicate output.
  */
+const REQUEST_TIMEOUT_MS = 60_000;
+const STREAM_IDLE_TIMEOUT_MS = 60_000;
+
 async function fetchInitialResponse(
   url: string,
   headers: Record<string, string>,
@@ -113,6 +116,12 @@ async function fetchInitialResponse(
         method: "POST",
         headers: { "Content-Type": "application/json", ...headers },
         body: JSON.stringify({ ...body, stream: true }),
+        // Unlike bash.ts (ctx.signal + its own timeout/kill) and
+        // http-request.ts (AbortSignal.timeout), this had no timeout at
+        // all — a server that accepts the connection but never responds
+        // (GPU/OOM stress on a local model server) hung the call forever,
+        // with no way to recover short of killing the process.
+        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       if (RETRYABLE_STATUSES.has(response.status)) {
         const text = await response.text().catch(() => "");
@@ -154,7 +163,26 @@ async function streamChatCompletion(
   const pendingCalls = new Map<number, PendingToolCall>();
 
   for (;;) {
-    const { done, value } = await reader.read();
+    // A per-read idle timeout, not one overall timeout for the whole stream
+    // — a long-but-healthy generation is fine, a server that stops sending
+    // bytes mid-stream (stalls without closing the socket or ever sending a
+    // terminal finish_reason) previously hung this read forever.
+    let idleTimer: ReturnType<typeof setTimeout>;
+    const idleTimeout = new Promise<never>((_, reject) => {
+      idleTimer = setTimeout(
+        () => reject(new Error(`No data received for ${STREAM_IDLE_TIMEOUT_MS}ms — the connection appears to have stalled.`)),
+        STREAM_IDLE_TIMEOUT_MS,
+      );
+    });
+    let done: boolean, value: Uint8Array | undefined;
+    try {
+      ({ done, value } = await Promise.race([reader.read(), idleTimeout]));
+    } catch (err) {
+      await reader.cancel().catch(() => {});
+      throw err;
+    } finally {
+      clearTimeout(idleTimer!);
+    }
     if (done) break;
     buffer += decoder.decode(value, { stream: true });
 
@@ -200,6 +228,12 @@ async function streamChatCompletion(
     try {
       input = call.arguments.length > 0 ? JSON.parse(call.arguments) : {};
     } catch {
+      // A truncated/malformed arguments fragment used to silently become
+      // `{}` — e.g. an edit_file call missing its path, with no error
+      // surfaced anywhere, so the model would see a confusing tool failure
+      // (or worse, act on wrongly-empty input) with no hint why. Surfacing
+      // it here at least makes it visible instead of a silent substitution.
+      console.error(`Warning: malformed tool-call arguments for "${call.name}", treating as {}: ${call.arguments}`);
       input = {};
     }
     toolCalls.push({ id: call.id, name: call.name, input });
@@ -242,7 +276,13 @@ export class OpenAiCompatibleProvider implements LlmProvider {
         inputTokens: result.usage?.prompt_tokens ?? 0,
         outputTokens: result.usage?.completion_tokens ?? 0,
       },
-      stopReason: mapFinishReason(result.finishReason),
+      // If the connection ends without ever sending a terminal
+      // finish_reason (e.g. it closes right after the last tool-call
+      // fragment), mapFinishReason(null) resolves to "other" — the branch
+      // in runTurn() for a non-tool_use stop then fires and any fully-formed
+      // pending tool call is silently discarded. Trust the calls we actually
+      // captured over a missing/absent finish_reason.
+      stopReason: result.toolCalls.length > 0 ? "tool_use" : mapFinishReason(result.finishReason),
     };
   }
 }
