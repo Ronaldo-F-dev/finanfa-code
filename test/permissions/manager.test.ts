@@ -118,4 +118,41 @@ describe("PermissionManager", () => {
     expect(decision).toBe("deny");
     expect(ui.askUser).not.toHaveBeenCalled();
   });
+
+  it("re-prompts on unrecognized input instead of failing open to allow", async () => {
+    const ui: UIAdapter = {
+      writeAssistantDelta: vi.fn(),
+      endAssistantMessage: vi.fn(),
+      writeSystem: vi.fn(),
+      writeError: vi.fn(),
+      setStatus: vi.fn(),
+      getStatus: vi.fn().mockReturnValue(undefined),
+      setCommands: vi.fn(),
+      setBusy: vi.fn(),
+      askUser: vi.fn().mockResolvedValueOnce("").mockResolvedValueOnce("asdf").mockResolvedValueOnce("n"),
+      close: vi.fn(),
+    };
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+    const decision = await manager.check(bashLikeTool, { command: "rm -rf /" }, ctx);
+    expect(decision).toBe("deny");
+    expect(ui.askUser).toHaveBeenCalledTimes(3);
+    expect(ui.writeError).toHaveBeenCalledTimes(2);
+  });
+
+  it("a throwing preview()/describeCall() denies instead of crashing the turn", async () => {
+    const ui = makeUi("y");
+    const throwingTool: ToolDefinition = {
+      ...safeTool,
+      name: "edit_file",
+      riskLevel: "dangerous",
+      describeCall: () => {
+        throw new Error("old_string not found in file.txt");
+      },
+    };
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+    const decision = await manager.check(throwingTool, {}, ctx);
+    expect(decision).toBe("deny");
+    expect(ui.askUser).not.toHaveBeenCalled();
+    expect(ui.writeError).toHaveBeenCalledWith(expect.stringContaining("old_string not found in file.txt"));
+  });
 });

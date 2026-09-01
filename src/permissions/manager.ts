@@ -55,8 +55,25 @@ export class PermissionManager {
 
     if (this.nonInteractive) return "deny";
 
-    const summary = tool.describeCall ? tool.describeCall(input) : JSON.stringify(input);
-    const preview = tool.preview ? await tool.preview(input, ctx) : undefined;
+    // Neither describeCall() nor preview() is guaranteed not to throw — e.g.
+    // edit_file's preview() throws when old_string no longer matches (a
+    // common failure: stale content, file changed since last read). Left
+    // uncaught, this used to escape check() as an unhandled exception,
+    // ending the turn with the tool_use message already in session.messages
+    // but never resolved — every later request in the session then fails,
+    // since providers reject a tool_use with no matching tool_result.
+    // Denying (a decision this function already knows how to turn into a
+    // proper tool_result) is the safe fallback, not crashing the turn.
+    let summary: string;
+    let preview: string | undefined;
+    try {
+      summary = tool.describeCall ? tool.describeCall(input) : JSON.stringify(input);
+      preview = tool.preview ? await tool.preview(input, ctx) : undefined;
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.ui.writeError(`Could not prepare "${tool.name}" for confirmation: ${message}`);
+      return "deny";
+    }
     const answer = await this.promptUser(tool.name, summary, preview);
 
     if (answer === "always") this.sessionAllowlist.add(key);
@@ -74,19 +91,28 @@ export class PermissionManager {
     const prompt =
       `\nfinanfa-code wants to run "${toolName}": ${summary}${previewBlock}\n` +
       `[y]es / [n]o / [a]lways this exact action this session / [t] always allow "${toolName}" this session > `;
-    const raw = (await this.ui.askUser(prompt, "confirm")).trim().toLowerCase();
-    switch (raw) {
-      case "a":
-      case "always":
-        return "always";
-      case "t":
-      case "tool":
-        return "always-tool";
-      case "n":
-      case "no":
-        return "deny";
-      default:
-        return "allow";
+    // Unrecognized input (a typo, an empty line, a question instead of an
+    // answer) used to fall through to "allow" by default — on a "dangerous"
+    // tool, a mistyped keystroke could silently execute the command. Fails
+    // closed instead: re-prompt until a recognized answer comes back.
+    for (;;) {
+      const raw = (await this.ui.askUser(prompt, "confirm")).trim().toLowerCase();
+      switch (raw) {
+        case "a":
+        case "always":
+          return "always";
+        case "t":
+        case "tool":
+          return "always-tool";
+        case "n":
+        case "no":
+          return "deny";
+        case "y":
+        case "yes":
+          return "allow";
+        default:
+          this.ui.writeError(`Unrecognized answer "${raw}" — please answer y/n/a/t.`);
+      }
     }
   }
 }
