@@ -43,6 +43,7 @@ import { createPreviewHtmlTool } from "./preview-html.js";
 import { createArtifactTool } from "./create-artifact.js";
 import { PreviewServer } from "../../core/preview-server.js";
 import { generate3dTool } from "./generate-3d.js";
+import { generate2dTool } from "./generate-2d.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -75,6 +76,7 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(lintJavascriptTool);
   registry.register(waitForPortTool);
   registry.register(generate3dTool);
+  registry.register(generate2dTool);
   for (const tool of gitTools) registry.register(tool);
 }
 
