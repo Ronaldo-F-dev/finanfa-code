@@ -3,7 +3,14 @@ import { Box, Text } from "ink";
 
 export function Banner({ version }: { version: string }) {
   return (
-    <Box flexDirection="column" borderStyle="round" borderColor="cyan" paddingX={2} marginBottom={1}>
+    <Box
+      flexDirection="column"
+      alignSelf="flex-start"
+      borderStyle="round"
+      borderColor="cyan"
+      paddingX={2}
+      marginBottom={1}
+    >
       <Text>
         <Text color="cyan" bold>
           {"ƒ "}

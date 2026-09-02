@@ -370,6 +370,7 @@ export async function main(argv: string[]): Promise<void> {
   const opts = program.opts<CliOptions>();
   const cwd = process.cwd();
   const ui = createUi(opts.ui);
+  ui.writeBanner(PACKAGE_VERSION);
 
   const config = await loadConfig(cwd);
   const { provider, defaultModel, kind: providerKind } = selectProvider(config);
@@ -414,7 +415,6 @@ export async function main(argv: string[]): Promise<void> {
   const plugins = await loadPlugins(cwd, tools, commands);
   ui.setCommands(commands.list());
 
-  ui.writeBanner(PACKAGE_VERSION);
   ui.writeSystem(`session ${session.id} · ${session.model} via ${providerKind} · ${tools.list().length} tools loaded`);
   if (mcp.connectedServers().length > 0) ui.writeSystem(`MCP servers: ${mcp.connectedServers().join(", ")}`);
   if (plugins.length > 0) ui.writeSystem(`Plugins: ${plugins.join(", ")}`);
