@@ -40,6 +40,7 @@ import { BackgroundProcessManager } from "../../core/background-process.js";
 import { createPythonReplTool } from "./python-repl.js";
 import { PythonReplManager } from "../../core/python-repl.js";
 import { createPreviewHtmlTool } from "./preview-html.js";
+import { createArtifactTool } from "./create-artifact.js";
 import { PreviewServer } from "../../core/preview-server.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
@@ -97,5 +98,9 @@ export function registerStatefulBuiltins(registry: ToolRegistry, deps: StatefulT
   for (const tool of createBrowserTools(deps.browser)) registry.register(tool);
   for (const tool of createBackgroundProcessTools(new BackgroundProcessManager())) registry.register(tool);
   registry.register(createPythonReplTool(new PythonReplManager()));
-  registry.register(createPreviewHtmlTool(new PreviewServer()));
+  // Shared between the two so a preview_html-opened file and a
+  // create_artifact-opened file are served from the same origin/port.
+  const previewServer = new PreviewServer();
+  registry.register(createPreviewHtmlTool(previewServer));
+  registry.register(createArtifactTool(previewServer));
 }

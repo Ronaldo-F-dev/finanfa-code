@@ -52,6 +52,17 @@ describe("system prompt: UI/design visual verification loop", () => {
   });
 });
 
+describe("system prompt: create_artifact (React component) guidance", () => {
+  it("tells the model to use create_artifact instead of hand-writing the React/Babel CDN boilerplate", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/create_artifact instead of hand-writing the CDN script tags\/Babel boilerplate/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/component named App/i);
+  });
+
+  it("says the same screenshot-and-fix loop still applies to artifacts", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/same screenshot-and-fix loop applies before handing it back/i);
+  });
+});
+
 describe("system prompt: server-readiness guidance", () => {
   it("tells the model to use wait_for_port instead of a fixed sleep or a hand-rolled bash loop", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/use wait_for_port instead of a fixed/i);
