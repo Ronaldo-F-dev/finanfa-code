@@ -30,13 +30,21 @@ async function readSkillsFromDir(dir: string): Promise<Skill[]> {
   const skills: Skill[] = [];
   for (const entry of entries) {
     if (!entry.endsWith(".md")) continue;
-    const raw = await readFile(path.join(dir, entry), "utf-8");
-    const { data, content } = matter(raw);
-    skills.push({
-      name: typeof data.name === "string" ? data.name : entry.replace(/\.md$/, ""),
-      description: typeof data.description === "string" ? data.description : "",
-      content: content.trim(),
-    });
+    const filePath = path.join(dir, entry);
+    try {
+      const raw = await readFile(filePath, "utf-8");
+      const { data, content } = matter(raw);
+      skills.push({
+        name: typeof data.name === "string" ? data.name : entry.replace(/\.md$/, ""),
+        description: typeof data.description === "string" ? data.description : "",
+        content: content.trim(),
+      });
+    } catch (err) {
+      // A single unreadable or malformed (bad YAML frontmatter, a directory
+      // named *.md, permission denied, ...) skill file shouldn't take down
+      // the whole CLI at startup — warn and keep loading the rest.
+      console.error(`Warning: failed to read skill ${filePath}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
   return skills;
 }

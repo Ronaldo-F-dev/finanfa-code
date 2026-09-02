@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -83,6 +83,55 @@ describe("skills loader", () => {
     const index = formatSkillIndex([{ name: "deploy", description: "How to deploy", content: "..." }]);
     expect(index).toContain("deploy: How to deploy");
     expect(formatSkillIndex([])).toBe("");
+  });
+
+  it("warns and skips a skill file with malformed YAML frontmatter, but still loads the rest", async () => {
+    // Real corrupted file on disk, not a mock: unclosed flow collection in
+    // the frontmatter, which gray-matter's YAML parser genuinely throws on.
+    await writeFile(
+      path.join(dir, ".finanfa-code", "skills", "broken.md"),
+      "---\nname: [unclosed\n---\nbroken body",
+    );
+    await writeFile(
+      path.join(dir, ".finanfa-code", "skills", "deploy.md"),
+      "---\nname: deploy\ndescription: How to deploy the app\n---\nRun `npm run deploy`.",
+    );
+
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const skills = await loadSkills(dir);
+      expect(skills).toHaveLength(1);
+      expect(skills[0].name).toBe("deploy");
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Warning: failed to read skill"),
+      );
+      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("broken.md"));
+    } finally {
+      errorSpy.mockRestore();
+    }
+  });
+
+  it("warns and skips a directory named *.md instead of crashing on EISDIR", async () => {
+    // A real directory, not a file, sitting at a path ending in .md — readdir
+    // sees it, the .md filter lets it through, and readFile genuinely fails
+    // with EISDIR.
+    await mkdir(path.join(dir, ".finanfa-code", "skills", "oops.md"));
+    await writeFile(
+      path.join(dir, ".finanfa-code", "skills", "deploy.md"),
+      "---\nname: deploy\ndescription: How to deploy the app\n---\nRun `npm run deploy`.",
+    );
+
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const skills = await loadSkills(dir);
+      expect(skills).toHaveLength(1);
+      expect(skills[0].name).toBe("deploy");
+      expect(errorSpy).toHaveBeenCalledWith(
+        expect.stringContaining("Warning: failed to read skill"),
+      );
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it("read_skill tool returns full content on demand, and errors for unknown names", async () => {
