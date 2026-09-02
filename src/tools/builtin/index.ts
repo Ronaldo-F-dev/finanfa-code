@@ -42,6 +42,7 @@ import { PythonReplManager } from "../../core/python-repl.js";
 import { createPreviewHtmlTool } from "./preview-html.js";
 import { createArtifactTool } from "./create-artifact.js";
 import { PreviewServer } from "../../core/preview-server.js";
+import { generate3dTool } from "./generate-3d.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -73,6 +74,7 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(httpRequestTool);
   registry.register(lintJavascriptTool);
   registry.register(waitForPortTool);
+  registry.register(generate3dTool);
   for (const tool of gitTools) registry.register(tool);
 }
 
