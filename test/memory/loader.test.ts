@@ -1,4 +1,4 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
@@ -95,6 +95,32 @@ describe("memory loader", () => {
       type: "feedback",
       content: "Always split unrelated changes into separate commits.",
     });
+  });
+
+  it("warns (but doesn't throw) on a memory file with malformed YAML frontmatter, and still loads the other files", async () => {
+    const memDir = path.join(dir, ".finanfa-code", "memory");
+    await mkdir(memDir, { recursive: true });
+    // Unbalanced flow-collection bracket — gray-matter's YAML parser throws
+    // a YAMLException on this, which used to propagate out of loadMemories
+    // and crash the whole CLI at startup.
+    await writeFile(
+      path.join(memDir, "corrupt.md"),
+      "---\nname: [unclosed\ndescription: broken\n---\n\nbody",
+    );
+    await writeFile(
+      path.join(memDir, "good-note.md"),
+      "---\nname: good-note\ndescription: fine\nmetadata:\n  type: project\n---\n\ngood content",
+    );
+
+    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    try {
+      const memories = await loadMemories(dir);
+      expect(memories.map((m) => m.name)).toEqual(["good-note"]);
+      expect(errorSpy).toHaveBeenCalledTimes(1);
+      expect(errorSpy.mock.calls[0][0]).toContain("corrupt.md");
+    } finally {
+      errorSpy.mockRestore();
+    }
   });
 
   it("builds a short index string for the system prompt", () => {

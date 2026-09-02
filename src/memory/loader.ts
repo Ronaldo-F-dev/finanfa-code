@@ -42,15 +42,24 @@ async function readMemoriesFromDir(dir: string): Promise<Memory[]> {
   const memories: Memory[] = [];
   for (const entry of entries) {
     if (!entry.endsWith(".md")) continue;
-    const raw = await readFile(path.join(dir, entry), "utf-8");
-    const { data, content } = matter(raw);
-    const metadata = data.metadata as Record<string, unknown> | undefined;
-    memories.push({
-      name: typeof data.name === "string" ? data.name : entry.replace(/\.md$/, ""),
-      description: typeof data.description === "string" ? data.description : "",
-      type: typeof metadata?.type === "string" ? metadata.type : "project",
-      content: content.trim(),
-    });
+    const file = path.join(dir, entry);
+    try {
+      const raw = await readFile(file, "utf-8");
+      const { data, content } = matter(raw);
+      const metadata = data.metadata as Record<string, unknown> | undefined;
+      memories.push({
+        name: typeof data.name === "string" ? data.name : entry.replace(/\.md$/, ""),
+        description: typeof data.description === "string" ? data.description : "",
+        type: typeof metadata?.type === "string" ? metadata.type : "project",
+        content: content.trim(),
+      });
+    } catch (err) {
+      // A single unreadable file (permission error) or one with malformed
+      // YAML frontmatter used to throw out of loadMemories and crash the
+      // whole CLI at startup. Warn about that one file and keep loading
+      // the rest, same as config.ts's readJsonIfExists.
+      console.error(`Warning: failed to read memory ${file}: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
   return memories;
 }
