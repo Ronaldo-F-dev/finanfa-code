@@ -74,7 +74,7 @@ ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 `;
 }
 
-export function createArtifactTool(server: PreviewServer): ToolDefinition<CreateArtifactInput> {
+export function createArtifactTool(server: PreviewServer, designContract: string): ToolDefinition<CreateArtifactInput> {
   return {
     name: "create_artifact",
     description:
@@ -97,7 +97,8 @@ export function createArtifactTool(server: PreviewServer): ToolDefinition<Create
       "ends up in the written file exactly as you passed it, byte for byte, so a snippet copied from the `code` " +
       "you sent before will match old_string/new_string cleanly. The page also polls itself and reloads " +
       "automatically when the file changes, so an edit_file change shows up in the already-open tab without " +
-      "reopening it — reserve calling create_artifact again for a substantial rewrite.",
+      "reopening it — reserve calling create_artifact again for a substantial rewrite.\n\n" +
+      designContract,
     riskLevel: "ask",
     inputSchema: {
       type: "object",

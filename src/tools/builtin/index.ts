@@ -98,6 +98,7 @@ export interface StatefulToolDeps {
   model: string;
   cwd: string;
   browser: BrowserManager;
+  designContract: string;
 }
 
 /**
@@ -117,6 +118,6 @@ export function registerStatefulBuiltins(registry: ToolRegistry, deps: StatefulT
   // create_artifact-opened file are served from the same origin/port.
   const previewServer = new PreviewServer();
   registry.register(createPreviewHtmlTool(previewServer));
-  registry.register(createArtifactTool(previewServer));
+  registry.register(createArtifactTool(previewServer, deps.designContract));
   registry.register(createConvertToPdfTool(deps.browser));
 }

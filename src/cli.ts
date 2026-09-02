@@ -18,6 +18,7 @@ import { loadPlugins } from "./plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "./skills/loader.js";
 import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "./memory/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "./core/project-instructions.js";
+import { loadDesignContract } from "./core/design-contract.js";
 import { BrowserManager } from "./browser/manager.js";
 import type { LlmProvider } from "./core/types.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
@@ -392,6 +393,7 @@ export async function main(argv: string[]): Promise<void> {
   if (memories.length > 0) tools.register(createReadMemoryTool(cwd));
 
   const projectInstructions = await loadProjectInstructions(cwd);
+  const designContract = await loadDesignContract(cwd);
 
   const systemPrompt =
     BASE_SYSTEM_PROMPT + formatSkillIndex(skills) + formatMemoryIndex(memories) + formatProjectInstructions(projectInstructions);
@@ -425,7 +427,7 @@ export async function main(argv: string[]): Promise<void> {
   await connectMcpServers(cwd, mcp, ui);
   for (const def of await mcp.listAllTools()) tools.register(def);
 
-  registerStatefulBuiltins(tools, { provider, permissions, ui, model, cwd, browser });
+  registerStatefulBuiltins(tools, { provider, permissions, ui, model, cwd, browser, designContract: designContract.content });
 
   ui.writeSystem(`session ${session.id} · ${session.model} via ${providerKind} · ${tools.list().length} tools loaded`);
   if (mcp.connectedServers().length > 0) ui.writeSystem(`MCP servers: ${mcp.connectedServers().join(", ")}`);

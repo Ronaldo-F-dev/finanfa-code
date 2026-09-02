@@ -27,7 +27,7 @@ describe("create_artifact tool", () => {
   const ctx = () => ({ cwd: dir, sessionId: "s", signal: new AbortController().signal });
 
   it("wraps App code in a self-contained HTML page, writes it, and serves it over a real http:// URL", async () => {
-    const tool = createArtifactTool(new PreviewServer());
+    const tool = createArtifactTool(new PreviewServer(), "TEST_DESIGN_CONTRACT");
     const code = 'function App() { return <div className="hi">Hello</div>; }';
 
     const result = await tool.handler({ path: "widget.html", code }, ctx());
@@ -52,7 +52,7 @@ describe("create_artifact tool", () => {
   });
 
   it("escapes the title into the page but leaves the JSX code untouched", async () => {
-    const tool = createArtifactTool(new PreviewServer());
+    const tool = createArtifactTool(new PreviewServer(), "TEST_DESIGN_CONTRACT");
     const code = "function App() { return <span>a {1 < 2 ? 'x' : 'y'} b</span>; }";
 
     await tool.handler({ path: "t.html", code, title: "<script>bad</script>" }, ctx());
@@ -64,7 +64,7 @@ describe("create_artifact tool", () => {
   });
 
   it("defaults the title to the file's base name when none is given", async () => {
-    const tool = createArtifactTool(new PreviewServer());
+    const tool = createArtifactTool(new PreviewServer(), "TEST_DESIGN_CONTRACT");
     await tool.handler({ path: "dashboard.html", code: "function App() { return null; }" }, ctx());
 
     const written = await readFile(path.join(dir, "dashboard.html"), "utf-8");
@@ -72,7 +72,7 @@ describe("create_artifact tool", () => {
   });
 
   it("rejects a path escaping the project root, before writing anything", async () => {
-    const tool = createArtifactTool(new PreviewServer());
+    const tool = createArtifactTool(new PreviewServer(), "TEST_DESIGN_CONTRACT");
     await expect(
       tool.handler({ path: "../outside.html", code: "function App() { return null; }" }, ctx()),
     ).rejects.toThrow(/outside the project root/);
@@ -80,14 +80,23 @@ describe("create_artifact tool", () => {
   });
 
   it("returns a unified diff in preview() against the wrapped HTML, same as write_file", async () => {
-    const tool = createArtifactTool(new PreviewServer());
+    const tool = createArtifactTool(new PreviewServer(), "TEST_DESIGN_CONTRACT");
     const diff = await tool.preview?.({ path: "new.html", code: "function App() { return null; }" }, ctx());
     expect(diff).toContain("+function App()");
     expect(diff).toContain("+++");
   });
 
+  it("embeds whichever design contract it was constructed with into the tool's own description", () => {
+    const withDefault = createArtifactTool(new PreviewServer(), "TEST_DESIGN_CONTRACT default text");
+    expect(withDefault.description).toContain("TEST_DESIGN_CONTRACT default text");
+
+    const withCustom = createArtifactTool(new PreviewServer(), "Only use Comic Sans and neon green.");
+    expect(withCustom.description).toContain("Only use Comic Sans and neon green.");
+    expect(withCustom.description).not.toContain("TEST_DESIGN_CONTRACT default text");
+  });
+
   it("embeds a self-polling reload script so an already-open tab picks up later edit_file changes", async () => {
-    const tool = createArtifactTool(new PreviewServer());
+    const tool = createArtifactTool(new PreviewServer(), "TEST_DESIGN_CONTRACT");
     await tool.handler({ path: "live.html", code: "function App() { return null; }" }, ctx());
 
     const written = await readFile(path.join(dir, "live.html"), "utf-8");
@@ -97,7 +106,7 @@ describe("create_artifact tool", () => {
 
   it("can be edited afterwards with edit_file, matching the exact JSX it wrote byte-for-byte", async () => {
     const { editFileTool } = await import("../../src/tools/builtin/edit-file.js");
-    const tool = createArtifactTool(new PreviewServer());
+    const tool = createArtifactTool(new PreviewServer(), "TEST_DESIGN_CONTRACT");
     await tool.handler(
       { path: "w.html", code: 'function App() { return <button className="bg-blue-500">Go</button>; }' },
       ctx(),
