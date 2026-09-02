@@ -186,6 +186,111 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
     }
   });
 
+  it("retries a mid-stream stall that happens before any text reached the user, and succeeds on the next attempt", async () => {
+    vi.useFakeTimers();
+    try {
+      const stalledBody = new ReadableStream<Uint8Array>({
+        start() {
+          // never enqueue, never close — stalls before a single byte arrives
+        },
+      });
+      const events = [JSON.stringify({ choices: [{ delta: { content: "hi" }, finish_reason: "stop" }] })];
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response(stalledBody, { status: 200 }))
+        .mockResolvedValueOnce(sseResponse(events));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+      let streamed = "";
+      const promise = provider.streamTurn({
+        model: "m",
+        systemPrompt: "s",
+        messages: [],
+        tools: [],
+        onTextDelta: (t) => (streamed += t),
+      });
+      await vi.runAllTimersAsync();
+      const result = await promise;
+
+      expect(streamed).toBe("hi");
+      expect(result.assistantMessage.content).toBe("hi");
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("does NOT retry a mid-stream stall once text has already reached the user — would duplicate what's visible", async () => {
+    vi.useFakeTimers();
+    try {
+      const body = new ReadableStream<Uint8Array>({
+        start(controller) {
+          controller.enqueue(
+            new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: "already shown" } }] })}\n\n`),
+          );
+          // then stalls — never closes, never sends another chunk
+        },
+      });
+      const fetchMock = vi.fn().mockResolvedValue(new Response(body, { status: 200 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+      let streamed = "";
+      const promise = provider.streamTurn({
+        model: "m",
+        systemPrompt: "s",
+        messages: [],
+        tools: [],
+        onTextDelta: (t) => (streamed += t),
+      });
+      const assertion = expect(promise).rejects.toThrow(/stalled/);
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(streamed).toBe("already shown");
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("gives up after exhausting retries on a mid-stream stall that never shows any text, surfacing the real timeout error", async () => {
+    vi.useFakeTimers();
+    try {
+      const fetchMock = vi.fn().mockImplementation(
+        () =>
+          Promise.resolve(
+            new Response(
+              new ReadableStream<Uint8Array>({
+                start() {
+                  // stalls immediately, every attempt
+                },
+              }),
+              { status: 200 },
+            ),
+          ),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+      const promise = provider.streamTurn({
+        model: "m",
+        systemPrompt: "s",
+        messages: [],
+        tools: [],
+        onTextDelta: () => {},
+      });
+      const assertion = expect(promise).rejects.toThrow(/stalled/);
+      await vi.runAllTimersAsync();
+      await assertion;
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
   it("treats fully-formed pending tool calls as tool_use even with no terminal finish_reason", async () => {
     const events = [
       JSON.stringify({

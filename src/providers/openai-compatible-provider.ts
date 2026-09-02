@@ -97,6 +97,19 @@ const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
 class RetryableHttpError extends Error {}
 
 /**
+ * Marks a mid-stream failure (idle timeout, dropped connection) as safe to
+ * retry from scratch — thrown only when the read loop confirms zero text
+ * has reached `onTextDelta` yet. Once any text has been shown to the user,
+ * the original error propagates unwrapped and is never retried, since
+ * redoing the request would duplicate what's already visible.
+ */
+class StreamNotYetVisibleError extends Error {
+  constructor(readonly cause: unknown) {
+    super(cause instanceof Error ? cause.message : String(cause));
+  }
+}
+
+/**
  * The initial request, before any streaming has started — safe to redo from
  * scratch on a transient failure (network blip, rate limit, momentary 5xx).
  * Once we start reading the response body below, we never retry: some of it
@@ -141,7 +154,7 @@ async function fetchInitialResponse(
   );
 }
 
-async function streamChatCompletion(
+async function attemptStreamChatCompletion(
   url: string,
   headers: Record<string, string>,
   body: Record<string, unknown>,
@@ -179,7 +192,11 @@ async function streamChatCompletion(
       ({ done, value } = await Promise.race([reader.read(), idleTimeout]));
     } catch (err) {
       await reader.cancel().catch(() => {});
-      throw err;
+      // Nothing has reached onTextDelta yet at this point in the stream —
+      // safe to redo the whole request from scratch instead of failing the
+      // turn outright. Once content.length > 0 the original error propagates
+      // unwrapped and streamChatCompletion below will not retry it.
+      throw content.length === 0 ? new StreamNotYetVisibleError(err) : err;
     } finally {
       clearTimeout(idleTimer!);
     }
@@ -240,6 +257,25 @@ async function streamChatCompletion(
   }
 
   return { content, toolCalls, finishReason, usage };
+}
+
+async function streamChatCompletion(
+  url: string,
+  headers: Record<string, string>,
+  body: Record<string, unknown>,
+  onTextDelta: (text: string) => void,
+): Promise<ChatCompletionResult> {
+  try {
+    return await retryWithBackoff(() => attemptStreamChatCompletion(url, headers, body, onTextDelta), {
+      attempts: 3,
+      baseDelayMs: 500,
+      shouldRetry: (err) => err instanceof StreamNotYetVisibleError,
+    });
+  } catch (err) {
+    // Unwrap so callers see the real underlying error (idle timeout, socket
+    // reset), not our internal retry-eligibility marker.
+    throw err instanceof StreamNotYetVisibleError ? err.cause : err;
+  }
 }
 
 export interface OpenAiCompatibleProviderOptions {
