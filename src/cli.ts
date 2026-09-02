@@ -16,6 +16,7 @@ import { loadMcpServers } from "./mcp/config.js";
 import { loadPlugins } from "./plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "./skills/loader.js";
 import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "./memory/loader.js";
+import { loadProjectInstructions, formatProjectInstructions } from "./core/project-instructions.js";
 import { BrowserManager } from "./browser/manager.js";
 import type { LlmProvider } from "./core/types.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
@@ -365,7 +366,10 @@ export async function main(argv: string[]): Promise<void> {
   const memories = await loadMemories(cwd);
   if (memories.length > 0) tools.register(createReadMemoryTool(cwd));
 
-  const systemPrompt = BASE_SYSTEM_PROMPT + formatSkillIndex(skills) + formatMemoryIndex(memories);
+  const projectInstructions = await loadProjectInstructions(cwd);
+
+  const systemPrompt =
+    BASE_SYSTEM_PROMPT + formatSkillIndex(skills) + formatMemoryIndex(memories) + formatProjectInstructions(projectInstructions);
 
   const session = await resolveSession(cwd, opts, model, systemPrompt, ui);
 
