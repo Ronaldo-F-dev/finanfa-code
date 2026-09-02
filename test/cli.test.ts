@@ -158,6 +158,12 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/writes a \.jpg extension, not \.jpeg/);
   });
 
+  it("tells the model to use ocr_image for scanned/photographed text, chained after convert_pdf_to_image for PDFs", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/ocr_image/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/Tesseract/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/convert_pdf_to_image it first, then ocr_image each\s*\n?\s*page/);
+  });
+
   it("tells the model python_repl persists state across calls, unlike bash: python3 -c", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/python_repl/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/starts a fresh interpreter every call/);

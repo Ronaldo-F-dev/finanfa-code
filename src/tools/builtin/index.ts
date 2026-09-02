@@ -49,6 +49,7 @@ import { createConvertToPdfTool } from "./convert-to-pdf.js";
 import { convertPdfToImageTool } from "./convert-pdf-to-image.js";
 import { splitPdfTool } from "./split-pdf.js";
 import { imagesToPdfTool } from "./images-to-pdf.js";
+import { ocrImageTool } from "./ocr-image.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -86,6 +87,7 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(convertPdfToImageTool);
   registry.register(splitPdfTool);
   registry.register(imagesToPdfTool);
+  registry.register(ocrImageTool);
   for (const tool of gitTools) registry.register(tool);
 }
 

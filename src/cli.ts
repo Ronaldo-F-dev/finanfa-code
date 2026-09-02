@@ -151,6 +151,10 @@ export const DEV_TOOLS_PROMPT =
   "shells out to pdftoppm (poppler-utils) since headless Chromium can't render a PDF inline (navigating to " +
   "one triggers a download instead), and needs pdftoppm installed; tell the user if it's missing rather than " +
   "trying to install it yourself. Note pdftoppm's own -jpeg flag writes a .jpg extension, not .jpeg. " +
+  "Use ocr_image (via Tesseract) to read text out of a photo, screenshot, or scanned page — read_document " +
+  "can't help with a scanned PDF (no real text layer), so convert_pdf_to_image it first, then ocr_image each " +
+  "page. lang defaults to \"eng\" and must be an installed Tesseract language pack; tell the user which one " +
+  "to install if it's missing, don't try to install it yourself. " +
   "Use python_repl for exploratory Python — trying something quickly, iterating on a snippet, inspecting a " +
   "value — instead of `bash: python3 -c \"...\"`, which starts a fresh interpreter every call and throws away " +
   "variables, imports, and function defs between calls. python_repl keeps all of that across calls, the same " +
