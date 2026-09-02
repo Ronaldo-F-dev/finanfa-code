@@ -105,20 +105,30 @@ export class AgentSession {
     return estimateCostUsd(this.model, this.usage.inputTokens, this.usage.outputTokens);
   }
 
+  // Called after every turn (see loop.ts/cli.ts) so a crash mid-conversation
+  // loses as little as possible — but a disk-full or permission error here
+  // used to propagate up and crash the turn outright, which is worse than
+  // just failing to save: the user loses the *rest* of the conversation too,
+  // not just resumability. Warn and keep going, same convention as
+  // config.ts's readJsonIfExists.
   async persist(): Promise<void> {
-    const dir = sessionDir(this.cwd);
-    await mkdir(dir, { recursive: true });
-    const file = path.join(dir, `${this.id}.json`);
-    const tmp = `${file}.tmp`;
-    const data: SessionFile = {
-      id: this.id,
-      createdAt: new Date().toISOString(),
-      cwd: this.cwd,
-      model: this.model,
-      messages: this.messages,
-      usage: this.usage,
-    };
-    await writeFile(tmp, JSON.stringify(data, null, 2), "utf-8");
-    await rename(tmp, file);
+    try {
+      const dir = sessionDir(this.cwd);
+      await mkdir(dir, { recursive: true });
+      const file = path.join(dir, `${this.id}.json`);
+      const tmp = `${file}.tmp`;
+      const data: SessionFile = {
+        id: this.id,
+        createdAt: new Date().toISOString(),
+        cwd: this.cwd,
+        model: this.model,
+        messages: this.messages,
+        usage: this.usage,
+      };
+      await writeFile(tmp, JSON.stringify(data, null, 2), "utf-8");
+      await rename(tmp, file);
+    } catch (err) {
+      console.error(`Warning: failed to save session state: ${err instanceof Error ? err.message : String(err)}`);
+    }
   }
 }
