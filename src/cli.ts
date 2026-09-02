@@ -128,7 +128,12 @@ export const DOCUMENT_TOOLS_PROMPT =
   "Use read_notebook (not read_file) to look at a Jupyter .ipynb file — it shows cells and a summary of their " +
   "outputs instead of the raw, very verbose JSON (execution counts, output MIME bundles, etc.). Use " +
   "edit_notebook to update/insert/delete a cell by 0-based index; updating a cell leaves its old outputs in " +
-  "place, now stale until the cell is re-run — same as editing a cell in Jupyter itself without re-executing it. ";
+  "place, now stale until the cell is re-run — same as editing a cell in Jupyter itself without re-executing it. " +
+  "Use convert_to_pdf (not write_document/a hand-rolled approach) to turn a Markdown, HTML, or .docx file into " +
+  "a PDF — it renders through a real headless browser, so tables/code blocks/formatting come through, unlike " +
+  "read_document's plain-text extraction. Use convert_spreadsheet for .xlsx <-> .csv — direction is automatic " +
+  "from the source extension; converting from .xlsx exports one sheet (default the first) since CSV has no " +
+  "concept of multiple sheets. ";
 
 /** Static analysis, image resizing, the Python REPL, databases, HTTP testing, JS/TS lint+typecheck. */
 export const DEV_TOOLS_PROMPT =

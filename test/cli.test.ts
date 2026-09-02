@@ -123,6 +123,13 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/0-based index/);
   });
 
+  it("tells the model to use convert_to_pdf (real browser rendering) and convert_spreadsheet (xlsx<->csv)", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/convert_to_pdf/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/renders through a real headless browser/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/convert_spreadsheet/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/direction is automatic/);
+  });
+
   it("tells the model to use check_python_types for Python type-checking via Pyright", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/check_python_types/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/Pyright/);

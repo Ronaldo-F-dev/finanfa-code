@@ -54,4 +54,19 @@ describe("BrowserManager (real Chromium via Playwright)", () => {
     expect(bytes.subarray(0, 8)).toEqual(Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]));
     expect(bytes.length).toBeGreaterThan(100);
   });
+
+  it("prints given HTML to a real PDF without disturbing the shared interactive browsing page", async () => {
+    await manager.navigate(fixtureUrl);
+    await manager.click("#go");
+
+    const pdfPath = path.join(dir, "printed.pdf");
+    await manager.printHtmlToPdf("<html><body><h1>Printed Content</h1></body></html>", pdfPath);
+
+    const pdfBytes = await readFile(pdfPath);
+    expect(pdfBytes.subarray(0, 5)).toEqual(Buffer.from("%PDF-"));
+
+    // the shared page's post-click state must be untouched by the print
+    const { text } = await manager.content();
+    expect(text).toContain("after click");
+  });
 });

@@ -15,7 +15,7 @@ export class BrowserManager {
   private browser: Browser | undefined;
   private page: Page | undefined;
 
-  private async ensurePage(): Promise<Page> {
+  private async ensureBrowser(): Promise<Browser> {
     if (!this.browser) {
       try {
         this.browser = await chromium.launch({ headless: true });
@@ -26,8 +26,13 @@ export class BrowserManager {
         );
       }
     }
+    return this.browser;
+  }
+
+  private async ensurePage(): Promise<Page> {
+    const browser = await this.ensureBrowser();
     if (!this.page || this.page.isClosed()) {
-      this.page = await this.browser.newPage();
+      this.page = await browser.newPage();
     }
     return this.page;
   }
@@ -53,6 +58,28 @@ export class BrowserManager {
   async screenshot(path: string): Promise<void> {
     const page = await this.ensurePage();
     await page.screenshot({ path, fullPage: true });
+  }
+
+  /**
+   * Renders `html` to a PDF file. Uses its own throwaway page rather than
+   * the shared browser_navigate/browser_click/browser_screenshot page, so a
+   * conversion never disrupts whatever the model currently has open in the
+   * interactive browsing session.
+   */
+  async printHtmlToPdf(html: string, outputPath: string): Promise<void> {
+    const browser = await this.ensureBrowser();
+    const page = await browser.newPage();
+    try {
+      await page.setContent(html, { waitUntil: "networkidle", timeout: 30_000 });
+      await page.pdf({
+        path: outputPath,
+        format: "A4",
+        printBackground: true,
+        margin: { top: "20mm", bottom: "20mm", left: "18mm", right: "18mm" },
+      });
+    } finally {
+      await page.close();
+    }
   }
 
   async close(): Promise<void> {
