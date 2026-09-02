@@ -43,11 +43,35 @@ function buildTransport(cfg: McpServerConfig): BuiltTransport {
   return { transport, authProvider };
 }
 
+/** Thrown by connect() when allowOAuthPrompt is false and the server has no saved token yet — distinct from a real connection failure, so callers can report it separately (and without ever opening a browser). */
+export class NeedsAuthorizationError extends Error {
+  constructor(readonly serverName: string) {
+    super(`MCP server "${serverName}" needs authorization — no saved token yet.`);
+  }
+}
+
 export class McpClientManager {
   private readonly clients = new Map<string, Client>();
 
-  async connect(cfg: McpServerConfig): Promise<void> {
+  /**
+   * allowOAuthPrompt (default true): when false, never opens a browser or
+   * blocks waiting for one — if the server has no saved token, throws
+   * NeedsAuthorizationError immediately instead of attempting to connect.
+   * This has to be checked *before* calling client.connect() at all, not
+   * just by catching UnauthorizedError afterward: the SDK's own internal
+   * auth() flow calls authProvider.redirectToAuthorization() (which opens
+   * the browser) as soon as a connect attempt gets a 401, before the error
+   * ever reaches our catch block. Used at startup so configuring several
+   * OAuth-gated servers doesn't pop several browser tabs and block startup
+   * for up to 5 minutes each on servers nobody has decided to use yet —
+   * explicit user action (/mcp connect) still gets the full interactive flow.
+   */
+  async connect(cfg: McpServerConfig, opts: { allowOAuthPrompt?: boolean } = {}): Promise<void> {
+    const allowOAuthPrompt = opts.allowOAuthPrompt ?? true;
     const { transport, authProvider } = buildTransport(cfg);
+    if (!allowOAuthPrompt && authProvider && !(await authProvider.tokens())) {
+      throw new NeedsAuthorizationError(cfg.name);
+    }
     const client = new Client({ name: "finanfa-code", version: "0.1.0" }, { capabilities: {} });
 
     try {
@@ -62,13 +86,25 @@ export class McpClientManager {
       });
     } catch (err) {
       if (!(err instanceof UnauthorizedError) || !authProvider) throw err;
+      // A saved token existed but was rejected (expired/revoked) — with
+      // OAuth prompts disabled, surface that as NeedsAuthorizationError too
+      // rather than opening a browser the caller didn't ask for.
+      if (!allowOAuthPrompt) throw new NeedsAuthorizationError(cfg.name);
 
       // The transport's OAuthClientProvider already opened the browser (see
       // FileOAuthClientProvider.redirectToAuthorization) — wait for the
-      // redirect, exchange the code, and retry the connection once.
+      // redirect and exchange the code. finishAuth() persists the tokens to
+      // disk but does NOT reset the transport's own started state (its own
+      // docstring: the exchange "enables the *next* connection attempt", not
+      // a retry on this instance) — client.connect() calls transport.start()
+      // internally, which throws "already started!" the second time. Build a
+      // fresh transport instead of reusing the one that already ran; a new
+      // FileOAuthClientProvider for the same server reads the
+      // just-persisted tokens straight from disk, so nothing is lost.
       const code = await authProvider.waitForCallback();
       await (transport as RemoteTransport).finishAuth(code);
-      await client.connect(transport);
+      const { transport: freshTransport } = buildTransport(cfg);
+      await client.connect(freshTransport);
     }
 
     this.clients.set(cfg.name, client);
