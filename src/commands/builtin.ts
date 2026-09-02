@@ -60,13 +60,46 @@ async function handleMcp(ctx: CommandContext): Promise<CommandOutcome> {
     return addMcpServer(ctx, rest);
   }
 
+  if (sub === "connect") return connectMcpServer(ctx, rest[0]);
+
   if (sub === "enable") return handleMcpEnableDisable(ctx, true, rest[0]);
   if (sub === "disable") return handleMcpEnableDisable(ctx, false, rest[0]);
 
   ctx.ui.writeError(
     "Usage: /mcp list | /mcp reload | /mcp add <name> -- <command> [args...] | /mcp add <name> --url <url> " +
-      "[--transport sse] | /mcp enable <name> | /mcp disable <name>",
+      "[--transport sse] | /mcp connect <name> | /mcp enable <name> | /mcp disable <name>",
   );
+  return "continue";
+}
+
+/** For a server that was skipped at startup (no saved token yet, see connectMcpServers's allowOAuthPrompt: false) — explicit user action gets the full interactive OAuth flow. */
+async function connectMcpServer(ctx: CommandContext, name: string | undefined): Promise<CommandOutcome> {
+  if (!name) {
+    ctx.ui.writeError("Usage: /mcp connect <name>");
+    return "continue";
+  }
+  const servers = await loadMcpServers(ctx.cwd);
+  const config = servers.find((s) => s.name === name);
+  if (!config) {
+    ctx.ui.writeError(`No MCP server named "${name}" in .finanfa-code/mcp.json.`);
+    return "continue";
+  }
+  if (ctx.mcp.connectedServers().includes(name)) {
+    ctx.ui.writeSystem(`"${name}" is already connected.`);
+    return "continue";
+  }
+
+  if (config.transport !== "stdio") {
+    ctx.ui.writeSystem(`Connecting to "${name}" — if it requires authorization, a browser tab will open...`);
+  }
+  try {
+    await ctx.mcp.connect(config);
+  } catch (err) {
+    ctx.ui.writeError(`Failed to connect "${name}": ${err instanceof Error ? err.message : err}`);
+    return "continue";
+  }
+  await reloadMcpTools(ctx);
+  ctx.ui.writeSystem(`Connected "${name}".`);
   return "continue";
 }
 
@@ -317,7 +350,7 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
     "mcp",
     handleMcp,
     "Manage MCP servers: /mcp list | /mcp reload | /mcp add <name> -- <command> [args...] | " +
-      "/mcp enable <name> | /mcp disable <name>",
+      "/mcp connect <name> | /mcp enable <name> | /mcp disable <name>",
   );
   commands.register(
     "sessions",

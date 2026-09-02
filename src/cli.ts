@@ -12,7 +12,7 @@ import { loadPermissionConfig } from "./permissions/config.js";
 import { CommandRegistry } from "./commands/registry.js";
 import { registerBuiltinCommands } from "./commands/builtin.js";
 import type { CommandOutcome } from "./commands/types.js";
-import { McpClientManager } from "./mcp/client-manager.js";
+import { McpClientManager, NeedsAuthorizationError } from "./mcp/client-manager.js";
 import { loadMcpServers } from "./mcp/config.js";
 import { loadPlugins } from "./plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "./skills/loader.js";
@@ -330,14 +330,26 @@ function registerShutdownHandlers(
   process.on("SIGTERM", () => void shutdown());
 }
 
-async function connectMcpServers(cwd: string, mcp: McpClientManager, ui: UIAdapter): Promise<void> {
+export async function connectMcpServers(cwd: string, mcp: McpClientManager, ui: UIAdapter): Promise<void> {
   const servers = await loadMcpServers(cwd);
+  const needsAuth: string[] = [];
   for (const server of servers) {
     try {
-      await mcp.connect(server);
+      // allowOAuthPrompt: false — a server with no saved token yet is
+      // skipped silently (collected below) instead of popping a browser
+      // tab and blocking startup for up to 5 minutes per unauthorized
+      // server; already-authorized servers still connect immediately.
+      await mcp.connect(server, { allowOAuthPrompt: false });
     } catch (err) {
-      ui.writeError(`Failed to connect MCP server "${server.name}": ${err instanceof Error ? err.message : err}`);
+      if (err instanceof NeedsAuthorizationError) {
+        needsAuth.push(server.name);
+      } else {
+        ui.writeError(`Failed to connect MCP server "${server.name}": ${err instanceof Error ? err.message : err}`);
+      }
     }
+  }
+  if (needsAuth.length > 0) {
+    ui.writeSystem(`${needsAuth.length} MCP server(s) need authorization: ${needsAuth.join(", ")} — run /mcp connect <name> to use one.`);
   }
 }
 
