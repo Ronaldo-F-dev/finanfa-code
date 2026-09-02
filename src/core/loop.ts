@@ -77,45 +77,59 @@ async function runOneToolCall(
     return { result: { toolCallId: call.id, isError: true, content: `Unknown tool "${call.name}"` } };
   }
 
+  // Registered on the session (not just held locally) so Ctrl+C — handled in
+  // cli.ts's registerShutdownHandlers, far from this call stack — can abort
+  // whichever tool call(s) are actually running right now. Without this, the
+  // signal every tool receives was permanently un-abortable: created fresh
+  // here with nothing ever calling .abort() on it, so interrupting during a
+  // long bash/run_tests call let the subprocess survive as an orphan after
+  // this process exited.
+  const controller = new AbortController();
+  session.activeAbortControllers.add(controller);
+
   const ctx: ToolContext = {
     cwd: session.cwd,
     sessionId: session.id,
-    signal: new AbortController().signal,
+    signal: controller.signal,
     history: session.history,
     todos: session.todos,
     fileFreshness: session.fileFreshness,
     ui,
   };
 
-  const decision = await permissions.check(tool, call.input, ctx);
-  if (decision === "deny") {
-    return { result: { toolCallId: call.id, isError: true, content: "User declined to run this tool." } };
-  }
-
-  ui.writeSystem(`→ ${tool.name}: ${tool.describeCall ? tool.describeCall(call.input) : ""}`);
-  ui.setBusy(true, tool.name);
   try {
-    const result = await tool.handler(call.input, ctx);
-    // The full content always reaches the model via the tool_result message
-    // regardless — this is a compact echo for the human. Without it, once a
-    // tool is session-allowlisted (no more preview/confirmation), the only
-    // thing shown for e.g. every later `npm test`/`npm run build` was the
-    // one-line invocation — no exit code, no stderr — until the model chose
-    // to paraphrase it, so a failure it glossed over had no direct
-    // visibility short of asking it to repeat itself or re-running by hand.
-    echoToolOutput(ui, result.content, result.isError);
-    return {
-      result: { toolCallId: call.id, isError: result.isError, content: result.content },
-      images: result.images,
-    };
-  } catch (err) {
-    const message = err instanceof Error ? err.message : String(err);
-    echoToolOutput(ui, message, true);
-    return {
-      result: { toolCallId: call.id, isError: true, content: message },
-    };
+    const decision = await permissions.check(tool, call.input, ctx);
+    if (decision === "deny") {
+      return { result: { toolCallId: call.id, isError: true, content: "User declined to run this tool." } };
+    }
+
+    ui.writeSystem(`→ ${tool.name}: ${tool.describeCall ? tool.describeCall(call.input) : ""}`);
+    ui.setBusy(true, tool.name);
+    try {
+      const result = await tool.handler(call.input, ctx);
+      // The full content always reaches the model via the tool_result message
+      // regardless — this is a compact echo for the human. Without it, once a
+      // tool is session-allowlisted (no more preview/confirmation), the only
+      // thing shown for e.g. every later `npm test`/`npm run build` was the
+      // one-line invocation — no exit code, no stderr — until the model chose
+      // to paraphrase it, so a failure it glossed over had no direct
+      // visibility short of asking it to repeat itself or re-running by hand.
+      echoToolOutput(ui, result.content, result.isError);
+      return {
+        result: { toolCallId: call.id, isError: result.isError, content: result.content },
+        images: result.images,
+      };
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      echoToolOutput(ui, message, true);
+      return {
+        result: { toolCallId: call.id, isError: true, content: message },
+      };
+    } finally {
+      ui.setBusy(false);
+    }
   } finally {
-    ui.setBusy(false);
+    session.activeAbortControllers.delete(controller);
   }
 }
 
@@ -226,6 +240,20 @@ function describeError(err: unknown): string {
   if (!(err instanceof Error)) return String(err);
   const cause = err.cause instanceof Error ? err.cause.message : undefined;
   return cause ? `${err.message}: ${cause}` : err.message;
+}
+
+// compactForProvider only ever shrinks tool results — a long conversation
+// dominated by assistant/user text instead (or one with more large tool
+// results than it keeps compacted) has no safety net and can still exceed
+// the provider's real limit. Matched loosely across the wording different
+// OpenAI-compatible/Anthropic-style backends actually use for this, rather
+// than one exact string, since it's never been worth depending on a single
+// provider's phrasing.
+const CONTEXT_LENGTH_ERROR_PATTERN =
+  /context.{0,20}(length|window)|too (many|long).{0,30}tokens|maximum.{0,30}tokens|tokens.{0,30}maximum|reduce the (length|amount)/i;
+
+function isLikelyContextLengthError(message: string): boolean {
+  return CONTEXT_LENGTH_ERROR_PATTERN.test(message);
 }
 
 // Both LoopGuard messages below start with this — a distinctive marker so
@@ -376,6 +404,18 @@ export async function runTurn(
             'configured for this session; see "Vision routing" in the README, or /config set visionModel. The ' +
             "image has been dropped from this conversation so it won't keep failing every later turn too. " +
             `Original error: ${message})`,
+        );
+      } else if (isLikelyContextLengthError(message)) {
+        // compactForProvider already shrinks old tool results, but that's
+        // not always enough (a conversation dominated by long assistant/user
+        // text has no other safety net) — when the provider itself rejects
+        // the request as too large, say so plainly and point at the actual
+        // way out instead of leaving this indistinguishable from any other
+        // opaque failure.
+        ui.writeSystem(
+          `(the model call failed — this looks like a context-length error: the conversation is too large for ` +
+            `${active.model} even after compaction. Use /clear to start fresh in this session, or /session <id> ` +
+            `to switch to a different one — see /sessions for ids. Original error: ${message})`,
         );
       } else {
         ui.writeSystem(`(the model call failed: ${message})`);

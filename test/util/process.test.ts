@@ -1,6 +1,17 @@
 import { describe, expect, it } from "vitest";
 import { spawn } from "node:child_process";
+import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { killProcessGroup, runSubprocess } from "../../src/util/process.js";
+
+async function waitUntil(check: () => Promise<boolean>, timeoutMs = 3000): Promise<void> {
+  const start = Date.now();
+  while (!(await check())) {
+    if (Date.now() - start > timeoutMs) throw new Error("waitUntil timed out");
+    await new Promise((r) => setTimeout(r, 20));
+  }
+}
 
 function waitForExit(child: ReturnType<typeof spawn>): Promise<void> {
   return new Promise((resolve) => child.on("exit", () => resolve()));
@@ -80,6 +91,40 @@ describe("runSubprocess (shared by bash/run_tests/check_python_types/lint_javasc
     expect(Date.now() - start).toBeLessThan(2000);
     expect(result.isError).toBe(true);
     expect(result.content).toContain("timed out");
+  });
+
+  it("aborting mid-run cancels the result and kills a backgrounded grandchild too, not just the immediate shell", async () => {
+    // The real bug this covers: opts.signal used to be passed straight to
+    // spawn()'s own `signal` option, which only kills the immediate child —
+    // a background job started *inside* the shell command (exactly what
+    // interrupting a real bash tool call mid-way looks like) would survive
+    // as an orphan. Regression test, not just a unit check: verifies the
+    // grandchild's real PID is actually dead after abort, the same way
+    // killProcessGroup's own test above does.
+    const dir = await mkdtemp(path.join(tmpdir(), "finanfa-abort-test-"));
+    const pidFile = path.join(dir, "pid.txt");
+    try {
+      const controller = new AbortController();
+      const promise = runSubprocess(`sleep 30 & echo $! > ${pidFile}; wait`, {
+        cwd: process.cwd(),
+        timeoutMs: 10_000,
+        signal: controller.signal,
+      });
+
+      await waitUntil(async () => (await readFile(pidFile, "utf-8").catch(() => "")).trim().length > 0);
+      const pid = Number((await readFile(pidFile, "utf-8")).trim());
+      expect(() => process.kill(pid, 0)).not.toThrow(); // the backgrounded sleep is genuinely alive
+
+      controller.abort();
+      const result = await promise;
+
+      expect(result.isError).toBe(true);
+      expect(result.content).toContain("cancelled");
+      await new Promise((r) => setTimeout(r, 300));
+      expect(() => process.kill(pid, 0)).toThrow(); // the grandchild is genuinely dead, not orphaned
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
   });
 
   it("a command not found on PATH is a normal nonzero exit (127), not a spawn-level error — everything goes through the shell", async () => {

@@ -197,4 +197,47 @@ describe("runTurn: a provider call that throws ends the turn cleanly instead of 
     expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("network timeout"));
     expect(ui.writeSystem).not.toHaveBeenCalledWith(expect.stringContaining("Vision routing"));
   });
+
+  it.each([
+    "This model's maximum context length is 128000 tokens, however you requested 145213 tokens.",
+    "context_length_exceeded",
+    "prompt is too long: 210004 tokens > 200000 maximum",
+    "Please reduce the length of the messages.",
+  ])(
+    "gives an actionable /clear-or-/session message, not the raw error alone, for a real context-length wording: %s",
+    async (providerMessage) => {
+      class FailingProvider implements LlmProvider {
+        async streamTurn(): Promise<StreamTurnResult> {
+          throw new Error(providerMessage);
+        }
+      }
+
+      const ui = makeStubUi();
+      const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+      const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+      await runTurn(session, new FailingProvider(), ui, new ToolRegistry(), permissions, "hello");
+
+      expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("context-length error"));
+      expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/clear"));
+      expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/session"));
+      expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining(providerMessage));
+    },
+  );
+
+  it("does not misclassify an ordinary error as a context-length one", async () => {
+    class FailingProvider implements LlmProvider {
+      async streamTurn(): Promise<StreamTurnResult> {
+        throw new Error("Internal server error, please retry.");
+      }
+    }
+
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(session, new FailingProvider(), ui, new ToolRegistry(), permissions, "hello");
+
+    expect(ui.writeSystem).not.toHaveBeenCalledWith(expect.stringContaining("context-length error"));
+  });
 });

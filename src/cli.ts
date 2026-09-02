@@ -312,12 +312,18 @@ function registerShutdownHandlers(
     if (shuttingDown) return;
     shuttingDown = true;
     ui.writeSystem("Interrupted — saving session and closing connections...");
+    // A getter, not a captured session — /session may have swapped the
+    // REPL's active session since this handler was registered, and Ctrl+C
+    // should act on whichever one is actually current, not the one from
+    // startup.
+    const session = getSession();
+    // Aborts every in-flight tool call's signal (see runOneToolCall in
+    // loop.ts) BEFORE persisting/exiting — a bash/run_tests subprocess only
+    // gets cleanly killed (not orphaned) if this fires first; process.exit()
+    // below does not wait for or otherwise reap a detached child on its own.
+    for (const controller of session.activeAbortControllers) controller.abort();
     try {
-      // A getter, not a captured session — /session may have swapped the
-      // REPL's active session since this handler was registered, and Ctrl+C
-      // should save whichever one is actually current, not the one from
-      // startup.
-      await getSession().persist();
+      await session.persist();
     } catch (err) {
       ui.writeError(`Failed to save session: ${err instanceof Error ? err.message : String(err)}`);
     }

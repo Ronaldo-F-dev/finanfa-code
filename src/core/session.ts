@@ -51,6 +51,16 @@ export class AgentSession {
   readonly fileFreshness = new FileFreshnessTracker();
   /** MCP server names currently excluded from the tool list sent to the model (still connected — /mcp enable brings them back without reconnecting). */
   readonly disabledMcpServers = new Set<string>();
+  /**
+   * One entry per currently-running tool call (see runOneToolCall in
+   * loop.ts) — a Set, not a single controller, since "safe" tools run
+   * concurrently via Promise.all. Runtime-only, never persisted: a fresh
+   * session (or one loaded via resume()) always starts empty. Ctrl+C aborts
+   * every entry here (see registerShutdownHandlers in cli.ts) so an
+   * in-flight subprocess (bash, run_tests, ...) actually gets killed instead
+   * of surviving as an orphan after the parent process exits.
+   */
+  readonly activeAbortControllers = new Set<AbortController>();
 
   constructor(opts: { id?: string; cwd: string; model: string; systemPrompt: string }) {
     this.id = opts.id ?? randomUUID();

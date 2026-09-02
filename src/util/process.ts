@@ -64,24 +64,40 @@ export function runSubprocess(command: string, opts: RunSubprocessOptions): Prom
     // something without redirecting its output would otherwise hold the
     // stdio pipe open forever, past a plain kill of just the immediate
     // process.
+    //
+    // opts.signal is NOT passed to spawn()'s own `signal` option — Node's
+    // built-in handling for that just calls child.kill(), the same
+    // single-process kill killProcessGroup exists specifically to avoid (a
+    // detached grandchild, e.g. a dev server backgrounded inside the
+    // command, would survive). Instead, listen for the abort ourselves and
+    // route it through the exact same killProcessGroup call the timeout
+    // path already uses below.
     const child = opts.args
-      ? spawn(command, opts.args, { cwd: opts.cwd, shell: SHELL, signal: opts.signal, detached: true })
-      : spawn(command, { cwd: opts.cwd, shell: SHELL, signal: opts.signal, detached: true });
+      ? spawn(command, opts.args, { cwd: opts.cwd, shell: SHELL, detached: true })
+      : spawn(command, { cwd: opts.cwd, shell: SHELL, detached: true });
     let stdout = "";
     let stderr = "";
     let timedOut = false;
+    let aborted = false;
 
     const timer = setTimeout(() => {
       timedOut = true;
       killProcessGroup(child);
     }, opts.timeoutMs);
 
+    const onAbort = () => {
+      aborted = true;
+      killProcessGroup(child);
+    };
+    opts.signal?.addEventListener("abort", onAbort, { once: true });
+
     child.stdout?.on("data", (d) => (stdout += d));
     child.stderr?.on("data", (d) => (stderr += d));
 
     child.on("close", (code) => {
       clearTimeout(timer);
-      const header = timedOut ? `(timed out after ${opts.timeoutMs}ms)\n` : `(exit code ${code})\n`;
+      opts.signal?.removeEventListener("abort", onAbort);
+      const header = aborted ? "(cancelled — user interrupted)\n" : timedOut ? `(timed out after ${opts.timeoutMs}ms)\n` : `(exit code ${code})\n`;
       let content: string;
       if (opts.format === "compact") {
         const stderrBlock = stderr ? `\n--- stderr ---\n${truncate(stderr, TRUNCATE_LARGE)}` : "";
@@ -89,12 +105,13 @@ export function runSubprocess(command: string, opts: RunSubprocessOptions): Prom
       } else {
         content = `${header}--- stdout ---\n${truncate(stdout, TRUNCATE_LARGE)}\n--- stderr ---\n${truncate(stderr, TRUNCATE_LARGE)}`;
       }
-      const isError = timedOut || (opts.isError ? opts.isError(code) : code !== 0);
+      const isError = aborted || timedOut || (opts.isError ? opts.isError(code) : code !== 0);
       resolve({ content, isError });
     });
 
     child.on("error", (err) => {
       clearTimeout(timer);
+      opts.signal?.removeEventListener("abort", onAbort);
       resolve({ content: `Failed to start "${command}": ${err.message}`, isError: true });
     });
   });
