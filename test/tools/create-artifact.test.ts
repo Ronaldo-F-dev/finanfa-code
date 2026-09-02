@@ -43,6 +43,7 @@ describe("create_artifact tool", () => {
     expect(written).toContain("react.development.js");
     expect(written).toContain("react-dom.development.js");
     expect(written).toContain("babel.min.js");
+    expect(written).toContain("cdn.tailwindcss.com");
     expect(written).toContain('ReactDOM.createRoot(document.getElementById("root")).render(<App />);');
 
     const response = await fetch(url as string);

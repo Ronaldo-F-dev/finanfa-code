@@ -28,7 +28,12 @@ function renderArtifactHtml(code: string, title: string): string {
 <script src="https://unpkg.com/react@${REACT_VERSION}/umd/react.development.js" crossorigin></script>
 <script src="https://unpkg.com/react-dom@${REACT_VERSION}/umd/react-dom.development.js" crossorigin></script>
 <script src="https://unpkg.com/@babel/standalone@${BABEL_STANDALONE_VERSION}/babel.min.js" crossorigin></script>
-<style>html,body,#root{height:100%;margin:0}</style>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+  html,body,#root{height:100%;margin:0}
+  *{box-sizing:border-box}
+  body{-webkit-font-smoothing:antialiased;font-family:ui-sans-serif,system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+</style>
 </head>
 <body>
 <div id="root"></div>
@@ -48,13 +53,16 @@ export function createArtifactTool(server: PreviewServer): ToolDefinition<Create
     description:
       "Create a live, running React component (an \"artifact\") from a single piece of JSX and open it in the " +
       "browser. `code` must define a component named `App` (e.g. `function App() { ... }`) — no imports, no " +
-      "build step: React, ReactDOM, and JSX (via in-browser Babel) are already provided by the generated page's " +
-      "CDN script tags. Use this instead of hand-writing the React/Babel CDN boilerplate with write_file — it " +
-      "wraps `code` in that scaffold for you, writes the result as a self-contained HTML file, and opens it " +
-      "through the same local server as preview_html (relative asset references still won't work here since " +
-      "everything is one file — for a multi-file mockup with its own CSS/assets, use write_file + preview_html " +
-      "instead). Follow up with browser_navigate + browser_screenshot to actually see the rendered result before " +
-      "calling it done, same as any other UI work.",
+      "build step: React, ReactDOM, JSX (via in-browser Babel), and Tailwind CSS (via the Tailwind CDN — use " +
+      "utility classes like `flex`, `gap-4`, `rounded-lg`, `shadow`, `text-slate-600` freely) are already provided " +
+      "by the generated page's CDN script tags. Use this instead of hand-writing the React/Babel CDN boilerplate " +
+      "with write_file — it wraps `code` in that scaffold for you, writes the result as a self-contained HTML " +
+      "file, and opens it through the same local server as preview_html (relative asset references still won't " +
+      "work here since everything is one file — for a multi-file mockup with its own CSS/assets, use write_file " +
+      "+ preview_html instead). Aim for a genuinely polished result, not just a functional one: real spacing, a " +
+      "clear visual hierarchy, and an actual color/type choice instead of default black-on-white — Tailwind makes " +
+      "this cheap, there's no excuse for a bare unstyled page. Follow up with browser_navigate + " +
+      "browser_screenshot to actually see the rendered result before calling it done, same as any other UI work.",
     riskLevel: "ask",
     inputSchema: {
       type: "object",

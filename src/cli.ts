@@ -50,8 +50,10 @@ export const CORE_BEHAVIOR_PROMPT =
   "test/fix loop below. Only then offer the live preview_html link to the user. " +
   "If what's asked for is specifically a React component rather than a plain HTML/CSS/JS mockup, use " +
   "create_artifact instead of hand-writing the CDN script tags/Babel boilerplate with write_file — give it code " +
-  "defining a component named App, it handles the scaffold, writes and opens the result the same way preview_html " +
-  "does, and the same screenshot-and-fix loop applies before handing it back. " +
+  "defining a component named App, it handles the scaffold (Tailwind CSS included, use its utility classes " +
+  "freely), writes and opens the result the same way preview_html does, and the same screenshot-and-fix loop " +
+  "applies before handing it back. Treat visual polish as part of correctness here, not a nice-to-have: real " +
+  "spacing and hierarchy, an actual color/type choice, never a bare unstyled page. " +
   "Delegate independent, parallelizable pieces of work to the task tool. " +
   "For any multi-step task, use todo_write up front to plan the steps, and update it as you complete each one. " +
   "web_fetch only returns stripped text — it cannot show you what a page actually looks like. Whenever the user " +

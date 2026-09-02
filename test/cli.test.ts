@@ -61,6 +61,12 @@ describe("system prompt: create_artifact (React component) guidance", () => {
   it("says the same screenshot-and-fix loop still applies to artifacts", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/same screenshot-and-fix loop applies before handing it back/i);
   });
+
+  it("mentions Tailwind CSS is available and treats visual polish as part of correctness", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/Tailwind CSS included, use its utility classes/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/visual polish as part of correctness/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/never a bare unstyled page/i);
+  });
 });
 
 describe("system prompt: server-readiness guidance", () => {
