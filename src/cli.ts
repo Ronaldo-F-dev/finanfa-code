@@ -164,7 +164,7 @@ export const BASE_SYSTEM_PROMPT =
   SECURITY_INSTRUCTION + CORE_BEHAVIOR_PROMPT + PATH_GUIDANCE_PROMPT + PROCESS_GUIDANCE_PROMPT + DOCUMENT_TOOLS_PROMPT + DEV_TOOLS_PROMPT;
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
-interface CliOptions {
+export interface CliOptions {
   resume?: string;
   continue?: boolean;
   model?: string;
@@ -243,18 +243,26 @@ function createUi(mode: "ink" | "readline"): UIAdapter {
   return createReadlineAdapter();
 }
 
-async function resolveSession(
+export async function resolveSession(
   cwd: string,
   opts: CliOptions,
   model: string,
   systemPrompt: string,
+  ui: UIAdapter,
 ): Promise<AgentSession> {
-  if (opts.resume) {
-    return AgentSession.resume(cwd, opts.resume, systemPrompt);
-  }
-  if (opts.continue) {
-    const latest = await AgentSession.findLatest(cwd);
-    if (latest) return AgentSession.resume(cwd, latest, systemPrompt);
+  const idToResume = opts.resume ?? (opts.continue ? await AgentSession.findLatest(cwd) : undefined);
+  if (idToResume) {
+    try {
+      return await AgentSession.resume(cwd, idToResume, systemPrompt);
+    } catch (err) {
+      // A stale/typo'd --resume id, or a corrupted session file, used to
+      // crash the whole CLI at startup with a raw stack trace before the UI
+      // was even usable. Warn and fall back to a fresh session instead —
+      // same "warn and continue" policy as AgentSession.persist().
+      ui.writeError(
+        `Could not resume session "${idToResume}": ${err instanceof Error ? err.message : String(err)}. Starting a new session instead.`,
+      );
+    }
   }
   return new AgentSession({ cwd, model, systemPrompt });
 }
@@ -341,7 +349,7 @@ export async function main(argv: string[]): Promise<void> {
 
   const systemPrompt = BASE_SYSTEM_PROMPT + formatSkillIndex(skills) + formatMemoryIndex(memories);
 
-  const session = await resolveSession(cwd, opts, model, systemPrompt);
+  const session = await resolveSession(cwd, opts, model, systemPrompt, ui);
 
   const permissionConfig = await loadPermissionConfig(cwd);
   const permissions = new PermissionManager({
