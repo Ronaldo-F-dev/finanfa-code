@@ -265,6 +265,36 @@ async function handleSession(ctx: CommandContext): Promise<CommandOutcome> {
   return "continue";
 }
 
+/** Sets/shows/clears a standing objective for the session — kept in the model's context every turn (see systemPromptWithDate in loop.ts) until cleared, so it survives across many turns instead of being a one-off instruction that fades after a few exchanges. */
+async function handleGoal(ctx: CommandContext): Promise<CommandOutcome> {
+  const args = ctx.args.trim();
+
+  if (args === "") {
+    ctx.ui.writeSystem(
+      ctx.session.goal
+        ? `Current goal: ${ctx.session.goal}`
+        : "No goal set for this session. Usage: /goal <text> to set one, /goal clear to remove it.",
+    );
+    return "continue";
+  }
+
+  if (args === "clear") {
+    if (!ctx.session.goal) {
+      ctx.ui.writeSystem("No goal was set.");
+      return "continue";
+    }
+    ctx.session.goal = undefined;
+    await ctx.session.persist();
+    ctx.ui.writeSystem("Goal cleared.");
+    return "continue";
+  }
+
+  ctx.session.goal = args;
+  await ctx.session.persist();
+  ctx.ui.writeSystem(`Goal set: ${args}`);
+  return "continue";
+}
+
 const CONFIG_KEYS = [
   "provider",
   "model",
@@ -391,5 +421,10 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
     "session",
     handleSession,
     "Switch to a different saved session by id (see /sessions for ids) — saves the current one first",
+  );
+  commands.register(
+    "goal",
+    handleGoal,
+    "Set a standing goal for this session (/goal <text>), show it (/goal), or remove it (/goal clear)",
   );
 }

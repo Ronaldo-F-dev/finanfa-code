@@ -17,6 +17,8 @@ export interface SessionFile {
   usage: UsageTotals;
   /** Short auto-generated summary (see maybeGenerateTitle in loop.ts) — undefined until the first exchange completes. */
   title?: string;
+  /** Standing objective set via /goal, kept in the model's context every turn (see systemPromptWithDate in loop.ts) until /goal clear. */
+  goal?: string;
 }
 
 // Computed lazily (not memoized as a module constant) so it reflects the
@@ -41,6 +43,7 @@ export class AgentSession {
   readonly model: string;
   readonly systemPrompt: string;
   title?: string;
+  goal?: string;
   messages: NeutralMessage[] = [];
   usage: UsageTotals = { inputTokens: 0, outputTokens: 0 };
   readonly history = new EditHistory();
@@ -69,6 +72,7 @@ export class AgentSession {
     session.messages = data.messages;
     session.usage = data.usage;
     session.title = data.title;
+    session.goal = data.goal;
     return session;
   }
 
@@ -133,6 +137,7 @@ export class AgentSession {
         messages: this.messages,
         usage: this.usage,
         title: this.title,
+        goal: this.goal,
       };
       await writeFile(tmp, JSON.stringify(data, null, 2), "utf-8");
       await rename(tmp, file);

@@ -25,11 +25,23 @@ import { mcpToolServerName } from "../mcp/client-manager.js";
  */
 function systemPromptWithDate(session: AgentSession): string {
   const today = new Date().toISOString().slice(0, 10);
-  return `${session.systemPrompt}\n\nToday's date is ${today}. Use it for anything time-sensitive — judging ` +
+  let prompt =
+    `${session.systemPrompt}\n\nToday's date is ${today}. Use it for anything time-sensitive — judging ` +
     "whether information might be outdated, or answering questions about the current date — instead of " +
     "guessing or assuming your training cutoff is current. When a web_search query is time-sensitive (asking " +
     `who currently holds a role, the latest version of something, recent events), derive the year from ${today} ` +
     "rather than a remembered or habitual one — a wrong year in the query can silently return stale results.";
+  // Set via /goal, cleared via /goal clear — re-read fresh every call
+  // (like the date above) since it can change mid-session, unlike the
+  // static session.systemPrompt baked in at startup.
+  if (session.goal) {
+    prompt +=
+      `\n\nThe user has set a standing goal for this session: "${session.goal}". Keep working toward it across ` +
+      "turns unless a message clearly changes direction — don't silently drop it after a few exchanges, and " +
+      "don't ask the user to repeat it. If something they ask for conflicts with it, say so rather than quietly " +
+      "picking one.";
+  }
+  return prompt;
 }
 
 /**
