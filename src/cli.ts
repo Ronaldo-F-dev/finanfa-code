@@ -5,7 +5,7 @@ import type { UIAdapter } from "./ui/adapter.js";
 import { createReadlineAdapter } from "./ui/readline-adapter.js";
 import { createInkAdapter } from "./ui/ink/ink-adapter.js";
 import { ToolRegistry } from "./tools/registry.js";
-import { registerBuiltins } from "./tools/builtin/index.js";
+import { registerBuiltins, registerStatefulBuiltins } from "./tools/builtin/index.js";
 import { PermissionManager } from "./permissions/manager.js";
 import { loadPermissionConfig } from "./permissions/config.js";
 import { CommandRegistry } from "./commands/registry.js";
@@ -16,15 +16,7 @@ import { loadMcpServers } from "./mcp/config.js";
 import { loadPlugins } from "./plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "./skills/loader.js";
 import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "./memory/loader.js";
-import { createTaskTool } from "./tools/builtin/task.js";
-import { createBrowserTools } from "./tools/builtin/browser.js";
 import { BrowserManager } from "./browser/manager.js";
-import { createBackgroundProcessTools } from "./tools/builtin/background-process.js";
-import { BackgroundProcessManager } from "./core/background-process.js";
-import { createPythonReplTool } from "./tools/builtin/python-repl.js";
-import { PythonReplManager } from "./core/python-repl.js";
-import { createPreviewHtmlTool } from "./tools/builtin/preview-html.js";
-import { PreviewServer } from "./core/preview-server.js";
 import type { LlmProvider } from "./core/types.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible-provider.js";
@@ -332,11 +324,7 @@ export async function main(argv: string[]): Promise<void> {
   await connectMcpServers(cwd, mcp, ui);
   for (const def of await mcp.listAllTools()) tools.register(def);
 
-  tools.register(createTaskTool({ provider, tools, permissions, ui, model, cwd }));
-  for (const tool of createBrowserTools(browser)) tools.register(tool);
-  for (const tool of createBackgroundProcessTools(new BackgroundProcessManager())) tools.register(tool);
-  tools.register(createPythonReplTool(new PythonReplManager()));
-  tools.register(createPreviewHtmlTool(new PreviewServer()));
+  registerStatefulBuiltins(tools, { provider, permissions, ui, model, cwd, browser });
 
   const commands = new CommandRegistry();
   registerBuiltinCommands(commands);

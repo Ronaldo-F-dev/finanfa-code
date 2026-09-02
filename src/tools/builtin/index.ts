@@ -1,4 +1,8 @@
 import type { ToolRegistry } from "../registry.js";
+import type { LlmProvider } from "../../core/types.js";
+import type { PermissionManager } from "../../permissions/manager.js";
+import type { UIAdapter } from "../../ui/adapter.js";
+import type { BrowserManager } from "../../browser/manager.js";
 import { readFileTool } from "./read-file.js";
 import { writeFileTool } from "./write-file.js";
 import { editFileTool } from "./edit-file.js";
@@ -29,7 +33,16 @@ import { queryDatabaseTool } from "./query-database.js";
 import { httpRequestTool } from "./http-request.js";
 import { waitForPortTool } from "./wait-for-port.js";
 import { lintJavascriptTool } from "./lint-javascript.js";
+import { createTaskTool } from "./task.js";
+import { createBrowserTools } from "./browser.js";
+import { createBackgroundProcessTools } from "./background-process.js";
+import { BackgroundProcessManager } from "../../core/background-process.js";
+import { createPythonReplTool } from "./python-repl.js";
+import { PythonReplManager } from "../../core/python-repl.js";
+import { createPreviewHtmlTool } from "./preview-html.js";
+import { PreviewServer } from "../../core/preview-server.js";
 
+/** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(readFileTool);
   registry.register(writeFileTool);
@@ -60,4 +73,29 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(lintJavascriptTool);
   registry.register(waitForPortTool);
   for (const tool of gitTools) registry.register(tool);
+}
+
+export interface StatefulToolDeps {
+  provider: LlmProvider;
+  permissions: PermissionManager;
+  ui: UIAdapter;
+  model: string;
+  cwd: string;
+  browser: BrowserManager;
+}
+
+/**
+ * Builtins that need a shared manager instance (task delegation needs the
+ * registry itself; browser/background-process/python-repl/preview_html each
+ * own a long-lived resource reused across calls in the session). Kept
+ * separate from registerBuiltins so that function stays a flat list with no
+ * constructor arguments — but both are called together from cli.ts, and
+ * this is the single place that shows the full builtin tool surface.
+ */
+export function registerStatefulBuiltins(registry: ToolRegistry, deps: StatefulToolDeps): void {
+  registry.register(createTaskTool({ ...deps, tools: registry }));
+  for (const tool of createBrowserTools(deps.browser)) registry.register(tool);
+  for (const tool of createBackgroundProcessTools(new BackgroundProcessManager())) registry.register(tool);
+  registry.register(createPythonReplTool(new PythonReplManager()));
+  registry.register(createPreviewHtmlTool(new PreviewServer()));
 }
