@@ -111,6 +111,12 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/no tool for editing existing PDF text in place/);
   });
 
+  it("mentions split_pdf as the reverse of merge_pdf, and images_to_pdf's format limitation", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/split_pdf for the reverse/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/images_to_pdf/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/other image\s*\n?\s*formats aren't supported, convert with resize_image first/);
+  });
+
   it("mentions write_document and edit_document, and warns about Word's multi-run splitting", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/write_document/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/edit_document/);

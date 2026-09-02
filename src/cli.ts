@@ -118,9 +118,12 @@ export const DOCUMENT_TOOLS_PROMPT =
   "Use write_spreadsheet to create a .xlsx from structured row data, " +
   "edit_spreadsheet to update specific cells in one that already exists (read_document first to see current " +
   "values and figure out row/column numbers), and merge_spreadsheets to combine several files into one. " +
-  "Use merge_pdf to combine PDFs — there's no tool for editing existing PDF text in place, since that isn't " +
-  "reliably possible with any lightweight library; say so rather than attempting something that'll likely " +
-  "corrupt the file. write_document creates a new, plain-text-only .docx (no bold/tables/images). edit_document " +
+  "Use merge_pdf to combine PDFs and split_pdf for the reverse (one file per page, or a single page with " +
+  "`page`) — there's no tool for editing existing PDF text in place, since that isn't reliably possible with " +
+  "any lightweight library; say so rather than attempting something that'll likely corrupt the file. Use " +
+  "images_to_pdf to combine PNG/JPEG images into a PDF, one page per image sized to match it — other image " +
+  "formats aren't supported, convert with resize_image first. write_document creates a new, plain-text-only " +
+  ".docx (no bold/tables/images). edit_document " +
   "does exact-text replacement in an existing .docx, but only works when old_string falls entirely within one " +
   "internal XML run — Word often splits a sentence across several runs, and the tool fails with a clear " +
   "explanation rather than silently missing the edit in that case; prefer a short, distinctive fragment as " +
