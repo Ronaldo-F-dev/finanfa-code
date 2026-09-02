@@ -141,6 +141,17 @@ describe("system prompt: document tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/Without outputPath it overwrites the original file/);
   });
 
+  it("tells the model resize_image supports a pure format conversion with no width/height", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/Give format alone \(no\s*\n?\s*width\/height\) for a pure format conversion/);
+  });
+
+  it("tells the model to use convert_pdf_to_image via pdftoppm, and warns about the .jpg extension quirk", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/convert_pdf_to_image/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/pdftoppm/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/triggers a download instead/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/writes a \.jpg extension, not \.jpeg/);
+  });
+
   it("tells the model python_repl persists state across calls, unlike bash: python3 -c", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/python_repl/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/starts a fresh interpreter every call/);

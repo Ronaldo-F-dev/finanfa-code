@@ -78,10 +78,21 @@ describe("resize_image tool (real sharp execution)", () => {
     expect(meta.format).toBe("webp");
   });
 
-  it("requires at least one of width or height", async () => {
+  it("requires at least one of width, height, or format", async () => {
     await makeTestPng(dir, "in.png", 100, 100);
     const result = await resizeImageTool.handler({ path: "in.png" }, ctx());
     expect(result.isError).toBe(true);
+  });
+
+  it("converts format alone, with neither width nor height, at the original size", async () => {
+    await makeTestPng(dir, "in.png", 80, 60);
+    const result = await resizeImageTool.handler({ path: "in.png", outputPath: "out.webp", format: "webp" }, ctx());
+    expect(result.isError).toBe(false);
+
+    const meta = await sharp(await readFile(path.join(dir, "out.webp"))).metadata();
+    expect(meta.format).toBe("webp");
+    expect(meta.width).toBe(80);
+    expect(meta.height).toBe(60);
   });
 
   it("creates missing parent directories for outputPath, like write_file", async () => {

@@ -139,9 +139,15 @@ export const DOCUMENT_TOOLS_PROMPT =
 export const DEV_TOOLS_PROMPT =
   "Use check_python_types (not bash/run_tests) to type-check a Python file or project with Pyright — it's " +
   "static analysis, safe to run any time, not just after a change you're ready to test. " +
-  "Use resize_image to resize/convert an image — with both width and height given, the default fit \"inside\" " +
-  "scales to fit within that box without cropping, so the actual output size may not exactly match what was " +
-  "asked; use fit \"cover\" for an exact-size crop instead. Without outputPath it overwrites the original file. " +
+  "Use resize_image to resize and/or convert an image's format — with both width and height given, the " +
+  "default fit \"inside\" scales to fit within that box without cropping, so the actual output size may not " +
+  "exactly match what was asked; use fit \"cover\" for an exact-size crop instead. Give format alone (no " +
+  "width/height) for a pure format conversion at the original size. Without outputPath it overwrites the " +
+  "original file. " +
+  "Use convert_pdf_to_image (not preview_html/browser_screenshot) to rasterize PDF pages to PNG/JPEG — it " +
+  "shells out to pdftoppm (poppler-utils) since headless Chromium can't render a PDF inline (navigating to " +
+  "one triggers a download instead), and needs pdftoppm installed; tell the user if it's missing rather than " +
+  "trying to install it yourself. Note pdftoppm's own -jpeg flag writes a .jpg extension, not .jpeg. " +
   "Use python_repl for exploratory Python — trying something quickly, iterating on a snippet, inspecting a " +
   "value — instead of `bash: python3 -c \"...\"`, which starts a fresh interpreter every call and throws away " +
   "variables, imports, and function defs between calls. python_repl keeps all of that across calls, the same " +

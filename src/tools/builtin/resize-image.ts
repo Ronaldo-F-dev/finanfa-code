@@ -18,11 +18,12 @@ interface ResizeImageInput {
 export const resizeImageTool: ToolDefinition<ResizeImageInput> = {
   name: "resize_image",
   description:
-    "Resize an image (PNG/JPEG/WebP/GIF), optionally converting format. Give width, height, or both — with " +
-    "only one, the other scales to preserve aspect ratio. With both and the default fit \"inside\", the image " +
-    "scales to fit within that box without cropping or exceeding it (so the actual output size may differ " +
-    "from what you asked for) — use fit \"cover\" if you specifically want an exact-size crop instead. " +
-    "Without outputPath, overwrites the original file.",
+    "Resize and/or convert the format of an image (PNG/JPEG/WebP/GIF). Give width, height, or both to resize " +
+    "— with only one, the other scales to preserve aspect ratio. With both and the default fit \"inside\", the " +
+    "image scales to fit within that box without cropping or exceeding it (so the actual output size may " +
+    "differ from what you asked for) — use fit \"cover\" if you specifically want an exact-size crop instead. " +
+    "Give format alone with neither width nor height for a pure format conversion at the original size (e.g. " +
+    "PNG to JPEG). Without outputPath, overwrites the original file.",
   riskLevel: "ask",
   inputSchema: {
     type: "object",
@@ -47,8 +48,8 @@ export const resizeImageTool: ToolDefinition<ResizeImageInput> = {
     return `resize ${input.path} to ${dims} -> ${dest}`;
   },
   async handler(input, ctx) {
-    if (input.width === undefined && input.height === undefined) {
-      return { content: "Give at least one of width or height.", isError: true };
+    if (input.width === undefined && input.height === undefined && !input.format) {
+      return { content: "Give at least one of width, height, or format.", isError: true };
     }
 
     const sourcePath = resolveAllowedPath(ctx.cwd, input.path);
@@ -58,12 +59,15 @@ export const resizeImageTool: ToolDefinition<ResizeImageInput> = {
     // ("Cannot use same file for input and output") — reading fully into a
     // buffer first works for both the overwrite-in-place and separate-output
     // cases, with no special-casing needed.
-    let pipeline = sharp(await readFile(sourcePath)).resize({
-      width: input.width,
-      height: input.height,
-      fit: input.fit ?? "inside",
-      withoutEnlargement: true,
-    });
+    let pipeline = sharp(await readFile(sourcePath));
+    if (input.width !== undefined || input.height !== undefined) {
+      pipeline = pipeline.resize({
+        width: input.width,
+        height: input.height,
+        fit: input.fit ?? "inside",
+        withoutEnlargement: true,
+      });
+    }
     if (input.format) pipeline = pipeline.toFormat(input.format);
 
     const { data, info } = await pipeline.toBuffer({ resolveWithObject: true });
