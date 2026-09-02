@@ -39,6 +39,19 @@ describe("system prompt: path guidance", () => {
   });
 });
 
+describe("system prompt: UI/design visual verification loop", () => {
+  it("tells the model to actually screenshot a mockup and check it, not assume the HTML/CSS is correct", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/browser_navigate to.*that URL and browser_screenshot it/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/actually look at the rendered result before calling it done/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/don't assume\s*\n?\s*HTML\/CSS is right just because it wrote without error/i);
+  });
+
+  it("frames it as the same loop as run_tests: fix and re-screenshot until it matches", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/re-screenshot; repeat until it matches what was asked/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/same as the\s*\n?\s*test\/fix loop below/i);
+  });
+});
+
 describe("system prompt: server-readiness guidance", () => {
   it("tells the model to use wait_for_port instead of a fixed sleep or a hand-rolled bash loop", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/use wait_for_port instead of a fixed/i);
