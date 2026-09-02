@@ -12,6 +12,7 @@ function makeStubUi(): UIAdapter {
   return {
     writeAssistantDelta: vi.fn(),
     endAssistantMessage: vi.fn(),
+    writeBanner: vi.fn(),
     writeSystem: vi.fn(),
     writeError: vi.fn(),
     setStatus: vi.fn(),

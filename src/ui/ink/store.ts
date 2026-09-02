@@ -5,7 +5,8 @@ export type LogItem =
   | { kind: "user"; text: string }
   | { kind: "assistant"; text: string }
   | { kind: "system"; text: string }
-  | { kind: "error"; text: string };
+  | { kind: "error"; text: string }
+  | { kind: "banner"; version: string };
 
 export interface PendingPrompt {
   text: string;

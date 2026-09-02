@@ -36,6 +36,9 @@ export function createInkAdapter(): UIAdapter {
     endAssistantMessage(): void {
       store.commitStreaming();
     },
+    writeBanner(version: string): void {
+      store.pushLog({ kind: "banner", version });
+    },
     writeSystem(text: string): void {
       store.setBusy(false);
       store.commitStreaming();

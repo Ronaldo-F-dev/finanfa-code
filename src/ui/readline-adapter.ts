@@ -62,6 +62,32 @@ export function createReadlineAdapter(): UIAdapter {
     endAssistantMessage(): void {
       flushAssistantBuffer();
     },
+    writeBanner(version: string): void {
+      flushAssistantBuffer();
+      clearSpinner();
+      if (!atLineStart) stdout.write("\n");
+      const CYAN = "\x1b[36m";
+      const RESET = "\x1b[0m";
+      const title = `ƒ finanfa-code v${version}`;
+      const tagline = "your own coding agent — code, design, docs, data";
+      // Padding is computed from the plain text first — ANSI escape codes
+      // are invisible but still count toward string length, so wrapping a
+      // string in color codes before measuring it would silently misalign
+      // the box's right border.
+      const width = Math.max(title.length, tagline.length) + 2;
+      const pad = (text: string) => " ".repeat(width - text.length - 1);
+      const row = (styled: string, plain: string) => `${CYAN}│ ${RESET}${styled}${pad(plain)}${CYAN}│${RESET}`;
+      stdout.write(
+        [
+          `${CYAN}╭${"─".repeat(width)}╮${RESET}`,
+          row(`\x1b[1m${title}${RESET}`, title),
+          row(`\x1b[2m\x1b[3m${tagline}${RESET}`, tagline),
+          `${CYAN}╰${"─".repeat(width)}╯${RESET}`,
+          "",
+        ].join("\n"),
+      );
+      atLineStart = true;
+    },
     writeSystem(text: string): void {
       flushAssistantBuffer();
       clearSpinner();

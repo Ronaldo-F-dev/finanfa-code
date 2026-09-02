@@ -1,3 +1,4 @@
+import { createRequire } from "node:module";
 import { Command } from "commander";
 import { AgentSession } from "./core/session.js";
 import { runTurn, type VisionRoute } from "./core/loop.js";
@@ -183,6 +184,12 @@ export const BASE_SYSTEM_PROMPT =
   SECURITY_INSTRUCTION + CORE_BEHAVIOR_PROMPT + PATH_GUIDANCE_PROMPT + PROCESS_GUIDANCE_PROMPT + DOCUMENT_TOOLS_PROMPT + DEV_TOOLS_PROMPT;
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
+// createRequire (not import ... with { type: "json" }) so this works
+// identically whether cli.ts runs from src/ directly (tsx, dev) or from the
+// tsup-bundled dist/ output — ../package.json resolves to the project root
+// either way.
+const PACKAGE_VERSION = (createRequire(import.meta.url)("../package.json") as { version: string }).version;
+
 export interface CliOptions {
   resume?: string;
   continue?: boolean;
@@ -339,6 +346,7 @@ export async function main(argv: string[]): Promise<void> {
   program
     .name("finanfa")
     .description("finanfa-code: a from-scratch AI coding agent CLI")
+    .version(PACKAGE_VERSION, "-v, --version", "output the current version")
     .option("-r, --resume <sessionId>", "resume a specific session by id")
     .option("-c, --continue", "resume the most recent session for this directory")
     .option("-m, --model <model>", "model to use (defaults depend on the active provider)")
@@ -394,8 +402,8 @@ export async function main(argv: string[]): Promise<void> {
   const plugins = await loadPlugins(cwd, tools, commands);
   ui.setCommands(commands.list());
 
-  ui.writeSystem(`finanfa-code — session ${session.id} (${session.model} via ${providerKind})`);
-  ui.writeSystem(`Tools: ${tools.list().map((t) => t.name).join(", ")}`);
+  ui.writeBanner(PACKAGE_VERSION);
+  ui.writeSystem(`session ${session.id} · ${session.model} via ${providerKind} · ${tools.list().length} tools loaded`);
   if (mcp.connectedServers().length > 0) ui.writeSystem(`MCP servers: ${mcp.connectedServers().join(", ")}`);
   if (plugins.length > 0) ui.writeSystem(`Plugins: ${plugins.join(", ")}`);
   if (opts.yolo) ui.writeSystem("⚠ --yolo: all tool calls will be auto-approved");
