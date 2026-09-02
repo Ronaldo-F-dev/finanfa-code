@@ -85,4 +85,32 @@ describe("create_artifact tool", () => {
     expect(diff).toContain("+function App()");
     expect(diff).toContain("+++");
   });
+
+  it("embeds a self-polling reload script so an already-open tab picks up later edit_file changes", async () => {
+    const tool = createArtifactTool(new PreviewServer());
+    await tool.handler({ path: "live.html", code: "function App() { return null; }" }, ctx());
+
+    const written = await readFile(path.join(dir, "live.html"), "utf-8");
+    expect(written).toContain('cache: "no-store"');
+    expect(written).toContain("location.reload()");
+  });
+
+  it("can be edited afterwards with edit_file, matching the exact JSX it wrote byte-for-byte", async () => {
+    const { editFileTool } = await import("../../src/tools/builtin/edit-file.js");
+    const tool = createArtifactTool(new PreviewServer());
+    await tool.handler(
+      { path: "w.html", code: 'function App() { return <button className="bg-blue-500">Go</button>; }' },
+      ctx(),
+    );
+
+    const result = await editFileTool.handler(
+      { path: "w.html", old_string: "bg-blue-500", new_string: "bg-green-500" },
+      ctx(),
+    );
+
+    expect(result.isError).toBe(false);
+    const written = await readFile(path.join(dir, "w.html"), "utf-8");
+    expect(written).toContain('className="bg-green-500"');
+    expect(written).toContain("react.development.js"); // rest of the wrapper survives untouched
+  });
 });

@@ -42,6 +42,33 @@ ${code}
 
 ReactDOM.createRoot(document.getElementById("root")).render(<App />);
 </script>
+<!-- Polls its own URL and reloads on change, so an artifact edited afterwards
+     with edit_file (which never re-opens a tab) shows up in an already-open
+     one instead of going stale. Gives up after ~30 min so a forgotten tab
+     doesn't poll forever. -->
+<script>
+(function () {
+  var baseline = null;
+  var ticks = 0;
+  function poll() {
+    fetch(location.href, { cache: "no-store" })
+      .then(function (r) { return r.text(); })
+      .then(function (html) {
+        if (baseline === null) { baseline = html; return; }
+        if (html !== baseline) location.reload();
+      })
+      .catch(function () {});
+  }
+  poll(); // establish the baseline immediately — waiting for the first
+          // interval tick left a ~1s window where an edit landing before
+          // that tick got silently adopted as the baseline instead of
+          // detected as a change.
+  var timer = setInterval(function () {
+    if (++ticks > 1800) { clearInterval(timer); return; }
+    poll();
+  }, 1000);
+})();
+</script>
 </body>
 </html>
 `;
@@ -62,7 +89,15 @@ export function createArtifactTool(server: PreviewServer): ToolDefinition<Create
       "+ preview_html instead). Aim for a genuinely polished result, not just a functional one: real spacing, a " +
       "clear visual hierarchy, and an actual color/type choice instead of default black-on-white — Tailwind makes " +
       "this cheap, there's no excuse for a bare unstyled page. Follow up with browser_navigate + " +
-      "browser_screenshot to actually see the rendered result before calling it done, same as any other UI work.",
+      "browser_screenshot to actually see the rendered result before calling it done, same as any other UI work. " +
+      "You can define as many helper components/functions as you want in `code` alongside `App` (e.g. " +
+      "`function Header() {...} function App() { return <Header/>; }`) — ordinary JS scoping inside the one " +
+      "script tag, nothing special needed. For a small change to an artifact you already created (a color, a " +
+      "label, one handler), prefer edit_file on the same path instead of re-emitting the whole `code` — the JSX " +
+      "ends up in the written file exactly as you passed it, byte for byte, so a snippet copied from the `code` " +
+      "you sent before will match old_string/new_string cleanly. The page also polls itself and reloads " +
+      "automatically when the file changes, so an edit_file change shows up in the already-open tab without " +
+      "reopening it — reserve calling create_artifact again for a substantial rewrite.",
     riskLevel: "ask",
     inputSchema: {
       type: "object",
