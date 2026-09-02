@@ -229,9 +229,39 @@ async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
   }
   ctx.ui.writeSystem(
     sessions
-      .map((s) => `${s.id}${s.id === ctx.session.id ? " (current)" : ""} — ${s.mtime.toISOString()}`)
+      .map((s) => {
+        const label = s.title ? `"${s.title}" — ${s.id}` : s.id;
+        return `${label}${s.id === ctx.session.id ? " (current)" : ""} — ${s.mtime.toISOString()}`;
+      })
       .join("\n"),
   );
+  return "continue";
+}
+
+/** Switches the REPL's active session to a different saved one, e.g. `/session <id>` from an id shown by /sessions. Persists the outgoing session first, so nothing from it is lost. */
+async function handleSession(ctx: CommandContext): Promise<CommandOutcome> {
+  const id = ctx.args.trim();
+  if (!id) {
+    ctx.ui.writeError("Usage: /session <id> — see /sessions for ids. Switches to a different saved session; the current one is saved first.");
+    return "continue";
+  }
+  if (id === ctx.session.id) {
+    ctx.ui.writeSystem("Already on this session.");
+    return "continue";
+  }
+
+  let target: AgentSession;
+  try {
+    await ctx.session.persist();
+    target = await AgentSession.resume(ctx.cwd, id, ctx.session.systemPrompt);
+  } catch (err) {
+    ctx.ui.writeError(`Could not switch to session "${id}": ${err instanceof Error ? err.message : err}`);
+    return "continue";
+  }
+
+  ctx.setSession(target);
+  const label = target.title ? `"${target.title}"` : target.id;
+  ctx.ui.writeSystem(`Switched to session ${label} (${target.messages.length} message(s)).`);
   return "continue";
 }
 
@@ -356,5 +386,10 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
     "sessions",
     handleSessions,
     "List saved sessions for this directory, /sessions delete <id>, or /sessions delete all (keeps the current one)",
+  );
+  commands.register(
+    "session",
+    handleSession,
+    "Switch to a different saved session by id (see /sessions for ids) — saves the current one first",
   );
 }

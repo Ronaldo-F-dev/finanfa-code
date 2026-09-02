@@ -46,7 +46,7 @@ describe("/undo command", () => {
 
     const ui = makeUi();
     const handler = commands.get("undo")!;
-    const outcome = await handler({ session, ui, tools: undefined as never, permissions: undefined as never, mcp: undefined as never, cwd: dir, args: "" });
+    const outcome = await handler({ session, ui, tools: undefined as never, permissions: undefined as never, mcp: undefined as never, setSession: () => {}, cwd: dir, args: "" });
 
     expect(outcome).toBe("continue");
     expect(await readFile(filePath, "utf-8")).toBe("original");
@@ -60,7 +60,7 @@ describe("/undo command", () => {
 
     const ui = makeUi();
     const handler = commands.get("undo")!;
-    await handler({ session, ui, tools: undefined as never, permissions: undefined as never, mcp: undefined as never, cwd: dir, args: "" });
+    await handler({ session, ui, tools: undefined as never, permissions: undefined as never, mcp: undefined as never, setSession: () => {}, cwd: dir, args: "" });
 
     await expect(readFile(filePath, "utf-8")).rejects.toThrow();
   });
@@ -70,7 +70,7 @@ describe("/undo command", () => {
     const ui = makeUi();
     const handler = commands.get("undo")!;
 
-    await handler({ session, ui, tools: undefined as never, permissions: undefined as never, mcp: undefined as never, cwd: dir, args: "" });
+    await handler({ session, ui, tools: undefined as never, permissions: undefined as never, mcp: undefined as never, setSession: () => {}, cwd: dir, args: "" });
 
     expect(ui.writeSystem).toHaveBeenCalledWith("Nothing to undo.");
   });

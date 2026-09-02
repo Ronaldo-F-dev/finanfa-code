@@ -15,6 +15,8 @@ export interface SessionFile {
   model: string;
   messages: NeutralMessage[];
   usage: UsageTotals;
+  /** Short auto-generated summary (see maybeGenerateTitle in loop.ts) — undefined until the first exchange completes. */
+  title?: string;
 }
 
 // Computed lazily (not memoized as a module constant) so it reflects the
@@ -38,6 +40,7 @@ export class AgentSession {
   readonly cwd: string;
   readonly model: string;
   readonly systemPrompt: string;
+  title?: string;
   messages: NeutralMessage[] = [];
   usage: UsageTotals = { inputTokens: 0, outputTokens: 0 };
   readonly history = new EditHistory();
@@ -65,11 +68,12 @@ export class AgentSession {
     });
     session.messages = data.messages;
     session.usage = data.usage;
+    session.title = data.title;
     return session;
   }
 
-  /** Lists session ids for `cwd`, most recently modified first. */
-  static async list(cwd: string): Promise<{ id: string; mtime: Date }[]> {
+  /** Lists sessions for `cwd`, most recently modified first. title is undefined for a session with no completed exchange yet, or an unreadable/corrupted file. */
+  static async list(cwd: string): Promise<{ id: string; mtime: Date; title?: string }[]> {
     const dir = sessionDir(cwd);
     try {
       const entries = await readdir(dir);
@@ -77,8 +81,12 @@ export class AgentSession {
         entries
           .filter((entry) => entry.endsWith(".json"))
           .map(async (entry) => {
-            const st = await stat(path.join(dir, entry));
-            return { id: entry.replace(/\.json$/, ""), mtime: st.mtime };
+            const filePath = path.join(dir, entry);
+            const st = await stat(filePath);
+            const title = await readFile(filePath, "utf-8")
+              .then((raw) => (JSON.parse(raw) as SessionFile).title)
+              .catch(() => undefined);
+            return { id: entry.replace(/\.json$/, ""), mtime: st.mtime, title };
           }),
       );
       return withMtime.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
@@ -124,6 +132,7 @@ export class AgentSession {
         model: this.model,
         messages: this.messages,
         usage: this.usage,
+        title: this.title,
       };
       await writeFile(tmp, JSON.stringify(data, null, 2), "utf-8");
       await rename(tmp, file);

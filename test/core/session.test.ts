@@ -49,3 +49,46 @@ describe("AgentSession.persist", () => {
     expect(resumed.messages).toEqual(session.messages);
   });
 });
+
+describe("AgentSession.list", () => {
+  let homeDir: string;
+  let originalHome: string | undefined;
+
+  beforeEach(async () => {
+    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-session-list-"));
+    originalHome = process.env.HOME;
+    process.env.HOME = homeDir;
+  });
+
+  afterEach(async () => {
+    process.env.HOME = originalHome;
+    await rm(homeDir, { recursive: true, force: true });
+  });
+
+  it("returns each session's title alongside its id, undefined when none was set", async () => {
+    const titled = new AgentSession({ cwd: "/proj", model: "m", systemPrompt: "s" });
+    titled.title = "Real title";
+    await titled.persist();
+    const untitled = new AgentSession({ cwd: "/proj", model: "m", systemPrompt: "s" });
+    await untitled.persist();
+
+    const sessions = await AgentSession.list("/proj");
+    const byId = new Map(sessions.map((s) => [s.id, s.title]));
+    expect(byId.get(titled.id)).toBe("Real title");
+    expect(byId.get(untitled.id)).toBeUndefined();
+  });
+
+  it("doesn't crash on a corrupted session file — reports title: undefined for that entry instead", async () => {
+    const good = new AgentSession({ cwd: "/proj", model: "m", systemPrompt: "s" });
+    good.title = "Fine";
+    await good.persist();
+
+    const sessionDir = path.join(homeDir, ".finanfa-code", "sessions");
+    const projectDirs = await import("node:fs/promises").then((fs) => fs.readdir(sessionDir));
+    await writeFile(path.join(sessionDir, projectDirs[0], "corrupted.json"), "{ not valid json");
+
+    const sessions = await AgentSession.list("/proj");
+    expect(sessions.find((s) => s.id === "corrupted")?.title).toBeUndefined();
+    expect(sessions.find((s) => s.id === good.id)?.title).toBe("Fine");
+  });
+});

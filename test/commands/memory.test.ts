@@ -43,6 +43,7 @@ describe("/memory command", () => {
       tools: undefined as never,
       permissions: undefined as never,
       mcp: undefined as never,
+      setSession: () => {},
       cwd: dir,
       args,
     };

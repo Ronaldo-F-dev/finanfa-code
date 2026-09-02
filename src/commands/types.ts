@@ -12,6 +12,8 @@ export interface CommandContext {
   mcp: McpClientManager;
   cwd: string;
   args: string;
+  /** Switches the REPL's active session for subsequent turns (see /session) — persist the outgoing session yourself first if it should be kept. */
+  setSession: (session: AgentSession) => void;
 }
 
 export type CommandOutcome = "continue" | "exit";

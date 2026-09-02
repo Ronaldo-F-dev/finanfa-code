@@ -259,6 +259,43 @@ class LoopGuard {
   }
 }
 
+/**
+ * Same idea as ChatGPT/Claude.ai auto-titling a new thread: after the first
+ * exchange completes, ask the model for a short summary of what the
+ * conversation is about, so /sessions can show something more useful than a
+ * bare UUID. Uses the session's own model/provider (no separate "title
+ * model" wiring) and a minimal, tool-free call — cheap, and never allowed to
+ * fail the actual turn: any error here is swallowed, a missing title just
+ * means /sessions falls back to showing the id, same as before this existed.
+ */
+export async function maybeGenerateTitle(session: AgentSession, provider: LlmProvider): Promise<void> {
+  if (session.title) return;
+  const firstUserMessage = session.messages.find((m) => m.role === "user");
+  if (!firstUserMessage || firstUserMessage.role !== "user") return;
+
+  try {
+    const result = await provider.streamTurn({
+      model: session.model,
+      systemPrompt:
+        "Reply with ONLY a short title (3-6 words, no punctuation, no quotes, no trailing period) summarizing " +
+        "what this conversation is about. Nothing else — just the title, nothing before or after it.",
+      messages: [{ role: "user", content: firstUserMessage.content }],
+      tools: [],
+      onTextDelta: () => {},
+    });
+    const title = result.assistantMessage.content
+      .trim()
+      .replace(/^["'“”]+|["'“”]+$/g, "")
+      .slice(0, 60);
+    if (title.length > 0) {
+      session.title = title;
+      await session.persist();
+    }
+  } catch {
+    // Best-effort — see docstring.
+  }
+}
+
 export async function runTurn(
   session: AgentSession,
   provider: LlmProvider,

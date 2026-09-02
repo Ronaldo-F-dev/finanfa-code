@@ -35,6 +35,7 @@ describe("/todos command", () => {
       tools: undefined as never,
       permissions: undefined as never,
       mcp: undefined as never,
+      setSession: () => {},
       cwd: "/tmp",
       args: "",
     });
@@ -55,6 +56,7 @@ describe("/todos command", () => {
       tools: undefined as never,
       permissions: undefined as never,
       mcp: undefined as never,
+      setSession: () => {},
       cwd: "/tmp",
       args: "",
     });

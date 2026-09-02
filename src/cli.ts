@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { Command } from "commander";
 import { AgentSession } from "./core/session.js";
-import { runTurn, type VisionRoute } from "./core/loop.js";
+import { runTurn, maybeGenerateTitle, type VisionRoute } from "./core/loop.js";
 import type { UIAdapter } from "./ui/adapter.js";
 import { createReadlineAdapter } from "./ui/readline-adapter.js";
 import { createInkAdapter } from "./ui/ink/ink-adapter.js";
@@ -300,7 +300,7 @@ export async function resolveSession(
  * go through this same path.
  */
 function registerShutdownHandlers(
-  session: AgentSession,
+  getSession: () => AgentSession,
   mcp: McpClientManager,
   browser: BrowserManager,
   ui: UIAdapter,
@@ -312,7 +312,11 @@ function registerShutdownHandlers(
     shuttingDown = true;
     ui.writeSystem("Interrupted — saving session and closing connections...");
     try {
-      await session.persist();
+      // A getter, not a captured session — /session may have swapped the
+      // REPL's active session since this handler was registered, and Ctrl+C
+      // should save whichever one is actually current, not the one from
+      // startup.
+      await getSession().persist();
     } catch (err) {
       ui.writeError(`Failed to save session: ${err instanceof Error ? err.message : String(err)}`);
     }
@@ -404,16 +408,24 @@ export async function main(argv: string[]): Promise<void> {
 
   const mcp = new McpClientManager();
   const browser = new BrowserManager();
-  registerShutdownHandlers(session, mcp, browser, ui);
-  await connectMcpServers(cwd, mcp, ui);
-  for (const def of await mcp.listAllTools()) tools.register(def);
-
-  registerStatefulBuiltins(tools, { provider, permissions, ui, model, cwd, browser });
 
   const commands = new CommandRegistry();
   registerBuiltinCommands(commands);
   const plugins = await loadPlugins(cwd, tools, commands);
   ui.setCommands(commands.list());
+
+  // Built as a named, mutable variable (not an inline object literal at the
+  // repl() call site) specifically so registerShutdownHandlers below can
+  // close over it via a getter — /session can swap deps.session mid-run,
+  // and Ctrl+C needs to persist whichever session is current then, not the
+  // one that existed at startup.
+  const deps: ReplDeps = { session, provider, ui, tools, permissions, mcp, commands, cwd, visionRoute };
+  registerShutdownHandlers(() => deps.session, mcp, browser, ui);
+
+  await connectMcpServers(cwd, mcp, ui);
+  for (const def of await mcp.listAllTools()) tools.register(def);
+
+  registerStatefulBuiltins(tools, { provider, permissions, ui, model, cwd, browser });
 
   ui.writeSystem(`session ${session.id} · ${session.model} via ${providerKind} · ${tools.list().length} tools loaded`);
   if (mcp.connectedServers().length > 0) ui.writeSystem(`MCP servers: ${mcp.connectedServers().join(", ")}`);
@@ -422,7 +434,7 @@ export async function main(argv: string[]): Promise<void> {
   if (visionRoute) ui.writeSystem(`Vision routing: image turns use ${visionRoute.model}`);
   ui.writeSystem(`Type / to see available commands, or /help for details.`);
 
-  await repl({ session, provider, ui, tools, permissions, mcp, commands, cwd, visionRoute });
+  await repl(deps);
   await mcp.disconnectAll();
   await browser.close();
   ui.close();
@@ -449,11 +461,20 @@ async function runSlashCommand(deps: ReplDeps, trimmed: string): Promise<Command
     ui.writeError(`Unknown command "/${name}". Available: ${available}`);
     return "continue";
   }
-  return handler({ ...deps, args: rest.join(" ") });
+  return handler({
+    ...deps,
+    args: rest.join(" "),
+    // Mutates deps itself (not a local copy) so repl()'s loop — which reads
+    // deps.session fresh every iteration, not a destructured snapshot —
+    // picks up the switch on the very next turn.
+    setSession: (session) => {
+      deps.session = session;
+    },
+  });
 }
 
 async function repl(deps: ReplDeps): Promise<void> {
-  const { ui, session, provider, tools, permissions, visionRoute } = deps;
+  const { ui, provider, tools, permissions, visionRoute } = deps;
 
   for (;;) {
     const input = await ui.askUser("\n> ");
@@ -466,7 +487,8 @@ async function repl(deps: ReplDeps): Promise<void> {
     }
 
     try {
-      await runTurn(session, provider, ui, tools, permissions, trimmed, visionRoute);
+      await runTurn(deps.session, provider, ui, tools, permissions, trimmed, visionRoute);
+      await maybeGenerateTitle(deps.session, provider);
     } catch (err) {
       ui.writeError(err instanceof Error ? err.message : String(err));
     }

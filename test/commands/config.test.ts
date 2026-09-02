@@ -55,6 +55,7 @@ describe("/config command", () => {
       mcp: undefined as never,
       cwd: projectDir,
       args,
+      setSession: () => {},
     };
   }
 
