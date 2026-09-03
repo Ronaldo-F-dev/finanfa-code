@@ -16,18 +16,40 @@ export interface StatusInfo {
   model: string;
 }
 
+export interface SessionInfo {
+  id: string;
+  title?: string;
+  model: string;
+  providerKind: string;
+  toolCount: number;
+}
+
 let nextId = 1;
 const uid = () => String(nextId++);
 
-export function useAgentSocket(model: string | undefined) {
+/**
+ * model is the model to use for a brand-new session; sessionId, when set,
+ * resumes an existing one instead (the server ignores model in that case —
+ * AgentSession.model is readonly, so a resumed session keeps whatever model
+ * it was created with). onTitled fires once per session the first time the
+ * server auto-generates a title, so the sidebar can refresh without polling.
+ */
+export function useAgentSocket(model: string | undefined, sessionId: string | undefined, onTitled?: () => void) {
   const [connected, setConnected] = useState(false);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [busy, setBusy] = useState<{ active: boolean; label?: string }>({ active: false });
   const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null);
   const [status, setStatus] = useState<StatusInfo | null>(null);
-  const [sessionKey, setSessionKey] = useState(0);
+  const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
+  const [resumeToken, setResumeToken] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
+  const onTitledRef = useRef(onTitled);
+  onTitledRef.current = onTitled;
+  // Whether *this* connection's session already had a title as of its last
+  // session_info — reset per connection, used only to tell "just got its
+  // first auto-generated title" apart from "echoing the same title back".
+  const hadTitleRef = useRef(false);
 
   useEffect(() => {
     if (!model) return;
@@ -35,9 +57,14 @@ export function useAgentSocket(model: string | undefined) {
     setStatus(null);
     setBusy({ active: false });
     setPermissionRequest(null);
+    setSessionInfo(null);
     streamingIdRef.current = null;
+    hadTitleRef.current = false;
+
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
-    const ws = new WebSocket(`${proto}//${location.host}/ws?model=${encodeURIComponent(model)}`);
+    const qs = new URLSearchParams({ model });
+    if (sessionId) qs.set("session", sessionId);
+    const ws = new WebSocket(`${proto}//${location.host}/ws?${qs.toString()}`);
     wsRef.current = ws;
 
     ws.onopen = () => setConnected(true);
@@ -78,13 +105,31 @@ export function useAgentSocket(model: string | undefined) {
         case "ask":
           setPermissionRequest({ requestId: msg.requestId, prompt: msg.prompt });
           break;
+        case "session_info": {
+          const wasTitled = hadTitleRef.current;
+          hadTitleRef.current = Boolean(msg.title);
+          setSessionInfo({ id: msg.id, title: msg.title, model: msg.model, providerKind: msg.providerKind, toolCount: msg.toolCount });
+          if (msg.title && !wasTitled) onTitledRef.current?.();
+          break;
+        }
+        case "history": {
+          const items: TimelineItem[] = (msg.messages as { role: "user" | "assistant"; content: string }[]).map((m) => ({
+            kind: m.role,
+            id: uid(),
+            text: m.content,
+            ...(m.role === "assistant" ? { streaming: false } : {}),
+          })) as TimelineItem[];
+          setTimeline((t) => [...items, ...t]);
+          break;
+        }
         default:
           break;
       }
     };
 
     return () => ws.close();
-  }, [model, sessionKey]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [model, sessionId, resumeToken]);
 
   const sendMessage = useCallback((text: string) => {
     const ws = wsRef.current;
@@ -106,7 +151,13 @@ export function useAgentSocket(model: string | undefined) {
     ws.send(JSON.stringify({ type: "interrupt" }));
   }, []);
 
-  const startNewChat = useCallback(() => setSessionKey((k) => k + 1), []);
+  const reconnect = useCallback(() => setResumeToken((k) => k + 1), []);
 
-  return { connected, timeline, busy, permissionRequest, status, sendMessage, answerPermission, interrupt, startNewChat };
+  const switchModel = useCallback((newModel: string) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify({ type: "set_model", model: newModel }));
+  }, []);
+
+  return { connected, timeline, busy, permissionRequest, status, sessionInfo, sendMessage, answerPermission, interrupt, reconnect, switchModel };
 }

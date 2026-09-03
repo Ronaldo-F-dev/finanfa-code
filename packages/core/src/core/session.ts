@@ -40,7 +40,15 @@ function sessionDir(cwd: string): string {
 export class AgentSession {
   readonly id: string;
   readonly cwd: string;
-  readonly model: string;
+  /**
+   * Mutable (unlike id/cwd/systemPrompt) so a frontend can offer switching
+   * models mid-conversation, the way Claude.ai/ChatGPT do — runTurn always
+   * reads session.model fresh per call, so a change takes effect on the very
+   * next turn. Only meaningful within the same provider/family (switching
+   * from an Anthropic model to another Anthropic model, say) — the provider
+   * instance itself is chosen once per session and isn't swapped here.
+   */
+  model: string;
   readonly systemPrompt: string;
   title?: string;
   goal?: string;

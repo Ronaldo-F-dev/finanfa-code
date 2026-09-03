@@ -3,7 +3,7 @@ import path from "node:path";
 import express from "express";
 import { WebSocketServer, type WebSocket } from "ws";
 import { AgentSession } from "@finanfa/core/src/core/session.js";
-import { runTurn } from "@finanfa/core/src/core/loop.js";
+import { runTurn, maybeGenerateTitle } from "@finanfa/core/src/core/loop.js";
 import { ToolRegistry } from "@finanfa/core/src/tools/registry.js";
 import { registerBuiltins, registerStatefulBuiltins } from "@finanfa/core/src/tools/builtin/index.js";
 import { PermissionManager } from "@finanfa/core/src/permissions/manager.js";
@@ -14,7 +14,8 @@ import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool 
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
-import { loadConfig } from "@finanfa/core/src/core/config.js";
+import { loadConfig, saveGlobalConfig, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
+import { CONFIG_KEYS, SECRET_KEYS, maskSecret } from "@finanfa/core/src/commands/builtin.js";
 import { BASE_SYSTEM_PROMPT, selectProvider, connectMcpServers } from "@finanfa/core/src/app.js";
 import { PRICING } from "@finanfa/core/src/core/pricing.js";
 import { createWebUiAdapter } from "./web-ui-adapter.js";
@@ -36,6 +37,48 @@ app.get("/api/models", async (_req, res) => {
   res.json({ providerKind: kind, defaultModel, models });
 });
 
+app.get("/api/sessions", async (_req, res) => {
+  const sessions = await AgentSession.list(CWD);
+  res.json({ sessions: sessions.map((s) => ({ id: s.id, title: s.title, mtime: s.mtime })) });
+});
+
+app.delete("/api/sessions/:id", async (req, res) => {
+  await AgentSession.delete(CWD, req.params.id);
+  res.json({ ok: true });
+});
+
+// Same scope as the CLI's /config command: reads the merged (global +
+// project) config, but only ever writes the global file — a web session has
+// no separate notion of "project-local" beyond CWD itself. Secrets
+// (apiKey/visionApiKey) are masked on the way out (never round-tripped in
+// full to the browser) — a field is left untouched on save unless the
+// request explicitly includes it.
+app.get("/api/config", async (_req, res) => {
+  const config = await loadConfig(CWD);
+  const masked: Record<string, string | undefined> = {};
+  for (const key of CONFIG_KEYS) {
+    const value = config[key];
+    masked[key] = value && (SECRET_KEYS as readonly string[]).includes(key) ? maskSecret(value) : value;
+  }
+  res.json({ config: masked, secretKeys: SECRET_KEYS });
+});
+
+app.post("/api/config", async (req, res) => {
+  const body = req.body as Partial<FinanfaConfig>;
+  const current = await loadConfig(CWD);
+  const next: FinanfaConfig = { ...current };
+  for (const key of CONFIG_KEYS) {
+    if (!(key in body)) continue;
+    const value = body[key];
+    // An empty string clears the field (matches /config's "unset by leaving
+    // blank" convention); undefined/missing means "leave unchanged".
+    if (value === "" || value === undefined) delete next[key];
+    else (next as Record<string, unknown>)[key] = value;
+  }
+  await saveGlobalConfig(next);
+  res.json({ ok: true, note: "Saved. Existing open chats keep their current provider/model — start a new chat to pick up the change." });
+});
+
 const clientDist = path.join(import.meta.dirname, "../../web-client/dist");
 app.use(express.static(clientDist));
 app.get(/^(?!\/api|\/ws).*/, (_req, res) => {
@@ -53,12 +96,13 @@ wss.on("connection", (ws: WebSocket, req) => {
 
 async function handleConnection(ws: WebSocket, url: string): Promise<void> {
   const { adapter, resolvePending } = createWebUiAdapter(ws);
-  const requestedModel = new URL(url, "http://localhost").searchParams.get("model") ?? undefined;
+  const params = new URL(url, "http://localhost").searchParams;
+  const requestedModel = params.get("model") ?? undefined;
+  const requestedSessionId = params.get("session") ?? undefined;
 
   try {
     const config = await loadConfig(CWD);
     const { provider, defaultModel, kind: providerKind } = selectProvider(config);
-    const model = requestedModel ?? defaultModel;
 
     const tools = new ToolRegistry();
     registerBuiltins(tools);
@@ -74,7 +118,23 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     const systemPrompt =
       BASE_SYSTEM_PROMPT + formatSkillIndex(skills) + formatMemoryIndex(memories) + formatProjectInstructions(projectInstructions);
 
-    const session = new AgentSession({ cwd: CWD, model, systemPrompt });
+    // The session's own (readonly) model wins on resume — a saved session
+    // keeps whatever model it was created with, same as the CLI has no
+    // /model command to change one mid-session either.
+    let session: AgentSession;
+    if (requestedSessionId) {
+      try {
+        session = await AgentSession.resume(CWD, requestedSessionId, systemPrompt);
+      } catch (err) {
+        adapter.writeError(
+          `Could not resume session "${requestedSessionId}": ${err instanceof Error ? err.message : String(err)}. Starting a new session instead.`,
+        );
+        session = new AgentSession({ cwd: CWD, model: requestedModel ?? defaultModel, systemPrompt });
+      }
+    } else {
+      session = new AgentSession({ cwd: CWD, model: requestedModel ?? defaultModel, systemPrompt });
+    }
+    const model = session.model;
 
     const permissionConfig = await loadPermissionConfig(CWD);
     const permissions = new PermissionManager({ config: permissionConfig, ui: adapter });
@@ -85,6 +145,34 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     for (const def of await mcp.listAllTools()) tools.register(def);
 
     registerStatefulBuiltins(tools, { provider, permissions, ui: adapter, model, cwd: CWD, browser, designContract: designContract.content });
+
+    // Sent as a structured event (not just parsed out of the text banner
+    // below) so the client can sync its model selector / title state
+    // exactly, including when a resumed session's model differs from
+    // whatever was last selected in the UI.
+    ws.send(
+      JSON.stringify({
+        type: "session_info",
+        id: session.id,
+        title: session.title,
+        model: session.model,
+        providerKind,
+        toolCount: tools.list().length,
+      }),
+    );
+    // Replay past turns for a resumed session — tool activity itself isn't
+    // replayed (it isn't stored as display-ready text), only the user/
+    // assistant exchange, same as reopening a ChatGPT/Claude.ai thread.
+    if (requestedSessionId && session.messages.length > 0) {
+      ws.send(
+        JSON.stringify({
+          type: "history",
+          messages: session.messages
+            .filter((m) => m.role === "user" || m.role === "assistant")
+            .map((m) => ({ role: m.role, content: m.content })),
+        }),
+      );
+    }
 
     adapter.writeBanner("0.1.0");
     adapter.writeSystem(`session ${session.id} · ${session.model} via ${providerKind} · ${tools.list().length} tools loaded`);
@@ -110,6 +198,9 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           turnInFlight = true;
           try {
             await runTurn(session, provider, adapter, tools, permissions, msg.text);
+            const hadTitle = Boolean(session.title);
+            await maybeGenerateTitle(session, provider);
+            if (!hadTitle && session.title) ws.send(JSON.stringify({ type: "session_info", id: session.id, title: session.title, model: session.model, providerKind, toolCount: tools.list().length }));
           } catch (err) {
             adapter.writeError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
@@ -120,6 +211,11 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           resolvePending(msg.requestId, msg.answer);
         } else if (msg.type === "interrupt") {
           for (const controller of session.activeAbortControllers) controller.abort();
+        } else if (msg.type === "set_model" && typeof msg.model === "string" && msg.model) {
+          session.model = msg.model;
+          ws.send(
+            JSON.stringify({ type: "session_info", id: session.id, title: session.title, model: session.model, providerKind, toolCount: tools.list().length }),
+          );
         }
       })();
     });

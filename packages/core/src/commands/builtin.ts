@@ -295,7 +295,7 @@ async function handleGoal(ctx: CommandContext): Promise<CommandOutcome> {
   return "continue";
 }
 
-const CONFIG_KEYS = [
+export const CONFIG_KEYS = [
   "provider",
   "model",
   "baseUrl",
@@ -305,14 +305,14 @@ const CONFIG_KEYS = [
   "visionBaseUrl",
   "visionApiKey",
 ] as const;
-type ConfigKey = (typeof CONFIG_KEYS)[number];
-const SECRET_KEYS: readonly ConfigKey[] = ["apiKey", "visionApiKey"];
+export type ConfigKey = (typeof CONFIG_KEYS)[number];
+export const SECRET_KEYS: readonly ConfigKey[] = ["apiKey", "visionApiKey"];
 
 function isConfigKey(key: string): key is ConfigKey {
   return (CONFIG_KEYS as readonly string[]).includes(key);
 }
 
-function maskSecret(value: string): string {
+export function maskSecret(value: string): string {
   return value.length <= 8 ? "****" : `${value.slice(0, 4)}...${value.slice(-4)}`;
 }
 
