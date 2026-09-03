@@ -53,7 +53,12 @@ const uid = () => String(nextId++);
  * it was created with). onTitled fires once per session the first time the
  * server auto-generates a title, so the sidebar can refresh without polling.
  */
-export function useAgentSocket(model: string | undefined, sessionId: string | undefined, onTitled?: () => void) {
+export function useAgentSocket(
+  model: string | undefined,
+  sessionId: string | undefined,
+  projectId: string | undefined,
+  onTitled?: () => void,
+) {
   const [connected, setConnected] = useState(false);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
   const [busy, setBusy] = useState<{ active: boolean; label?: string }>({ active: false });
@@ -94,6 +99,7 @@ export function useAgentSocket(model: string | undefined, sessionId: string | un
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const qs = new URLSearchParams({ model });
     if (sessionId) qs.set("session", sessionId);
+    if (projectId) qs.set("project", projectId);
     const ws = new WebSocket(`${proto}//${location.host}/ws?${qs.toString()}`);
     wsRef.current = ws;
 
@@ -166,7 +172,7 @@ export function useAgentSocket(model: string | undefined, sessionId: string | un
 
     return () => ws.close();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [model, sessionId, resumeToken]);
+  }, [model, sessionId, projectId, resumeToken]);
 
   const sendMessage = useCallback((text: string, images?: Attachment[]) => {
     const ws = wsRef.current;

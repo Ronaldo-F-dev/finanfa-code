@@ -11,6 +11,7 @@
   "dependencies": {
     "@finanfa/core": "*",
     "express": "^4.21.2",
+    "jszip": "^3.10.1",
     "ws": "^8.18.0"
   },
   "devDependencies": {

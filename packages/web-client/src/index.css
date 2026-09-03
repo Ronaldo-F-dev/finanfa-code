@@ -56,6 +56,23 @@ body {
   gap: 10px;
 }
 
+.sidebar-project {
+  background: transparent;
+  color: var(--text-muted);
+  border: none;
+  padding: 4px 4px 0;
+  text-align: left;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.sidebar-project:hover {
+  color: var(--text);
+}
+
 .sidebar-new {
   background: var(--bg);
   color: var(--text);
@@ -734,4 +751,97 @@ body {
   font-size: 12.5px;
   color: var(--text-muted);
   margin-bottom: 12px;
+}
+
+.projects-modal {
+  max-width: 560px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+.projects-new {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 16px;
+}
+.projects-new input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13px;
+}
+.projects-new input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.projects-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 16px;
+}
+
+.project-row {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+}
+
+.project-row-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  margin-bottom: 8px;
+}
+
+.project-name {
+  font-size: 13.5px;
+  font-weight: 500;
+}
+
+.project-row-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+.project-row-actions .btn {
+  font-size: 12px;
+  padding: 5px 10px;
+  text-decoration: none;
+}
+
+.project-knowledge {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  align-items: flex-start;
+}
+
+.project-file-row {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  font-family: var(--font-mono);
+  padding: 3px 0;
+}
+.project-file-row button {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+}
+.project-file-row button:hover {
+  color: var(--danger);
 }

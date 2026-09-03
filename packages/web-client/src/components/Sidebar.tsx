@@ -8,37 +8,48 @@ export interface SessionListItem {
 
 export function Sidebar({
   activeSessionId,
+  projectId,
+  projectName,
   refreshToken,
   onSelect,
   onNewChat,
   onOpenSettings,
   onOpenMcp,
+  onOpenProjects,
 }: {
   activeSessionId: string | undefined;
+  projectId: string | undefined;
+  projectName?: string;
   refreshToken: number;
   onSelect: (id: string) => void;
   onNewChat: () => void;
   onOpenSettings: () => void;
   onOpenMcp: () => void;
+  onOpenProjects: () => void;
 }) {
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
 
   useEffect(() => {
-    fetch("/api/sessions")
+    const qs = projectId ? `?project=${encodeURIComponent(projectId)}` : "";
+    fetch(`/api/sessions${qs}`)
       .then((r) => r.json())
       .then((data: { sessions: SessionListItem[] }) => setSessions(data.sessions))
       .catch(() => setSessions([]));
-  }, [refreshToken, activeSessionId]);
+  }, [refreshToken, activeSessionId, projectId]);
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.stopPropagation();
-    await fetch(`/api/sessions/${id}`, { method: "DELETE" });
+    const qs = projectId ? `?project=${encodeURIComponent(projectId)}` : "";
+    await fetch(`/api/sessions/${id}${qs}`, { method: "DELETE" });
     setSessions((s) => s.filter((session) => session.id !== id));
     if (id === activeSessionId) onNewChat();
   }
 
   return (
     <aside className="sidebar">
+      <button className="sidebar-project" onClick={onOpenProjects} title="Switch project">
+        📁 {projectName ?? "Default workspace"}
+      </button>
       <button className="sidebar-new" onClick={onNewChat}>
         + New chat
       </button>

@@ -6,6 +6,7 @@ import { PermissionModal } from "./components/PermissionModal";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsModal } from "./components/SettingsModal";
 import { McpPanel } from "./components/McpPanel";
+import { ProjectsPanel } from "./components/ProjectsPanel";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
@@ -32,29 +33,51 @@ export default function App() {
   const [connectModel, setConnectModel] = useState<string>("");
   const [model, setModel] = useState<string>("");
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>(undefined);
+  // undefined = the "default" workspace (the folder the server was started
+  // against) — the only workspace that existed before Projects, kept as the
+  // implicit default rather than requiring everyone to create one.
+  const [activeProjectId, setActiveProjectId] = useState<string | undefined>(undefined);
+  const [projectName, setProjectName] = useState<string | undefined>(undefined);
   const [input, setInput] = useState("");
   const [pendingImages, setPendingImages] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
+  const [projectsOpen, setProjectsOpen] = useState(false);
   const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    fetch("/api/models")
+    const qs = activeProjectId ? `?project=${encodeURIComponent(activeProjectId)}` : "";
+    fetch(`/api/models${qs}`)
       .then((r) => r.json())
       .then((data: { models: ModelOption[]; defaultModel: string }) => {
         setModels(data.models);
-        setConnectModel((current) => current || data.defaultModel);
-        setModel((current) => current || data.defaultModel);
+        setConnectModel(data.defaultModel);
+        setModel(data.defaultModel);
       })
       .catch(() => {
         setModels([]);
         setConnectModel("default");
         setModel("default");
       });
-  }, []);
+  }, [activeProjectId]);
+
+  function handleSelectProject(id: string | undefined) {
+    setActiveProjectId(id);
+    setActiveSessionId(undefined); // a session belongs to exactly one project's cwd
+  }
+
+  useEffect(() => {
+    if (!activeProjectId) {
+      setProjectName(undefined);
+      return;
+    }
+    fetch("/api/projects")
+      .then((r) => r.json())
+      .then((data: { projects: { id: string; name: string }[] }) => setProjectName(data.projects.find((p) => p.id === activeProjectId)?.name));
+  }, [activeProjectId]);
 
   const onTitled = useCallback(() => setSidebarRefreshToken((t) => t + 1), []);
   const {
@@ -76,7 +99,7 @@ export default function App() {
     mcpConnect,
     mcpToggle,
     mcpReload,
-  } = useAgentSocket(connectModel || undefined, activeSessionId, onTitled);
+  } = useAgentSocket(connectModel || undefined, activeSessionId, activeProjectId, onTitled);
 
   // The server's session_info is the source of truth for what model the
   // *active connection* is actually using — after a resume, after a live
@@ -135,7 +158,7 @@ export default function App() {
           const res = await fetch("/api/upload", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ filename: file.name, dataBase64: base64 }),
+            body: JSON.stringify({ filename: file.name, dataBase64: base64, project: activeProjectId }),
           });
           const data = await res.json();
           setInput((prev) => (prev ? `${prev}\n` : "") + `[Attached file: ${data.path}]`);
@@ -151,11 +174,14 @@ export default function App() {
     <div className="app-shell">
       <Sidebar
         activeSessionId={sessionInfo?.id ?? activeSessionId}
+        projectId={activeProjectId}
+        projectName={projectName}
         refreshToken={sidebarRefreshToken}
         onSelect={setActiveSessionId}
         onNewChat={handleNewChat}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenMcp={() => setMcpOpen(true)}
+        onOpenProjects={() => setProjectsOpen(true)}
       />
 
       <div className="app">
@@ -262,6 +288,7 @@ export default function App() {
       {mcpOpen && (
         <McpPanel servers={mcpServers} loaded={mcpLoaded} onClose={() => setMcpOpen(false)} onConnect={mcpConnect} onToggle={mcpToggle} onReload={mcpReload} />
       )}
+      {projectsOpen && <ProjectsPanel activeProjectId={activeProjectId} onClose={() => setProjectsOpen(false)} onSelect={handleSelectProject} />}
     </div>
   );
 }

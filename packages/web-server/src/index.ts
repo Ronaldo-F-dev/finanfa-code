@@ -23,18 +23,47 @@ import { OpenAiCompatibleProvider } from "@finanfa/core/src/providers/openai-com
 import type { LlmProvider, NeutralImage } from "@finanfa/core/src/core/types.js";
 import { PRICING } from "@finanfa/core/src/core/pricing.js";
 import { createWebUiAdapter } from "./web-ui-adapter.js";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readdir, readFile, rm, stat } from "node:fs/promises";
+import JSZip from "jszip";
+import {
+  DEFAULT_PROJECT_ID,
+  listProjects,
+  createProject,
+  deleteProject,
+  resolveProjectDir,
+  projectExists,
+} from "./projects.js";
 
-// The project the agent operates on — same "cwd" concept as running the CLI
-// from that directory. A single-project server for now: multi-project/
-// multi-tenant would need a workspace picker and per-connection cwd, which
-// is real added scope (auth, path isolation between users) left for later.
-const CWD = process.env.FINANFA_WEB_CWD ?? process.cwd();
+// The workspace the "default" project points at — the same "cwd" concept as
+// running the CLI from that directory, and the only workspace that existed
+// before Projects did (kept working unchanged for anyone not using Projects
+// at all). Every other project is a real directory under
+// projects.ts's PROJECTS_ROOT, picked per-connection/per-request below.
+const DEFAULT_CWD = process.env.FINANFA_WEB_CWD ?? process.cwd();
 const PORT = Number(process.env.PORT ?? 4600);
-const UPLOAD_DIR = path.join(CWD, ".finanfa-code", "uploads");
 
 const app = express();
 app.use(express.json({ limit: "25mb" })); // images arrive as base64 JSON — comfortably over a typical photo's encoded size
+
+/** Resolves a `?project=` query param to a real, validated directory — 404s (via the thrown error's message) rather than silently falling back, so a stale/deleted project id in the URL surfaces clearly instead of quietly operating on the wrong workspace. */
+async function resolveCwd(projectId: string | undefined): Promise<string> {
+  const id = projectId || DEFAULT_PROJECT_ID;
+  if (!(await projectExists(id))) throw new Error(`Unknown project "${id}".`);
+  return resolveProjectDir(id, DEFAULT_CWD);
+}
+
+const EXCLUDED_DIRS = new Set([".finanfa-code", "node_modules", ".git"]);
+
+async function addDirToZip(zip: JSZip, dir: string, prefix: string): Promise<void> {
+  const entries = await readdir(dir, { withFileTypes: true });
+  for (const entry of entries) {
+    if (EXCLUDED_DIRS.has(entry.name)) continue;
+    const full = path.join(dir, entry.name);
+    const zipPath = prefix ? `${prefix}/${entry.name}` : entry.name;
+    if (entry.isDirectory()) await addDirToZip(zip, full, zipPath);
+    else zip.file(zipPath, await readFile(full));
+  }
+}
 
 type ProviderFamily = "anthropic" | "openai-compatible";
 
@@ -68,8 +97,9 @@ function buildProvider(family: ProviderFamily, config: FinanfaConfig): LlmProvid
   return new OpenAiCompatibleProvider({ baseUrl, apiKey });
 }
 
-app.get("/api/models", async (_req, res) => {
-  const config = await loadConfig(CWD);
+app.get("/api/models", async (req, res) => {
+  const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
+  const config = await loadConfig(cwd);
   const { defaultModel, kind } = selectProvider(config);
   const availability = await familyAvailability(config);
   const models = [
@@ -85,25 +115,29 @@ app.get("/api/models", async (_req, res) => {
 });
 
 app.post("/api/upload", async (req, res) => {
-  const { filename, dataBase64 } = req.body as { filename?: string; dataBase64?: string };
+  const { filename, dataBase64, project } = req.body as { filename?: string; dataBase64?: string; project?: string };
   if (!filename || !dataBase64) {
     res.status(400).json({ error: "filename and dataBase64 are required" });
     return;
   }
-  await mkdir(UPLOAD_DIR, { recursive: true });
+  const cwd = await resolveCwd(project).catch(() => DEFAULT_CWD);
+  const uploadDir = path.join(cwd, ".finanfa-code", "uploads");
+  await mkdir(uploadDir, { recursive: true });
   const safeName = `${Date.now()}-${filename.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
-  const fullPath = path.join(UPLOAD_DIR, safeName);
+  const fullPath = path.join(uploadDir, safeName);
   await writeFile(fullPath, Buffer.from(dataBase64, "base64"));
   res.json({ path: fullPath });
 });
 
-app.get("/api/sessions", async (_req, res) => {
-  const sessions = await AgentSession.list(CWD);
+app.get("/api/sessions", async (req, res) => {
+  const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
+  const sessions = await AgentSession.list(cwd);
   res.json({ sessions: sessions.map((s) => ({ id: s.id, title: s.title, mtime: s.mtime })) });
 });
 
 app.delete("/api/sessions/:id", async (req, res) => {
-  await AgentSession.delete(CWD, req.params.id);
+  const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
+  await AgentSession.delete(cwd, req.params.id);
   res.json({ ok: true });
 });
 
@@ -113,8 +147,9 @@ app.delete("/api/sessions/:id", async (req, res) => {
 // (apiKey/visionApiKey) are masked on the way out (never round-tripped in
 // full to the browser) — a field is left untouched on save unless the
 // request explicitly includes it.
-app.get("/api/config", async (_req, res) => {
-  const config = await loadConfig(CWD);
+app.get("/api/config", async (req, res) => {
+  const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
+  const config = await loadConfig(cwd);
   const masked: Record<string, string | undefined> = {};
   for (const key of CONFIG_KEYS) {
     const value = config[key];
@@ -125,7 +160,7 @@ app.get("/api/config", async (_req, res) => {
 
 app.post("/api/config", async (req, res) => {
   const body = req.body as Partial<FinanfaConfig>;
-  const current = await loadConfig(CWD);
+  const current = await loadConfig(DEFAULT_CWD);
   const next: FinanfaConfig = { ...current };
   for (const key of CONFIG_KEYS) {
     if (!(key in body)) continue;
@@ -137,6 +172,90 @@ app.post("/api/config", async (req, res) => {
   }
   await saveGlobalConfig(next);
   res.json({ ok: true, note: "Saved. Existing open chats keep their current provider/model — start a new chat to pick up the change." });
+});
+
+app.get("/api/projects", async (_req, res) => {
+  res.json({ projects: await listProjects(DEFAULT_CWD) });
+});
+
+app.post("/api/projects", async (req, res) => {
+  const { name } = req.body as { name?: string };
+  res.json({ project: await createProject(name ?? "") });
+});
+
+app.delete("/api/projects/:id", async (req, res) => {
+  try {
+    await deleteProject(req.params.id);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// "Knowledge" files — reference material the user deliberately hands the
+// agent for a project, distinct from a chat's ephemeral attach-button
+// uploads (which land in .finanfa-code/uploads/ instead): these live in a
+// plain, visible knowledge/ subfolder at the project root, so the agent
+// finds them the normal way (glob/read_file/read_document), no special
+// tooling needed.
+app.get("/api/projects/:id/files", async (req, res) => {
+  try {
+    const dir = path.join(await resolveCwd(req.params.id), "knowledge");
+    const entries = await readdir(dir, { withFileTypes: true }).catch(() => []);
+    const files = await Promise.all(
+      entries
+        .filter((e) => e.isFile())
+        .map(async (e) => {
+          const st = await stat(path.join(dir, e.name));
+          return { name: e.name, size: st.size };
+        }),
+    );
+    res.json({ files });
+  } catch (err) {
+    res.status(404).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/projects/:id/files", async (req, res) => {
+  const { filename, dataBase64 } = req.body as { filename?: string; dataBase64?: string };
+  if (!filename || !dataBase64) {
+    res.status(400).json({ error: "filename and dataBase64 are required" });
+    return;
+  }
+  try {
+    const dir = path.join(await resolveCwd(req.params.id), "knowledge");
+    await mkdir(dir, { recursive: true });
+    const safeName = filename.replace(/[^a-zA-Z0-9._-]/g, "_");
+    await writeFile(path.join(dir, safeName), Buffer.from(dataBase64, "base64"));
+    res.json({ ok: true, name: safeName });
+  } catch (err) {
+    res.status(404).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/projects/:id/files/:name", async (req, res) => {
+  try {
+    const dir = path.join(await resolveCwd(req.params.id), "knowledge");
+    const safeName = req.params.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+    await rm(path.join(dir, safeName), { force: true });
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(404).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.get("/api/projects/:id/download", async (req, res) => {
+  try {
+    const dir = await resolveCwd(req.params.id);
+    const zip = new JSZip();
+    await addDirToZip(zip, dir, "");
+    const buffer = await zip.generateAsync({ type: "nodebuffer" });
+    res.setHeader("Content-Type", "application/zip");
+    res.setHeader("Content-Disposition", `attachment; filename="${req.params.id}.zip"`);
+    res.send(buffer);
+  } catch (err) {
+    res.status(404).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 const clientDist = path.join(import.meta.dirname, "../../web-client/dist");
@@ -159,8 +278,10 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
   const params = new URL(url, "http://localhost").searchParams;
   const requestedModel = params.get("model") ?? undefined;
   const requestedSessionId = params.get("session") ?? undefined;
+  const requestedProjectId = params.get("project") ?? undefined;
 
   try {
+    const CWD = await resolveCwd(requestedProjectId);
     const config = await loadConfig(CWD);
     const initial = selectProvider(config);
     const defaultModel = initial.defaultModel;
@@ -383,5 +504,5 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
 }
 
 httpServer.listen(PORT, () => {
-  console.log(`finanfa-code-web server listening on http://localhost:${PORT} (project: ${CWD})`);
+  console.log(`finanfa-code-web server listening on http://localhost:${PORT} (default workspace: ${DEFAULT_CWD})`);
 });
