@@ -164,7 +164,12 @@ export const DEV_TOOLS_PROMPT =
   "Use check_typescript_types to run tsc --noEmit on a TS/JS project — it's always whole-project, never a " +
   "single path, since tsc refuses to combine a tsconfig.json with a file given on the command line. " +
   "Use lint_python (not bash) for ruff — it needs `uvx` (from uv) if `ruff` itself isn't already installed; if " +
-  "neither is available, tell the user rather than trying to install one yourself.";
+  "neither is available, tell the user rather than trying to install one yourself. " +
+  "Use translate_text (not your own knowledge) whenever asked to translate something, especially into or out " +
+  "of a Beninese local language (Fon, Yoruba, Dendi, Bariba) — your own training data and web search both " +
+  "cover these unreliably, which is the whole reason this tool exists. If it returns an error (not configured, " +
+  "or the 229Langues backend unreachable), say so plainly rather than silently falling back to guessing a " +
+  "translation yourself.";
 
 export const BASE_SYSTEM_PROMPT =
   SECURITY_INSTRUCTION + CORE_BEHAVIOR_PROMPT + PATH_GUIDANCE_PROMPT + PROCESS_GUIDANCE_PROMPT + DOCUMENT_TOOLS_PROMPT + DEV_TOOLS_PROMPT;
