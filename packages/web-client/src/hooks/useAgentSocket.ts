@@ -30,6 +30,8 @@ export interface McpServerStatus {
   connected: boolean;
   disabled: boolean;
   needsAuth: boolean;
+  /** Already in this project's .finanfa-code/mcp.json, vs. shown from the built-in catalog and not yet added. */
+  inProject: boolean;
 }
 
 export interface ModelUnavailable {

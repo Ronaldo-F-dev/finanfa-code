@@ -20,13 +20,11 @@ export function McpPanel({
       <div className="modal mcp-modal" onClick={(e) => e.stopPropagation()}>
         <div className="modal-title">Connectors</div>
         <p className="settings-hint">
-          MCP servers configured in <code>.finanfa-code/mcp.json</code>. Connecting to a remote one may open a browser tab on the machine running the
-          server for OAuth.
+          Adding a connector saves it to this project's <code>.finanfa-code/mcp.json</code>. Connecting to a remote one may open a browser tab on the
+          machine running the server for OAuth.
         </p>
 
-        {servers.length === 0 && (
-          <div className="sidebar-empty">{loaded ? "No connectors configured for this project." : "Connecting to configured connectors…"}</div>
-        )}
+        {servers.length === 0 && <div className="sidebar-empty">{loaded ? "No connectors available." : "Loading connectors…"}</div>}
 
         <div className="mcp-list">
           {servers.map((s) => (
@@ -39,6 +37,7 @@ export function McpPanel({
                     {s.transport}
                     {s.connected && s.disabled ? " · disabled" : ""}
                     {s.needsAuth ? " · needs authorization" : ""}
+                    {!s.connected && !s.inProject ? " · not added yet" : ""}
                   </div>
                 </div>
               </div>

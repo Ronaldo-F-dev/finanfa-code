@@ -10,6 +10,7 @@ import { PermissionManager } from "@finanfa/core/src/permissions/manager.js";
 import { loadPermissionConfig } from "@finanfa/core/src/permissions/config.js";
 import { McpClientManager, MCP_TOOL_PREFIX } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadMcpServers } from "@finanfa/core/src/mcp/config.js";
+import { MCP_CATALOG } from "./mcp-catalog.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
 import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "@finanfa/core/src/memory/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
@@ -375,16 +376,23 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
 
     async function sendMcpStatus(): Promise<void> {
       const configured = await loadMcpServers(CWD);
+      const configuredNames = new Set(configured.map((s) => s.name));
+      // The catalog fills in well-known connectors this project hasn't
+      // added yet (a fresh project has no .finanfa-code/mcp.json at all) —
+      // shown with a "+ Add" action same as Claude's own Connectors page,
+      // rather than an empty panel until someone hand-writes the config.
+      const all = [...configured, ...MCP_CATALOG.filter((c) => !configuredNames.has(c.name))];
       const connected = new Set(mcp.connectedServers());
       ws.send(
         JSON.stringify({
           type: "mcp_status",
-          servers: configured.map((s) => ({
+          servers: all.map((s) => ({
             name: s.name,
             transport: s.transport,
             connected: connected.has(s.name),
             disabled: session.disabledMcpServers.has(s.name),
             needsAuth: needsAuthSet.has(s.name),
+            inProject: configuredNames.has(s.name),
           })),
         }),
       );
@@ -485,7 +493,21 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
         } else if (msg.type === "mcp_status") {
           await sendMcpStatus();
         } else if (msg.type === "mcp_connect" && typeof msg.name === "string") {
-          const config = (await loadMcpServers(CWD)).find((s) => s.name === msg.name);
+          const existing = await loadMcpServers(CWD);
+          let config = existing.find((s) => s.name === msg.name);
+          if (!config) {
+            // Not yet in this project's mcp.json — if it's a known catalog
+            // entry (see mcp-catalog.ts), add it there first, same file
+            // write the CLI's own /mcp add does, then fall through to
+            // connect it below.
+            const fromCatalog = MCP_CATALOG.find((c) => c.name === msg.name);
+            if (fromCatalog) {
+              const file = path.join(CWD, ".finanfa-code", "mcp.json");
+              await mkdir(path.dirname(file), { recursive: true });
+              await writeFile(file, JSON.stringify({ servers: [...existing, fromCatalog] }, null, 2), "utf-8");
+              config = fromCatalog;
+            }
+          }
           if (!config) {
             adapter.writeError(`No MCP server named "${msg.name}" in .finanfa-code/mcp.json.`);
           } else if (mcp.connectedServers().includes(msg.name)) {
