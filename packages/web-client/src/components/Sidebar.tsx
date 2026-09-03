@@ -12,12 +12,14 @@ export function Sidebar({
   onSelect,
   onNewChat,
   onOpenSettings,
+  onOpenMcp,
 }: {
   activeSessionId: string | undefined;
   refreshToken: number;
   onSelect: (id: string) => void;
   onNewChat: () => void;
   onOpenSettings: () => void;
+  onOpenMcp: () => void;
 }) {
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
 
@@ -54,9 +56,14 @@ export function Sidebar({
         {sessions.length === 0 && <div className="sidebar-empty">No chats yet</div>}
       </div>
 
-      <button className="sidebar-settings" onClick={onOpenSettings}>
-        ⚙ Settings
-      </button>
+      <div className="sidebar-menu">
+        <button className="sidebar-settings" onClick={onOpenMcp}>
+          ⇄ MCP servers
+        </button>
+        <button className="sidebar-settings" onClick={onOpenSettings}>
+          ⚙ Settings
+        </button>
+      </div>
     </aside>
   );
 }

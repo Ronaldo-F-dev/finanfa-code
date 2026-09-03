@@ -8,7 +8,8 @@ import { ToolRegistry } from "@finanfa/core/src/tools/registry.js";
 import { registerBuiltins, registerStatefulBuiltins } from "@finanfa/core/src/tools/builtin/index.js";
 import { PermissionManager } from "@finanfa/core/src/permissions/manager.js";
 import { loadPermissionConfig } from "@finanfa/core/src/permissions/config.js";
-import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
+import { McpClientManager, MCP_TOOL_PREFIX } from "@finanfa/core/src/mcp/client-manager.js";
+import { loadMcpServers } from "@finanfa/core/src/mcp/config.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
 import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "@finanfa/core/src/memory/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
@@ -141,25 +142,53 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
 
     const mcp = new McpClientManager();
     const browser = new BrowserManager();
-    await connectMcpServers(CWD, mcp, adapter);
+    const { needsAuth } = await connectMcpServers(CWD, mcp, adapter);
+    const needsAuthSet = new Set(needsAuth);
     for (const def of await mcp.listAllTools()) tools.register(def);
 
     registerStatefulBuiltins(tools, { provider, permissions, ui: adapter, model, cwd: CWD, browser, designContract: designContract.content });
+
+    function sendSessionInfo(): void {
+      ws.send(
+        JSON.stringify({
+          type: "session_info",
+          id: session.id,
+          title: session.title,
+          model: session.model,
+          providerKind,
+          toolCount: tools.list().length,
+        }),
+      );
+    }
+
+    async function sendMcpStatus(): Promise<void> {
+      const configured = await loadMcpServers(CWD);
+      const connected = new Set(mcp.connectedServers());
+      ws.send(
+        JSON.stringify({
+          type: "mcp_status",
+          servers: configured.map((s) => ({
+            name: s.name,
+            transport: s.transport,
+            connected: connected.has(s.name),
+            disabled: session.disabledMcpServers.has(s.name),
+            needsAuth: needsAuthSet.has(s.name),
+          })),
+        }),
+      );
+    }
+
+    async function reloadMcpTools(): Promise<void> {
+      tools.unregisterByPrefix(MCP_TOOL_PREFIX);
+      for (const def of await mcp.listAllTools()) tools.register(def);
+    }
 
     // Sent as a structured event (not just parsed out of the text banner
     // below) so the client can sync its model selector / title state
     // exactly, including when a resumed session's model differs from
     // whatever was last selected in the UI.
-    ws.send(
-      JSON.stringify({
-        type: "session_info",
-        id: session.id,
-        title: session.title,
-        model: session.model,
-        providerKind,
-        toolCount: tools.list().length,
-      }),
-    );
+    sendSessionInfo();
+    void sendMcpStatus();
     // Replay past turns for a resumed session — tool activity itself isn't
     // replayed (it isn't stored as display-ready text), only the user/
     // assistant exchange, same as reopening a ChatGPT/Claude.ai thread.
@@ -200,7 +229,7 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
             await runTurn(session, provider, adapter, tools, permissions, msg.text);
             const hadTitle = Boolean(session.title);
             await maybeGenerateTitle(session, provider);
-            if (!hadTitle && session.title) ws.send(JSON.stringify({ type: "session_info", id: session.id, title: session.title, model: session.model, providerKind, toolCount: tools.list().length }));
+            if (!hadTitle && session.title) sendSessionInfo();
           } catch (err) {
             adapter.writeError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
           } finally {
@@ -213,9 +242,40 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           for (const controller of session.activeAbortControllers) controller.abort();
         } else if (msg.type === "set_model" && typeof msg.model === "string" && msg.model) {
           session.model = msg.model;
-          ws.send(
-            JSON.stringify({ type: "session_info", id: session.id, title: session.title, model: session.model, providerKind, toolCount: tools.list().length }),
-          );
+          sendSessionInfo();
+        } else if (msg.type === "mcp_status") {
+          await sendMcpStatus();
+        } else if (msg.type === "mcp_connect" && typeof msg.name === "string") {
+          const config = (await loadMcpServers(CWD)).find((s) => s.name === msg.name);
+          if (!config) {
+            adapter.writeError(`No MCP server named "${msg.name}" in .finanfa-code/mcp.json.`);
+          } else if (mcp.connectedServers().includes(msg.name)) {
+            adapter.writeSystem(`"${msg.name}" is already connected.`);
+          } else {
+            if (config.transport !== "stdio") adapter.writeSystem(`Connecting to "${msg.name}" — if it requires authorization, a browser tab will open on the server...`);
+            try {
+              await mcp.connect(config);
+              needsAuthSet.delete(msg.name);
+              await reloadMcpTools();
+              adapter.writeSystem(`Connected "${msg.name}".`);
+            } catch (err) {
+              adapter.writeError(`Failed to connect "${msg.name}": ${err instanceof Error ? err.message : err}`);
+            }
+          }
+          await sendMcpStatus();
+        } else if ((msg.type === "mcp_enable" || msg.type === "mcp_disable") && typeof msg.name === "string") {
+          if (!mcp.connectedServers().includes(msg.name)) {
+            adapter.writeError(`No connected MCP server named "${msg.name}".`);
+          } else if (msg.type === "mcp_enable") {
+            session.disabledMcpServers.delete(msg.name);
+          } else {
+            session.disabledMcpServers.add(msg.name);
+          }
+          await sendMcpStatus();
+        } else if (msg.type === "mcp_reload") {
+          await reloadMcpTools();
+          adapter.writeSystem("MCP tools reloaded.");
+          await sendMcpStatus();
         }
       })();
     });

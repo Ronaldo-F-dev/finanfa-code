@@ -240,7 +240,7 @@ export function selectVisionProvider(config: FinanfaConfig): { provider: LlmProv
  * instead of popping a browser tab per server and blocking startup for up to
  * 5 minutes each — see NeedsAuthorizationError / McpClientManager.connect.
  */
-export async function connectMcpServers(cwd: string, mcp: McpClientManager, ui: UIAdapter): Promise<void> {
+export async function connectMcpServers(cwd: string, mcp: McpClientManager, ui: UIAdapter): Promise<{ needsAuth: string[] }> {
   const servers = await loadMcpServers(cwd);
   const needsAuth: string[] = [];
   for (const server of servers) {
@@ -257,4 +257,5 @@ export async function connectMcpServers(cwd: string, mcp: McpClientManager, ui: 
   if (needsAuth.length > 0) {
     ui.writeSystem(`${needsAuth.length} MCP server(s) need authorization: ${needsAuth.join(", ")} — run /mcp connect <name> to use one.`);
   }
+  return { needsAuth };
 }

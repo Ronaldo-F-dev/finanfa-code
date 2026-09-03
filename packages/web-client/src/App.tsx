@@ -5,6 +5,7 @@ import { ModelPicker } from "./components/ModelPicker";
 import { PermissionModal } from "./components/PermissionModal";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsModal } from "./components/SettingsModal";
+import { McpPanel } from "./components/McpPanel";
 
 export default function App() {
   const [models, setModels] = useState<string[]>([]);
@@ -12,6 +13,7 @@ export default function App() {
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>(undefined);
   const [input, setInput] = useState("");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [mcpOpen, setMcpOpen] = useState(false);
   const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
 
@@ -29,8 +31,24 @@ export default function App() {
   }, []);
 
   const onTitled = useCallback(() => setSidebarRefreshToken((t) => t + 1), []);
-  const { connected, timeline, busy, permissionRequest, status, sessionInfo, sendMessage, answerPermission, interrupt, reconnect, switchModel } =
-    useAgentSocket(model || undefined, activeSessionId, onTitled);
+  const {
+    connected,
+    timeline,
+    busy,
+    permissionRequest,
+    status,
+    sessionInfo,
+    mcpServers,
+    mcpLoaded,
+    sendMessage,
+    answerPermission,
+    interrupt,
+    reconnect,
+    switchModel,
+    mcpConnect,
+    mcpToggle,
+    mcpReload,
+  } = useAgentSocket(model || undefined, activeSessionId, onTitled);
 
   // A resumed session's model is authoritative (readonly on the CLI side —
   // mutable here, but only through switchModel) — keep the picker in sync
@@ -66,6 +84,7 @@ export default function App() {
         onSelect={setActiveSessionId}
         onNewChat={handleNewChat}
         onOpenSettings={() => setSettingsOpen(true)}
+        onOpenMcp={() => setMcpOpen(true)}
       />
 
       <div className="app">
@@ -140,6 +159,9 @@ export default function App() {
 
       {permissionRequest && <PermissionModal request={permissionRequest} onAnswer={(answer) => answerPermission(permissionRequest.requestId, answer)} />}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
+      {mcpOpen && (
+        <McpPanel servers={mcpServers} loaded={mcpLoaded} onClose={() => setMcpOpen(false)} onConnect={mcpConnect} onToggle={mcpToggle} onReload={mcpReload} />
+      )}
     </div>
   );
 }

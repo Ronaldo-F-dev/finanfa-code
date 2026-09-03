@@ -24,6 +24,14 @@ export interface SessionInfo {
   toolCount: number;
 }
 
+export interface McpServerStatus {
+  name: string;
+  transport: string;
+  connected: boolean;
+  disabled: boolean;
+  needsAuth: boolean;
+}
+
 let nextId = 1;
 const uid = () => String(nextId++);
 
@@ -41,6 +49,13 @@ export function useAgentSocket(model: string | undefined, sessionId: string | un
   const [permissionRequest, setPermissionRequest] = useState<PermissionRequest | null>(null);
   const [status, setStatus] = useState<StatusInfo | null>(null);
   const [sessionInfo, setSessionInfo] = useState<SessionInfo | null>(null);
+  const [mcpServers, setMcpServers] = useState<McpServerStatus[]>([]);
+  // The very first mcp_status can take several real seconds — connecting to
+  // each configured server is a real network/docker call, done sequentially
+  // at startup (see connectMcpServers). Distinguishes "still connecting"
+  // from "genuinely nothing configured" so the panel doesn't flash a wrong
+  // "no servers" message to someone who opens it quickly.
+  const [mcpLoaded, setMcpLoaded] = useState(false);
   const [resumeToken, setResumeToken] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
@@ -58,6 +73,8 @@ export function useAgentSocket(model: string | undefined, sessionId: string | un
     setBusy({ active: false });
     setPermissionRequest(null);
     setSessionInfo(null);
+    setMcpServers([]);
+    setMcpLoaded(false);
     streamingIdRef.current = null;
     hadTitleRef.current = false;
 
@@ -112,6 +129,10 @@ export function useAgentSocket(model: string | undefined, sessionId: string | un
           if (msg.title && !wasTitled) onTitledRef.current?.();
           break;
         }
+        case "mcp_status":
+          setMcpServers(msg.servers);
+          setMcpLoaded(true);
+          break;
         case "history": {
           const items: TimelineItem[] = (msg.messages as { role: "user" | "assistant"; content: string }[]).map((m) => ({
             kind: m.role,
@@ -159,5 +180,31 @@ export function useAgentSocket(model: string | undefined, sessionId: string | un
     ws.send(JSON.stringify({ type: "set_model", model: newModel }));
   }, []);
 
-  return { connected, timeline, busy, permissionRequest, status, sessionInfo, sendMessage, answerPermission, interrupt, reconnect, switchModel };
+  const send = useCallback((payload: Record<string, unknown>) => {
+    const ws = wsRef.current;
+    if (!ws || ws.readyState !== WebSocket.OPEN) return;
+    ws.send(JSON.stringify(payload));
+  }, []);
+  const mcpConnect = useCallback((name: string) => send({ type: "mcp_connect", name }), [send]);
+  const mcpToggle = useCallback((name: string, enabled: boolean) => send({ type: enabled ? "mcp_enable" : "mcp_disable", name }), [send]);
+  const mcpReload = useCallback(() => send({ type: "mcp_reload" }), [send]);
+
+  return {
+    connected,
+    timeline,
+    busy,
+    permissionRequest,
+    status,
+    sessionInfo,
+    mcpServers,
+    mcpLoaded,
+    sendMessage,
+    answerPermission,
+    interrupt,
+    reconnect,
+    switchModel,
+    mcpConnect,
+    mcpToggle,
+    mcpReload,
+  };
 }
