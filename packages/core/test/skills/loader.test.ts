@@ -80,7 +80,7 @@ describe("skills loader", () => {
   });
 
   it("builds a short index string for the system prompt", () => {
-    const index = formatSkillIndex([{ name: "deploy", description: "How to deploy", content: "..." }]);
+    const index = formatSkillIndex([{ name: "deploy", description: "How to deploy", content: "...", scope: "project" }]);
     expect(index).toContain("deploy: How to deploy");
     expect(formatSkillIndex([])).toBe("");
   });
@@ -135,7 +135,7 @@ describe("skills loader", () => {
   });
 
   it("read_skill tool returns full content on demand, and errors for unknown names", async () => {
-    const tool = createReadSkillTool([{ name: "deploy", description: "d", content: "full instructions" }]);
+    const tool = createReadSkillTool([{ name: "deploy", description: "d", content: "full instructions", scope: "project" }]);
     const ctx = { cwd: dir, sessionId: "s", signal: new AbortController().signal };
 
     const ok = await tool.handler({ name: "deploy" }, ctx);

@@ -1,29 +1,37 @@
-import { readFile, readdir, mkdir, writeFile } from "node:fs/promises";
+import { readFile, readdir, mkdir, writeFile, rm } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import matter from "gray-matter";
 import type { ToolDefinition } from "../core/types.js";
+
+export type MemoryScope = "project" | "global";
 
 export interface Memory {
   name: string;
   description: string;
   type: string;
   content: string;
+  /** Which file this actually came from — needed to edit/delete the right one, since a project-scoped entry can shadow a global one of the same name. */
+  scope: MemoryScope;
 }
 
 const MEMORY_TYPES = ["user", "feedback", "project", "reference"] as const;
 export type MemoryType = (typeof MEMORY_TYPES)[number];
 
 /** ~/.finanfa-code/memory — computed fresh per call, not memoized (a test overriding $HOME must see it). */
-function globalMemoryDir(): string {
+export function globalMemoryDir(): string {
   return path.join(os.homedir(), ".finanfa-code", "memory");
 }
 
-function projectMemoryDir(cwd: string): string {
+export function projectMemoryDir(cwd: string): string {
   return path.join(cwd, ".finanfa-code", "memory");
 }
 
-function slugify(name: string): string {
+function memoryDir(cwd: string, scope: MemoryScope): string {
+  return scope === "global" ? globalMemoryDir() : projectMemoryDir(cwd);
+}
+
+export function slugifyMemoryName(name: string): string {
   return name
     .trim()
     .toLowerCase()
@@ -31,7 +39,7 @@ function slugify(name: string): string {
     .replace(/^-+|-+$/g, "");
 }
 
-async function readMemoriesFromDir(dir: string): Promise<Memory[]> {
+async function readMemoriesFromDir(dir: string, scope: MemoryScope): Promise<Memory[]> {
   let entries: string[];
   try {
     entries = await readdir(dir);
@@ -52,6 +60,7 @@ async function readMemoriesFromDir(dir: string): Promise<Memory[]> {
         description: typeof data.description === "string" ? data.description : "",
         type: typeof metadata?.type === "string" ? metadata.type : "project",
         content: content.trim(),
+        scope,
       });
     } catch (err) {
       // A single unreadable file (permission error) or one with malformed
@@ -73,8 +82,8 @@ async function readMemoriesFromDir(dir: string): Promise<Memory[]> {
  */
 export async function loadMemories(cwd: string): Promise<Memory[]> {
   const [global, project] = await Promise.all([
-    readMemoriesFromDir(globalMemoryDir()),
-    readMemoriesFromDir(projectMemoryDir(cwd)),
+    readMemoriesFromDir(globalMemoryDir(), "global"),
+    readMemoriesFromDir(projectMemoryDir(cwd), "project"),
   ]);
   const byName = new Map(global.map((m) => [m.name, m]));
   for (const memory of project) byName.set(memory.name, memory);
@@ -108,12 +117,34 @@ export function createReadMemoryTool(cwd: string): ToolDefinition<{ name: string
   };
 }
 
-interface WriteMemoryInput {
+export interface WriteMemoryInput {
   name: string;
   description: string;
   type: MemoryType;
   content: string;
-  scope?: "project" | "global";
+  scope?: MemoryScope;
+}
+
+/**
+ * Shared by write_memory (the agent, mid-conversation) and the web UI's
+ * Memory panel (a human, directly) — one real write path so both stay in
+ * exactly the same file format instead of two implementations quietly
+ * drifting apart.
+ */
+export async function writeMemory(cwd: string, input: WriteMemoryInput): Promise<{ slug: string; scope: MemoryScope }> {
+  const slug = slugifyMemoryName(input.name);
+  if (slug.length === 0) throw new Error("Memory name must contain at least one letter or digit.");
+  const scope: MemoryScope = input.scope === "global" ? "global" : "project";
+  const dir = memoryDir(cwd, scope);
+  await mkdir(dir, { recursive: true });
+  const frontmatter = `---\nname: ${slug}\ndescription: ${JSON.stringify(input.description)}\n` + `metadata:\n  type: ${input.type}\n---\n\n`;
+  await writeFile(path.join(dir, `${slug}.md`), frontmatter + input.content.trim() + "\n", "utf-8");
+  return { slug, scope };
+}
+
+export async function deleteMemory(cwd: string, name: string, scope: MemoryScope): Promise<void> {
+  const slug = slugifyMemoryName(name);
+  await rm(path.join(memoryDir(cwd, scope), `${slug}.md`), { force: true });
 }
 
 export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
@@ -140,16 +171,11 @@ export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
   },
   describeCall: (input) => `write_memory ${input.name} (${input.type}${input.scope === "global" ? ", global" : ""})`,
   async handler(input, ctx) {
-    const slug = slugify(input.name);
-    if (slug.length === 0) {
-      return { content: "Memory name must contain at least one letter or digit.", isError: true };
+    try {
+      const { slug, scope } = await writeMemory(ctx.cwd, input);
+      return { content: `Saved ${scope === "global" ? "global " : ""}memory "${slug}".`, isError: false };
+    } catch (err) {
+      return { content: err instanceof Error ? err.message : String(err), isError: true };
     }
-    const dir = input.scope === "global" ? globalMemoryDir() : projectMemoryDir(ctx.cwd);
-    await mkdir(dir, { recursive: true });
-    const frontmatter =
-      `---\nname: ${slug}\ndescription: ${JSON.stringify(input.description)}\n` +
-      `metadata:\n  type: ${input.type}\n---\n\n`;
-    await writeFile(path.join(dir, `${slug}.md`), frontmatter + input.content.trim() + "\n", "utf-8");
-    return { content: `Saved ${input.scope === "global" ? "global " : ""}memory "${slug}".`, isError: false };
   },
 };

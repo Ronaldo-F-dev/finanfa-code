@@ -11,8 +11,16 @@ import { loadPermissionConfig } from "@finanfa/core/src/permissions/config.js";
 import { McpClientManager, MCP_TOOL_PREFIX } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadMcpServers } from "@finanfa/core/src/mcp/config.js";
 import { MCP_CATALOG } from "./mcp-catalog.js";
-import { loadSkills, formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
-import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "@finanfa/core/src/memory/loader.js";
+import { loadSkills, formatSkillIndex, createReadSkillTool, writeSkill, deleteSkill } from "@finanfa/core/src/skills/loader.js";
+import {
+  loadMemories,
+  formatMemoryIndex,
+  createReadMemoryTool,
+  writeMemoryTool,
+  writeMemory,
+  deleteMemory,
+  type MemoryType,
+} from "@finanfa/core/src/memory/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
@@ -185,9 +193,57 @@ app.get("/api/skills", async (req, res) => {
   res.json({ skills: await loadSkills(cwd) });
 });
 
+app.post("/api/skills", async (req, res) => {
+  const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
+  const { name, description, content, scope } = req.body as { name?: string; description?: string; content?: string; scope?: "project" | "global" };
+  if (!name || !content) {
+    res.status(400).json({ error: "name and content are required" });
+    return;
+  }
+  try {
+    res.json(await writeSkill(cwd, { name, description: description ?? "", content, scope }));
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/skills/:name", async (req, res) => {
+  const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
+  const scope = req.query.scope === "global" ? "global" : "project";
+  await deleteSkill(cwd, req.params.name, scope);
+  res.json({ ok: true });
+});
+
 app.get("/api/memory", async (req, res) => {
   const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
   res.json({ memories: await loadMemories(cwd) });
+});
+
+app.post("/api/memory", async (req, res) => {
+  const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
+  const { name, description, type, content, scope } = req.body as {
+    name?: string;
+    description?: string;
+    type?: string;
+    content?: string;
+    scope?: "project" | "global";
+  };
+  if (!name || !content) {
+    res.status(400).json({ error: "name and content are required" });
+    return;
+  }
+  try {
+    res.json(await writeMemory(cwd, { name, description: description ?? "", type: (type as MemoryType) ?? "user", content, scope }));
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.delete("/api/memory/:name", async (req, res) => {
+  const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
+  const scope = req.query.scope === "global" ? "global" : "project";
+  await deleteMemory(cwd, req.params.name, scope);
+  res.json({ ok: true });
 });
 
 app.get("/api/projects", async (_req, res) => {

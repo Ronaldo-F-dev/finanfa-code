@@ -833,6 +833,42 @@ body {
   overflow-y: auto;
 }
 
+.memory-scope {
+  font-size: 10px;
+  color: var(--text-muted);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 0 5px;
+  margin-left: 4px;
+}
+
+.memory-row .mcp-row-actions {
+  margin-top: 8px;
+  justify-content: flex-end;
+}
+
+.memory-add-btn {
+  float: right;
+  padding: 0;
+}
+
+.draft-row {
+  display: flex;
+  gap: 12px;
+}
+.draft-row .settings-field {
+  flex: 1;
+}
+
+.provider-card select {
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13px;
+}
+
 .theme-switch {
   display: flex;
   gap: 8px;
@@ -1113,6 +1149,9 @@ body {
   font-weight: 600;
   font-size: 13.5px;
   margin-bottom: 4px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .instructions-textarea {

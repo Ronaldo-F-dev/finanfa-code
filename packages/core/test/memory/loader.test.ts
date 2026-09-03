@@ -124,7 +124,7 @@ describe("memory loader", () => {
   });
 
   it("builds a short index string for the system prompt", () => {
-    const index = formatMemoryIndex([{ name: "m", description: "desc", type: "project", content: "..." }]);
+    const index = formatMemoryIndex([{ name: "m", description: "desc", type: "project", content: "...", scope: "project" }]);
     expect(index).toContain("m (project): desc");
     expect(formatMemoryIndex([])).toBe("");
   });
