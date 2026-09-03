@@ -118,13 +118,16 @@ export class AnthropicProvider implements LlmProvider {
   async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {
     const anthropicTools = toAnthropicTools(params.tools);
 
-    const stream = this.client.messages.stream({
-      model: params.model,
-      max_tokens: 8192,
-      system: [{ type: "text", text: params.systemPrompt, cache_control: { type: "ephemeral" } }],
-      messages: toAnthropicMessages(params.messages),
-      tools: anthropicTools.length > 0 ? anthropicTools : undefined,
-    });
+    const stream = this.client.messages.stream(
+      {
+        model: params.model,
+        max_tokens: 8192,
+        system: [{ type: "text", text: params.systemPrompt, cache_control: { type: "ephemeral" } }],
+        messages: toAnthropicMessages(params.messages),
+        tools: anthropicTools.length > 0 ? anthropicTools : undefined,
+      },
+      { signal: params.signal },
+    );
 
     stream.on("text", (delta) => params.onTextDelta(delta));
     const message = await stream.finalMessage();

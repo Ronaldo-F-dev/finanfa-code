@@ -99,6 +99,8 @@ export interface StreamTurnParams {
   messages: NeutralMessage[];
   tools: ToolDefinition[];
   onTextDelta: (text: string) => void;
+  /** Aborts the in-flight request when the user interrupts mid-stream (Ctrl+C, the web UI's Stop) — unlike a tool call, nothing else guards this network call, so without this a Stop during "model is thinking" does nothing. */
+  signal?: AbortSignal;
 }
 
 export interface StreamTurnResult {

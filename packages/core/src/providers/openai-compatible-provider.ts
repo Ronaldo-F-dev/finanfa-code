@@ -122,6 +122,7 @@ async function fetchInitialResponse(
   url: string,
   headers: Record<string, string>,
   body: Record<string, unknown>,
+  signal?: AbortSignal,
 ): Promise<Response> {
   return retryWithBackoff(
     async () => {
@@ -133,8 +134,10 @@ async function fetchInitialResponse(
         // http-request.ts (AbortSignal.timeout), this had no timeout at
         // all — a server that accepts the connection but never responds
         // (GPU/OOM stress on a local model server) hung the call forever,
-        // with no way to recover short of killing the process.
-        signal: AbortSignal.timeout(REQUEST_TIMEOUT_MS),
+        // with no way to recover short of killing the process. Combined
+        // (not replaced) with the caller's own signal, e.g. a user
+        // interrupt via loop.ts's streamController — either one aborts.
+        signal: signal ? AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT_MS), signal]) : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
       if (RETRYABLE_STATUSES.has(response.status)) {
         const text = await response.text().catch(() => "");
@@ -159,8 +162,9 @@ async function attemptStreamChatCompletion(
   headers: Record<string, string>,
   body: Record<string, unknown>,
   onTextDelta: (text: string) => void,
+  signal?: AbortSignal,
 ): Promise<ChatCompletionResult> {
-  const response = await fetchInitialResponse(url, headers, body);
+  const response = await fetchInitialResponse(url, headers, body, signal);
 
   if (!response.ok || !response.body) {
     const text = await response.text().catch(() => "");
@@ -187,11 +191,27 @@ async function attemptStreamChatCompletion(
         STREAM_IDLE_TIMEOUT_MS,
       );
     });
+    // Races the read against both the idle timeout and a user interrupt —
+    // aborting the fetch above also errors the body stream, but that
+    // rejection can lag; racing an explicit abort listener here makes a Stop
+    // during a real generation take effect immediately instead of waiting
+    // on the underlying stream to notice.
+    const abortRace = signal
+      ? new Promise<never>((_, reject) => {
+          if (signal.aborted) reject(signal.reason ?? new DOMException("Aborted", "AbortError"));
+          else signal.addEventListener("abort", () => reject(signal.reason ?? new DOMException("Aborted", "AbortError")), { once: true });
+        })
+      : undefined;
     let done: boolean, value: Uint8Array | undefined;
     try {
-      ({ done, value } = await Promise.race([reader.read(), idleTimeout]));
+      ({ done, value } = await Promise.race([reader.read(), idleTimeout, ...(abortRace ? [abortRace] : [])]));
     } catch (err) {
       await reader.cancel().catch(() => {});
+      // A deliberate interrupt must propagate as-is, not get wrapped as
+      // "safe to retry" below — StreamNotYetVisibleError only means "no
+      // output reached the user yet, redoing the request is harmless",
+      // which is not true of a request the user explicitly asked to stop.
+      if (signal?.aborted) throw err;
       // Nothing has reached onTextDelta yet at this point in the stream —
       // safe to redo the whole request from scratch instead of failing the
       // turn outright. Once content.length > 0 the original error propagates
@@ -264,12 +284,16 @@ async function streamChatCompletion(
   headers: Record<string, string>,
   body: Record<string, unknown>,
   onTextDelta: (text: string) => void,
+  signal?: AbortSignal,
 ): Promise<ChatCompletionResult> {
   try {
-    return await retryWithBackoff(() => attemptStreamChatCompletion(url, headers, body, onTextDelta), {
+    return await retryWithBackoff(() => attemptStreamChatCompletion(url, headers, body, onTextDelta, signal), {
       attempts: 3,
       baseDelayMs: 500,
-      shouldRetry: (err) => err instanceof StreamNotYetVisibleError,
+      // A deliberate interrupt must never be retried, regardless of error
+      // shape — checked first so it can't accidentally match the
+      // StreamNotYetVisibleError case below on its way out.
+      shouldRetry: (err) => !signal?.aborted && err instanceof StreamNotYetVisibleError,
     });
   } catch (err) {
     // Unwrap so callers see the real underlying error (idle timeout, socket
@@ -300,6 +324,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
         tools: params.tools.length > 0 ? toOpenAiTools(params.tools) : undefined,
       },
       params.onTextDelta,
+      params.signal,
     );
 
     return {

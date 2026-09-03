@@ -381,6 +381,14 @@ export async function runTurn(
     nextCallNeedsVision = false;
 
     ui.setBusy(true, "thinking");
+    // Same mechanism as runOneToolCall's controller below — registered on
+    // the session so an interrupt (Ctrl+C, the web UI's Stop) can cancel
+    // this specific in-flight call. Without this, "model is thinking" was
+    // the one phase of a turn a stop request did literally nothing during:
+    // activeAbortControllers was only ever populated while a *tool* call
+    // was running, never during the model's own streaming request.
+    const streamController = new AbortController();
+    session.activeAbortControllers.add(streamController);
     let result: StreamTurnResult;
     try {
       result = await active.provider.streamTurn({
@@ -389,6 +397,7 @@ export async function runTurn(
         messages: compactForProvider(session.messages),
         tools: toolsForProvider(tools, session),
         onTextDelta: (text) => ui.writeAssistantDelta(text),
+        signal: streamController.signal,
       });
     } catch (err) {
       // A provider call can throw outright (not just return an empty/odd
@@ -399,6 +408,14 @@ export async function runTurn(
       // with a message tailored to the likely cause, matches how the other
       // "can't continue" cases below already behave.
       ui.setBusy(false);
+      if (streamController.signal.aborted) {
+        // A deliberate user interrupt (Ctrl+C, the web UI's Stop) throws
+        // through the same catch as a genuine provider failure — tell them
+        // apart so this doesn't read as "the model call failed" for
+        // something the user asked for.
+        ui.writeSystem("Interrupted.");
+        return;
+      }
       const message = describeError(err);
       if (sendingImageWithoutVisionRoute) {
         consumeImageMessage(session, `not shown — ${active.model} doesn't support image input`);
@@ -425,6 +442,8 @@ export async function runTurn(
         ui.writeSystem(`(the model call failed: ${message})`);
       }
       return;
+    } finally {
+      session.activeAbortControllers.delete(streamController);
     }
 
     ui.setBusy(false);
