@@ -1,6 +1,6 @@
 import React from "react";
 import { Box, Text } from "ink";
-import type { CommandInfo } from "../../adapter.js";
+import type { CommandInfo } from "@finanfa/core/src/ui/adapter.js";
 
 export function CommandSuggestions({
   suggestions,

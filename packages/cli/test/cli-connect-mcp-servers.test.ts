@@ -3,8 +3,8 @@ import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { connectMcpServers } from "../src/cli.js";
-import { McpClientManager } from "../src/mcp/client-manager.js";
-import type { UIAdapter } from "../src/ui/adapter.js";
+import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
+import type { UIAdapter } from "@finanfa/core/src/ui/adapter.js";
 
 function makeUi(): UIAdapter {
   return {

@@ -1,0 +1,26 @@
+{
+  "name": "@finanfa/core",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "finanfa-code's engine: agent loop, tools, providers, sessions, permissions, and MCP client — consumed by the CLI and, eventually, a web frontend.",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.65.0",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "diff": "^9.0.0",
+    "docx": "^9.7.1",
+    "exceljs": "^4.4.0",
+    "fast-glob": "^3.3.3",
+    "gray-matter": "^4.0.3",
+    "jszip": "^3.10.1",
+    "mammoth": "^1.12.1",
+    "marked": "^15.0.12",
+    "mysql2": "^3.24.2",
+    "pdf-lib": "^1.17.1",
+    "pdf-parse": "^2.4.5",
+    "pg": "^8.23.0",
+    "playwright-core": "^1.62.1",
+    "sharp": "^0.35.4",
+    "word-extractor": "^1.0.4"
+  }
+}

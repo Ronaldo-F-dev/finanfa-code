@@ -11,7 +11,11 @@
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
     "outDir": "dist",
-    "declaration": true
+    "declaration": true,
+    "baseUrl": ".",
+    "paths": {
+      "@finanfa/core/*": ["packages/core/*"]
+    }
   },
-  "include": ["bin", "src", "test"]
+  "include": ["packages/core/src", "packages/core/test", "packages/cli/bin", "packages/cli/src", "packages/cli/test"]
 }

@@ -1,42 +1,17 @@
 {
-  "name": "finanfa-code",
+  "name": "finanfa-code-monorepo",
   "version": "0.1.0",
-  "description": "A from-scratch AI coding agent CLI",
+  "private": true,
   "type": "module",
-  "bin": {
-    "finanfa": "./dist/finanfa.js"
-  },
+  "workspaces": [
+    "packages/*"
+  ],
   "scripts": {
-    "dev": "tsx bin/finanfa.ts",
-    "build": "tsup bin/finanfa.ts --format esm --dts --clean --out-dir dist",
+    "dev": "npm run dev -w finanfa-code",
+    "build": "npm run build -w finanfa-code",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
-  },
-  "dependencies": {
-    "@anthropic-ai/sdk": "^0.65.0",
-    "@modelcontextprotocol/sdk": "^1.30.0",
-    "commander": "^12.1.0",
-    "diff": "^9.0.0",
-    "docx": "^9.7.1",
-    "exceljs": "^4.4.0",
-    "fast-glob": "^3.3.3",
-    "gray-matter": "^4.0.3",
-    "ink": "^7.1.1",
-    "ink-spinner": "^5.0.0",
-    "ink-text-input": "^6.0.0",
-    "jszip": "^3.10.1",
-    "mammoth": "^1.12.1",
-    "marked": "^15.0.12",
-    "marked-terminal": "^7.3.0",
-    "mysql2": "^3.24.2",
-    "pdf-lib": "^1.17.1",
-    "pdf-parse": "^2.4.5",
-    "pg": "^8.23.0",
-    "playwright-core": "^1.62.1",
-    "react": "^19.2.8",
-    "sharp": "^0.35.4",
-    "word-extractor": "^1.0.4"
   },
   "devDependencies": {
     "@types/diff": "^8.0.0",

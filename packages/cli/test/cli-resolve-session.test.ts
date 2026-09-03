@@ -5,8 +5,8 @@ import path from "node:path";
 import { createHash } from "node:crypto";
 import os from "node:os";
 import { resolveSession, type CliOptions } from "../src/cli.js";
-import { AgentSession } from "../src/core/session.js";
-import type { UIAdapter } from "../src/ui/adapter.js";
+import { AgentSession } from "@finanfa/core/src/core/session.js";
+import type { UIAdapter } from "@finanfa/core/src/ui/adapter.js";
 
 function makeUi(): UIAdapter {
   return {

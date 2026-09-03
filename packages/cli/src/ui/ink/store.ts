@@ -1,5 +1,5 @@
 import { EventEmitter } from "node:events";
-import type { CommandInfo, StatusInfo } from "../adapter.js";
+import type { CommandInfo, StatusInfo } from "@finanfa/core/src/ui/adapter.js";
 
 export type LogItem =
   | { kind: "user"; text: string }

@@ -1,6 +1,6 @@
 import React from "react";
 import { render } from "ink";
-import type { CommandInfo, StatusInfo, UIAdapter } from "../adapter.js";
+import type { CommandInfo, StatusInfo, UIAdapter } from "@finanfa/core/src/ui/adapter.js";
 import { UiStore } from "./store.js";
 import { App } from "./App.js";
 
