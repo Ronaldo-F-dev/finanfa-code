@@ -12,7 +12,17 @@ const BLURBS: Record<string, string> = {
   "claude-haiku-4-5-20251001": "Fastest for quick answers",
 };
 
-export function ModelPicker({ models, model, onChange }: { models: ModelOption[]; model: string; onChange: (model: string, family: string) => void }) {
+export function ModelPicker({
+  models,
+  model,
+  onChange,
+  onNeedsKey,
+}: {
+  models: ModelOption[];
+  model: string;
+  onChange: (model: string, family: string) => void;
+  onNeedsKey: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -37,8 +47,11 @@ export function ModelPicker({ models, model, onChange }: { models: ModelOption[]
               type="button"
               className="model-picker-item"
               onClick={() => {
-                onChange(m.id, m.family);
                 setOpen(false);
+                // No point sending a switch request the server will just
+                // reject — go straight to where the key gets added instead.
+                if (m.configured) onChange(m.id, m.family);
+                else onNeedsKey();
               }}
             >
               <div>

@@ -197,7 +197,7 @@ export function selectProvider(config: FinanfaConfig): { provider: LlmProvider; 
     return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey }), defaultModel: model, kind };
   }
 
-  const apiKey = process.env.ANTHROPIC_API_KEY ?? config.apiKey;
+  const apiKey = process.env.ANTHROPIC_API_KEY ?? config.anthropicApiKey ?? config.apiKey;
   return {
     provider: new AnthropicProvider(apiKey),
     defaultModel: config.model ?? DEFAULT_ANTHROPIC_MODEL,

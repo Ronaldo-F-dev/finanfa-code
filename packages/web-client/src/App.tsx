@@ -6,6 +6,7 @@ import { PermissionModal } from "./components/PermissionModal";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsModal } from "./components/SettingsModal";
 import { McpPanel } from "./components/McpPanel";
+import { MemoryPanel } from "./components/MemoryPanel";
 import { ProjectsListView } from "./components/ProjectsListView";
 import { ProjectDetailView } from "./components/ProjectDetailView";
 
@@ -50,6 +51,7 @@ export default function App() {
   const [deepResearch, setDeepResearch] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
+  const [memoryOpen, setMemoryOpen] = useState(false);
   const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -226,6 +228,7 @@ export default function App() {
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenMcp={() => setMcpOpen(true)}
         onOpenProjects={() => setView({ kind: "projects" })}
+        onOpenMemory={() => setMemoryOpen(true)}
       />
 
       {view.kind === "projects" && <ProjectsListView onOpenProject={(id) => setView({ kind: "project", id })} />}
@@ -346,7 +349,12 @@ export default function App() {
                   >
                     🔎 Deep research
                   </button>
-                  <ModelPicker models={models} model={model} onChange={(m, family) => switchModel(m, family)} />
+                  <ModelPicker
+                    models={models}
+                    model={model}
+                    onChange={(m, family) => switchModel(m, family)}
+                    onNeedsKey={() => setSettingsOpen(true)}
+                  />
                 </div>
                 {busy.active ? (
                   <button className="btn btn-stop" onClick={interrupt}>
@@ -369,6 +377,7 @@ export default function App() {
       {mcpOpen && (
         <McpPanel servers={mcpServers} loaded={mcpLoaded} onClose={() => setMcpOpen(false)} onConnect={mcpConnect} onToggle={mcpToggle} onReload={mcpReload} />
       )}
+      {memoryOpen && <MemoryPanel projectId={activeProjectId} onClose={() => setMemoryOpen(false)} />}
     </div>
   );
 }

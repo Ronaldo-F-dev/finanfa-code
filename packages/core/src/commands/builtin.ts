@@ -300,13 +300,14 @@ export const CONFIG_KEYS = [
   "model",
   "baseUrl",
   "apiKey",
+  "anthropicApiKey",
   "visionProvider",
   "visionModel",
   "visionBaseUrl",
   "visionApiKey",
 ] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
-export const SECRET_KEYS: readonly ConfigKey[] = ["apiKey", "visionApiKey"];
+export const SECRET_KEYS: readonly ConfigKey[] = ["apiKey", "anthropicApiKey", "visionApiKey"];
 
 function isConfigKey(key: string): key is ConfigKey {
   return (CONFIG_KEYS as readonly string[]).includes(key);

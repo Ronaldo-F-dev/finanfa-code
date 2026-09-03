@@ -8,6 +8,16 @@ export interface FinanfaConfig {
   apiKey?: string;
   model?: string;
   /**
+   * A Claude API key stored independently of `provider`/`apiKey` — those two
+   * are scoped to whichever single provider is "active" (set by /config or
+   * the CLI), so saving an Anthropic key there while a different provider is
+   * active would silently not apply. This field exists so a frontend (the
+   * web UI) can let someone add a Claude key without disturbing whatever
+   * else is already configured, and switch to a Claude model mid-session
+   * without first reconfiguring the whole active provider.
+   */
+  anthropicApiKey?: string;
+  /**
    * A second, vision-capable model used only for the follow-up turn right
    * after a tool (browser_screenshot, view_image) returns an image — the
    * primary model/provider is often chosen for cost/availability and may not

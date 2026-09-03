@@ -16,6 +16,7 @@ export function Sidebar({
   onOpenSettings,
   onOpenMcp,
   onOpenProjects,
+  onOpenMemory,
 }: {
   activeSessionId: string | undefined;
   projectId: string | undefined;
@@ -26,6 +27,7 @@ export function Sidebar({
   onOpenSettings: () => void;
   onOpenMcp: () => void;
   onOpenProjects: () => void;
+  onOpenMemory: () => void;
 }) {
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
 
@@ -68,6 +70,9 @@ export function Sidebar({
       </div>
 
       <div className="sidebar-menu">
+        <button className="sidebar-settings" onClick={onOpenMemory}>
+          🧠 Memory & skills
+        </button>
         <button className="sidebar-settings" onClick={onOpenMcp}>
           🔌 Connectors
         </button>

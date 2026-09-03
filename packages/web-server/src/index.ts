@@ -80,7 +80,7 @@ type ProviderFamily = "anthropic" | "openai-compatible";
 async function familyAvailability(config: FinanfaConfig): Promise<Record<ProviderFamily, boolean>> {
   const savedFamily: ProviderFamily = config.provider === "openai-compatible" ? "openai-compatible" : "anthropic";
   return {
-    anthropic: Boolean(process.env.ANTHROPIC_API_KEY) || (savedFamily === "anthropic" && Boolean(config.apiKey)),
+    anthropic: Boolean(process.env.ANTHROPIC_API_KEY) || Boolean(config.anthropicApiKey) || (savedFamily === "anthropic" && Boolean(config.apiKey)),
     "openai-compatible": Boolean(process.env.FINANFA_BASE_URL) || (savedFamily === "openai-compatible" && Boolean(config.baseUrl)),
   };
 }
@@ -89,7 +89,7 @@ async function familyAvailability(config: FinanfaConfig): Promise<Record<Provide
 function buildProvider(family: ProviderFamily, config: FinanfaConfig): LlmProvider {
   const savedFamily: ProviderFamily = config.provider === "openai-compatible" ? "openai-compatible" : "anthropic";
   if (family === "anthropic") {
-    const apiKey = process.env.ANTHROPIC_API_KEY ?? (savedFamily === "anthropic" ? config.apiKey : undefined);
+    const apiKey = process.env.ANTHROPIC_API_KEY ?? config.anthropicApiKey ?? (savedFamily === "anthropic" ? config.apiKey : undefined);
     return new AnthropicProvider(apiKey);
   }
   const baseUrl = process.env.FINANFA_BASE_URL ?? (savedFamily === "openai-compatible" ? config.baseUrl : undefined);
@@ -173,6 +173,21 @@ app.post("/api/config", async (req, res) => {
   }
   await saveGlobalConfig(next);
   res.json({ ok: true, note: "Saved. Existing open chats keep their current provider/model — start a new chat to pick up the change." });
+});
+
+// Skills and memory already exist and do real work (loaded into every
+// session's system prompt, memory writable by the agent itself via
+// write_memory) — these just expose the same read the server already does
+// at connect time, since there was previously no way to see them from the
+// web UI at all.
+app.get("/api/skills", async (req, res) => {
+  const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
+  res.json({ skills: await loadSkills(cwd) });
+});
+
+app.get("/api/memory", async (req, res) => {
+  const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
+  res.json({ memories: await loadMemories(cwd) });
 });
 
 app.get("/api/projects", async (_req, res) => {
