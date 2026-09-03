@@ -258,6 +258,33 @@ app.get("/api/projects/:id/download", async (req, res) => {
   }
 });
 
+// "Instructions" — a project-specific system prompt, shown to the user the
+// way Claude/ChatGPT Projects show one. Not a new concept: this is exactly
+// finanfa.md, already read by loadProjectInstructions and folded into the
+// system prompt on every connection — these two routes just let the UI
+// read/write that same real file directly instead of requiring a chat
+// message ("edit finanfa.md to say...").
+app.get("/api/projects/:id/instructions", async (req, res) => {
+  try {
+    const cwd = await resolveCwd(req.params.id);
+    const content = await readFile(path.join(cwd, "finanfa.md"), "utf-8").catch(() => "");
+    res.json({ content });
+  } catch (err) {
+    res.status(404).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.post("/api/projects/:id/instructions", async (req, res) => {
+  const { content } = req.body as { content?: string };
+  try {
+    const cwd = await resolveCwd(req.params.id);
+    await writeFile(path.join(cwd, "finanfa.md"), content ?? "", "utf-8");
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(404).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 const clientDist = path.join(import.meta.dirname, "../../web-client/dist");
 app.use(express.static(clientDist));
 app.get(/^(?!\/api|\/ws).*/, (_req, res) => {
@@ -408,7 +435,17 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           turnInFlight = true;
           try {
             const images = Array.isArray(msg.images) ? (msg.images as NeutralImage[]) : undefined;
-            await runTurn(session, provider, adapter, tools, permissions, msg.text, undefined, images);
+            // Deep research: not a separate model/effort parameter (nothing
+            // like that exists in the engine — see the "effort" discussion),
+            // just a stronger per-turn instruction pushing the agent to
+            // actually use its search/fetch tools thoroughly instead of
+            // answering from memory. Real behavior change, honestly scoped.
+            const text = msg.deepResearch
+              ? "Do deep research for this: actively search the web and any other tools available (multiple queries/sources, " +
+                "cross-check facts, fetch pages for real detail rather than trusting a snippet) before answering — don't answer " +
+                `from memory alone if search tools can verify it. Take as many search/fetch steps as genuinely useful.\n\n${msg.text}`
+              : msg.text;
+            await runTurn(session, provider, adapter, tools, permissions, text, undefined, images);
             const hadTitle = Boolean(session.title);
             await maybeGenerateTitle(session, provider);
             if (!hadTitle && session.title) sendSessionInfo();
@@ -478,6 +515,9 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           await reloadMcpTools();
           adapter.writeSystem("MCP tools reloaded.");
           await sendMcpStatus();
+        } else if (msg.type === "set_tool_enabled" && typeof msg.name === "string" && typeof msg.enabled === "boolean") {
+          if (msg.enabled) session.disabledTools.delete(msg.name);
+          else session.disabledTools.add(msg.name);
         }
       })();
     });

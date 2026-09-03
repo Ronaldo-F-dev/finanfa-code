@@ -18,14 +18,14 @@ export function McpPanel({
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal mcp-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-title">MCP servers</div>
+        <div className="modal-title">Connectors</div>
         <p className="settings-hint">
-          Configured in <code>.finanfa-code/mcp.json</code>. Connecting to a remote server may open a browser tab on the machine running the server for
-          OAuth.
+          MCP servers configured in <code>.finanfa-code/mcp.json</code>. Connecting to a remote one may open a browser tab on the machine running the
+          server for OAuth.
         </p>
 
         {servers.length === 0 && (
-          <div className="sidebar-empty">{loaded ? "No MCP servers configured for this project." : "Connecting to configured servers…"}</div>
+          <div className="sidebar-empty">{loaded ? "No connectors configured for this project." : "Connecting to configured connectors…"}</div>
         )}
 
         <div className="mcp-list">
@@ -44,8 +44,8 @@ export function McpPanel({
               </div>
               <div className="mcp-row-actions">
                 {!s.connected && (
-                  <button className="btn btn-ghost" onClick={() => onConnect(s.name)}>
-                    Connect
+                  <button className="btn btn-allow" onClick={() => onConnect(s.name)}>
+                    + Add
                   </button>
                 )}
                 {s.connected && (

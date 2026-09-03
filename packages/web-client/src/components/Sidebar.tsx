@@ -69,7 +69,7 @@ export function Sidebar({
 
       <div className="sidebar-menu">
         <button className="sidebar-settings" onClick={onOpenMcp}>
-          ⇄ MCP servers
+          🔌 Connectors
         </button>
         <button className="sidebar-settings" onClick={onOpenSettings}>
           ⚙ Settings

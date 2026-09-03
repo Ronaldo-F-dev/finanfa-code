@@ -174,11 +174,11 @@ export function useAgentSocket(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, sessionId, projectId, resumeToken]);
 
-  const sendMessage = useCallback((text: string, images?: Attachment[]) => {
+  const sendMessage = useCallback((text: string, images?: Attachment[], deepResearch?: boolean) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
     setTimeline((t) => [...t, { kind: "user", id: uid(), text, images }]);
-    ws.send(JSON.stringify({ type: "user_message", text, images }));
+    ws.send(JSON.stringify({ type: "user_message", text, images, deepResearch }));
   }, []);
 
   const answerPermission = useCallback((requestId: number, answer: string) => {
@@ -212,6 +212,7 @@ export function useAgentSocket(
   const mcpConnect = useCallback((name: string) => send({ type: "mcp_connect", name }), [send]);
   const mcpToggle = useCallback((name: string, enabled: boolean) => send({ type: enabled ? "mcp_enable" : "mcp_disable", name }), [send]);
   const mcpReload = useCallback(() => send({ type: "mcp_reload" }), [send]);
+  const setToolEnabled = useCallback((name: string, enabled: boolean) => send({ type: "set_tool_enabled", name, enabled }), [send]);
 
   return {
     connected,
@@ -232,5 +233,6 @@ export function useAgentSocket(
     mcpConnect,
     mcpToggle,
     mcpReload,
+    setToolEnabled,
   };
 }

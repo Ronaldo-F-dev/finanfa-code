@@ -6,9 +6,12 @@ import { PermissionModal } from "./components/PermissionModal";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsModal } from "./components/SettingsModal";
 import { McpPanel } from "./components/McpPanel";
-import { ProjectsPanel } from "./components/ProjectsPanel";
+import { ProjectsListView } from "./components/ProjectsListView";
+import { ProjectDetailView } from "./components/ProjectDetailView";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+type View = { kind: "chat" } | { kind: "projects" } | { kind: "project"; id: string };
 
 function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -20,6 +23,7 @@ function readFileAsBase64(file: File): Promise<string> {
 }
 
 export default function App() {
+  const [view, setView] = useState<View>({ kind: "chat" });
   const [models, setModels] = useState<ModelOption[]>([]);
   // connectModel only ever feeds the WebSocket's connection query string —
   // it changes exactly when we WANT a reconnect (initial default arriving,
@@ -41,12 +45,15 @@ export default function App() {
   const [input, setInput] = useState("");
   const [pendingImages, setPendingImages] = useState<Attachment[]>([]);
   const [uploading, setUploading] = useState(false);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(true);
+  const [imageGenEnabled, setImageGenEnabled] = useState(true);
+  const [deepResearch, setDeepResearch] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
-  const [projectsOpen, setProjectsOpen] = useState(false);
   const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const pendingFirstMessageRef = useRef<string | null>(null);
 
   useEffect(() => {
     const qs = activeProjectId ? `?project=${encodeURIComponent(activeProjectId)}` : "";
@@ -63,11 +70,6 @@ export default function App() {
         setModel("default");
       });
   }, [activeProjectId]);
-
-  function handleSelectProject(id: string | undefined) {
-    setActiveProjectId(id);
-    setActiveSessionId(undefined); // a session belongs to exactly one project's cwd
-  }
 
   useEffect(() => {
     if (!activeProjectId) {
@@ -99,6 +101,7 @@ export default function App() {
     mcpConnect,
     mcpToggle,
     mcpReload,
+    setToolEnabled,
   } = useAgentSocket(connectModel || undefined, activeSessionId, activeProjectId, onTitled);
 
   // The server's session_info is the source of truth for what model the
@@ -122,11 +125,21 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionInfo?.model]);
 
+  // Fires the message a project's own "start chat" composer queued, once the
+  // freshly (re)connected socket is actually ready to receive it.
+  useEffect(() => {
+    if (connected && pendingFirstMessageRef.current) {
+      sendMessage(pendingFirstMessageRef.current);
+      pendingFirstMessageRef.current = null;
+    }
+  }, [connected, sendMessage]);
+
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [timeline, busy]);
 
   function handleNewChat() {
+    setView({ kind: "chat" });
     const wasAlreadyFresh = activeSessionId === undefined;
     setActiveSessionId(undefined);
     // Whatever's currently selected becomes the new chat's starting model.
@@ -134,12 +147,43 @@ export default function App() {
     if (wasAlreadyFresh) reconnect();
   }
 
+  function handleSelectSession(id: string) {
+    setView({ kind: "chat" });
+    setActiveSessionId(id);
+  }
+
+  function handleSelectProject(id: string | undefined) {
+    setView({ kind: "chat" });
+    setActiveProjectId(id);
+    setActiveSessionId(undefined); // a session belongs to exactly one project's cwd
+  }
+
+  function handleStartChatFromProject(projectId: string, firstMessage: string) {
+    pendingFirstMessageRef.current = firstMessage;
+    setActiveProjectId(projectId);
+    setActiveSessionId(undefined);
+    setView({ kind: "chat" });
+  }
+
   function handleSend() {
     const text = input.trim();
     if ((!text && pendingImages.length === 0) || busy.active) return;
-    sendMessage(text || "(see attached image)", pendingImages.length > 0 ? pendingImages : undefined);
+    sendMessage(text || "(see attached image)", pendingImages.length > 0 ? pendingImages : undefined, deepResearch);
     setInput("");
     setPendingImages([]);
+  }
+
+  function toggleWebSearch() {
+    const next = !webSearchEnabled;
+    setWebSearchEnabled(next);
+    setToolEnabled("web_search", next);
+  }
+
+  function toggleImageGen() {
+    const next = !imageGenEnabled;
+    setImageGenEnabled(next);
+    setToolEnabled("generate_2d", next);
+    setToolEnabled("generate_3d", next);
   }
 
   async function handleFiles(files: FileList | null) {
@@ -177,118 +221,153 @@ export default function App() {
         projectId={activeProjectId}
         projectName={projectName}
         refreshToken={sidebarRefreshToken}
-        onSelect={setActiveSessionId}
+        onSelect={handleSelectSession}
         onNewChat={handleNewChat}
         onOpenSettings={() => setSettingsOpen(true)}
         onOpenMcp={() => setMcpOpen(true)}
-        onOpenProjects={() => setProjectsOpen(true)}
+        onOpenProjects={() => setView({ kind: "projects" })}
       />
 
-      <div className="app">
-        <header className="topbar">
-          <div className="brand">{sessionInfo?.title ?? "finanfa AI"}</div>
-          <div className="topbar-right">
-            {status && (
-              <span className="cost-pill">
-                {status.tokens.toLocaleString()} tok · ${status.costUsd.toFixed(4)}
-              </span>
-            )}
-            <span className={`conn-dot ${connected ? "conn-on" : "conn-off"}`} title={connected ? "connected" : "disconnected"} />
-          </div>
-        </header>
+      {view.kind === "projects" && <ProjectsListView onOpenProject={(id) => setView({ kind: "project", id })} />}
 
-        {modelUnavailable && (
-          <div className="inline-banner">
-            <span>{modelUnavailable.message}</span>
-            <div className="inline-banner-actions">
-              <button className="btn btn-ghost" onClick={() => setSettingsOpen(true)}>
-                Open Settings
-              </button>
-              <button className="btn btn-ghost" onClick={dismissModelUnavailable}>
-                Dismiss
-              </button>
-            </div>
-          </div>
-        )}
+      {view.kind === "project" && (
+        <ProjectDetailView
+          projectId={view.id}
+          onBack={() => setView({ kind: "projects" })}
+          onOpenChat={(sessionId) => {
+            setActiveProjectId(view.id);
+            setActiveSessionId(sessionId);
+            setView({ kind: "chat" });
+          }}
+          onStartChat={(firstMessage) => handleStartChatFromProject(view.id, firstMessage)}
+          onDeleted={() => {
+            if (activeProjectId === view.id) handleSelectProject(undefined);
+            setView({ kind: "projects" });
+          }}
+        />
+      )}
 
-        <main className="timeline" ref={scrollRef}>
-          {timeline.length === 0 && (
-            <div className="empty-state">
-              <div className="empty-title">finanfa AI</div>
-              <div className="empty-sub">Ask it to read, edit, run, or build something in this project.</div>
-            </div>
-          )}
-          {timeline.map((item) => (
-            <ChatMessageView key={item.id} item={item} />
-          ))}
-          {busy.active && (
-            <div className="row row-log">
-              <div className="log-line log-busy">
-                <span className="spinner" /> {busy.label ?? "working"}…
-              </div>
-            </div>
-          )}
-        </main>
-
-        <footer className="composer">
-          <div className="composer-box">
-            {pendingImages.length > 0 && (
-              <div className="attachment-chips">
-                {pendingImages.map((img, i) => (
-                  <div className="attachment-chip" key={i}>
-                    <img src={`data:${img.mimeType};base64,${img.base64}`} alt="attachment" />
-                    <button onClick={() => setPendingImages((imgs) => imgs.filter((_, idx) => idx !== i))}>×</button>
-                  </div>
-                ))}
-              </div>
-            )}
-            <textarea
-              className="composer-input"
-              placeholder={connected ? "Message finanfa AI…" : "Connecting…"}
-              value={input}
-              disabled={!connected}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                }
-              }}
-            />
-            <div className="composer-toolbar">
-              <div className="composer-toolbar-left">
-                <input
-                  ref={fileInputRef}
-                  type="file"
-                  multiple
-                  hidden
-                  onChange={(e) => handleFiles(e.target.files)}
-                />
-                <button className="btn btn-ghost attach-btn" onClick={() => fileInputRef.current?.click()} disabled={!connected || uploading} title="Attach image or file">
-                  📎
-                </button>
-                <ModelPicker models={models} model={model} onChange={(m, family) => switchModel(m, family)} />
-              </div>
-              {busy.active ? (
-                <button className="btn btn-stop" onClick={interrupt}>
-                  Stop
-                </button>
-              ) : (
-                <button className="btn btn-send" onClick={handleSend} disabled={!connected || (!input.trim() && pendingImages.length === 0)}>
-                  Send
-                </button>
+      {view.kind === "chat" && (
+        <div className="app">
+          <header className="topbar">
+            <div className="brand">{sessionInfo?.title ?? "finanfa AI"}</div>
+            <div className="topbar-right">
+              {status && (
+                <span className="cost-pill">
+                  {status.tokens.toLocaleString()} tok · ${status.costUsd.toFixed(4)}
+                </span>
               )}
+              <span className={`conn-dot ${connected ? "conn-on" : "conn-off"}`} title={connected ? "connected" : "disconnected"} />
             </div>
-          </div>
-        </footer>
-      </div>
+          </header>
+
+          {modelUnavailable && (
+            <div className="inline-banner">
+              <span>{modelUnavailable.message}</span>
+              <div className="inline-banner-actions">
+                <button className="btn btn-ghost" onClick={() => setSettingsOpen(true)}>
+                  Open Settings
+                </button>
+                <button className="btn btn-ghost" onClick={dismissModelUnavailable}>
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          )}
+
+          <main className="timeline" ref={scrollRef}>
+            {timeline.length === 0 && (
+              <div className="empty-state">
+                <div className="empty-title">finanfa AI</div>
+                <div className="empty-sub">Ask it to read, edit, run, or build something in this project.</div>
+              </div>
+            )}
+            {timeline.map((item) => (
+              <ChatMessageView key={item.id} item={item} />
+            ))}
+            {busy.active && (
+              <div className="row row-log">
+                <div className="log-line log-busy">
+                  <span className="spinner" /> {busy.label ?? "working"}…
+                </div>
+              </div>
+            )}
+          </main>
+
+          <footer className="composer">
+            <div className="composer-box">
+              {pendingImages.length > 0 && (
+                <div className="attachment-chips">
+                  {pendingImages.map((img, i) => (
+                    <div className="attachment-chip" key={i}>
+                      <img src={`data:${img.mimeType};base64,${img.base64}`} alt="attachment" />
+                      <button onClick={() => setPendingImages((imgs) => imgs.filter((_, idx) => idx !== i))}>×</button>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <textarea
+                className="composer-input"
+                placeholder={connected ? "Message finanfa AI…" : "Connecting…"}
+                value={input}
+                disabled={!connected}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    handleSend();
+                  }
+                }}
+              />
+              <div className="composer-toolbar">
+                <div className="composer-toolbar-left">
+                  <input ref={fileInputRef} type="file" multiple hidden onChange={(e) => handleFiles(e.target.files)} />
+                  <button className="btn btn-ghost attach-btn" onClick={() => fileInputRef.current?.click()} disabled={!connected || uploading} title="Attach image or file">
+                    📎
+                  </button>
+                  <button
+                    className={`btn btn-toggle ${webSearchEnabled ? "btn-toggle-on" : ""}`}
+                    onClick={toggleWebSearch}
+                    title={webSearchEnabled ? "Web search allowed — click to disable" : "Web search disabled — click to enable"}
+                  >
+                    🌐 Web
+                  </button>
+                  <button
+                    className={`btn btn-toggle ${imageGenEnabled ? "btn-toggle-on" : ""}`}
+                    onClick={toggleImageGen}
+                    title={imageGenEnabled ? "Image generation allowed — click to disable" : "Image generation disabled — click to enable"}
+                  >
+                    🖼️ Image
+                  </button>
+                  <button
+                    className={`btn btn-toggle ${deepResearch ? "btn-toggle-on" : ""}`}
+                    onClick={() => setDeepResearch((v) => !v)}
+                    title="Deep research: push the agent to search thoroughly across multiple sources before answering"
+                  >
+                    🔎 Deep research
+                  </button>
+                  <ModelPicker models={models} model={model} onChange={(m, family) => switchModel(m, family)} />
+                </div>
+                {busy.active ? (
+                  <button className="btn btn-stop" onClick={interrupt}>
+                    Stop
+                  </button>
+                ) : (
+                  <button className="btn btn-send" onClick={handleSend} disabled={!connected || (!input.trim() && pendingImages.length === 0)}>
+                    Send
+                  </button>
+                )}
+              </div>
+            </div>
+          </footer>
+        </div>
+      )}
 
       {permissionRequest && <PermissionModal request={permissionRequest} onAnswer={(answer) => answerPermission(permissionRequest.requestId, answer)} />}
       {settingsOpen && <SettingsModal onClose={() => setSettingsOpen(false)} />}
       {mcpOpen && (
         <McpPanel servers={mcpServers} loaded={mcpLoaded} onClose={() => setMcpOpen(false)} onConnect={mcpConnect} onToggle={mcpToggle} onReload={mcpReload} />
       )}
-      {projectsOpen && <ProjectsPanel activeProjectId={activeProjectId} onClose={() => setProjectsOpen(false)} onSelect={handleSelectProject} />}
     </div>
   );
 }

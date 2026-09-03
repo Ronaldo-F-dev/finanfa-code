@@ -53,8 +53,9 @@ function systemPromptWithDate(session: AgentSession): string {
  * tools are never filtered.
  */
 function toolsForProvider(tools: ToolRegistry, session: AgentSession): ToolDefinition[] {
-  if (session.disabledMcpServers.size === 0) return tools.list();
+  if (session.disabledMcpServers.size === 0 && session.disabledTools.size === 0) return tools.list();
   return tools.list().filter((tool) => {
+    if (session.disabledTools.has(tool.name)) return false;
     const server = mcpToolServerName(tool.name);
     return !server || !session.disabledMcpServers.has(server);
   });

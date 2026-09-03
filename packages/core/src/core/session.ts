@@ -59,6 +59,8 @@ export class AgentSession {
   readonly fileFreshness = new FileFreshnessTracker();
   /** MCP server names currently excluded from the tool list sent to the model (still connected — /mcp enable brings them back without reconnecting). */
   readonly disabledMcpServers = new Set<string>();
+  /** Built-in tool names excluded from the tool list sent to the model — e.g. a web UI's explicit "web search off"/"image generation off" toggles, distinct from disabledMcpServers (which only ever covers MCP-provided tools). */
+  readonly disabledTools = new Set<string>();
   /**
    * One entry per currently-running tool call (see runOneToolCall in
    * loop.ts) — a Set, not a single controller, since "safe" tools run
