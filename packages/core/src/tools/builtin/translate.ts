@@ -20,19 +20,34 @@ const API_TOKEN = process.env.FONIKA_API_TOKEN;
 const BASE_URL = process.env.FONIKA_BASE_URL;
 
 /**
- * translate() is typed as Promise<Record<string, unknown>> — the actual
- * 229Langues backend's response shape isn't documented anywhere in the
- * package (its own README just does `console.log(translated)`), and the
- * default backend (a Hugging Face Space) was unreachable — a real 404,
- * confirmed independently with curl — when this was built, so the exact
- * field name couldn't be verified against a live response. Tries the
- * plausible field names; falls back to the raw JSON rather than silently
- * dropping a differently-shaped response.
+ * translate() is typed as Promise<Record<string, unknown>> — fonika_translate
+ * itself never documents the response shape (its own README just does
+ * `console.log(translated)`), but the 229Langues API's own homepage (GET /,
+ * fetched directly by the user, not through this client) documents a
+ * envelope every endpoint replies with:
+ *   { success: boolean, data: object|array|null, error: string|null, message: string|null }
+ * — checked for real error/success fields first (an HTTP 200 with
+ * success:false is a real API-level failure, not a translation), then the
+ * plausible field names for the actual translated string, first at the top
+ * level and then inside `data` (the translate endpoint's own `data` shape
+ * isn't spelled out in that documentation, only its request body is).
+ * Falls back to the raw JSON rather than silently dropping an unexpected
+ * shape — this hasn't been exercised against a real 200 response yet (see
+ * the test file's own note on why), so staying defensive here matters.
  */
 function extractTranslation(response: Record<string, unknown>): string {
-  for (const key of ["translated_text", "translation", "text", "result", "output"]) {
-    const value = response[key];
-    if (typeof value === "string" && value.length > 0) return value;
+  if (response.success === false) {
+    const reason = response.error ?? response.message;
+    throw new Error(typeof reason === "string" ? reason : "API reported failure with no error/message field.");
+  }
+  const candidates: unknown[] = [response];
+  if (response.data && typeof response.data === "object") candidates.unshift(response.data as Record<string, unknown>);
+  for (const candidate of candidates) {
+    if (typeof candidate !== "object" || candidate === null) continue;
+    for (const key of ["translated_text", "translation", "text", "result", "output"]) {
+      const value = (candidate as Record<string, unknown>)[key];
+      if (typeof value === "string" && value.length > 0) return value;
+    }
   }
   return JSON.stringify(response);
 }

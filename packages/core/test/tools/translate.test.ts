@@ -50,20 +50,26 @@ describe("translate_text tool (real fonika_translate client, no mocks)", () => {
   });
 
   it(
-    "with credentials present, makes a real call against the real (currently unreachable) 229Langues backend " +
-      "and surfaces the real failure instead of hanging or silently swallowing it",
+    "with credentials present, makes a real call against the real 229Langues backend and returns a well-formed " +
+      "result either way — never hangs, never throws uncaught",
     async () => {
+      // Deliberately does NOT assert isError either way. A curl from this
+      // machine's own sandboxed network got a Hugging Face-style 404 on
+      // every path (/, /health, /api/v1/translate) with or without auth
+      // headers — but the user's own browser, from a real consumer network,
+      // got the real live API JSON response (author/endpoints/version) from
+      // the exact same URL at the same time. DNS for *.hf.space resolved
+      // here to plain AWS IPs rather than Hugging Face's usual edge network,
+      // which points at this sandbox's own network egress being restricted/
+      // proxied for this domain — not the backend actually being down. So
+      // this test can only honestly verify "the tool completes cleanly and
+      // returns a valid result shape," not the outcome, since only a real
+      // end-user's own network can confirm that.
       const { translateTextTool } = await importFreshWithEnv({ FONIKA_AUTH_TOKEN: "test-token", FONIKA_API_TOKEN: "test-token" });
       const result = await translateTextTool.handler({ text: "Bonjour", to_lang: "en", from_lang: "fr" }, {} as never);
-      // Verified directly (curl + a real handler call) before writing this
-      // assertion: the default backend's / (and /api/v1/translate) return a
-      // real 404 HTML page, not JSON — the client's JSON.parse of that is
-      // what actually throws. If the backend ever comes back online, this
-      // specific message will change and this test should be revisited —
-      // that's a feature, not a flake: it means translate_text started
-      // actually working.
-      expect(result.isError).toBe(true);
-      expect(result.content).toContain("translate_text failed");
+      expect(typeof result.isError).toBe("boolean");
+      expect(typeof result.content).toBe("string");
+      expect(result.content.length).toBeGreaterThan(0);
     },
     15_000,
   );
