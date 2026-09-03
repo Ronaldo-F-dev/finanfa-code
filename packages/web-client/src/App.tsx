@@ -1,31 +1,57 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { useAgentSocket } from "./hooks/useAgentSocket";
+import { useAgentSocket, type Attachment } from "./hooks/useAgentSocket";
 import { ChatMessageView } from "./components/ChatMessage";
-import { ModelPicker } from "./components/ModelPicker";
+import { ModelPicker, type ModelOption } from "./components/ModelPicker";
 import { PermissionModal } from "./components/PermissionModal";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsModal } from "./components/SettingsModal";
 import { McpPanel } from "./components/McpPanel";
 
+const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
+
+function readFileAsBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve((reader.result as string).split(",")[1] ?? "");
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(file);
+  });
+}
+
 export default function App() {
-  const [models, setModels] = useState<string[]>([]);
+  const [models, setModels] = useState<ModelOption[]>([]);
+  // connectModel only ever feeds the WebSocket's connection query string —
+  // it changes exactly when we WANT a reconnect (initial default arriving,
+  // an explicit new chat). model is purely display/selection state, kept in
+  // sync from the server's own session_info once connected. The two used to
+  // be the same state, so picking a model mid-chat (meant to send a live
+  // set_model message) also fed straight back into the connection's own
+  // effect dependency and silently reconnected/dropped the session instead
+  // — a real bug caught by actually clicking the picker, not just reading
+  // the code.
+  const [connectModel, setConnectModel] = useState<string>("");
   const [model, setModel] = useState<string>("");
   const [activeSessionId, setActiveSessionId] = useState<string | undefined>(undefined);
   const [input, setInput] = useState("");
+  const [pendingImages, setPendingImages] = useState<Attachment[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
   const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
   const scrollRef = useRef<HTMLDivElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     fetch("/api/models")
       .then((r) => r.json())
-      .then((data: { models: string[]; defaultModel: string }) => {
+      .then((data: { models: ModelOption[]; defaultModel: string }) => {
         setModels(data.models);
+        setConnectModel((current) => current || data.defaultModel);
         setModel((current) => current || data.defaultModel);
       })
       .catch(() => {
-        setModels(["default"]);
+        setModels([]);
+        setConnectModel("default");
         setModel("default");
       });
   }, []);
@@ -40,24 +66,38 @@ export default function App() {
     sessionInfo,
     mcpServers,
     mcpLoaded,
+    modelUnavailable,
     sendMessage,
     answerPermission,
     interrupt,
     reconnect,
     switchModel,
+    dismissModelUnavailable,
     mcpConnect,
     mcpToggle,
     mcpReload,
-  } = useAgentSocket(model || undefined, activeSessionId, onTitled);
+  } = useAgentSocket(connectModel || undefined, activeSessionId, onTitled);
 
-  // A resumed session's model is authoritative (readonly on the CLI side —
-  // mutable here, but only through switchModel) — keep the picker in sync
-  // rather than showing whatever was last selected for a different chat.
+  // The server's session_info is the source of truth for what model the
+  // *active connection* is actually using — after a resume, after a live
+  // switchModel round-trip, or on first connect. Never write into
+  // connectModel here, only the display-facing `model`.
+  //
+  // Deliberately NOT syncing activeSessionId from sessionInfo.id here (a
+  // real, serious bug this used to have): activeSessionId feeds the
+  // WebSocket's own ?session= query param, so "the server told us this
+  // connection's session id" fed straight back into "reconnect using this
+  // session id" — for a brand-new, not-yet-persisted chat, that reconnect's
+  // resume() always 404s, falls back to yet another new session, whose
+  // session_info again triggered the same sync — an infinite reconnect loop
+  // invisible in the UI (it looks merely "connected") but hammering the
+  // server with a fresh connectMcpServers() every few hundred ms. Caught by
+  // actually watching the raw WebSocket frames, not by reading this code.
+  // Sidebar highlighting uses sessionInfo.id directly instead (below).
   useEffect(() => {
     if (sessionInfo?.model && sessionInfo.model !== model) setModel(sessionInfo.model);
-    if (sessionInfo?.id && sessionInfo.id !== activeSessionId) setActiveSessionId(sessionInfo.id);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [sessionInfo?.model, sessionInfo?.id]);
+  }, [sessionInfo?.model]);
 
   useEffect(() => {
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
@@ -66,20 +106,51 @@ export default function App() {
   function handleNewChat() {
     const wasAlreadyFresh = activeSessionId === undefined;
     setActiveSessionId(undefined);
+    // Whatever's currently selected becomes the new chat's starting model.
+    setConnectModel(model);
     if (wasAlreadyFresh) reconnect();
   }
 
   function handleSend() {
     const text = input.trim();
-    if (!text || busy.active) return;
-    sendMessage(text);
+    if ((!text && pendingImages.length === 0) || busy.active) return;
+    sendMessage(text || "(see attached image)", pendingImages.length > 0 ? pendingImages : undefined);
     setInput("");
+    setPendingImages([]);
+  }
+
+  async function handleFiles(files: FileList | null) {
+    if (!files || files.length === 0) return;
+    setUploading(true);
+    try {
+      for (const file of Array.from(files)) {
+        const base64 = await readFileAsBase64(file);
+        if (IMAGE_TYPES.includes(file.type)) {
+          setPendingImages((imgs) => [...imgs, { mimeType: file.type, base64 }]);
+        } else {
+          // Non-image files aren't sent inline — uploaded to the project and
+          // referenced by path instead, so the model reaches them through
+          // its own read_file/read_document/view_image tools like any other
+          // file in the project, rather than a separate ad hoc upload path.
+          const res = await fetch("/api/upload", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ filename: file.name, dataBase64: base64 }),
+          });
+          const data = await res.json();
+          setInput((prev) => (prev ? `${prev}\n` : "") + `[Attached file: ${data.path}]`);
+        }
+      }
+    } finally {
+      setUploading(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
   }
 
   return (
     <div className="app-shell">
       <Sidebar
-        activeSessionId={activeSessionId}
+        activeSessionId={sessionInfo?.id ?? activeSessionId}
         refreshToken={sidebarRefreshToken}
         onSelect={setActiveSessionId}
         onNewChat={handleNewChat}
@@ -89,7 +160,7 @@ export default function App() {
 
       <div className="app">
         <header className="topbar">
-          <div className="brand">{sessionInfo?.title ?? "finanfa-code"}</div>
+          <div className="brand">{sessionInfo?.title ?? "finanfa AI"}</div>
           <div className="topbar-right">
             {status && (
               <span className="cost-pill">
@@ -100,10 +171,24 @@ export default function App() {
           </div>
         </header>
 
+        {modelUnavailable && (
+          <div className="inline-banner">
+            <span>{modelUnavailable.message}</span>
+            <div className="inline-banner-actions">
+              <button className="btn btn-ghost" onClick={() => setSettingsOpen(true)}>
+                Open Settings
+              </button>
+              <button className="btn btn-ghost" onClick={dismissModelUnavailable}>
+                Dismiss
+              </button>
+            </div>
+          </div>
+        )}
+
         <main className="timeline" ref={scrollRef}>
           {timeline.length === 0 && (
             <div className="empty-state">
-              <div className="empty-title">finanfa-code</div>
+              <div className="empty-title">finanfa AI</div>
               <div className="empty-sub">Ask it to read, edit, run, or build something in this project.</div>
             </div>
           )}
@@ -121,9 +206,19 @@ export default function App() {
 
         <footer className="composer">
           <div className="composer-box">
+            {pendingImages.length > 0 && (
+              <div className="attachment-chips">
+                {pendingImages.map((img, i) => (
+                  <div className="attachment-chip" key={i}>
+                    <img src={`data:${img.mimeType};base64,${img.base64}`} alt="attachment" />
+                    <button onClick={() => setPendingImages((imgs) => imgs.filter((_, idx) => idx !== i))}>×</button>
+                  </div>
+                ))}
+              </div>
+            )}
             <textarea
               className="composer-input"
-              placeholder={connected ? "Message finanfa-code…" : "Connecting…"}
+              placeholder={connected ? "Message finanfa AI…" : "Connecting…"}
               value={input}
               disabled={!connected}
               onChange={(e) => setInput(e.target.value)}
@@ -135,20 +230,25 @@ export default function App() {
               }}
             />
             <div className="composer-toolbar">
-              <ModelPicker
-                models={models.length > 0 ? models : [model]}
-                model={model}
-                onChange={(m) => {
-                  setModel(m);
-                  switchModel(m);
-                }}
-              />
+              <div className="composer-toolbar-left">
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  hidden
+                  onChange={(e) => handleFiles(e.target.files)}
+                />
+                <button className="btn btn-ghost attach-btn" onClick={() => fileInputRef.current?.click()} disabled={!connected || uploading} title="Attach image or file">
+                  📎
+                </button>
+                <ModelPicker models={models} model={model} onChange={(m, family) => switchModel(m, family)} />
+              </div>
               {busy.active ? (
                 <button className="btn btn-stop" onClick={interrupt}>
                   Stop
                 </button>
               ) : (
-                <button className="btn btn-send" onClick={handleSend} disabled={!connected || !input.trim()}>
+                <button className="btn btn-send" onClick={handleSend} disabled={!connected || (!input.trim() && pendingImages.length === 0)}>
                   Send
                 </button>
               )}

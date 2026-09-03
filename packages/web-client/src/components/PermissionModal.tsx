@@ -8,7 +8,7 @@ export function PermissionModal({ request, onAnswer }: { request: PermissionRequ
     <div className="modal-backdrop">
       <div className="modal">
         <div className="modal-title">Permission required</div>
-        <pre className="modal-prompt">{request.prompt.replace(/\n\[y\]es.*$/s, "").trim()}</pre>
+        <pre className="modal-prompt">{request.prompt.replace(/\n\[y\]es.*$/s, "").replace(/^finanfa-code /, "finanfa AI ").trim()}</pre>
         <div className="modal-actions">
           <button className="btn btn-deny" onClick={() => onAnswer("n")}>
             Deny

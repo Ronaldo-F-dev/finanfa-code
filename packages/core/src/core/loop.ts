@@ -344,9 +344,13 @@ export async function runTurn(
   permissions: PermissionManager,
   userInput: string,
   visionRoute?: VisionRoute,
+  images?: NeutralImage[],
 ): Promise<void> {
-  session.messages.push({ role: "user", content: userInput });
-  let nextCallNeedsVision = false;
+  session.messages.push({ role: "user", content: userInput, images });
+  // Same as a tool-produced image (browser_screenshot, view_image) — route
+  // the very next call through visionRoute if one is configured, since the
+  // primary model may not support image input at all.
+  let nextCallNeedsVision = Boolean(images?.length);
   const guard = new LoopGuard();
 
   for (;;) {

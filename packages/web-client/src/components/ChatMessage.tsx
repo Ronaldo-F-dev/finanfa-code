@@ -7,7 +7,16 @@ export function ChatMessageView({ item }: { item: TimelineItem }) {
   if (item.kind === "user") {
     return (
       <div className="row row-user">
-        <div className="bubble bubble-user">{item.text}</div>
+        <div className="bubble bubble-user">
+          {item.images && item.images.length > 0 && (
+            <div className="bubble-images">
+              {item.images.map((img, i) => (
+                <img key={i} src={`data:${img.mimeType};base64,${img.base64}`} alt="attachment" />
+              ))}
+            </div>
+          )}
+          {item.text}
+        </div>
       </div>
     );
   }

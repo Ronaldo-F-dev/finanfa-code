@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type TimelineItem =
-  | { kind: "user"; id: string; text: string }
+  | { kind: "user"; id: string; text: string; images?: Attachment[] }
   | { kind: "assistant"; id: string; text: string; streaming: boolean }
   | { kind: "log"; id: string; variant: "system" | "error"; text: string };
 
@@ -32,6 +32,17 @@ export interface McpServerStatus {
   needsAuth: boolean;
 }
 
+export interface ModelUnavailable {
+  model: string;
+  family: string;
+  message: string;
+}
+
+export interface Attachment {
+  mimeType: string;
+  base64: string;
+}
+
 let nextId = 1;
 const uid = () => String(nextId++);
 
@@ -56,6 +67,7 @@ export function useAgentSocket(model: string | undefined, sessionId: string | un
   // from "genuinely nothing configured" so the panel doesn't flash a wrong
   // "no servers" message to someone who opens it quickly.
   const [mcpLoaded, setMcpLoaded] = useState(false);
+  const [modelUnavailable, setModelUnavailable] = useState<ModelUnavailable | null>(null);
   const [resumeToken, setResumeToken] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
@@ -75,6 +87,7 @@ export function useAgentSocket(model: string | undefined, sessionId: string | un
     setSessionInfo(null);
     setMcpServers([]);
     setMcpLoaded(false);
+    setModelUnavailable(null);
     streamingIdRef.current = null;
     hadTitleRef.current = false;
 
@@ -133,6 +146,9 @@ export function useAgentSocket(model: string | undefined, sessionId: string | un
           setMcpServers(msg.servers);
           setMcpLoaded(true);
           break;
+        case "model_unavailable":
+          setModelUnavailable({ model: msg.model, family: msg.family, message: msg.message });
+          break;
         case "history": {
           const items: TimelineItem[] = (msg.messages as { role: "user" | "assistant"; content: string }[]).map((m) => ({
             kind: m.role,
@@ -152,11 +168,11 @@ export function useAgentSocket(model: string | undefined, sessionId: string | un
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [model, sessionId, resumeToken]);
 
-  const sendMessage = useCallback((text: string) => {
+  const sendMessage = useCallback((text: string, images?: Attachment[]) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    setTimeline((t) => [...t, { kind: "user", id: uid(), text }]);
-    ws.send(JSON.stringify({ type: "user_message", text }));
+    setTimeline((t) => [...t, { kind: "user", id: uid(), text, images }]);
+    ws.send(JSON.stringify({ type: "user_message", text, images }));
   }, []);
 
   const answerPermission = useCallback((requestId: number, answer: string) => {
@@ -174,11 +190,13 @@ export function useAgentSocket(model: string | undefined, sessionId: string | un
 
   const reconnect = useCallback(() => setResumeToken((k) => k + 1), []);
 
-  const switchModel = useCallback((newModel: string) => {
+  const switchModel = useCallback((newModel: string, family: string) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "set_model", model: newModel }));
+    ws.send(JSON.stringify({ type: "set_model", model: newModel, family }));
   }, []);
+
+  const dismissModelUnavailable = useCallback(() => setModelUnavailable(null), []);
 
   const send = useCallback((payload: Record<string, unknown>) => {
     const ws = wsRef.current;
@@ -198,11 +216,13 @@ export function useAgentSocket(model: string | undefined, sessionId: string | un
     sessionInfo,
     mcpServers,
     mcpLoaded,
+    modelUnavailable,
     sendMessage,
     answerPermission,
     interrupt,
     reconnect,
     switchModel,
+    dismissModelUnavailable,
     mcpConnect,
     mcpToggle,
     mcpReload,
