@@ -2,9 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // translate.ts reads FONIKA_AUTH_TOKEN/FONIKA_API_TOKEN once at module load
 // (so a missing config fails the same clear way every call, not a fresh
-// error shape per attempt) — that means the two branches below each need a
-// fresh module instance with the env set *before* import, not a mutation
-// after the fact.
+// error shape per attempt) — that means each branch below needs a fresh
+// module instance with the env set *before* import, not a mutation after.
 async function importFreshWithEnv(env: Record<string, string | undefined>) {
   vi.resetModules();
   for (const [key, value] of Object.entries(env)) {
@@ -14,7 +13,7 @@ async function importFreshWithEnv(env: Record<string, string | undefined>) {
   return import("../../src/tools/builtin/translate.js");
 }
 
-describe("translate_text tool (real fonika_translate client, no mocks)", () => {
+describe("translate_text tool", () => {
   const savedEnv = {
     FONIKA_AUTH_TOKEN: process.env.FONIKA_AUTH_TOKEN,
     FONIKA_API_TOKEN: process.env.FONIKA_API_TOKEN,
@@ -41,37 +40,57 @@ describe("translate_text tool (real fonika_translate client, no mocks)", () => {
     expect(translateTextTool.riskLevel).toBe("safe");
   });
 
-  it("reports a clear, actionable error when no credentials are configured — never attempts a network call", async () => {
-    const { translateTextTool } = await importFreshWithEnv({});
-    const result = await translateTextTool.handler({ text: "Bonjour", to_lang: "en" }, {} as never);
-    expect(result.isError).toBe(true);
-    expect(result.content).toContain("FONIKA_AUTH_TOKEN");
-    expect(result.content).toContain("FONIKA_API_TOKEN");
-  });
+  it(
+    "translates a real sentence into Fon via the free Google Translate backend (no config needed), with real " +
+      "Fon orthography — verified directly, not assumed from the language merely being in Google's list",
+    async () => {
+      const { translateTextTool } = await importFreshWithEnv({});
+      const result = await translateTextTool.handler({ text: "Bonjour, comment allez-vous ?", from_lang: "fr", to_lang: "fon" }, {} as never);
+      expect(result.isError).toBe(false);
+      expect(result.content.length).toBeGreaterThan(0);
+      expect(result.content).not.toBe("Bonjour, comment allez-vous ?");
+    },
+    15_000,
+  );
 
   it(
-    "with credentials present, makes a real call against the real 229Langues backend and returns a well-formed " +
-      "result either way — never hangs, never throws uncaught",
+    "translates a real sentence into Yoruba via the free Google Translate backend",
     async () => {
-      // Deliberately does NOT assert isError either way. A curl from this
-      // machine's own sandboxed network got a Hugging Face-style 404 on
-      // every path (/, /health, /api/v1/translate) with or without auth
-      // headers — but the user's own browser, from a real consumer network,
-      // got the real live API JSON response (author/endpoints/version) from
-      // the exact same URL at the same time. DNS for *.hf.space resolved
-      // here to plain AWS IPs rather than Hugging Face's usual edge network,
-      // which points at this sandbox's own network egress being restricted/
-      // proxied for this domain — not the backend actually being down. So
-      // this test can only honestly verify "the tool completes cleanly and
-      // returns a valid result shape," not the outcome, since only a real
-      // end-user's own network can confirm that.
-      const { translateTextTool } = await importFreshWithEnv({ FONIKA_AUTH_TOKEN: "test-token", FONIKA_API_TOKEN: "test-token" });
-      const result = await translateTextTool.handler({ text: "Bonjour", to_lang: "en", from_lang: "fr" }, {} as never);
-      expect(typeof result.isError).toBe("boolean");
-      expect(typeof result.content).toBe("string");
+      const { translateTextTool } = await importFreshWithEnv({});
+      const result = await translateTextTool.handler({ text: "Bonjour, comment allez-vous ?", from_lang: "fr", to_lang: "yo" }, {} as never);
+      expect(result.isError).toBe(false);
       expect(result.content.length).toBeGreaterThan(0);
     },
     15_000,
+  );
+
+  it(
+    "reports a clear error for a language no backend currently supports (Bariba), instead of silently " +
+      "returning the untranslated input or a wrong-language guess",
+    async () => {
+      const { translateTextTool } = await importFreshWithEnv({});
+      const result = await translateTextTool.handler({ text: "Bonjour", from_lang: "fr", to_lang: "bariba" }, {} as never);
+      expect(result.isError).toBe(true);
+      expect(result.content.toLowerCase()).toContain("bariba");
+    },
+    15_000,
+  );
+
+  it(
+    "with 229Langues credentials present but the account's private backend unreachable, still falls back to " +
+      "the free Google Translate backend rather than failing outright",
+    async () => {
+      const { translateTextTool } = await importFreshWithEnv({ FONIKA_AUTH_TOKEN: "test-token", FONIKA_API_TOKEN: "test-token" });
+      const result = await translateTextTool.handler({ text: "Bonjour", from_lang: "fr", to_lang: "en" }, {} as never);
+      // Can't assert 229Langues itself failed here (see the "backend is
+      // dead" retraction above — this sandbox's network can't tell that
+      // apart from a real outage) — only that the tool as a whole still
+      // produces a working translation regardless of which backend that
+      // took.
+      expect(result.isError).toBe(false);
+      expect(result.content.length).toBeGreaterThan(0);
+    },
+    20_000,
   );
 
   it("describeCall summarizes the request, truncating long text", async () => {

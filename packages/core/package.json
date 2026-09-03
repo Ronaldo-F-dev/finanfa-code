@@ -12,6 +12,7 @@
     "exceljs": "^4.4.0",
     "fast-glob": "^3.3.3",
     "fonika_translate": "^1.1.0",
+    "google-translate-api-x": "^10.7.3",
     "gray-matter": "^4.0.3",
     "jszip": "^3.10.1",
     "mammoth": "^1.12.1",
