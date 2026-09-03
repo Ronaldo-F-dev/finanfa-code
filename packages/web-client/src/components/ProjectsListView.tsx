@@ -14,7 +14,11 @@ export function ProjectsListView({ onOpenProject }: { onOpenProject: (id: string
   function refresh() {
     fetch("/api/projects")
       .then((r) => r.json())
-      .then((data: { projects: ProjectItem[] }) => setProjects(data.projects));
+      // "default" is the folder the server was started against (a dev/ops
+      // detail — for this session, literally finanfa-code's own repo) —
+      // not something a user ever created as a project, so it doesn't
+      // belong in a list that's supposed to be "your projects".
+      .then((data: { projects: ProjectItem[] }) => setProjects(data.projects.filter((p) => p.id !== "default")));
   }
 
   useEffect(refresh, []);

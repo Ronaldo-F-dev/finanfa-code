@@ -201,6 +201,13 @@ body {
   gap: 10px;
 }
 
+.mcp-icon {
+  font-size: 18px;
+  width: 22px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
 .mcp-dot {
   width: 8px;
   height: 8px;
@@ -570,6 +577,13 @@ body {
   margin: 0 auto;
   padding: 12px 20px 20px;
   flex-shrink: 0;
+}
+
+.composer-hint {
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-muted);
+  margin-top: 6px;
 }
 
 .composer-box {

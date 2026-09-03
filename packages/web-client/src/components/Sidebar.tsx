@@ -47,8 +47,8 @@ export function Sidebar({
 
   return (
     <aside className="sidebar">
-      <button className="sidebar-project" onClick={onOpenProjects} title="Switch project">
-        📁 {projectName ?? "Default workspace"}
+      <button className="sidebar-project" onClick={onOpenProjects} title="Browse projects">
+        📁 Projects{projectName ? ` — ${projectName}` : ""}
       </button>
       <button className="sidebar-new" onClick={onNewChat}>
         + New chat

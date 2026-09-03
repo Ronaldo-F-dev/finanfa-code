@@ -359,6 +359,7 @@ export default function App() {
                 )}
               </div>
             </div>
+            <div className="composer-hint">Enter to send · Shift+Enter for a new line</div>
           </footer>
         </div>
       )}
