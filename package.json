@@ -9,6 +9,9 @@
   "scripts": {
     "dev": "npm run dev -w finanfa-code",
     "build": "npm run build -w finanfa-code",
+    "dev:web-server": "npm run dev -w @finanfa/web-server",
+    "dev:web-client": "npm run dev -w @finanfa/web-client",
+    "build:web-client": "npm run build -w @finanfa/web-client",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:watch": "vitest"
