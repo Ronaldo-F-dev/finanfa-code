@@ -71,6 +71,7 @@ import { securityScanReconTool } from "./security/recon.js";
 import { securityScanCachePoisoningTool } from "./security/cache-poisoning.js";
 import { securityScanIdorTool } from "./security/idor.js";
 import { securityScanJwtAuthTool } from "./security/jwt-auth.js";
+import { securityScanBflaTool } from "./security/bfla.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -130,6 +131,7 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(securityScanCachePoisoningTool);
   registry.register(securityScanIdorTool);
   registry.register(securityScanJwtAuthTool);
+  registry.register(securityScanBflaTool);
   for (const tool of gitTools) registry.register(tool);
 }
 
