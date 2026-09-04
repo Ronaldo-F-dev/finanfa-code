@@ -26,7 +26,7 @@ import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import { loadConfig, saveGlobalConfig, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
 import { CONFIG_KEYS, SECRET_KEYS, maskSecret } from "@finanfa/core/src/commands/builtin.js";
-import { BASE_SYSTEM_PROMPT, selectProvider, connectMcpServers } from "@finanfa/core/src/app.js";
+import { BASE_SYSTEM_PROMPT, selectProvider, connectMcpServers, parseApiKeys } from "@finanfa/core/src/app.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
 import { AnthropicProvider } from "@finanfa/core/src/providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "@finanfa/core/src/providers/openai-compatible-provider.js";
@@ -105,7 +105,8 @@ function buildProvider(family: ProviderFamily, config: FinanfaConfig): LlmProvid
   const baseUrl = process.env.FINANFA_BASE_URL ?? (savedFamily === "openai-compatible" ? config.baseUrl : undefined);
   if (!baseUrl) throw new Error("openai-compatible requires a base URL — checked by the caller via familyAvailability first.");
   const apiKey = process.env.FINANFA_API_KEY ?? (savedFamily === "openai-compatible" ? config.apiKey : undefined);
-  return new OpenAiCompatibleProvider({ baseUrl, apiKey });
+  const apiKeys = parseApiKeys(process.env.FINANFA_API_KEYS) ?? (savedFamily === "openai-compatible" ? config.apiKeys : undefined);
+  return new OpenAiCompatibleProvider({ baseUrl, apiKey, apiKeys });
 }
 
 app.get("/api/models", async (req, res) => {
@@ -171,10 +172,11 @@ app.get("/api/config", async (req, res) => {
   const config = await loadConfig(cwd);
   const masked: Record<string, string | undefined> = {};
   for (const key of CONFIG_KEYS) {
+    if (key === "apiKeys") continue; // array-valued — reported separately below
     const value = config[key];
     masked[key] = value && (SECRET_KEYS as readonly string[]).includes(key) ? maskSecret(value) : value;
   }
-  res.json({ config: masked, secretKeys: SECRET_KEYS });
+  res.json({ config: masked, apiKeys: (config.apiKeys ?? []).map(maskSecret), secretKeys: SECRET_KEYS });
 });
 
 app.post("/api/config", async (req, res) => {
@@ -182,12 +184,20 @@ app.post("/api/config", async (req, res) => {
   const current = await loadConfig(DEFAULT_CWD);
   const next: FinanfaConfig = { ...current };
   for (const key of CONFIG_KEYS) {
-    if (!(key in body)) continue;
+    if (key === "apiKeys" || !(key in body)) continue;
     const value = body[key];
     // An empty string clears the field (matches /config's "unset by leaving
     // blank" convention); undefined/missing means "leave unchanged".
     if (value === "" || value === undefined) delete next[key];
     else (next as Record<string, unknown>)[key] = value;
+  }
+  // apiKeys arrives as a real array from the Settings textarea (one key per
+  // line, already split client-side) — same "empty clears it" convention as
+  // every other field, just array-shaped instead of a blank string.
+  if ("apiKeys" in body) {
+    const keys = Array.isArray(body.apiKeys) ? body.apiKeys.map((k) => k.trim()).filter(Boolean) : [];
+    if (keys.length === 0) delete next.apiKeys;
+    else next.apiKeys = keys;
   }
   await saveGlobalConfig(next);
   res.json({ ok: true, note: "Saved. Existing open chats keep their current provider/model — start a new chat to pick up the change." });

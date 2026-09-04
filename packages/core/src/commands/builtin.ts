@@ -301,6 +301,11 @@ export const CONFIG_KEYS = [
   "model",
   "baseUrl",
   "apiKey",
+  // Plural, array-valued — a community-shared pool of keys rotated on
+  // failure (see OpenAiCompatibleProvider) rather than one single key.
+  // Special-cased below (comma/newline-split on set, one masked line each
+  // on show) since every other key here is a plain string.
+  "apiKeys",
   "anthropicApiKey",
   "visionProvider",
   "visionModel",
@@ -319,9 +324,11 @@ export function maskSecret(value: string): string {
 }
 
 function formatConfig(config: FinanfaConfig): string {
-  const entries = Object.entries(config) as [ConfigKey, string][];
-  if (entries.length === 0) return `No config set. Use /config set <${CONFIG_KEYS.join("|")}> <value>.`;
-  return entries.map(([k, v]) => `${k}: ${SECRET_KEYS.includes(k) ? maskSecret(v) : v}`).join("\n");
+  const entries = Object.entries(config).filter(([k]) => k !== "apiKeys") as [ConfigKey, string][];
+  const lines = entries.map(([k, v]) => `${k}: ${SECRET_KEYS.includes(k) ? maskSecret(v) : v}`);
+  if (config.apiKeys?.length) lines.push(`apiKeys: ${config.apiKeys.length} key(s) — ${config.apiKeys.map(maskSecret).join(", ")}`);
+  if (lines.length === 0) return `No config set. Use /config set <${CONFIG_KEYS.join("|")}> <value>.`;
+  return lines.join("\n");
 }
 
 async function handleConfig(ctx: CommandContext): Promise<CommandOutcome> {
@@ -337,11 +344,12 @@ async function handleConfig(ctx: CommandContext): Promise<CommandOutcome> {
     const key = parts[1];
     const value = parts.slice(2).join(" ");
     if (!key || !isConfigKey(key) || !value) {
-      ctx.ui.writeError(`Usage: /config set <${CONFIG_KEYS.join("|")}> <value>`);
+      ctx.ui.writeError(`Usage: /config set <${CONFIG_KEYS.join("|")}> <value> (apiKeys: comma-separated)`);
       return "continue";
     }
     const current = await loadConfig(ctx.cwd);
-    await saveGlobalConfig({ ...current, [key]: value });
+    const parsed: unknown = key === "apiKeys" ? value.split(",").map((k) => k.trim()).filter(Boolean) : value;
+    await saveGlobalConfig({ ...current, [key]: parsed });
     ctx.ui.writeSystem(`Saved ${key} to ${globalConfigPath()}. Restart finanfa-code for it to take effect.`);
     return "continue";
   }

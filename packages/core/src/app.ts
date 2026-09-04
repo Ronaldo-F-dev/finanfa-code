@@ -180,6 +180,16 @@ export const BASE_SYSTEM_PROMPT =
 
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 
+/** FINANFA_API_KEYS is comma- or newline-separated (a community pasting several keys at once) — undefined if unset, so it doesn't shadow config.apiKeys with an empty array. */
+export function parseApiKeys(raw: string | undefined): string[] | undefined {
+  if (!raw) return undefined;
+  const keys = raw
+    .split(/[,\n]/)
+    .map((k) => k.trim())
+    .filter((k) => k.length > 0);
+  return keys.length > 0 ? keys : undefined;
+}
+
 /**
  * Picks the LLM backend. Priority per setting: environment variable > config
  * file (project-local .finanfa-code/config.json, then global
@@ -197,13 +207,14 @@ export function selectProvider(config: FinanfaConfig): { provider: LlmProvider; 
     const baseUrl = process.env.FINANFA_BASE_URL ?? config.baseUrl;
     const model = process.env.FINANFA_MODEL ?? config.model;
     const apiKey = process.env.FINANFA_API_KEY ?? config.apiKey;
+    const apiKeys = parseApiKeys(process.env.FINANFA_API_KEYS) ?? config.apiKeys;
     if (!baseUrl || !model) {
       throw new Error(
         "provider openai-compatible requires a base URL and model — set FINANFA_BASE_URL/FINANFA_MODEL, " +
           "or /config set baseUrl <url> and /config set model <model>.",
       );
     }
-    return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey }), defaultModel: model, kind };
+    return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey, apiKeys }), defaultModel: model, kind };
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY ?? config.anthropicApiKey ?? config.apiKey;

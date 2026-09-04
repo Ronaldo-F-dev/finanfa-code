@@ -125,6 +125,69 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
     }
   });
 
+  describe("multi-key rotation (a community-shared pool of keys)", () => {
+    it("rotates to the next key on a 401/429-style failure and succeeds, without retrying the dead key", async () => {
+      const events = [JSON.stringify({ choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] })];
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response("rate limited", { status: 429 }))
+        .mockResolvedValueOnce(sseResponse(events));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1", apiKeys: ["dead-key", "good-key"] });
+      const result = await provider.streamTurn({ model: "m", systemPrompt: "s", messages: [], tools: [], onTextDelta: () => {} });
+
+      expect(result.stopReason).toBe("end_turn");
+      // Exactly 2 calls — no backoff-retry storm on the dead key before moving on.
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+      expect((fetchMock.mock.calls[0][1] as RequestInit).headers).toMatchObject({ Authorization: "Bearer dead-key" });
+      expect((fetchMock.mock.calls[1][1] as RequestInit).headers).toMatchObject({ Authorization: "Bearer good-key" });
+    });
+
+    it("remembers the last working key across calls — doesn't retry the dead one first every time", async () => {
+      const events = [JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })];
+      const fetchMock = vi
+        .fn()
+        .mockResolvedValueOnce(new Response("unauthorized", { status: 401 }))
+        .mockResolvedValueOnce(sseResponse(events))
+        .mockResolvedValueOnce(sseResponse(events));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1", apiKeys: ["dead-key", "good-key"] });
+      await provider.streamTurn({ model: "m", systemPrompt: "s", messages: [], tools: [], onTextDelta: () => {} });
+      await provider.streamTurn({ model: "m", systemPrompt: "s", messages: [], tools: [], onTextDelta: () => {} });
+
+      // 1st turn: dead-key fails, good-key succeeds (2 calls). 2nd turn: goes
+      // straight to good-key (1 call) — 3 calls total, not 4.
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+      expect((fetchMock.mock.calls[2][1] as RequestInit).headers).toMatchObject({ Authorization: "Bearer good-key" });
+    });
+
+    it("does not rotate keys for a transient 5xx or a non-key-related error — same key, same behavior as a single-key setup", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response("bad request", { status: 400 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1", apiKeys: ["key-a", "key-b"] });
+      await expect(
+        provider.streamTurn({ model: "m", systemPrompt: "s", messages: [], tools: [], onTextDelta: () => {} }),
+      ).rejects.toThrow(/400/);
+
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    });
+
+    it("throws the last error once every key in the pool has failed", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response("unauthorized", { status: 401 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1", apiKeys: ["a", "b", "c"] });
+      await expect(
+        provider.streamTurn({ model: "m", systemPrompt: "s", messages: [], tools: [], onTextDelta: () => {} }),
+      ).rejects.toThrow(/401/);
+
+      expect(fetchMock).toHaveBeenCalledTimes(3);
+    });
+  });
+
   it("gives up after exhausting retries on a persistent 503", async () => {
     vi.useFakeTimers();
     try {

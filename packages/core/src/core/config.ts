@@ -6,6 +6,14 @@ export interface FinanfaConfig {
   provider?: "anthropic" | "openai-compatible";
   baseUrl?: string;
   apiKey?: string;
+  /**
+   * A pool of API keys sharing the same baseUrl/model, tried in rotation
+   * (see OpenAiCompatibleProvider) — for a community sharing one free-tier
+   * model where any single member's key can be rate-limited or run dry.
+   * Takes priority over `apiKey` when non-empty; `apiKey` stays as the
+   * simple single-key path for everyone else.
+   */
+  apiKeys?: string[];
   model?: string;
   /**
    * A Claude API key stored independently of `provider`/`apiKey` — those two

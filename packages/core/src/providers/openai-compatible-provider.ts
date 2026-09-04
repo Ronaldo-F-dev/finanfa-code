@@ -92,7 +92,13 @@ interface ChatCompletionResult {
   usage?: { prompt_tokens: number; completion_tokens: number };
 }
 
-const RETRYABLE_STATUSES = new Set([429, 500, 502, 503, 504]);
+// 429 deliberately excluded: with multiple API keys in play (see
+// OpenAiCompatibleProvider.apiKeys below), a rate limit is exactly the
+// signal that should move on to the NEXT key immediately, not spend 3
+// backoff-delayed attempts hammering the same already-limited one first. A
+// single-key setup still gets a sensible outcome either way — same
+// immediate-throw-and-report path 401/403 already took before this existed.
+const RETRYABLE_STATUSES = new Set([500, 502, 503, 504]);
 
 class RetryableHttpError extends Error {}
 
@@ -123,6 +129,13 @@ async function fetchInitialResponse(
   headers: Record<string, string>,
   body: Record<string, unknown>,
   signal?: AbortSignal,
+  // A single-key setup still benefits from the old backoff-and-retry
+  // behavior on 429 (a rate limit often clears within a couple seconds).
+  // OpenAiCompatibleProvider passes false here whenever it has more than
+  // one key in its pool, so a rate-limited key falls through to the outer
+  // key-rotation logic (streamTurn) immediately instead of burning 3
+  // backoff-delayed attempts on the same already-limited key first.
+  retryOn429 = true,
 ): Promise<Response> {
   return retryWithBackoff(
     async () => {
@@ -139,7 +152,8 @@ async function fetchInitialResponse(
         // interrupt via loop.ts's streamController — either one aborts.
         signal: signal ? AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT_MS), signal]) : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
       });
-      if (RETRYABLE_STATUSES.has(response.status)) {
+      const retryable = RETRYABLE_STATUSES.has(response.status) || (retryOn429 && response.status === 429);
+      if (retryable) {
         const text = await response.text().catch(() => "");
         throw new RetryableHttpError(`OpenAI-compatible API error (${response.status}): ${text}`);
       }
@@ -163,8 +177,9 @@ async function attemptStreamChatCompletion(
   body: Record<string, unknown>,
   onTextDelta: (text: string) => void,
   signal?: AbortSignal,
+  retryOn429 = true,
 ): Promise<ChatCompletionResult> {
-  const response = await fetchInitialResponse(url, headers, body, signal);
+  const response = await fetchInitialResponse(url, headers, body, signal, retryOn429);
 
   if (!response.ok || !response.body) {
     const text = await response.text().catch(() => "");
@@ -285,9 +300,10 @@ async function streamChatCompletion(
   body: Record<string, unknown>,
   onTextDelta: (text: string) => void,
   signal?: AbortSignal,
+  retryOn429 = true,
 ): Promise<ChatCompletionResult> {
   try {
-    return await retryWithBackoff(() => attemptStreamChatCompletion(url, headers, body, onTextDelta, signal), {
+    return await retryWithBackoff(() => attemptStreamChatCompletion(url, headers, body, onTextDelta, signal, retryOn429), {
       attempts: 3,
       baseDelayMs: 500,
       // A deliberate interrupt must never be retried, regardless of error
@@ -306,44 +322,99 @@ export interface OpenAiCompatibleProviderOptions {
   /** e.g. "http://localhost:11434/v1" (Ollama), "https://openrouter.ai/api/v1", "https://inference.poolside.ai/v1" */
   baseUrl: string;
   apiKey?: string;
+  /**
+   * Multiple API keys sharing the same baseUrl/model — e.g. a community
+   * that pooled their own individual free-tier keys for a shared model, so
+   * the tool keeps working for everyone even once any single person's key
+   * is rate-limited or exhausted. Takes priority over `apiKey` when
+   * non-empty. Tried starting from whichever key last worked (not always
+   * from the front), advancing to the next only on a key-specific failure
+   * (401/402/403/429) — not on a transient 5xx or network error, which
+   * switching keys wouldn't fix anyway since they share the same endpoint.
+   */
+  apiKeys?: string[];
+}
+
+// Statuses that mean "this credential specifically is the problem"
+// (unauthorized, payment/quota required, rate-limited) — worth moving to
+// the next key in the pool for. Anything else (a transient 5xx, a network
+// failure, a malformed request) would fail identically on every key sharing
+// the same baseUrl, so rotating wouldn't help and isn't attempted.
+const KEY_ROTATION_STATUSES = new Set([401, 402, 403, 429]);
+
+const HTTP_STATUS_PATTERN = /\((\d{3})\)/;
+
+function extractHttpStatus(message: string): number | undefined {
+  const match = HTTP_STATUS_PATTERN.exec(message);
+  return match ? Number(match[1]) : undefined;
 }
 
 export class OpenAiCompatibleProvider implements LlmProvider {
-  constructor(private readonly opts: OpenAiCompatibleProviderOptions) {}
+  private readonly keys: string[];
+  // Persists across calls on the same provider instance (one per session)
+  // so a key that just proved dead isn't retried first on every subsequent
+  // turn — once rotation lands on a working key, later calls start there.
+  private keyIndex = 0;
+
+  constructor(private readonly opts: OpenAiCompatibleProviderOptions) {
+    this.keys = opts.apiKeys && opts.apiKeys.length > 0 ? opts.apiKeys : opts.apiKey ? [opts.apiKey] : [];
+  }
 
   async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {
-    const headers: Record<string, string> = {};
-    if (this.opts.apiKey) headers.Authorization = `Bearer ${this.opts.apiKey}`;
+    const attempts = Math.max(this.keys.length, 1);
+    let lastError: unknown;
 
-    const result = await streamChatCompletion(
-      `${this.opts.baseUrl.replace(/\/$/, "")}/chat/completions`,
-      headers,
-      {
-        model: params.model,
-        messages: toOpenAiMessages(params.systemPrompt, params.messages),
-        tools: params.tools.length > 0 ? toOpenAiTools(params.tools) : undefined,
-      },
-      params.onTextDelta,
-      params.signal,
-    );
+    for (let i = 0; i < attempts; i++) {
+      const key = this.keys[this.keyIndex];
+      const headers: Record<string, string> = {};
+      if (key) headers.Authorization = `Bearer ${key}`;
 
-    return {
-      assistantMessage: {
-        role: "assistant",
-        content: result.content,
-        toolCalls: result.toolCalls.length > 0 ? result.toolCalls : undefined,
-      },
-      usage: {
-        inputTokens: result.usage?.prompt_tokens ?? 0,
-        outputTokens: result.usage?.completion_tokens ?? 0,
-      },
-      // If the connection ends without ever sending a terminal
-      // finish_reason (e.g. it closes right after the last tool-call
-      // fragment), mapFinishReason(null) resolves to "other" — the branch
-      // in runTurn() for a non-tool_use stop then fires and any fully-formed
-      // pending tool call is silently discarded. Trust the calls we actually
-      // captured over a missing/absent finish_reason.
-      stopReason: result.toolCalls.length > 0 ? "tool_use" : mapFinishReason(result.finishReason),
-    };
+      try {
+        const result = await streamChatCompletion(
+          `${this.opts.baseUrl.replace(/\/$/, "")}/chat/completions`,
+          headers,
+          {
+            model: params.model,
+            messages: toOpenAiMessages(params.systemPrompt, params.messages),
+            tools: params.tools.length > 0 ? toOpenAiTools(params.tools) : undefined,
+          },
+          params.onTextDelta,
+          params.signal,
+          this.keys.length <= 1,
+        );
+
+        return {
+          assistantMessage: {
+            role: "assistant",
+            content: result.content,
+            toolCalls: result.toolCalls.length > 0 ? result.toolCalls : undefined,
+          },
+          usage: {
+            inputTokens: result.usage?.prompt_tokens ?? 0,
+            outputTokens: result.usage?.completion_tokens ?? 0,
+          },
+          // If the connection ends without ever sending a terminal
+          // finish_reason (e.g. it closes right after the last tool-call
+          // fragment), mapFinishReason(null) resolves to "other" — the branch
+          // in runTurn() for a non-tool_use stop then fires and any fully-formed
+          // pending tool call is silently discarded. Trust the calls we actually
+          // captured over a missing/absent finish_reason.
+          stopReason: result.toolCalls.length > 0 ? "tool_use" : mapFinishReason(result.finishReason),
+        };
+      } catch (err) {
+        lastError = err;
+        // extractHttpStatus only ever matches a status this provider itself
+        // embedded in a message before any streaming began (fetchInitialResponse's
+        // own status check) — never a mid-stream failure, so rotating here
+        // can't duplicate output that already reached the user.
+        const status = err instanceof Error ? extractHttpStatus(err.message) : undefined;
+        if (this.keys.length > 1 && status !== undefined && KEY_ROTATION_STATUSES.has(status)) {
+          this.keyIndex = (this.keyIndex + 1) % this.keys.length;
+          continue;
+        }
+        throw err;
+      }
+    }
+    throw lastError;
   }
 }

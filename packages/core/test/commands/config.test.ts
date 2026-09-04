@@ -106,6 +106,18 @@ describe("/config command", () => {
     expect(shown).toContain("visionApiKey:");
   });
 
+  it("/config set apiKeys splits a comma-separated value into an array, masking each on show", async () => {
+    await commands.get("config")!(baseCtx("set apiKeys sk-aaaaaaaaaaaa,sk-bbbbbbbbbbbb, sk-cccccccccccc"));
+
+    expect(await loadConfig(projectDir)).toEqual({ apiKeys: ["sk-aaaaaaaaaaaa", "sk-bbbbbbbbbbbb", "sk-cccccccccccc"] });
+
+    const showCtx = baseCtx("show");
+    await commands.get("config")!(showCtx);
+    const shown = (showCtx.ui.writeSystem as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(shown).not.toContain("sk-aaaaaaaaaaaa");
+    expect(shown).toContain("apiKeys: 3 key(s)");
+  });
+
   it("rejects an unknown key", async () => {
     const ctx = baseCtx("set notarealkey value");
     await commands.get("config")!(ctx);

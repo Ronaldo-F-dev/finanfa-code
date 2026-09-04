@@ -34,25 +34,27 @@ function applyTheme(theme: Theme): void {
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [saved, setSaved] = useState<ConfigShape>({});
+  const [savedApiKeys, setSavedApiKeys] = useState<string[]>([]);
   const [anthropicKeyDraft, setAnthropicKeyDraft] = useState("");
   const [baseUrlDraft, setBaseUrlDraft] = useState("");
   const [modelDraft, setModelDraft] = useState("");
   const [otherKeyDraft, setOtherKeyDraft] = useState("");
+  const [apiKeysDraft, setApiKeysDraft] = useState("");
   const [showVision, setShowVision] = useState(false);
   const [visionDraft, setVisionDraft] = useState<Partial<ConfigShape>>({});
   const [status, setStatus] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(getStoredTheme());
 
   useEffect(() => {
-    fetch("/api/config")
-      .then((r) => r.json())
-      .then((data: { config: ConfigShape }) => setSaved(data.config));
+    refresh();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function refresh() {
     const res = await fetch("/api/config");
-    const data = (await res.json()) as { config: ConfigShape };
+    const data = (await res.json()) as { config: ConfigShape; apiKeys?: string[] };
     setSaved(data.config);
+    setSavedApiKeys(data.apiKeys ?? []);
   }
 
   async function saveAnthropic() {
@@ -71,6 +73,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
   async function saveOther() {
     setStatus("Saving…");
+    const apiKeys = apiKeysDraft
+      .split(/[,\n]/)
+      .map((k) => k.trim())
+      .filter(Boolean);
     const res = await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -79,6 +85,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         baseUrl: baseUrlDraft.trim() || undefined,
         model: modelDraft.trim() || undefined,
         apiKey: otherKeyDraft.trim() || undefined,
+        // Only sent (and only replaces the saved pool) when the textarea
+        // actually has something in it — leaving it blank means "don't
+        // touch the saved keys", same as every other optional field here.
+        ...(apiKeys.length > 0 ? { apiKeys } : {}),
       }),
     });
     const data = await res.json();
@@ -86,6 +96,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     setBaseUrlDraft("");
     setModelDraft("");
     setOtherKeyDraft("");
+    setApiKeysDraft("");
     refresh();
   }
 
@@ -179,6 +190,22 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               placeholder={saved.apiKey ? `saved: ${saved.apiKey}` : "leave blank if none needed"}
               value={otherKeyDraft}
               onChange={(e) => setOtherKeyDraft(e.target.value)}
+            />
+          </label>
+          <label className="settings-field">
+            <span>
+              Multiple API keys (optional) {savedApiKeys.length > 0 && <span className="provider-badge">{savedApiKeys.length} saved</span>}
+            </span>
+            <p className="settings-hint">
+              One per line — for a community sharing one model, e.g. several Laguna keys. Tried in order, automatically moving to the next if one is
+              rate-limited or revoked. Leave blank to keep whatever's already saved.
+            </p>
+            {savedApiKeys.length > 0 && <p className="settings-hint">Saved: {savedApiKeys.join(", ")}</p>}
+            <textarea
+              className="instructions-textarea"
+              placeholder={"key1\nkey2\nkey3"}
+              value={apiKeysDraft}
+              onChange={(e) => setApiKeysDraft(e.target.value)}
             />
           </label>
           <button className="btn btn-allow" onClick={saveOther}>
