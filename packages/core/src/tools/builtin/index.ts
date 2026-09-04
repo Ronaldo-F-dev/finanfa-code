@@ -54,6 +54,9 @@ import { imagesToPdfTool } from "./images-to-pdf.js";
 import { ocrImageTool } from "./ocr-image.js";
 import { securityScanHeadersTool } from "./security/headers.js";
 import { securityScanTlsTool } from "./security/tls.js";
+import { securityScanWafTool } from "./security/waf.js";
+import { securityScanClickjackingTool } from "./security/clickjacking.js";
+import { securityScanSriTool } from "./security/sri.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -96,6 +99,9 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(ocrImageTool);
   registry.register(securityScanHeadersTool);
   registry.register(securityScanTlsTool);
+  registry.register(securityScanWafTool);
+  registry.register(securityScanClickjackingTool);
+  registry.register(securityScanSriTool);
   for (const tool of gitTools) registry.register(tool);
 }
 
