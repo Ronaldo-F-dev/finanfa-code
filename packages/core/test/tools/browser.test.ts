@@ -43,7 +43,7 @@ describe("browser_* tools", () => {
     });
 
     expect(result.content).toContain("# Big Page");
-    expect(result.content).toContain("(truncated)");
+    expect(result.content).toContain("truncated — full output is");
     expect(result.content).toContain("untrusted-external-content");
     expect(manager.navigate).toHaveBeenCalledWith("https://example.com");
   });

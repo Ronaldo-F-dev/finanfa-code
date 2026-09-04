@@ -51,43 +51,43 @@ describe("killProcessGroup", () => {
 
 describe("runSubprocess (shared by bash/run_tests/check_python_types/lint_javascript)", () => {
   it("as a raw shell command (no args), captures stdout and a zero exit code", async () => {
-    const result = await runSubprocess("echo hello", { cwd: process.cwd(), timeoutMs: 5000 });
+    const result = await runSubprocess("echo hello", { cwd: process.cwd(), sessionId: "test", timeoutMs: 5000 });
     expect(result.isError).toBe(false);
     expect(result.content).toContain("exit code 0");
     expect(result.content).toContain("hello");
   });
 
   it("as a program + args (no shell string), still runs correctly", async () => {
-    const result = await runSubprocess("echo", { args: ["hello-args"], cwd: process.cwd(), timeoutMs: 5000 });
+    const result = await runSubprocess("echo", { args: ["hello-args"], cwd: process.cwd(), sessionId: "test", timeoutMs: 5000 });
     expect(result.isError).toBe(false);
     expect(result.content).toContain("hello-args");
   });
 
   it("default isError treats any nonzero exit as failure", async () => {
-    const result = await runSubprocess("exit 1", { cwd: process.cwd(), timeoutMs: 5000 });
+    const result = await runSubprocess("exit 1", { cwd: process.cwd(), sessionId: "test", timeoutMs: 5000 });
     expect(result.isError).toBe(true);
   });
 
   it("a custom isError predicate can treat a nonzero exit as success (e.g. pyright/eslint's exit 1 = findings)", async () => {
-    const result = await runSubprocess("exit 1", { cwd: process.cwd(), timeoutMs: 5000, isError: (code) => code !== 0 && code !== 1 });
+    const result = await runSubprocess("exit 1", { cwd: process.cwd(), sessionId: "test", timeoutMs: 5000, isError: (code) => code !== 0 && code !== 1 });
     expect(result.isError).toBe(false);
   });
 
   it('format "labeled" always shows both stdout/stderr sections, even empty', async () => {
-    const result = await runSubprocess("true", { cwd: process.cwd(), timeoutMs: 5000, format: "labeled" });
+    const result = await runSubprocess("true", { cwd: process.cwd(), sessionId: "test", timeoutMs: 5000, format: "labeled" });
     expect(result.content).toContain("--- stdout ---");
     expect(result.content).toContain("--- stderr ---");
   });
 
   it('format "compact" omits the stderr section entirely when there is no stderr output', async () => {
-    const result = await runSubprocess("echo only-stdout", { cwd: process.cwd(), timeoutMs: 5000, format: "compact" });
+    const result = await runSubprocess("echo only-stdout", { cwd: process.cwd(), sessionId: "test", timeoutMs: 5000, format: "compact" });
     expect(result.content).not.toContain("--- stdout ---");
     expect(result.content).not.toContain("--- stderr ---");
   });
 
   it("kills a backgrounded, non-redirected child on timeout instead of hanging forever", async () => {
     const start = Date.now();
-    const result = await runSubprocess("sleep 5 & echo done", { cwd: process.cwd(), timeoutMs: 300 });
+    const result = await runSubprocess("sleep 5 & echo done", { cwd: process.cwd(), sessionId: "test", timeoutMs: 300 });
     expect(Date.now() - start).toBeLessThan(2000);
     expect(result.isError).toBe(true);
     expect(result.content).toContain("timed out");
@@ -106,7 +106,7 @@ describe("runSubprocess (shared by bash/run_tests/check_python_types/lint_javasc
     try {
       const controller = new AbortController();
       const promise = runSubprocess(`sleep 30 & echo $! > ${pidFile}; wait`, {
-        cwd: process.cwd(),
+        cwd: process.cwd(), sessionId: "test",
         timeoutMs: 10_000,
         signal: controller.signal,
       });
@@ -128,14 +128,43 @@ describe("runSubprocess (shared by bash/run_tests/check_python_types/lint_javasc
   });
 
   it("a command not found on PATH is a normal nonzero exit (127), not a spawn-level error — everything goes through the shell", async () => {
-    const result = await runSubprocess("this-binary-does-not-exist-xyz", { cwd: process.cwd(), timeoutMs: 5000 });
+    const result = await runSubprocess("this-binary-does-not-exist-xyz", { cwd: process.cwd(), sessionId: "test", timeoutMs: 5000 });
     expect(result.isError).toBe(true);
     expect(result.content).toContain("exit code 127");
   });
 
   it("reports a clean error when spawn itself can't start (e.g. cwd doesn't exist)", async () => {
-    const result = await runSubprocess("echo hi", { cwd: "/nonexistent-dir-xyz", timeoutMs: 5000 });
+    const result = await runSubprocess("echo hi", { cwd: "/nonexistent-dir-xyz", sessionId: "test", timeoutMs: 5000 });
     expect(result.isError).toBe(true);
     expect(result.content).toContain("Failed to start");
   });
+
+  it(
+    "spills stdout over TRUNCATE_LARGE to a real file on disk instead of dropping it, and the preview still " +
+      "shows the exit code and stderr section",
+    async () => {
+      const dir = await mkdtemp(path.join(tmpdir(), "finanfa-spill-proc-"));
+      try {
+        // node -e prints 150,000 'a's — comfortably over TRUNCATE_LARGE (100,000).
+        const result = await runSubprocess('node -e "process.stdout.write(\'a\'.repeat(150000))"', {
+          cwd: dir,
+          sessionId: "spill-test",
+          timeoutMs: 10_000,
+        });
+
+        expect(result.isError).toBe(false);
+        expect(result.content).toContain("exit code 0");
+        expect(result.content).toContain("--- stderr ---");
+        expect(result.content).toContain("saved to .finanfa-code/spill/spill-test/stdout-");
+
+        const relPathMatch = result.content.match(/saved to (\S+);/);
+        expect(relPathMatch).not.toBeNull();
+        const onDisk = await readFile(path.join(dir, relPathMatch![1]), "utf-8");
+        expect(onDisk).toBe("a".repeat(150_000)); // the full, untruncated stdout
+      } finally {
+        await rm(dir, { recursive: true, force: true });
+      }
+    },
+    15_000,
+  );
 });

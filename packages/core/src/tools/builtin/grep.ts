@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import { readFile } from "node:fs/promises";
 import fg from "fast-glob";
 import type { ToolDefinition } from "../../core/types.js";
-import { TRUNCATE_SMALL } from "../../util/truncate.js";
+import { TRUNCATE_SMALL, spillToFile } from "../../util/truncate.js";
 
 interface GrepInput {
   pattern: string;
@@ -14,16 +14,23 @@ interface GrepInput {
 const MAX_MATCH_LINES = 500;
 const MAX_OUTPUT_CHARS = TRUNCATE_SMALL;
 
-/** A broad pattern across a large repo has no natural bound otherwise — cap both match count and total size. */
-function truncateOutput(output: string): string {
+/**
+ * A broad pattern across a large repo has no natural bound otherwise — cap
+ * both match count and total size for the preview shown directly, but spill
+ * the complete, uncapped match set to disk rather than dropping it outright
+ * (same "spill" pattern as truncateOrSpill, just with grep's own line-based
+ * preview shape instead of a plain char cut).
+ */
+async function truncateOutput(cwd: string, sessionId: string, output: string): Promise<string> {
   const lines = output.split("\n");
   const lineTruncated = lines.length > MAX_MATCH_LINES;
   let result = (lineTruncated ? lines.slice(0, MAX_MATCH_LINES) : lines).join("\n");
   const charTruncated = result.length > MAX_OUTPUT_CHARS;
   if (charTruncated) result = result.slice(0, MAX_OUTPUT_CHARS);
   if (lineTruncated || charTruncated) {
+    const relPath = await spillToFile(cwd, sessionId, "grep", output);
     const lineNote = lineTruncated ? `, showing first ${MAX_MATCH_LINES} of ${lines.length} matching lines` : "";
-    result += `\n... (truncated${lineNote} — narrow the pattern/path for a complete result)`;
+    result += `\n... (truncated${lineNote} — full match set saved to ${relPath}; narrow the pattern/path, or read/grep that file, for the rest)`;
   }
   return result;
 }
@@ -89,7 +96,7 @@ export const grepTool: ToolDefinition<GrepInput> = {
     const rgResult = await runRipgrep(input, ctx.cwd);
     const output = (rgResult ?? (await fallbackGrep(input, ctx.cwd))).trim();
     return {
-      content: output.length > 0 ? truncateOutput(output) : "(no matches)",
+      content: output.length > 0 ? await truncateOutput(ctx.cwd, ctx.sessionId, output) : "(no matches)",
       isError: false,
     };
   },

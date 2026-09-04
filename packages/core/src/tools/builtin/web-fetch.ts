@@ -1,6 +1,6 @@
 import type { ToolDefinition } from "../../core/types.js";
 import { wrapUntrustedContent } from "../../core/untrusted-content.js";
-import { truncate, TRUNCATE_TINY } from "../../util/truncate.js";
+import { truncateOrSpill, TRUNCATE_TINY } from "../../util/truncate.js";
 
 interface WebFetchInput {
   url: string;
@@ -34,7 +34,7 @@ export const webFetchTool: ToolDefinition<WebFetchInput> = {
     required: ["url"],
   },
   describeCall: (input) => `fetch ${input.url}`,
-  async handler(input) {
+  async handler(input, ctx) {
     const response = await fetch(input.url, { redirect: "follow" });
     if (!response.ok) {
       return { content: `Failed to fetch ${input.url}: HTTP ${response.status}`, isError: true };
@@ -43,7 +43,7 @@ export const webFetchTool: ToolDefinition<WebFetchInput> = {
     const contentType = response.headers.get("content-type") ?? "";
     const raw = await response.text();
     const text = contentType.includes("html") ? stripHtml(raw) : raw.trim();
-    const truncated = truncate(text, TRUNCATE_TINY);
+    const truncated = await truncateOrSpill(ctx.cwd, ctx.sessionId, "web-fetch", text, TRUNCATE_TINY);
 
     return {
       content: truncated ? wrapUntrustedContent(input.url, truncated) : "(empty response)",

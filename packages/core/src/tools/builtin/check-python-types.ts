@@ -66,6 +66,7 @@ export const checkPythonTypesTool: ToolDefinition<CheckPythonTypesInput> = {
     return runSubprocess("npx", {
       args: ["-y", "pyright", target],
       cwd: ctx.cwd,
+      sessionId: ctx.sessionId,
       timeoutMs: input.timeout_ms ?? DEFAULT_TIMEOUT_MS,
       format: "compact",
       isError: (code) => code !== 0 && code !== 1,

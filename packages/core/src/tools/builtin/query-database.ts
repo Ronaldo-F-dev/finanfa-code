@@ -3,7 +3,7 @@ import { Client as PgClient } from "pg";
 import mysql from "mysql2/promise";
 import type { ToolDefinition } from "../../core/types.js";
 import { resolveAllowedPath } from "./path-guard.js";
-import { truncate, TRUNCATE_MEDIUM } from "../../util/truncate.js";
+import { truncateOrSpill, TRUNCATE_MEDIUM } from "../../util/truncate.js";
 
 // node:sqlite is experimental, so Node's own `module.builtinModules` list
 // deliberately omits it (verified directly) — Vite/vite-node's builtin
@@ -161,7 +161,7 @@ export const queryDatabaseTool: ToolDefinition<QueryDatabaseInput> = {
       } else {
         content = await runMysql(input.connectionString, input.query, params);
       }
-      return { content: truncate(content, TRUNCATE_MEDIUM), isError: false };
+      return { content: await truncateOrSpill(ctx.cwd, ctx.sessionId, "sql", content, TRUNCATE_MEDIUM), isError: false };
     } catch (err) {
       return { content: err instanceof Error ? err.message : String(err), isError: true };
     }

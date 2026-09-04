@@ -3,10 +3,11 @@ import type { BrowserManager } from "../../browser/manager.js";
 import { resolveAllowedPath } from "./path-guard.js";
 import { readImageFile } from "../../util/image.js";
 import { wrapUntrustedContent } from "../../core/untrusted-content.js";
-import { truncate, TRUNCATE_TINY } from "../../util/truncate.js";
+import { truncateOrSpill, TRUNCATE_TINY } from "../../util/truncate.js";
 
-function formatPage(url: string, title: string, text: string): string {
-  return wrapUntrustedContent(url, `# ${title}\n\n${truncate(text, TRUNCATE_TINY)}`);
+async function formatPage(cwd: string, sessionId: string, url: string, title: string, text: string): Promise<string> {
+  const truncated = await truncateOrSpill(cwd, sessionId, "browser-page", text, TRUNCATE_TINY);
+  return wrapUntrustedContent(url, `# ${title}\n\n${truncated}`);
 }
 
 function hostnameOf(url: string): string {
@@ -37,9 +38,9 @@ export function createBrowserTools(manager: BrowserManager): ToolDefinition[] {
     },
     riskKey: (input) => hostnameOf(input.url),
     describeCall: (input) => `navigate to ${input.url}`,
-    async handler(input) {
+    async handler(input, ctx) {
       const { title, text, url } = await manager.navigate(input.url);
-      return { content: formatPage(url, title, text), isError: false };
+      return { content: await formatPage(ctx.cwd, ctx.sessionId, url, title, text), isError: false };
     },
   };
 
@@ -55,10 +56,10 @@ export function createBrowserTools(manager: BrowserManager): ToolDefinition[] {
       required: ["selector"],
     },
     describeCall: (input) => `click "${input.selector}"`,
-    async handler(input) {
+    async handler(input, ctx) {
       await manager.click(input.selector);
       const { title, text, url } = await manager.content();
-      return { content: formatPage(url, title, text), isError: false };
+      return { content: await formatPage(ctx.cwd, ctx.sessionId, url, title, text), isError: false };
     },
   };
 

@@ -1,5 +1,5 @@
 import { spawn, type ChildProcess } from "node:child_process";
-import { truncate, TRUNCATE_LARGE } from "./truncate.js";
+import { truncateOrSpill, TRUNCATE_LARGE } from "./truncate.js";
 
 /**
  * Shell to use for spawn's `shell` option. `shell: true` alone uses the OS
@@ -33,6 +33,8 @@ export function killProcessGroup(child: ChildProcess): void {
 
 export interface RunSubprocessOptions {
   cwd: string;
+  /** Used only to namespace spilled (overflow) output on disk — see truncateOrSpill. */
+  sessionId: string;
   timeoutMs: number;
   /** Extra args, spawning as `spawn(command, args, {...})` instead of a raw shell string. */
   args?: string[];
@@ -97,16 +99,20 @@ export function runSubprocess(command: string, opts: RunSubprocessOptions): Prom
     child.on("close", (code) => {
       clearTimeout(timer);
       opts.signal?.removeEventListener("abort", onAbort);
-      const header = aborted ? "(cancelled — user interrupted)\n" : timedOut ? `(timed out after ${opts.timeoutMs}ms)\n` : `(exit code ${code})\n`;
-      let content: string;
-      if (opts.format === "compact") {
-        const stderrBlock = stderr ? `\n--- stderr ---\n${truncate(stderr, TRUNCATE_LARGE)}` : "";
-        content = `${header}${truncate(stdout, TRUNCATE_LARGE)}${stderrBlock}`;
-      } else {
-        content = `${header}--- stdout ---\n${truncate(stdout, TRUNCATE_LARGE)}\n--- stderr ---\n${truncate(stderr, TRUNCATE_LARGE)}`;
-      }
-      const isError = aborted || timedOut || (opts.isError ? opts.isError(code) : code !== 0);
-      resolve({ content, isError });
+      void (async () => {
+        const header = aborted ? "(cancelled — user interrupted)\n" : timedOut ? `(timed out after ${opts.timeoutMs}ms)\n` : `(exit code ${code})\n`;
+        let content: string;
+        if (opts.format === "compact") {
+          const stderrBlock = stderr ? `\n--- stderr ---\n${await truncateOrSpill(opts.cwd, opts.sessionId, "stderr", stderr, TRUNCATE_LARGE)}` : "";
+          content = `${header}${await truncateOrSpill(opts.cwd, opts.sessionId, "stdout", stdout, TRUNCATE_LARGE)}${stderrBlock}`;
+        } else {
+          content =
+            `${header}--- stdout ---\n${await truncateOrSpill(opts.cwd, opts.sessionId, "stdout", stdout, TRUNCATE_LARGE)}\n` +
+            `--- stderr ---\n${await truncateOrSpill(opts.cwd, opts.sessionId, "stderr", stderr, TRUNCATE_LARGE)}`;
+        }
+        const isError = aborted || timedOut || (opts.isError ? opts.isError(code) : code !== 0);
+        resolve({ content, isError });
+      })();
     });
 
     child.on("error", (err) => {

@@ -74,7 +74,8 @@ describe("web_fetch tool", () => {
     );
 
     const result = await webFetchTool.handler({ url: "https://example.com/big" }, ctx);
-    expect(result.content).toContain("(truncated)");
+    expect(result.content).toContain("truncated — full output is");
+    expect(result.content).toContain("saved to");
     expect(result.content.length).toBeLessThan(9000);
   });
 });

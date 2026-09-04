@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import type { ToolDefinition } from "../../core/types.js";
 import { resolveAllowedPath } from "./path-guard.js";
 import { SHELL, killProcessGroup } from "../../util/process.js";
-import { truncate, TRUNCATE_MEDIUM } from "../../util/truncate.js";
+import { truncateOrSpill, TRUNCATE_MEDIUM } from "../../util/truncate.js";
 
 function commandAvailable(command: string, args: string[]): Promise<boolean> {
   return new Promise((resolve) => {
@@ -86,12 +86,13 @@ export const ocrImageTool: ToolDefinition<OcrImageInput> = {
     const result = await runTesseract([sourcePath, "stdout", "-l", input.lang ?? "eng"], 60_000);
 
     if (result.isError) {
-      return { content: truncate(result.stderr.trim() || "tesseract failed with no output.", TRUNCATE_MEDIUM), isError: true };
+      const errText = result.stderr.trim() || "tesseract failed with no output.";
+      return { content: await truncateOrSpill(ctx.cwd, ctx.sessionId, "ocr-error", errText, TRUNCATE_MEDIUM), isError: true };
     }
     const text = result.stdout.trim();
     if (text.length === 0) {
       return { content: "No text detected in the image.", isError: false };
     }
-    return { content: truncate(text, TRUNCATE_MEDIUM), isError: false };
+    return { content: await truncateOrSpill(ctx.cwd, ctx.sessionId, "ocr", text, TRUNCATE_MEDIUM), isError: false };
   },
 };

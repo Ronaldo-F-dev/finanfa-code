@@ -1,7 +1,7 @@
 import { spawn } from "node:child_process";
 import type { ToolDefinition, ToolResult } from "../../core/types.js";
 import { resolveAllowedPath } from "./path-guard.js";
-import { truncate, TRUNCATE_MEDIUM } from "../../util/truncate.js";
+import { truncateOrSpill, TRUNCATE_MEDIUM } from "../../util/truncate.js";
 
 const TIMEOUT_MS = 15_000;
 
@@ -11,7 +11,7 @@ const TIMEOUT_MS = 15_000;
  * puts in a diff path or commit message can be interpreted as a shell
  * command, unlike the general-purpose `bash` tool.
  */
-function runGit(cwd: string, args: string[]): Promise<ToolResult> {
+function runGit(cwd: string, sessionId: string, args: string[]): Promise<ToolResult> {
   return new Promise((resolve) => {
     // Force the C locale so output (status labels, etc.) is consistent and
     // parseable regardless of the host machine's configured locale.
@@ -34,8 +34,11 @@ function runGit(cwd: string, args: string[]): Promise<ToolResult> {
         resolve({ content: `git ${args.join(" ")} timed out after ${TIMEOUT_MS}ms`, isError: true });
         return;
       }
-      const content = truncate(stdout.trim().length > 0 ? stdout.trim() : stderr.trim() || "(no output)", TRUNCATE_MEDIUM);
-      resolve({ content, isError: code !== 0 });
+      void (async () => {
+        const raw = stdout.trim().length > 0 ? stdout.trim() : stderr.trim() || "(no output)";
+        const content = await truncateOrSpill(cwd, sessionId, "git", raw, TRUNCATE_MEDIUM);
+        resolve({ content, isError: code !== 0 });
+      })();
     });
 
     child.on("error", (err) => {
@@ -58,7 +61,7 @@ export const gitStatus: ToolDefinition<Record<string, never>> = {
   riskLevel: "safe",
   inputSchema: { type: "object", properties: {} },
   describeCall: () => "status",
-  handler: (_input, ctx) => runGit(ctx.cwd, ["status"]),
+  handler: (_input, ctx) => runGit(ctx.cwd, ctx.sessionId, ["status"]),
 };
 
 interface GitDiffInput {
@@ -82,7 +85,7 @@ export const gitDiff: ToolDefinition<GitDiffInput> = {
     const args = ["diff"];
     if (input.staged) args.push("--staged");
     if (input.path) args.push("--", ...relativePaths(ctx.cwd, [input.path]));
-    return runGit(ctx.cwd, args);
+    return runGit(ctx.cwd, ctx.sessionId, args);
   },
 };
 
@@ -99,7 +102,7 @@ export const gitLog: ToolDefinition<GitLogInput> = {
     properties: { limit: { type: "number", description: "Max commits to show (default 20)" } },
   },
   describeCall: (input) => `log -n ${input.limit ?? 20}`,
-  handler: (input, ctx) => runGit(ctx.cwd, ["log", "--oneline", "-n", String(input.limit ?? 20)]),
+  handler: (input, ctx) => runGit(ctx.cwd, ctx.sessionId, ["log", "--oneline", "-n", String(input.limit ?? 20)]),
 };
 
 export const gitBranch: ToolDefinition<Record<string, never>> = {
@@ -108,7 +111,7 @@ export const gitBranch: ToolDefinition<Record<string, never>> = {
   riskLevel: "safe",
   inputSchema: { type: "object", properties: {} },
   describeCall: () => "list branches",
-  handler: (_input, ctx) => runGit(ctx.cwd, ["branch", "-vv"]),
+  handler: (_input, ctx) => runGit(ctx.cwd, ctx.sessionId, ["branch", "-vv"]),
 };
 
 interface GitAddInput {
@@ -133,7 +136,7 @@ export const gitAdd: ToolDefinition<GitAddInput> = {
   describeCall: (input) => `add ${input.paths.join(" ")}`,
   async handler(input, ctx) {
     if (input.paths.length === 0) return { content: "No paths given.", isError: true };
-    return runGit(ctx.cwd, ["add", "--", ...relativePaths(ctx.cwd, input.paths)]);
+    return runGit(ctx.cwd, ctx.sessionId, ["add", "--", ...relativePaths(ctx.cwd, input.paths)]);
   },
 };
 
@@ -155,7 +158,7 @@ export const gitCommit: ToolDefinition<GitCommitInput> = {
     if (input.message.trim() === "") {
       return Promise.resolve({ content: "Commit message cannot be empty.", isError: true });
     }
-    return runGit(ctx.cwd, ["commit", "-m", input.message]);
+    return runGit(ctx.cwd, ctx.sessionId, ["commit", "-m", input.message]);
   },
 };
 
@@ -178,7 +181,7 @@ export const gitCheckout: ToolDefinition<GitCheckoutInput> = {
   },
   riskKey: (input) => input.branch,
   describeCall: (input) => (input.create ? `create and switch to branch "${input.branch}"` : `switch to branch "${input.branch}"`),
-  handler: (input, ctx) => runGit(ctx.cwd, input.create ? ["checkout", "-b", input.branch] : ["checkout", input.branch]),
+  handler: (input, ctx) => runGit(ctx.cwd, ctx.sessionId, input.create ? ["checkout", "-b", input.branch] : ["checkout", input.branch]),
 };
 
 interface GitPushInput {
@@ -211,14 +214,14 @@ export const gitPush: ToolDefinition<GitPushInput> = {
     // whether upstream tracking already exists.
     let branch = input.branch;
     if (!branch) {
-      const current = await runGit(ctx.cwd, ["rev-parse", "--abbrev-ref", "HEAD"]);
+      const current = await runGit(ctx.cwd, ctx.sessionId, ["rev-parse", "--abbrev-ref", "HEAD"]);
       if (current.isError) return current;
       branch = current.content.trim();
     }
     const args = ["push"];
     if (input.setUpstream) args.push("-u");
     args.push(input.remote ?? "origin", branch);
-    return runGit(ctx.cwd, args);
+    return runGit(ctx.cwd, ctx.sessionId, args);
   },
 };
 
@@ -235,7 +238,7 @@ export const gitFetch: ToolDefinition<GitFetchInput> = {
     properties: { remote: { type: "string", description: 'Remote name (default: "origin")' } },
   },
   describeCall: (input) => `fetch ${input.remote ?? "origin"}`,
-  handler: (input, ctx) => runGit(ctx.cwd, ["fetch", input.remote ?? "origin"]),
+  handler: (input, ctx) => runGit(ctx.cwd, ctx.sessionId, ["fetch", input.remote ?? "origin"]),
 };
 
 interface GitPullInput {
@@ -259,7 +262,7 @@ export const gitPull: ToolDefinition<GitPullInput> = {
   handler: (input, ctx) => {
     const args = ["pull", input.remote ?? "origin"];
     if (input.branch) args.push(input.branch);
-    return runGit(ctx.cwd, args);
+    return runGit(ctx.cwd, ctx.sessionId, args);
   },
 };
 
@@ -285,7 +288,7 @@ export const gitStash: ToolDefinition<GitStashInput> = {
     const action = input.action ?? "push";
     const args: string[] = ["stash", action];
     if (action === "push" && input.message) args.push("-m", input.message);
-    return runGit(ctx.cwd, args);
+    return runGit(ctx.cwd, ctx.sessionId, args);
   },
 };
 

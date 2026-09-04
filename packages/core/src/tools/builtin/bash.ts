@@ -38,6 +38,6 @@ export const bashTool: ToolDefinition<BashInput> = {
   async handler(input, ctx) {
     const cwd = input.cwd ? `${ctx.cwd}/${input.cwd}` : ctx.cwd;
     const timeoutMs = input.timeout_ms ?? DEFAULT_TIMEOUT_MS;
-    return runSubprocess(input.command, { cwd, timeoutMs, signal: ctx.signal });
+    return runSubprocess(input.command, { cwd, sessionId: ctx.sessionId, timeoutMs, signal: ctx.signal });
   },
 };

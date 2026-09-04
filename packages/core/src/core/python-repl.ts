@@ -1,6 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import readline from "node:readline";
-import { truncate, TRUNCATE_MEDIUM } from "../util/truncate.js";
+import { truncateOrSpill, TRUNCATE_MEDIUM } from "../util/truncate.js";
 
 export interface PythonReplResult {
   stdout: string;
@@ -95,7 +95,7 @@ export class PythonReplManager {
     this.pendingLines = [];
   }
 
-  async run(code: string, timeoutMs: number): Promise<PythonReplResult> {
+  async run(code: string, timeoutMs: number, cwd: string, sessionId: string): Promise<PythonReplResult> {
     const child = this.ensureStarted();
 
     return new Promise((resolve) => {
@@ -118,17 +118,19 @@ export class PythonReplManager {
         this.rl?.off("line", checkForLine);
         clearTimeout(timer);
         const line = this.pendingLines.shift() as string;
-        try {
-          const parsed = JSON.parse(line) as PythonReplResult;
-          resolve({
-            stdout: truncate(parsed.stdout, TRUNCATE_MEDIUM),
-            stderr: truncate(parsed.stderr, TRUNCATE_MEDIUM),
-            result: parsed.result ? truncate(parsed.result, TRUNCATE_MEDIUM) : parsed.result,
-            error: parsed.error ? truncate(parsed.error, TRUNCATE_MEDIUM) : parsed.error,
-          });
-        } catch {
-          resolve({ stdout: "", stderr: "", result: null, error: `Malformed REPL response: ${line}` });
-        }
+        void (async () => {
+          try {
+            const parsed = JSON.parse(line) as PythonReplResult;
+            resolve({
+              stdout: await truncateOrSpill(cwd, sessionId, "repl-stdout", parsed.stdout, TRUNCATE_MEDIUM),
+              stderr: await truncateOrSpill(cwd, sessionId, "repl-stderr", parsed.stderr, TRUNCATE_MEDIUM),
+              result: parsed.result ? await truncateOrSpill(cwd, sessionId, "repl-result", parsed.result, TRUNCATE_MEDIUM) : parsed.result,
+              error: parsed.error ? await truncateOrSpill(cwd, sessionId, "repl-error", parsed.error, TRUNCATE_MEDIUM) : parsed.error,
+            });
+          } catch {
+            resolve({ stdout: "", stderr: "", result: null, error: `Malformed REPL response: ${line}` });
+          }
+        })();
       };
 
       this.rl?.on("line", checkForLine);

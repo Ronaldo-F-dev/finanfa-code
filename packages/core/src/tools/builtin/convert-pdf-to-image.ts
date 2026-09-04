@@ -73,7 +73,7 @@ export const convertPdfToImageTool: ToolDefinition<ConvertPdfToImageInput> = {
     if (input.page !== undefined) args.push("-f", String(input.page), "-l", String(input.page), "-singlefile");
     args.push(sourcePath, prefixPath);
 
-    const result = await runSubprocess("pdftoppm", { cwd: ctx.cwd, timeoutMs: 60_000, args });
+    const result = await runSubprocess("pdftoppm", { cwd: ctx.cwd, sessionId: ctx.sessionId, timeoutMs: 60_000, args });
     if (result.isError) return result;
 
     const prefixBase = path.basename(prefixPath);

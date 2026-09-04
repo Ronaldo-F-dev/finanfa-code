@@ -1,6 +1,6 @@
 import type { ToolDefinition } from "../../core/types.js";
 import { wrapUntrustedContent } from "../../core/untrusted-content.js";
-import { truncate, TRUNCATE_SMALL } from "../../util/truncate.js";
+import { truncateOrSpill, TRUNCATE_SMALL } from "../../util/truncate.js";
 
 const DEFAULT_TIMEOUT_MS = 30_000;
 
@@ -32,7 +32,7 @@ export const httpRequestTool: ToolDefinition<HttpRequestInput> = {
   },
   riskKey: (input) => `${input.method ?? "GET"} ${input.url}`,
   describeCall: (input) => `${input.method ?? "GET"} ${input.url}`,
-  async handler(input) {
+  async handler(input, ctx) {
     let response: Response;
     try {
       response = await fetch(input.url, {
@@ -48,7 +48,8 @@ export const httpRequestTool: ToolDefinition<HttpRequestInput> = {
 
     const headerLines = [...response.headers.entries()].map(([k, v]) => `${k}: ${v}`).join("\n");
     const bodyText = await response.text();
-    const content = `HTTP ${response.status} ${response.statusText}\n${headerLines}\n\n${truncate(bodyText, TRUNCATE_SMALL)}`;
+    const truncatedBody = await truncateOrSpill(ctx.cwd, ctx.sessionId, "http-body", bodyText, TRUNCATE_SMALL);
+    const content = `HTTP ${response.status} ${response.statusText}\n${headerLines}\n\n${truncatedBody}`;
 
     return { content: wrapUntrustedContent(input.url, content), isError: !response.ok };
   },

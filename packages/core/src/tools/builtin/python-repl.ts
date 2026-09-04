@@ -35,13 +35,13 @@ export function createPythonReplTool(manager: PythonReplManager): ToolDefinition
     },
     riskKey: () => "python_repl",
     describeCall: (input) => (input.reset && !input.code ? "reset Python REPL session" : `python_repl: ${input.code ?? ""}`),
-    async handler(input) {
+    async handler(input, ctx) {
       if (input.reset) manager.reset();
       if (!input.code) {
         return { content: input.reset ? "Session reset." : "No code given.", isError: !input.reset };
       }
 
-      const result = await manager.run(input.code, input.timeout_ms ?? DEFAULT_TIMEOUT_MS);
+      const result = await manager.run(input.code, input.timeout_ms ?? DEFAULT_TIMEOUT_MS, ctx.cwd, ctx.sessionId);
       if (result.timedOut) {
         return {
           content: `Timed out after ${input.timeout_ms ?? DEFAULT_TIMEOUT_MS}ms — the session was killed and will restart fresh on the next call (state lost).`,

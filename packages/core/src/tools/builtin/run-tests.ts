@@ -86,6 +86,6 @@ export const runTestsTool: ToolDefinition<RunTestsInput> = {
         isError: true,
       };
     }
-    return runSubprocess(command, { cwd: ctx.cwd, timeoutMs: input.timeout_ms ?? DEFAULT_TIMEOUT_MS });
+    return runSubprocess(command, { cwd: ctx.cwd, sessionId: ctx.sessionId, timeoutMs: input.timeout_ms ?? DEFAULT_TIMEOUT_MS });
   },
 };

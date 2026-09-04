@@ -80,6 +80,7 @@ export const lintJavascriptTool: ToolDefinition<LintJavascriptInput> = {
     return runSubprocess("npx", {
       args: ["-y", "eslint", target],
       cwd: ctx.cwd,
+      sessionId: ctx.sessionId,
       timeoutMs: input.timeout_ms ?? DEFAULT_TIMEOUT_MS,
       format: "compact",
       isError: (code) => code !== 0 && code !== 1,

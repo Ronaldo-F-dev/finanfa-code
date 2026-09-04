@@ -48,6 +48,7 @@ export const checkTypescriptTypesTool: ToolDefinition<CheckTypescriptTypesInput>
     return runSubprocess("npx", {
       args: ["-y", "--package=typescript", "tsc", "--noEmit"],
       cwd: ctx.cwd,
+      sessionId: ctx.sessionId,
       timeoutMs: input.timeout_ms ?? DEFAULT_TIMEOUT_MS,
       format: "compact",
       // tsc exits 1 for type errors and 0 when clean (verified directly) —

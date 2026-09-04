@@ -2,6 +2,8 @@ import { describe, expect, it, afterEach } from "vitest";
 import { PythonReplManager } from "../../src/core/python-repl.js";
 
 const TIMEOUT = 15_000;
+const CWD = process.cwd();
+const SESSION_ID = "test-session";
 
 describe("PythonReplManager (real python3 subprocess)", () => {
   let manager: PythonReplManager;
@@ -14,8 +16,8 @@ describe("PythonReplManager (real python3 subprocess)", () => {
     "persists variables across separate run() calls",
     async () => {
       manager = new PythonReplManager();
-      await manager.run("x = 5", 5000);
-      const result = await manager.run("x * 2", 5000);
+      await manager.run("x = 5", 5000, CWD, SESSION_ID);
+      const result = await manager.run("x * 2", 5000, CWD, SESSION_ID);
       expect(result.result).toBe("10");
       expect(result.error).toBeNull();
     },
@@ -26,7 +28,7 @@ describe("PythonReplManager (real python3 subprocess)", () => {
     "captures print() output separately from the trailing expression's value",
     async () => {
       manager = new PythonReplManager();
-      const result = await manager.run("print('hello'); y = 41 + 1\ny", 5000);
+      const result = await manager.run("print('hello'); y = 41 + 1\ny", 5000, CWD, SESSION_ID);
       expect(result.stdout).toBe("hello\n");
       expect(result.result).toBe("42");
     },
@@ -37,7 +39,7 @@ describe("PythonReplManager (real python3 subprocess)", () => {
     "captures the return value of a multi-statement block ending in an expression",
     async () => {
       manager = new PythonReplManager();
-      const result = await manager.run("def f():\n    return 42\nf()", 5000);
+      const result = await manager.run("def f():\n    return 42\nf()", 5000, CWD, SESSION_ID);
       expect(result.result).toBe("42");
     },
     TIMEOUT,
@@ -47,10 +49,10 @@ describe("PythonReplManager (real python3 subprocess)", () => {
     "returns a traceback in error, without throwing, for a runtime exception",
     async () => {
       manager = new PythonReplManager();
-      const result = await manager.run("1 / 0", 5000);
+      const result = await manager.run("1 / 0", 5000, CWD, SESSION_ID);
       expect(result.error).toContain("ZeroDivisionError");
       // the session itself is still usable after an error
-      const after = await manager.run("2 + 2", 5000);
+      const after = await manager.run("2 + 2", 5000, CWD, SESSION_ID);
       expect(after.result).toBe("4");
     },
     TIMEOUT,
@@ -60,11 +62,11 @@ describe("PythonReplManager (real python3 subprocess)", () => {
     "survives sys.exit() instead of the whole process dying",
     async () => {
       manager = new PythonReplManager();
-      await manager.run("x = 99", 5000);
-      const exitResult = await manager.run("import sys; sys.exit(1)", 5000);
+      await manager.run("x = 99", 5000, CWD, SESSION_ID);
+      const exitResult = await manager.run("import sys; sys.exit(1)", 5000, CWD, SESSION_ID);
       expect(exitResult.error).toContain("SystemExit");
 
-      const after = await manager.run("x", 5000);
+      const after = await manager.run("x", 5000, CWD, SESSION_ID);
       expect(after.result).toBe("99");
     },
     TIMEOUT,
@@ -74,9 +76,9 @@ describe("PythonReplManager (real python3 subprocess)", () => {
     "reset() clears all session state",
     async () => {
       manager = new PythonReplManager();
-      await manager.run("x = 1", 5000);
+      await manager.run("x = 1", 5000, CWD, SESSION_ID);
       manager.reset();
-      const result = await manager.run("x", 5000);
+      const result = await manager.run("x", 5000, CWD, SESSION_ID);
       expect(result.error).toContain("NameError");
     },
     TIMEOUT,
@@ -86,12 +88,12 @@ describe("PythonReplManager (real python3 subprocess)", () => {
     "kills a hung process on timeout, and the next call transparently starts fresh",
     async () => {
       manager = new PythonReplManager();
-      await manager.run("x = 1", 5000);
-      const hung = await manager.run("while True: pass", 500);
+      await manager.run("x = 1", 5000, CWD, SESSION_ID);
+      const hung = await manager.run("while True: pass", 500, CWD, SESSION_ID);
       expect(hung.timedOut).toBe(true);
 
       // state is gone — the old process was killed, a new one starts on the next call
-      const after = await manager.run("x", 5000);
+      const after = await manager.run("x", 5000, CWD, SESSION_ID);
       expect(after.error).toContain("NameError");
     },
     TIMEOUT,
@@ -103,7 +105,7 @@ describe("PythonReplManager (real python3 subprocess)", () => {
     async () => {
       manager = new PythonReplManager();
       for (let i = 0; i < 10; i++) {
-        const result = await manager.run(`${i} * 2`, 5000);
+        const result = await manager.run(`${i} * 2`, 5000, CWD, SESSION_ID);
         expect(result.result).toBe(String(i * 2));
       }
     },
