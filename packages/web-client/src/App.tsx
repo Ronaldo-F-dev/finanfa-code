@@ -311,7 +311,7 @@ export default function App() {
               </div>
             )}
             {timeline.map((item) => (
-              <ChatMessageView key={item.id} item={item} />
+              <ChatMessageView key={item.id} item={item} projectId={activeProjectId} />
             ))}
             {busy.active && (
               <div className="row row-log">

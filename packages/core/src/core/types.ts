@@ -24,6 +24,8 @@ export interface ToolResult {
   metadata?: Record<string, unknown>;
   /** Images the model should see (e.g. a screenshot just taken) — surfaced as a follow-up multimodal message, not part of `content`. */
   images?: ToolImage[];
+  /** A file the *human* (not the model) should be able to play/view inline in the UI — e.g. text_to_speech's output MP3. Purely a UI hint; unrelated to `images` above. */
+  media?: { kind: "audio" | "image"; path: string; mimeType: string };
 }
 
 export interface ToolContext {
@@ -79,6 +81,8 @@ export interface NeutralToolResult {
   toolCallId: string;
   content: string;
   isError: boolean;
+  /** Carried through from ToolResult.media (see below) so it survives into session.messages/persistence, not just the live WS event — a page reload can still show it. */
+  media?: { kind: "audio" | "image"; path: string; mimeType: string };
 }
 
 export interface NeutralImage {

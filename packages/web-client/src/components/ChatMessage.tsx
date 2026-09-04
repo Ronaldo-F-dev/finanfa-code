@@ -25,7 +25,7 @@ function handleMarkdownClick(e: React.MouseEvent<HTMLDivElement>): void {
   });
 }
 
-export function ChatMessageView({ item }: { item: TimelineItem }) {
+export function ChatMessageView({ item, projectId }: { item: TimelineItem; projectId?: string }) {
   if (item.kind === "user") {
     return (
       <div className="row row-user">
@@ -52,6 +52,21 @@ export function ChatMessageView({ item }: { item: TimelineItem }) {
           <div className="markdown" onClick={handleMarkdownClick} dangerouslySetInnerHTML={{ __html: html }} />
           {item.streaming && <span className="cursor" />}
         </div>
+      </div>
+    );
+  }
+
+  if (item.kind === "media") {
+    const qs = new URLSearchParams({ path: item.path });
+    if (projectId) qs.set("project", projectId);
+    const src = `/api/workspace-file?${qs.toString()}`;
+    return (
+      <div className="row row-log">
+        {item.mediaKind === "audio" ? (
+          <audio className="media-audio" controls src={src} />
+        ) : (
+          <img className="media-image" src={src} alt={item.path} />
+        )}
       </div>
     );
   }

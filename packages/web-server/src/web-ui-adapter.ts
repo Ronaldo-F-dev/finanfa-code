@@ -35,6 +35,9 @@ export function createWebUiAdapter(ws: WebSocket): { adapter: UIAdapter; resolve
     writeError(text) {
       send("error", { text });
     },
+    writeMedia(media) {
+      send("media", media);
+    },
     setStatus(status) {
       currentStatus = status;
       send("status", { status });

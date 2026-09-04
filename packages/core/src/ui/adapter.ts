@@ -25,5 +25,7 @@ export interface UIAdapter {
   setBusy(busy: boolean, label?: string): void;
   /** `kind: "confirm"` is used for permission prompts; `"input"` for normal chat input. */
   askUser(prompt: string, kind?: "input" | "confirm"): Promise<string>;
+  /** A tool produced a file the human should be able to play/view inline (e.g. text_to_speech's MP3) — optional, since a terminal can't render it; the CLI adapters just skip this and rely on the tool's own printed output. */
+  writeMedia?(media: { kind: "audio" | "image"; path: string; mimeType: string }): void;
   close(): void;
 }

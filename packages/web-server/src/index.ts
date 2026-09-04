@@ -32,6 +32,7 @@ import { OpenAiCompatibleProvider } from "@finanfa/core/src/providers/openai-com
 import type { LlmProvider, NeutralImage } from "@finanfa/core/src/core/types.js";
 import { PRICING } from "@finanfa/core/src/core/pricing.js";
 import { createWebUiAdapter } from "./web-ui-adapter.js";
+import { resolveAllowedPath } from "@finanfa/core/src/tools/builtin/path-guard.js";
 import { mkdir, writeFile, readdir, readFile, rm, stat } from "node:fs/promises";
 import JSZip from "jszip";
 import {
@@ -316,6 +317,28 @@ app.delete("/api/projects/:id/files/:name", async (req, res) => {
   }
 });
 
+// Serves a raw file from a project's workspace (e.g. an MP3 text_to_speech
+// just wrote) so the browser can play/view it inline — distinct from the
+// knowledge-file routes above, which are scoped to the knowledge/
+// subfolder specifically. resolveAllowedPath re-validates the path stays
+// within that project's own cwd (or the server's home dir), same guard
+// every tool's file access already goes through.
+app.get("/api/workspace-file", async (req, res) => {
+  const relPath = req.query.path;
+  if (typeof relPath !== "string" || relPath.length === 0) {
+    res.status(400).json({ error: "path is required" });
+    return;
+  }
+  try {
+    const cwd = await resolveCwd(typeof req.query.project === "string" ? req.query.project : undefined);
+    const fullPath = resolveAllowedPath(cwd, relPath);
+    res.type(path.extname(fullPath) || "application/octet-stream");
+    res.sendFile(fullPath);
+  } catch (err) {
+    res.status(404).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
 app.get("/api/projects/:id/download", async (req, res) => {
   try {
     const dir = await resolveCwd(req.params.id);
@@ -492,6 +515,17 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
             .map((m) => ({ role: m.role, content: m.content })),
         }),
       );
+      // Unlike the rest of tool activity, a generated audio/image file (see
+      // ToolResult.media) IS meant to stay visible across a reload — it's
+      // persisted on the tool-result message specifically for this. Sent
+      // after the history event above so the client appends each player to
+      // an already-populated timeline instead of racing it.
+      for (const m of session.messages) {
+        if (m.role !== "tool") continue;
+        for (const r of m.results) {
+          if (r.media) ws.send(JSON.stringify({ type: "media", ...r.media }));
+        }
+      }
     }
 
     let turnInFlight = false;

@@ -3,7 +3,8 @@ import { useCallback, useEffect, useRef, useState } from "react";
 export type TimelineItem =
   | { kind: "user"; id: string; text: string; images?: Attachment[] }
   | { kind: "assistant"; id: string; text: string; streaming: boolean }
-  | { kind: "log"; id: string; variant: "system" | "error"; text: string };
+  | { kind: "log"; id: string; variant: "system" | "error"; text: string }
+  | { kind: "media"; id: string; mediaKind: "audio" | "image"; path: string; mimeType: string };
 
 export interface PermissionRequest {
   requestId: number;
@@ -133,6 +134,9 @@ export function useAgentSocket(
           break;
         case "error":
           setTimeline((t) => [...t, { kind: "log", id: uid(), variant: "error", text: msg.text }]);
+          break;
+        case "media":
+          setTimeline((t) => [...t, { kind: "media", id: uid(), mediaKind: msg.kind, path: msg.path, mimeType: msg.mimeType }]);
           break;
         case "busy":
           setBusy({ active: msg.busy, label: msg.label });

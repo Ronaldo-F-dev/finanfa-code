@@ -116,8 +116,12 @@ async function runOneToolCall(
       // to paraphrase it, so a failure it glossed over had no direct
       // visibility short of asking it to repeat itself or re-running by hand.
       echoToolOutput(ui, result.content, result.isError);
+      if (!result.isError && result.media) ui.writeMedia?.(result.media);
       return {
-        result: { toolCallId: call.id, isError: result.isError, content: result.content },
+        // media is carried into the persisted tool-result message (not just
+        // fired as a live UI event above) so a page reload/resumed session
+        // can still show the player — see the web server's history replay.
+        result: { toolCallId: call.id, isError: result.isError, content: result.content, media: !result.isError ? result.media : undefined },
         images: result.images,
       };
     } catch (err) {
