@@ -68,6 +68,8 @@ import { securityScanSsrfTool } from "./security/ssrf.js";
 import { securityScanXxeTool } from "./security/xxe.js";
 import { securityScanLfiTool } from "./security/lfi.js";
 import { securityScanReconTool } from "./security/recon.js";
+import { securityScanCachePoisoningTool } from "./security/cache-poisoning.js";
+import { securityScanIdorTool } from "./security/idor.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -124,6 +126,8 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(securityScanXxeTool);
   registry.register(securityScanLfiTool);
   registry.register(securityScanReconTool);
+  registry.register(securityScanCachePoisoningTool);
+  registry.register(securityScanIdorTool);
   for (const tool of gitTools) registry.register(tool);
 }
 
