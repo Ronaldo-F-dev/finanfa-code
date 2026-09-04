@@ -169,7 +169,11 @@ export const DEV_TOOLS_PROMPT =
   "of Fon or Yoruba — your own training data and web search both cover these unreliably, which is the whole " +
   "reason this tool exists; it works with no configuration needed (a free Google Translate backend by default). " +
   "Bariba and Dendi aren't supported by any backend right now — say so plainly rather than guessing a " +
-  "translation yourself when the tool reports that.";
+  "translation yourself when the tool reports that. " +
+  "Use text_to_speech to turn text into a spoken MP3, same free backend, no configuration needed. Its voice " +
+  "coverage is narrower than translate_text's language coverage, though — Fon and Yoruba translate fine but " +
+  "currently have no TTS voice, which only surfaces as a failure when you actually call it (there's no way to " +
+  "know in advance); say so plainly rather than retrying repeatedly when that happens.";
 
 export const BASE_SYSTEM_PROMPT =
   SECURITY_INSTRUCTION + CORE_BEHAVIOR_PROMPT + PATH_GUIDANCE_PROMPT + PROCESS_GUIDANCE_PROMPT + DOCUMENT_TOOLS_PROMPT + DEV_TOOLS_PROMPT;

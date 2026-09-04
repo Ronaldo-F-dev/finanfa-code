@@ -45,6 +45,7 @@ import { PreviewServer } from "../../core/preview-server.js";
 import { generate3dTool } from "./generate-3d.js";
 import { generate2dTool } from "./generate-2d.js";
 import { translateTextTool } from "./translate.js";
+import { textToSpeechTool } from "./text-to-speech.js";
 import { convertSpreadsheetTool } from "./convert-spreadsheet.js";
 import { createConvertToPdfTool } from "./convert-to-pdf.js";
 import { convertPdfToImageTool } from "./convert-pdf-to-image.js";
@@ -85,6 +86,7 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(generate3dTool);
   registry.register(generate2dTool);
   registry.register(translateTextTool);
+  registry.register(textToSpeechTool);
   registry.register(convertSpreadsheetTool);
   registry.register(convertPdfToImageTool);
   registry.register(splitPdfTool);
