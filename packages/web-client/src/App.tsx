@@ -54,6 +54,7 @@ export default function App() {
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFirstMessageRef = useRef<string | null>(null);
@@ -349,36 +350,42 @@ export default function App() {
               <div className="composer-toolbar">
                 <div className="composer-toolbar-left">
                   <input ref={fileInputRef} type="file" multiple hidden onChange={(e) => handleFiles(e.target.files)} />
-                  <button className="btn btn-ghost attach-btn" onClick={() => fileInputRef.current?.click()} disabled={!connected || uploading} title="Attach image or file">
-                    📎
+                  <button className="btn btn-ghost composer-plus-btn" onClick={() => setToolsMenuOpen((v) => !v)} title="More options">
+                    +
                   </button>
-                  <button
-                    className={`btn btn-toggle ${webSearchEnabled ? "btn-toggle-on" : ""}`}
-                    onClick={toggleWebSearch}
-                    title={webSearchEnabled ? "Web search allowed — click to disable" : "Web search disabled — click to enable"}
-                  >
-                    🌐 Web
-                  </button>
-                  <button
-                    className={`btn btn-toggle ${imageGenEnabled ? "btn-toggle-on" : ""}`}
-                    onClick={toggleImageGen}
-                    title={imageGenEnabled ? "Image generation allowed — click to disable" : "Image generation disabled — click to enable"}
-                  >
-                    🖼️ Image
-                  </button>
-                  <button
-                    className={`btn btn-toggle ${deepResearch ? "btn-toggle-on" : ""}`}
-                    onClick={() => setDeepResearch((v) => !v)}
-                    title="Deep research: push the agent to search thoroughly across multiple sources before answering"
-                  >
-                    🔎 Deep research
-                  </button>
-                  <ModelPicker
-                    models={models}
-                    model={model}
-                    onChange={(m, family) => switchModel(m, family)}
-                    onNeedsKey={() => setSettingsOpen(true)}
-                  />
+                  {toolsMenuOpen && <div className="composer-tools-backdrop" onClick={() => setToolsMenuOpen(false)} />}
+                  <div className={`composer-tools-group ${toolsMenuOpen ? "composer-tools-open" : ""}`}>
+                    <button className="btn btn-ghost attach-btn" onClick={() => fileInputRef.current?.click()} disabled={!connected || uploading} title="Attach image or file">
+                      📎
+                    </button>
+                    <button
+                      className={`btn btn-toggle ${webSearchEnabled ? "btn-toggle-on" : ""}`}
+                      onClick={toggleWebSearch}
+                      title={webSearchEnabled ? "Web search allowed — click to disable" : "Web search disabled — click to enable"}
+                    >
+                      🌐 Web
+                    </button>
+                    <button
+                      className={`btn btn-toggle ${imageGenEnabled ? "btn-toggle-on" : ""}`}
+                      onClick={toggleImageGen}
+                      title={imageGenEnabled ? "Image generation allowed — click to disable" : "Image generation disabled — click to enable"}
+                    >
+                      🖼️ Image
+                    </button>
+                    <button
+                      className={`btn btn-toggle ${deepResearch ? "btn-toggle-on" : ""}`}
+                      onClick={() => setDeepResearch((v) => !v)}
+                      title="Deep research: push the agent to search thoroughly across multiple sources before answering"
+                    >
+                      🔎 Deep research
+                    </button>
+                    <ModelPicker
+                      models={models}
+                      model={model}
+                      onChange={(m, family) => switchModel(m, family)}
+                      onNeedsKey={() => setSettingsOpen(true)}
+                    />
+                  </div>
                 </div>
                 {busy.active ? (
                   <button className="btn btn-stop" onClick={interrupt}>

@@ -662,6 +662,21 @@ body {
   display: flex;
   align-items: center;
   gap: 8px;
+  position: relative;
+}
+
+.composer-tools-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.composer-plus-btn {
+  display: none;
+}
+
+.composer-tools-backdrop {
+  display: none;
 }
 
 .attach-btn {
@@ -1336,5 +1351,61 @@ body {
 
   .page {
     padding: 52px 12px 32px;
+  }
+}
+
+@media (max-width: 600px) {
+  .composer-plus-btn {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 34px;
+    height: 34px;
+    padding: 0;
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .composer-tools-group {
+    display: none;
+  }
+
+  .composer-tools-backdrop {
+    display: block;
+    position: fixed;
+    inset: 0;
+    z-index: 29;
+  }
+
+  .composer-tools-open {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 6px;
+    position: absolute;
+    bottom: calc(100% + 8px);
+    left: 0;
+    width: max-content;
+    min-width: 200px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 10px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    z-index: 30;
+  }
+
+  .composer-tools-open .btn {
+    width: 100%;
+    text-align: left;
+  }
+
+  .composer-tools-open .model-picker {
+    width: 100%;
+  }
+
+  .composer-tools-open .model-picker-trigger {
+    width: 100%;
+    text-align: left;
   }
 }
