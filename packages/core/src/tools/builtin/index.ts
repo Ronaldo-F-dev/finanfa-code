@@ -57,6 +57,8 @@ import { securityScanTlsTool } from "./security/tls.js";
 import { securityScanWafTool } from "./security/waf.js";
 import { securityScanClickjackingTool } from "./security/clickjacking.js";
 import { securityScanSriTool } from "./security/sri.js";
+import { securityScanOpenRedirectTool } from "./security/open-redirect.js";
+import { securityScanCrlfInjectionTool } from "./security/crlf-injection.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -102,6 +104,8 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(securityScanWafTool);
   registry.register(securityScanClickjackingTool);
   registry.register(securityScanSriTool);
+  registry.register(securityScanOpenRedirectTool);
+  registry.register(securityScanCrlfInjectionTool);
   for (const tool of gitTools) registry.register(tool);
 }
 
