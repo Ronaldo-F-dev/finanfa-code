@@ -53,6 +53,7 @@ export default function App() {
   const [mcpOpen, setMcpOpen] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFirstMessageRef = useRef<string | null>(null);
@@ -218,17 +219,40 @@ export default function App() {
 
   return (
     <div className="app-shell">
+      <button className="sidebar-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu" title="Menu">
+        ☰
+      </button>
+      {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
       <Sidebar
+        mobileOpen={sidebarOpen}
         activeSessionId={sessionInfo?.id ?? activeSessionId}
         projectId={activeProjectId}
         projectName={projectName}
         refreshToken={sidebarRefreshToken}
-        onSelect={handleSelectSession}
-        onNewChat={handleNewChat}
-        onOpenSettings={() => setSettingsOpen(true)}
-        onOpenMcp={() => setMcpOpen(true)}
-        onOpenProjects={() => setView({ kind: "projects" })}
-        onOpenMemory={() => setMemoryOpen(true)}
+        onSelect={(id) => {
+          handleSelectSession(id);
+          setSidebarOpen(false);
+        }}
+        onNewChat={() => {
+          handleNewChat();
+          setSidebarOpen(false);
+        }}
+        onOpenSettings={() => {
+          setSettingsOpen(true);
+          setSidebarOpen(false);
+        }}
+        onOpenMcp={() => {
+          setMcpOpen(true);
+          setSidebarOpen(false);
+        }}
+        onOpenProjects={() => {
+          setView({ kind: "projects" });
+          setSidebarOpen(false);
+        }}
+        onOpenMemory={() => {
+          setMemoryOpen(true);
+          setSidebarOpen(false);
+        }}
       />
 
       {view.kind === "projects" && <ProjectsListView onOpenProject={(id) => setView({ kind: "project", id })} />}

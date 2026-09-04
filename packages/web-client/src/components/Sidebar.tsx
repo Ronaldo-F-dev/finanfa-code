@@ -11,6 +11,7 @@ export function Sidebar({
   projectId,
   projectName,
   refreshToken,
+  mobileOpen,
   onSelect,
   onNewChat,
   onOpenSettings,
@@ -22,6 +23,7 @@ export function Sidebar({
   projectId: string | undefined;
   projectName?: string;
   refreshToken: number;
+  mobileOpen?: boolean;
   onSelect: (id: string) => void;
   onNewChat: () => void;
   onOpenSettings: () => void;
@@ -48,7 +50,7 @@ export function Sidebar({
   }
 
   return (
-    <aside className="sidebar">
+    <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
       <button className="sidebar-project" onClick={onOpenProjects} title="Browse projects">
         📁 Projects{projectName ? ` — ${projectName}` : ""}
       </button>
