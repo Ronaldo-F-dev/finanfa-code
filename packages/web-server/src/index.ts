@@ -3,7 +3,7 @@ import path from "node:path";
 import express from "express";
 import { WebSocketServer, type WebSocket } from "ws";
 import { AgentSession } from "@finanfa/core/src/core/session.js";
-import { runTurn, maybeGenerateTitle } from "@finanfa/core/src/core/loop.js";
+import { runTurn, maybeGenerateTitle, compactSession } from "@finanfa/core/src/core/loop.js";
 import { ToolRegistry } from "@finanfa/core/src/tools/registry.js";
 import { registerBuiltins, registerStatefulBuiltins } from "@finanfa/core/src/tools/builtin/index.js";
 import { PermissionManager } from "@finanfa/core/src/permissions/manager.js";
@@ -559,6 +559,15 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
                 `from memory alone if search tools can verify it. Take as many search/fetch steps as genuinely useful.\n\n${msg.text}`
               : msg.text;
             await runTurn(session, provider, adapter, tools, permissions, text, undefined, images);
+            // Cleared here, not in the outer finally below — assistant_end
+            // has already reached the client by this point (runTurn itself
+            // sent it), so from the user's perspective the turn is over.
+            // maybeGenerateTitle is a second, separate LLM call that doesn't
+            // touch session.messages; gating /compact on it too just made
+            // clicking Compact right after a response finishes fail with a
+            // confusing "turn already in progress", for a call the client
+            // has no visibility into at all.
+            turnInFlight = false;
             const hadTitle = Boolean(session.title);
             await maybeGenerateTitle(session, provider);
             if (!hadTitle && session.title) sendSessionInfo();
@@ -572,6 +581,42 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           resolvePending(msg.requestId, msg.answer);
         } else if (msg.type === "interrupt") {
           for (const controller of session.activeAbortControllers) controller.abort();
+        } else if (msg.type === "compact") {
+          if (turnInFlight) {
+            adapter.writeError("A turn is already in progress — wait for it to finish (or interrupt) before compacting.");
+            return;
+          }
+          // Held for the duration of the compaction call itself (not just
+          // checked at the start) — compactSession replaces session.messages
+          // wholesale, so a user_message arriving mid-compaction and
+          // appending to the same array while that replacement is in flight
+          // would corrupt it. Same guard user_message itself uses.
+          turnInFlight = true;
+          try {
+            adapter.setBusy(true, "compacting");
+            const result = await compactSession(session, provider);
+            adapter.setBusy(false);
+            if (!result) {
+              adapter.writeSystem("Nothing to compact, or the summarization call failed — conversation left unchanged.");
+            } else {
+              adapter.writeSystem(`Compacted ${result.messagesBefore} messages into a summary.`);
+              // The client's timeline holds the old turns individually —
+              // tell it to replace them with just the two-message summary
+              // now actually in session.messages, same replay path a
+              // resumed session's initial "history" event already uses.
+              ws.send(
+                JSON.stringify({
+                  type: "history",
+                  replace: true,
+                  messages: session.messages
+                    .filter((m) => m.role === "user" || m.role === "assistant")
+                    .map((m) => ({ role: m.role, content: m.content })),
+                }),
+              );
+            }
+          } finally {
+            turnInFlight = false;
+          }
         } else if (msg.type === "set_model" && typeof msg.model === "string" && msg.model) {
           const family: ProviderFamily = msg.family === "openai-compatible" ? "openai-compatible" : "anthropic";
           if (family !== providerKind) {

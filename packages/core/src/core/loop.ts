@@ -5,6 +5,7 @@ import type { PermissionManager } from "../permissions/manager.js";
 import type {
   LlmProvider,
   NeutralImage,
+  NeutralMessage,
   NeutralToolCall,
   NeutralToolResult,
   StreamTurnResult,
@@ -338,6 +339,87 @@ export async function maybeGenerateTitle(session: AgentSession, provider: LlmPro
     }
   } catch {
     // Best-effort — see docstring.
+  }
+}
+
+// Just enough of each tool result for the summarizer to know what actually
+// happened (e.g. "Wrote speech audio to speech.mp3") — the earlier version
+// collapsed every result to a bare "ok"/"error" with zero content, so a
+// genuinely successful tool call (verified against a real text_to_speech
+// run) still got summarized as "no result was provided, unclear whether it
+// succeeded" purely because the summarizer had nothing to go on.
+const SUMMARY_RESULT_SNIPPET_LENGTH = 300;
+
+function formatMessageForSummary(m: NeutralMessage): string {
+  if (m.role === "user") return `User: ${m.content}`;
+  if (m.role === "assistant") {
+    const calls = m.toolCalls?.length ? ` [called: ${m.toolCalls.map((c) => c.name).join(", ")}]` : "";
+    return `Assistant: ${m.content}${calls}`;
+  }
+  const results = m.results
+    .map((r) => {
+      const snippet = r.content.length > SUMMARY_RESULT_SNIPPET_LENGTH ? `${r.content.slice(0, SUMMARY_RESULT_SNIPPET_LENGTH)}...` : r.content;
+      return `${r.isError ? "error" : "ok"}: ${snippet}`;
+    })
+    .join(" | ");
+  return `[tool result(s): ${results}]`;
+}
+
+export interface CompactResult {
+  messagesBefore: number;
+}
+
+/**
+ * Manual, deliberate compaction — distinct from compactForProvider (which
+ * runs automatically on every provider call and only ever shrinks old *tool*
+ * results within the size sent to the model, never touching what's actually
+ * stored in session.messages). This instead asks the model itself to
+ * summarize the WHOLE conversation so far — including long user/assistant
+ * text turns compactForProvider never addresses — into a standalone
+ * briefing, then replaces session.messages with just that summary. A one-way
+ * operation: the original turns are gone from this session once persisted
+ * (same trade-off Claude Code's own /compact makes). Returns undefined if
+ * there's nothing worth compacting (empty session) or the summarization call
+ * itself failed.
+ */
+export async function compactSession(session: AgentSession, provider: LlmProvider): Promise<CompactResult | undefined> {
+  if (session.messages.length === 0) return undefined;
+
+  const messagesBefore = session.messages.length;
+  // Re-uses the same old-tool-result shrinking compactForProvider already
+  // does for every normal turn, so an already-huge conversation doesn't also
+  // blow up the size of *this* summarization request.
+  const transcript = compactForProvider(session.messages)
+    .map(formatMessageForSummary)
+    .join("\n\n");
+
+  try {
+    const result = await provider.streamTurn({
+      model: session.model,
+      systemPrompt:
+        "Summarize the conversation transcript below into a concise standalone briefing for whoever continues " +
+        "this task next — not a blow-by-blow recap. Cover: what the user is trying to accomplish, key decisions " +
+        "and their reasons, specific files/paths/values touched, and the current state of any in-progress work " +
+        "(what's done, what's left). Reply with ONLY the briefing text, nothing before or after it.",
+      messages: [{ role: "user", content: transcript }],
+      tools: [],
+      onTextDelta: () => {},
+    });
+
+    const summary = result.assistantMessage.content.trim();
+    if (summary.length === 0) return undefined;
+
+    session.messages = [
+      { role: "user", content: "[Earlier conversation compacted to save context — see the summary below]" },
+      { role: "assistant", content: summary },
+    ];
+    await session.persist();
+    return { messagesBefore };
+  } catch {
+    // Best-effort, same as maybeGenerateTitle — a failed summarization call
+    // must never lose the original conversation, so session.messages is
+    // only ever replaced after a successful, non-empty result above.
+    return undefined;
   }
 }
 

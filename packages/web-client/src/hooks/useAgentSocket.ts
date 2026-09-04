@@ -168,7 +168,13 @@ export function useAgentSocket(
             text: m.content,
             ...(m.role === "assistant" ? { streaming: false } : {}),
           })) as TimelineItem[];
-          setTimeline((t) => [...items, ...t]);
+          // Normally prepended (a resumed session's past turns, arriving
+          // before anything else). After /compact (or the web UI's Compact
+          // button) the server sends replace: true instead — session.messages
+          // was just collapsed to a two-message summary server-side, and the
+          // timeline needs to match that exactly, not keep the old turns
+          // alongside it.
+          setTimeline((t) => (msg.replace ? items : [...items, ...t]));
           break;
         }
         default:
@@ -219,6 +225,7 @@ export function useAgentSocket(
   const mcpToggle = useCallback((name: string, enabled: boolean) => send({ type: enabled ? "mcp_enable" : "mcp_disable", name }), [send]);
   const mcpReload = useCallback(() => send({ type: "mcp_reload" }), [send]);
   const setToolEnabled = useCallback((name: string, enabled: boolean) => send({ type: "set_tool_enabled", name, enabled }), [send]);
+  const compact = useCallback(() => send({ type: "compact" }), [send]);
 
   return {
     connected,
@@ -233,6 +240,7 @@ export function useAgentSocket(
     sendMessage,
     answerPermission,
     interrupt,
+    compact,
     reconnect,
     switchModel,
     dismissModelUnavailable,

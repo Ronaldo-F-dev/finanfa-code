@@ -52,7 +52,7 @@ describe("/config command", () => {
       ui: makeUi(),
       tools: undefined as never,
       permissions: undefined as never,
-      mcp: undefined as never,
+      mcp: undefined as never, provider: undefined as never,
       cwd: projectDir,
       args,
       setSession: () => {},

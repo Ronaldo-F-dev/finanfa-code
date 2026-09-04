@@ -300,6 +300,11 @@ body {
   font-family: var(--font-mono);
 }
 
+.btn-compact {
+  font-size: 12px;
+  padding: 5px 10px;
+}
+
 .model-picker {
   position: relative;
 }

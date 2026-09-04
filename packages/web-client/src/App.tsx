@@ -99,6 +99,7 @@ export default function App() {
     sendMessage,
     answerPermission,
     interrupt,
+    compact,
     reconnect,
     switchModel,
     dismissModelUnavailable,
@@ -284,6 +285,16 @@ export default function App() {
                 <span className="cost-pill">
                   {status.tokens.toLocaleString()} tok · ${status.costUsd.toFixed(4)}
                 </span>
+              )}
+              {timeline.length > 0 && (
+                <button
+                  className="btn btn-ghost btn-compact"
+                  onClick={compact}
+                  disabled={!connected || busy.active}
+                  title="Summarize the conversation so far into a condensed note, freeing up context"
+                >
+                  Compact
+                </button>
               )}
               <span className={`conn-dot ${connected ? "conn-on" : "conn-off"}`} title={connected ? "connected" : "disconnected"} />
             </div>

@@ -46,6 +46,7 @@ describe("/mcp command: enable/disable", () => {
       tools: undefined as never,
       permissions: undefined as never,
       mcp,
+      provider: undefined as never,
       cwd: "/tmp",
       args,
       setSession: () => {},
@@ -120,7 +121,7 @@ describe("/mcp add", () => {
 
   function addCtx(mcp: McpClientManager, args: string) {
     const session = new AgentSession({ cwd: dir, model: "m", systemPrompt: "s" });
-    return { session, ui: makeUi(), tools: new ToolRegistry(), permissions: undefined as never, mcp, cwd: dir, args, setSession: () => {} };
+    return { session, ui: makeUi(), tools: new ToolRegistry(), permissions: undefined as never, mcp, provider: undefined as never, cwd: dir, args, setSession: () => {} };
   }
 
   async function readServers(): Promise<{ name: string }[]> {

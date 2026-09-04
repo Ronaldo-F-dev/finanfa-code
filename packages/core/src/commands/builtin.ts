@@ -5,6 +5,7 @@ import { loadMcpServers, type McpServerConfig } from "../mcp/config.js";
 import { MCP_TOOL_PREFIX } from "../mcp/client-manager.js";
 import { loadConfig, saveGlobalConfig, globalConfigPath, type FinanfaConfig } from "../core/config.js";
 import { loadMemories } from "../memory/loader.js";
+import { compactSession } from "../core/loop.js";
 import type { CommandContext, CommandOutcome } from "./types.js";
 import type { CommandRegistry } from "./registry.js";
 
@@ -381,6 +382,22 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
       return "continue";
     },
     "Clear the conversation history, keeping the same session",
+  );
+
+  commands.register(
+    "compact",
+    async (ctx): Promise<CommandOutcome> => {
+      ctx.ui.setBusy(true, "compacting");
+      const result = await compactSession(ctx.session, ctx.provider);
+      ctx.ui.setBusy(false);
+      if (!result) {
+        ctx.ui.writeSystem("Nothing to compact, or the summarization call failed — conversation left unchanged.");
+      } else {
+        ctx.ui.writeSystem(`Compacted ${result.messagesBefore} messages into a summary. Use /clear instead if you don't need any of it kept.`);
+      }
+      return "continue";
+    },
+    "Summarize the conversation so far into a condensed note, freeing up context (one-way — /clear instead to discard it entirely)",
   );
 
   commands.register(

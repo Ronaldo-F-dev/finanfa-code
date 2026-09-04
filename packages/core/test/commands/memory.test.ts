@@ -42,7 +42,7 @@ describe("/memory command", () => {
       ui: makeUi(),
       tools: undefined as never,
       permissions: undefined as never,
-      mcp: undefined as never,
+      mcp: undefined as never, provider: undefined as never,
       setSession: () => {},
       cwd: dir,
       args,

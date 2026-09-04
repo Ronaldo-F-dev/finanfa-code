@@ -3,6 +3,7 @@ import type { UIAdapter } from "../ui/adapter.js";
 import type { ToolRegistry } from "../tools/registry.js";
 import type { PermissionManager } from "../permissions/manager.js";
 import type { McpClientManager } from "../mcp/client-manager.js";
+import type { LlmProvider } from "../core/types.js";
 
 export interface CommandContext {
   session: AgentSession;
@@ -10,6 +11,7 @@ export interface CommandContext {
   tools: ToolRegistry;
   permissions: PermissionManager;
   mcp: McpClientManager;
+  provider: LlmProvider;
   cwd: string;
   args: string;
   /** Switches the REPL's active session for subsequent turns (see /session) — persist the outgoing session yourself first if it should be kept. */
