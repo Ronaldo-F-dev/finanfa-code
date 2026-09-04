@@ -60,6 +60,8 @@ import { securityScanSriTool } from "./security/sri.js";
 import { securityScanOpenRedirectTool } from "./security/open-redirect.js";
 import { securityScanCrlfInjectionTool } from "./security/crlf-injection.js";
 import { securityScanSubdomainTakeoverTool } from "./security/subdomain-takeover.js";
+import { securityScanEmailSecurityTool } from "./security/email-security.js";
+import { securityScanDnsHardeningTool } from "./security/dns-hardening.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -108,6 +110,8 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(securityScanOpenRedirectTool);
   registry.register(securityScanCrlfInjectionTool);
   registry.register(securityScanSubdomainTakeoverTool);
+  registry.register(securityScanEmailSecurityTool);
+  registry.register(securityScanDnsHardeningTool);
   for (const tool of gitTools) registry.register(tool);
 }
 
