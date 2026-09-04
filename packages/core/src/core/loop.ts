@@ -292,16 +292,32 @@ class LoopGuard {
     );
   }
 
-  /** A message to show and stop on, once the exact same tool call batch repeats REPEAT_LIMIT times — else undefined. */
-  checkRepetition(toolCalls: NeutralToolCall[]): string | undefined {
+  /**
+   * "stop" once the exact same tool call batch repeats REPEAT_LIMIT times —
+   * same hard backstop as before. "nudge" fires one step earlier (the 2nd
+   * repeat, i.e. REPEAT_LIMIT - 1), before the model has burned its last
+   * attempt: a short reminder appended to that call's own tool result,
+   * giving it one real chance to change approach instead of being cut off
+   * with zero warning on attempt 3. Same idea as DeepSeek Harness's
+   * repeat-tool-call guard (deepseek-ai/deepseek-harness, packages/guard) —
+   * reimplemented independently, no shared code.
+   */
+  checkRepetition(toolCalls: NeutralToolCall[]): { kind: "nudge" | "stop"; message: string } | undefined {
     const signature = toolCallBatchSignature(toolCalls);
     this.repeatCount = signature === this.lastSignature ? this.repeatCount + 1 : 1;
     this.lastSignature = signature;
+    const plural = toolCalls.length > 1 ? "s" : "";
+    if (this.repeatCount === REPEAT_LIMIT - 1) {
+      return {
+        kind: "nudge",
+        message: `(loop guard: this exact tool call${plural} — same tool, same arguments — was just repeated. If it didn't produce what you needed, try a different approach now rather than repeating it again)`,
+      };
+    }
     if (this.repeatCount < REPEAT_LIMIT) return undefined;
-    return (
-      `${LOOP_GUARD_MESSAGE_PREFIX} — the same tool call${toolCalls.length > 1 ? "s" : ""} repeated ${REPEAT_LIMIT} ` +
-      "times in a row with no apparent progress)"
-    );
+    return {
+      kind: "stop",
+      message: `${LOOP_GUARD_MESSAGE_PREFIX} — the same tool call${plural} repeated ${REPEAT_LIMIT} times in a row with no apparent progress)`,
+    };
   }
 }
 
@@ -554,9 +570,9 @@ export async function runTurn(
       return;
     }
 
-    const repeatStop = guard.checkRepetition(toolCalls);
-    if (repeatStop) {
-      ui.writeSystem(repeatStop);
+    const repeatCheck = guard.checkRepetition(toolCalls);
+    if (repeatCheck?.kind === "stop") {
+      ui.writeSystem(repeatCheck.message);
       // The assistant message with these tool_calls is already in history
       // (pushed above) but the calls themselves were never run — leaving
       // them unresolved would mean every tool_use block has no matching
@@ -569,12 +585,24 @@ export async function runTurn(
         role: "tool",
         results: toolCalls.map((call) => ({ toolCallId: call.id, content: "(skipped — repetition guard triggered)", isError: true })),
       });
-      session.messages.push({ role: "assistant", content: repeatStop });
+      session.messages.push({ role: "assistant", content: repeatCheck.message });
       await session.persist();
       return;
     }
 
     const { results, images } = await runToolCallBatch(toolCalls, session, ui, tools, permissions);
+
+    if (repeatCheck?.kind === "nudge" && results.length > 0) {
+      // Appended to the last real tool result rather than pushed as its own
+      // message — every tool_use block needs a matching tool_result (same
+      // protocol constraint as the "stop" branch above), so there's no valid
+      // toolCallId to hang a standalone nudge off of. Piggybacking on a real
+      // result keeps the transcript valid and still puts the reminder
+      // directly in the model's next-turn context.
+      const last = results[results.length - 1];
+      results[results.length - 1] = { ...last, content: `${last.content}\n\n${repeatCheck.message}` };
+      ui.writeSystem(repeatCheck.message);
+    }
 
     session.messages.push({ role: "tool", results });
     if (images.length > 0) {

@@ -128,6 +128,51 @@ describe("runTurn: loop guards", () => {
     expect(last).toEqual({ role: "assistant", content: expect.stringContaining("repeated 3 times in a row") });
   });
 
+  it("nudges (but still runs the call, and doesn't stop the turn) on the 2nd identical repeat, one step before the hard stop", async () => {
+    const tools = new ToolRegistry();
+    const getCalls = registerCountingTool(tools);
+    let n = 0;
+
+    // Repeats the exact same call twice, then does something different and finishes —
+    // the model self-correcting after the nudge, not hitting the 3rd-repeat hard stop.
+    class SelfCorrectingProvider implements LlmProvider {
+      async streamTurn(): Promise<StreamTurnResult> {
+        n++;
+        if (n <= 2) {
+          return {
+            assistantMessage: { role: "assistant", content: "", toolCalls: [{ id: `c${n}`, name: "counter", input: { same: true } }] },
+            usage: { inputTokens: 1, outputTokens: 1 },
+            stopReason: "tool_use",
+          };
+        }
+        return { assistantMessage: { role: "assistant", content: "done" }, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: "end_turn" };
+      }
+    }
+
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(session, new SelfCorrectingProvider(), ui, tools, permissions, "try, repeat once, then move on");
+
+    // Both identical calls actually ran — a nudge doesn't skip execution the way the hard stop does.
+    expect(getCalls()).toBe(2);
+    // The turn reached its own natural end (the model's "done"), not a guard-forced stop.
+    expect(ui.writeSystem).not.toHaveBeenCalledWith(expect.stringContaining("stopped"));
+
+    // The nudge is visible to the human...
+    expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("loop guard"));
+    // ...and reaches the model too, attached to the 2nd call's own tool result
+    // (not a free-floating message — every tool_use needs a matching
+    // tool_result, so there's nowhere else valid to attach it).
+    const secondToolMessage = session.messages.find((m) => m.role === "tool" && m.results.some((r) => r.toolCallId === "c2"));
+    expect(secondToolMessage).toBeDefined();
+    if (secondToolMessage?.role === "tool") {
+      expect(secondToolMessage.results[0].content).toContain("loop guard");
+      expect(secondToolMessage.results[0].isError).toBe(false); // the nudge doesn't turn a real success into an error
+    }
+  });
+
   it("does not trigger the repetition guard when consecutive tool calls differ", async () => {
     const tools = new ToolRegistry();
     const getCalls = registerCountingTool(tools);
