@@ -208,10 +208,10 @@ export function useAgentSocket(
 
   const reconnect = useCallback(() => setResumeToken((k) => k + 1), []);
 
-  const switchModel = useCallback((newModel: string, family: string) => {
+  const switchModel = useCallback((newModel: string, family: string, baseUrl?: string) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    ws.send(JSON.stringify({ type: "set_model", model: newModel, family }));
+    ws.send(JSON.stringify({ type: "set_model", model: newModel, family, baseUrl }));
   }, []);
 
   const dismissModelUnavailable = useCallback(() => setModelUnavailable(null), []);

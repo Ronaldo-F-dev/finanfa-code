@@ -27,6 +27,7 @@ import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import { loadConfig, saveGlobalConfig, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
 import { CONFIG_KEYS, SECRET_KEYS, maskSecret } from "@finanfa/core/src/commands/builtin.js";
 import { BASE_SYSTEM_PROMPT, selectProvider, connectMcpServers } from "@finanfa/core/src/app.js";
+import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
 import { AnthropicProvider } from "@finanfa/core/src/providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "@finanfa/core/src/providers/openai-compatible-provider.js";
 import type { LlmProvider, NeutralImage } from "@finanfa/core/src/core/types.js";
@@ -112,6 +113,13 @@ app.get("/api/models", async (req, res) => {
   const config = await loadConfig(cwd);
   const { defaultModel, kind } = selectProvider(config);
   const availability = await familyAvailability(config);
+  // Zero-config local runtimes (Ollama, LM Studio, ...) — probed fresh on
+  // every call rather than cached, since the whole point is reflecting
+  // what's actually running right now (a model pulled/unloaded since the
+  // last check). Each carries its own baseUrl because, unlike the single
+  // configured openai-compatible entry below, there can be several of these
+  // at once, each needing a different endpoint.
+  const localModels = await detectLocalProviders();
   const models = [
     ...Object.keys(PRICING).map((id) => ({ id, family: "anthropic" as const, configured: availability.anthropic })),
     // The openai-compatible "family" is really just whatever single model the
@@ -120,6 +128,7 @@ app.get("/api/models", async (req, res) => {
     ...(availability["openai-compatible"] && defaultModel && kind === "openai-compatible"
       ? [{ id: defaultModel, family: "openai-compatible" as const, configured: true }]
       : []),
+    ...localModels.map((m) => ({ id: `${m.source}: ${m.id}`, family: "openai-compatible" as const, configured: true, baseUrl: m.baseUrl, localModelId: m.id })),
   ];
   res.json({ activeProviderKind: kind, defaultModel, models });
 });
@@ -619,7 +628,17 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           }
         } else if (msg.type === "set_model" && typeof msg.model === "string" && msg.model) {
           const family: ProviderFamily = msg.family === "openai-compatible" ? "openai-compatible" : "anthropic";
-          if (family !== providerKind) {
+          if (typeof msg.baseUrl === "string" && msg.baseUrl) {
+            // A detected local model (Ollama/LM Studio/...) — always rebuilt
+            // directly against its own baseUrl, unconditionally, rather than
+            // the family-change check below: two local models can both be
+            // family "openai-compatible" but live at different baseUrls
+            // (e.g. switching from Ollama to LM Studio), which that check
+            // alone can't distinguish since it only fires on a family flip.
+            // No API key — every local runtime here is unauthenticated.
+            provider = new OpenAiCompatibleProvider({ baseUrl: msg.baseUrl, apiKey: undefined });
+            providerKind = "openai-compatible";
+          } else if (family !== providerKind) {
             const availability = await familyAvailability(config);
             if (!availability[family]) {
               ws.send(

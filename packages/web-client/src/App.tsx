@@ -393,7 +393,7 @@ export default function App() {
                     <ModelPicker
                       models={models}
                       model={model}
-                      onChange={(m, family) => switchModel(m, family)}
+                      onChange={(m, family, baseUrl) => switchModel(m, family, baseUrl)}
                       onNeedsKey={() => setSettingsOpen(true)}
                     />
                   </div>
