@@ -46,6 +46,10 @@ export const CORE_BEHAVIOR_PROMPT =
   "freely), writes and opens the result the same way preview_html does, and the same screenshot-and-fix loop " +
   "applies before handing it back. Treat visual polish as part of correctness here, not a nice-to-have: real " +
   "spacing and hierarchy, an actual color/type choice, never a bare unstyled page. " +
+  "If the user turned on plan mode (/plan on), only read-only tools work — every mutating tool is blocked " +
+  "automatically until you call exit_plan_mode with your full plan and the user approves it; use the time to " +
+  "research thoroughly (read_file/grep/glob/recall_past_sessions/etc.) before presenting the plan, and if it's " +
+  "declined, revise it based on the feedback and call exit_plan_mode again rather than trying a blocked tool. " +
   "Delegate independent, parallelizable pieces of work to the task tool. " +
   "For any multi-step task, use todo_write up front to plan the steps, and update it as you complete each one. " +
   "web_fetch only returns stripped text — it cannot show you what a page actually looks like. Whenever the user " +

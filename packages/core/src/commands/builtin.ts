@@ -60,6 +60,26 @@ function handleTools(ctx: CommandContext): CommandOutcome {
   return "continue";
 }
 
+function handlePlan(ctx: CommandContext): CommandOutcome {
+  const arg = ctx.args.trim().toLowerCase();
+  if (arg === "on") {
+    ctx.session.planMode = true;
+    ctx.ui.writeSystem("Plan mode ON — only read-only tools work until the model presents a plan via exit_plan_mode and you approve it.");
+    return "continue";
+  }
+  if (arg === "off") {
+    ctx.session.planMode = false;
+    ctx.ui.writeSystem("Plan mode OFF.");
+    return "continue";
+  }
+  if (arg === "") {
+    ctx.ui.writeSystem(ctx.session.planMode ? "Plan mode is ON." : "Plan mode is OFF.");
+    return "continue";
+  }
+  ctx.ui.writeError("Usage: /plan [on|off]");
+  return "continue";
+}
+
 function handleMcpEnableDisable(ctx: CommandContext, enable: boolean, name: string | undefined): CommandOutcome {
   if (!name) {
     ctx.ui.writeError(`Usage: /mcp ${enable ? "enable" : "disable"} <name>`);
@@ -503,5 +523,11 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
     "tools",
     handleTools,
     "List every registered tool with its risk level: /tools [list] | /tools enable <name> | /tools disable <name>",
+  );
+
+  commands.register(
+    "plan",
+    handlePlan,
+    "Toggle plan mode: /plan [on|off] (no args shows current state) — while on, only read-only tools work until a plan is presented via exit_plan_mode and approved",
   );
 }

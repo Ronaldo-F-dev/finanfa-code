@@ -17,6 +17,14 @@ describe("system prompt: security instruction", () => {
   });
 });
 
+describe("system prompt: plan mode guidance", () => {
+  it("tells the model only read-only tools work in plan mode, and to use exit_plan_mode", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/plan mode \(\/plan on\)/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/exit_plan_mode/);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/if it's\s*\n?\s*declined, revise it based on the feedback/i);
+  });
+});
+
 describe("system prompt: path guidance", () => {
   it("tells the model to use absolute paths outside the project instead of relative traversal", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/absolute path/i);
