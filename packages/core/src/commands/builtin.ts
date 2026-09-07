@@ -523,7 +523,14 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
   commands.register(
     "help",
     (ctx) => {
-      ctx.ui.writeSystem(commands.list().map((c) => `/${c.name} — ${c.description}`).join("\n"));
+      const builtinLines = commands.list().map((c) => `/${c.name} — ${c.description}`);
+      // A custom command of the same name as a builtin never gets here —
+      // it's shadowed everywhere (autocomplete, dispatch), so listing it
+      // too would be misleading about what /<name> actually runs.
+      const customLines = [...(ctx.customCommands?.values() ?? [])]
+        .filter((c) => !commands.get(c.name))
+        .map((c) => `/${c.name} — ${c.description || "(custom command)"}`);
+      ctx.ui.writeSystem([...builtinLines, ...customLines].join("\n"));
       return "continue";
     },
     "List available commands",
