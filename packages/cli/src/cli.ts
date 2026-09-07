@@ -1,4 +1,5 @@
 import { createRequire } from "node:module";
+import path from "node:path";
 import { Command } from "commander";
 import { AgentSession } from "@finanfa/core/src/core/session.js";
 import { runTurn, maybeGenerateTitle, type VisionRoute } from "@finanfa/core/src/core/loop.js";
@@ -45,6 +46,10 @@ export interface CliOptions {
   yolo?: boolean;
   nonInteractive?: boolean;
   ui: "ink" | "readline";
+  /** Run this one prompt non-interactively and exit instead of starting the REPL — for scripts/cron (see schedule_task). */
+  prompt?: string;
+  /** Project directory to operate in; defaults to process.cwd(). Needed for --prompt invocations, since a cron job's cwd is the user's home directory, not the project. */
+  cwd?: string;
 }
 
 function createUi(mode: "ink" | "readline"): UIAdapter {
@@ -140,12 +145,19 @@ export async function main(argv: string[]): Promise<void> {
     .option("--yolo", "auto-approve every tool call without prompting (dangerous)")
     .option("--non-interactive", "never prompt; auto-deny anything not pre-allowed by config")
     .option("--ui <mode>", "terminal UI: ink or readline", "ink")
+    .option("-p, --prompt <text>", "run this one prompt non-interactively and exit, instead of starting the REPL (for scripts/cron)")
+    .option("--cwd <path>", "project directory to operate in (defaults to the current directory)")
     .parse(argv);
 
   const opts = program.opts<CliOptions>();
-  const cwd = process.cwd();
-  const ui = createUi(opts.ui);
-  ui.writeBanner(PACKAGE_VERSION);
+  const cwd = opts.cwd ? path.resolve(opts.cwd) : process.cwd();
+  // A scripted/cron --prompt invocation has no TTY to speak of; Ink needs a
+  // real terminal and would otherwise throw trying to manage raw-mode
+  // input on a pipe. createUi already falls back for a non-TTY stdin, but
+  // --prompt forces it regardless of opts.ui, since there's no REPL to
+  // render either way.
+  const ui = opts.prompt ? createReadlineAdapter() : createUi(opts.ui);
+  if (!opts.prompt) ui.writeBanner(PACKAGE_VERSION);
 
   const config = await loadConfig(cwd);
   const { provider, defaultModel, kind: providerKind } = selectProvider(config);
@@ -198,6 +210,24 @@ export async function main(argv: string[]): Promise<void> {
   for (const def of await mcp.listAllTools()) tools.register(def);
 
   registerStatefulBuiltins(tools, { provider, permissions, ui, model, cwd, browser, designContract: designContract.content, systemPrompt });
+
+  if (opts.prompt) {
+    // Single-shot mode (scripts/cron via schedule_task): run exactly one
+    // turn with the given prompt, persist, and exit — no REPL, no banner/
+    // system-status chatter, since there's no human here to read it.
+    try {
+      await runTurn(deps.session, provider, ui, tools, permissions, opts.prompt, visionRoute);
+      await maybeGenerateTitle(deps.session, provider);
+    } catch (err) {
+      ui.writeError(err instanceof Error ? err.message : String(err));
+    }
+    await deps.session.persist();
+    await mcp.disconnectAll();
+    await browser.close();
+    ui.close();
+    await shutdownTracing();
+    return;
+  }
 
   ui.writeSystem(`session ${session.id} · ${session.model} via ${providerKind} · ${tools.list().length} tools loaded`);
   if (mcp.connectedServers().length > 0) ui.writeSystem(`MCP servers: ${mcp.connectedServers().join(", ")}`);
