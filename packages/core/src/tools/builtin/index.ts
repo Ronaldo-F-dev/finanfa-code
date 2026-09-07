@@ -74,6 +74,8 @@ import { securityScanJwtAuthTool } from "./security/jwt-auth.js";
 import { securityScanBflaTool } from "./security/bfla.js";
 import { securityScanXssTool } from "./security/xss.js";
 import { securityScanInfraExposureTool } from "./security/infra-exposure.js";
+import { securityScanParamFuzzingTool } from "./security/param-fuzzing.js";
+import { securityScanWebsocketTool } from "./security/websocket.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -136,6 +138,8 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(securityScanBflaTool);
   registry.register(securityScanXssTool);
   registry.register(securityScanInfraExposureTool);
+  registry.register(securityScanParamFuzzingTool);
+  registry.register(securityScanWebsocketTool);
   for (const tool of gitTools) registry.register(tool);
 }
 
