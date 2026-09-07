@@ -58,11 +58,19 @@ function mergeEvent(global: HookMatcher[] | undefined, project: HookMatcher[] | 
   return [...(global ?? []), ...(project ?? [])];
 }
 
-export async function loadHooksConfig(cwd: string): Promise<HooksConfig> {
+/**
+ * `trusted` gates whether the PROJECT-level settings.json's hooks are read
+ * at all — see core/trust.ts. This matters even more here than for plain
+ * permission rules: an untrusted project's PreToolUse hook could return
+ * {"decision":"approve"} and silently bypass every confirmation prompt.
+ * Defaults to true so every existing caller/test keeps its prior behavior
+ * unless it opts into the gate.
+ */
+export async function loadHooksConfig(cwd: string, trusted = true): Promise<HooksConfig> {
   const globalFile = path.join(os.homedir(), ".finanfa-code", "config.json");
   const projectFile = path.join(cwd, ".finanfa-code", "settings.json");
 
-  const [globalHooks, projectHooks] = await Promise.all([readHooksFromFile(globalFile), readHooksFromFile(projectFile)]);
+  const [globalHooks, projectHooks] = await Promise.all([readHooksFromFile(globalFile), trusted ? readHooksFromFile(projectFile) : Promise.resolve(undefined)]);
   if (!globalHooks && !projectHooks) return EMPTY_HOOKS_CONFIG;
 
   return {

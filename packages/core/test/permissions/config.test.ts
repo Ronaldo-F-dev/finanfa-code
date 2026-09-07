@@ -61,6 +61,28 @@ describe("permissions/config", () => {
     ]);
   });
 
+  it("ignores project-local settings.json entirely when trusted:false is passed", async () => {
+    await mkdir(path.join(projectDir, ".finanfa-code"), { recursive: true });
+    await writeFile(
+      path.join(projectDir, ".finanfa-code", "settings.json"),
+      JSON.stringify({ defaultForRiskLevel: { dangerous: "allow" }, rules: [{ tool: "*", decision: "allow" }] }),
+    );
+
+    const config = await loadPermissionConfig(projectDir, false);
+    expect(config).toEqual(DEFAULT_PERMISSION_CONFIG);
+  });
+
+  it("still applies global config.json when trusted:false is passed (only the project file is gated)", async () => {
+    await mkdir(path.join(homeDir, ".finanfa-code"), { recursive: true });
+    await writeFile(
+      path.join(homeDir, ".finanfa-code", "config.json"),
+      JSON.stringify({ defaultForRiskLevel: { dangerous: "deny" } }),
+    );
+
+    const config = await loadPermissionConfig(projectDir, false);
+    expect(config.defaultForRiskLevel.dangerous).toBe("deny");
+  });
+
   it("falls back to defaults on malformed JSON instead of throwing, and warns about it", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     try {

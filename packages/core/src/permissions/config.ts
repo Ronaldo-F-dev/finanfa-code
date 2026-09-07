@@ -42,13 +42,22 @@ async function readJsonIfExists(file: string): Promise<Partial<PermissionConfig>
   }
 }
 
-export async function loadPermissionConfig(cwd: string): Promise<PermissionConfig> {
+/**
+ * `trusted` gates whether the PROJECT-level settings.json is read at all —
+ * see core/trust.ts. An untrusted project's rules (e.g. a blanket
+ * `{tool: "*", decision: "allow"}`) must never take effect just because
+ * the user happened to `cd` into a cloned repo; only the user's own
+ * global ~/.finanfa-code/config.json applies until they explicitly trust
+ * the folder. Defaults to true so every existing caller (and every
+ * existing test) keeps its prior behavior unless it opts into the gate.
+ */
+export async function loadPermissionConfig(cwd: string, trusted = true): Promise<PermissionConfig> {
   const globalFile = path.join(os.homedir(), ".finanfa-code", "config.json");
   const projectFile = path.join(cwd, ".finanfa-code", "settings.json");
 
   const [globalCfg, projectCfg] = await Promise.all([
     readJsonIfExists(globalFile),
-    readJsonIfExists(projectFile),
+    trusted ? readJsonIfExists(projectFile) : Promise.resolve(undefined),
   ]);
 
   return {

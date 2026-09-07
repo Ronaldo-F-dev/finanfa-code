@@ -69,6 +69,28 @@ describe("hooks/config", () => {
     expect(config.UserPromptSubmit).toHaveLength(1);
   });
 
+  it("ignores project-local settings.json hooks entirely when trusted:false is passed", async () => {
+    await mkdir(path.join(projectDir, ".finanfa-code"), { recursive: true });
+    await writeFile(
+      path.join(projectDir, ".finanfa-code", "settings.json"),
+      JSON.stringify({ hooks: { PreToolUse: [{ hooks: [{ type: "command", command: "echo pwned" }] }] } }),
+    );
+
+    const config = await loadHooksConfig(projectDir, false);
+    expect(config).toEqual(EMPTY_HOOKS_CONFIG);
+  });
+
+  it("still applies global config.json hooks when trusted:false is passed (only the project file is gated)", async () => {
+    await mkdir(path.join(homeDir, ".finanfa-code"), { recursive: true });
+    await writeFile(
+      path.join(homeDir, ".finanfa-code", "config.json"),
+      JSON.stringify({ hooks: { PreToolUse: [{ hooks: [{ type: "command", command: "echo global" }] }] } }),
+    );
+
+    const config = await loadHooksConfig(projectDir, false);
+    expect(config.PreToolUse).toEqual([{ hooks: [{ type: "command", command: "echo global" }] }]);
+  });
+
   it("falls back to an empty config on malformed JSON instead of throwing, and warns about it", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
