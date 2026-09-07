@@ -16,6 +16,7 @@ import { todoWriteTool } from "./todo-write.js";
 import { viewImageTool } from "./view-image.js";
 import { gitTools } from "./git.js";
 import { repoMapTool } from "./repo-map.js";
+import { createMydevopsTool } from "./mydevops.js";
 import { recallSessionsTool } from "./recall-sessions.js";
 import { readTracesTool } from "./read-traces.js";
 import { createSchedulerTools } from "./scheduler.js";
@@ -105,6 +106,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(editFileTool);
   registry.register(globTool);
   registry.register(repoMapTool);
+  registry.register(createMydevopsTool());
   registry.register(recallSessionsTool);
   registry.register(readTracesTool);
   for (const tool of createSchedulerTools()) registry.register(tool);
