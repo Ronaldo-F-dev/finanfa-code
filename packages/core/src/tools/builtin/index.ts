@@ -83,6 +83,7 @@ import { securityScanCommandInjectionTool } from "./security/command-injection.j
 import { securityScanLdapInjectionTool } from "./security/ldap-injection.js";
 import { securityScanDiscoveryTool } from "./security/discovery.js";
 import { securityScanSecretsTool } from "./security/secrets.js";
+import { securityScanStorageTool } from "./security/storage.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -154,6 +155,7 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(securityScanLdapInjectionTool);
   registry.register(securityScanDiscoveryTool);
   registry.register(securityScanSecretsTool);
+  registry.register(securityScanStorageTool);
   for (const tool of gitTools) registry.register(tool);
 }
 
