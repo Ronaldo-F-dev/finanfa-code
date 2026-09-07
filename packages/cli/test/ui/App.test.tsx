@@ -31,6 +31,24 @@ describe("Ink App", () => {
     expect(lastFrame()).toContain("claude-sonnet-5");
   });
 
+  it("shows a [PLAN MODE] tag in the status bar when planMode is on", () => {
+    const store = new UiStore();
+    store.setStatus({ tokens: 10, costUsd: 0.001, model: "claude-sonnet-5", planMode: true });
+
+    const { lastFrame } = render(<App store={store} onSubmit={vi.fn()} />);
+
+    expect(lastFrame()).toContain("PLAN MODE");
+  });
+
+  it("does not show the [PLAN MODE] tag when planMode is off", () => {
+    const store = new UiStore();
+    store.setStatus({ tokens: 10, costUsd: 0.001, model: "claude-sonnet-5", planMode: false });
+
+    const { lastFrame } = render(<App store={store} onSubmit={vi.fn()} />);
+
+    expect(lastFrame()).not.toContain("PLAN MODE");
+  });
+
   it("shows the permission prompt text when kind is confirm", () => {
     const store = new UiStore();
     store.setPrompt({ text: "run bash: rm -rf /tmp/x", kind: "confirm" });

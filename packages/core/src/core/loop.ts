@@ -593,6 +593,7 @@ export async function runTurn(
       tokens: session.usage.inputTokens + session.usage.outputTokens,
       costUsd: session.costUsd,
       model: session.model,
+      planMode: session.planMode,
     });
     await session.persist();
 

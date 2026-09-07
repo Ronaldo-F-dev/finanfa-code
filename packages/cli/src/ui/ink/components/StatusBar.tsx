@@ -6,6 +6,11 @@ export function StatusBar({ status }: { status: StatusInfo | undefined }) {
   if (!status) return null;
   return (
     <Box marginTop={1}>
+      {status.planMode && (
+        <Text color="yellow" bold>
+          [PLAN MODE]{" "}
+        </Text>
+      )}
       <Text dimColor>
         tokens={status.tokens} cost=${status.costUsd.toFixed(4)} model={status.model}
       </Text>

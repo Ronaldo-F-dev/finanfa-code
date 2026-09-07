@@ -2,6 +2,8 @@ export interface StatusInfo {
   tokens: number;
   costUsd: number;
   model: string;
+  /** Whether /plan is currently on — shown persistently in the status bar, not just as a one-time /plan message, since it changes what tools will actually do for the rest of the session. */
+  planMode?: boolean;
 }
 
 export interface CommandInfo {
