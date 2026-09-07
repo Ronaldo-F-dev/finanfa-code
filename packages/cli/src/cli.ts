@@ -21,6 +21,7 @@ import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import type { LlmProvider } from "@finanfa/core/src/core/types.js";
 import { loadConfig } from "@finanfa/core/src/core/config.js";
+import { initTracing, shutdownTracing } from "@finanfa/core/src/observability/tracing.js";
 import {
   BASE_SYSTEM_PROMPT,
   SECURITY_INSTRUCTION,
@@ -117,6 +118,7 @@ function registerShutdownHandlers(
     }
     await browser.close().catch(() => {});
     ui.close();
+    await shutdownTracing().catch(() => {});
     process.exit(0);
   };
 
@@ -125,6 +127,8 @@ function registerShutdownHandlers(
 }
 
 export async function main(argv: string[]): Promise<void> {
+  await initTracing();
+
   const program = new Command();
   program
     .name("finanfa")
@@ -206,6 +210,7 @@ export async function main(argv: string[]): Promise<void> {
   await mcp.disconnectAll();
   await browser.close();
   ui.close();
+  await shutdownTracing();
 }
 
 interface ReplDeps {

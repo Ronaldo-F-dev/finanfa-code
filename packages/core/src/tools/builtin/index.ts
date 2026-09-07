@@ -17,6 +17,7 @@ import { viewImageTool } from "./view-image.js";
 import { gitTools } from "./git.js";
 import { repoMapTool } from "./repo-map.js";
 import { recallSessionsTool } from "./recall-sessions.js";
+import { readTracesTool } from "./read-traces.js";
 import { runTestsTool } from "./run-tests.js";
 import {
   readDocumentTool,
@@ -101,6 +102,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(globTool);
   registry.register(repoMapTool);
   registry.register(recallSessionsTool);
+  registry.register(readTracesTool);
   registry.register(grepTool);
   registry.register(createBashTool(opts?.sandbox));
   registry.register(webSearchTool);

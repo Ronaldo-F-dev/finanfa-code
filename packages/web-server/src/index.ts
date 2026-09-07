@@ -34,6 +34,7 @@ import type { LlmProvider, NeutralImage } from "@finanfa/core/src/core/types.js"
 import { PRICING } from "@finanfa/core/src/core/pricing.js";
 import { createWebUiAdapter } from "./web-ui-adapter.js";
 import { resolveAllowedPath } from "@finanfa/core/src/tools/builtin/path-guard.js";
+import { initTracing } from "@finanfa/core/src/observability/tracing.js";
 import { mkdir, writeFile, readdir, readFile, rm, stat } from "node:fs/promises";
 import JSZip from "jszip";
 import {
@@ -743,6 +744,8 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     ws.close();
   }
 }
+
+await initTracing();
 
 httpServer.listen(PORT, () => {
   console.log(`finanfa-code-web server listening on http://localhost:${PORT} (default workspace: ${DEFAULT_CWD})`);

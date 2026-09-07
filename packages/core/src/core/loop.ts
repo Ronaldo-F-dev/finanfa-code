@@ -14,6 +14,7 @@ import type {
 } from "./types.js";
 import { compactForProvider } from "./context.js";
 import { mcpToolServerName } from "../mcp/client-manager.js";
+import { withSpan } from "../observability/tracing.js";
 
 /**
  * The model otherwise has no idea what "today" is — nothing in this
@@ -108,7 +109,11 @@ async function runOneToolCall(
     ui.writeSystem(`→ ${tool.name}: ${tool.describeCall ? tool.describeCall(call.input) : ""}`);
     ui.setBusy(true, tool.name);
     try {
-      const result = await tool.handler(call.input, ctx);
+      const result = await withSpan("tool.call", { "tool.name": tool.name, "tool.risk_level": tool.riskLevel }, async (span) => {
+        const r = await tool.handler(call.input, ctx);
+        span.setAttribute("tool.is_error", r.isError);
+        return r;
+      });
       // The full content always reaches the model via the tool_result message
       // regardless — this is a compact echo for the human. Without it, once a
       // tool is session-allowlisted (no more preview/confirmation), the only
@@ -494,13 +499,19 @@ export async function runTurn(
     session.activeAbortControllers.add(streamController);
     let result: StreamTurnResult;
     try {
-      result = await active.provider.streamTurn({
-        model: active.model,
-        systemPrompt: systemPromptWithDate(session),
-        messages: compactForProvider(session.messages),
-        tools: toolsForProvider(tools, session),
-        onTextDelta: (text) => ui.writeAssistantDelta(text),
-        signal: streamController.signal,
+      result = await withSpan("llm.turn", { "llm.model": active.model }, async (span) => {
+        const r = await active.provider.streamTurn({
+          model: active.model,
+          systemPrompt: systemPromptWithDate(session),
+          messages: compactForProvider(session.messages),
+          tools: toolsForProvider(tools, session),
+          onTextDelta: (text) => ui.writeAssistantDelta(text),
+          signal: streamController.signal,
+        });
+        span.setAttribute("llm.input_tokens", r.usage.inputTokens);
+        span.setAttribute("llm.output_tokens", r.usage.outputTokens);
+        span.setAttribute("llm.stop_reason", r.stopReason);
+        return r;
       });
     } catch (err) {
       // A provider call can throw outright (not just return an empty/odd
