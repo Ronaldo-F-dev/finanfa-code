@@ -17,6 +17,7 @@ import { viewImageTool } from "./view-image.js";
 import { gitTools } from "./git.js";
 import { repoMapTool } from "./repo-map.js";
 import { createMydevopsTool } from "./mydevops.js";
+import { createFirmwareFlashTools } from "./firmware-flash.js";
 import { recallSessionsTool } from "./recall-sessions.js";
 import { readTracesTool } from "./read-traces.js";
 import { createSchedulerTools } from "./scheduler.js";
@@ -44,6 +45,8 @@ import { lintJavascriptTool } from "./lint-javascript.js";
 import { createTaskTool } from "./task.js";
 import { createWorkflowTools } from "./workflow.js";
 import { createBrowserTools } from "./browser.js";
+import { createSerialTools } from "./serial.js";
+import { SerialManager } from "../../serial/manager.js";
 import { createBackgroundProcessTools } from "./background-process.js";
 import { BackgroundProcessManager } from "../../core/background-process.js";
 import { createPythonReplTool } from "./python-repl.js";
@@ -107,6 +110,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(globTool);
   registry.register(repoMapTool);
   registry.register(createMydevopsTool());
+  for (const tool of createFirmwareFlashTools()) registry.register(tool);
   registry.register(recallSessionsTool);
   registry.register(readTracesTool);
   for (const tool of createSchedulerTools()) registry.register(tool);
@@ -210,6 +214,7 @@ export function registerStatefulBuiltins(registry: ToolRegistry, deps: StatefulT
   registry.register(createSystemPromptLeakScanTool(redteamDeps));
   registry.register(createJailbreakScanTool(redteamDeps));
   for (const tool of createBrowserTools(deps.browser)) registry.register(tool);
+  for (const tool of createSerialTools(new SerialManager())) registry.register(tool);
   for (const tool of createBackgroundProcessTools(new BackgroundProcessManager())) registry.register(tool);
   registry.register(createPythonReplTool(new PythonReplManager()));
   // Shared between the two so a preview_html-opened file and a
