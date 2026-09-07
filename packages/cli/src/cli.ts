@@ -21,6 +21,7 @@ import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
 import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "@finanfa/core/src/memory/loader.js";
+import { loadCustomCommands, runCustomCommand, type CustomCommand } from "@finanfa/core/src/commands/custom-commands.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
@@ -183,6 +184,8 @@ export async function main(argv: string[]): Promise<void> {
   const memories = await loadMemories(cwd);
   if (memories.length > 0) tools.register(createReadMemoryTool(cwd));
 
+  const customCommands = await loadCustomCommands(cwd);
+
   const projectInstructions = await loadProjectInstructions(cwd);
   const designContract = await loadDesignContract(cwd);
 
@@ -219,14 +222,21 @@ export async function main(argv: string[]): Promise<void> {
   const commands = new CommandRegistry();
   registerBuiltinCommands(commands);
   const plugins = await loadPlugins(cwd, tools, commands);
-  ui.setCommands(commands.list());
+  // Custom commands are listed for autocomplete alongside builtins, but
+  // never override one of the same name — a builtin's fixed, code-defined
+  // behavior (like /cost or /clear) always wins over a same-named project
+  // shortcut, which would otherwise silently shadow it.
+  ui.setCommands([
+    ...commands.list(),
+    ...[...customCommands.values()].filter((c) => !commands.get(c.name)).map((c) => ({ name: c.name, description: c.description })),
+  ]);
 
   // Built as a named, mutable variable (not an inline object literal at the
   // repl() call site) specifically so registerShutdownHandlers below can
   // close over it via a getter — /session can swap deps.session mid-run,
   // and Ctrl+C needs to persist whichever session is current then, not the
   // one that existed at startup.
-  const deps: ReplDeps = { session, provider, ui, tools, permissions, mcp, commands, cwd, visionRoute };
+  const deps: ReplDeps = { session, provider, ui, tools, permissions, mcp, commands, customCommands, cwd, visionRoute };
   registerShutdownHandlers(() => deps.session, mcp, browser, ui);
 
   await connectMcpServers(cwd, mcp, ui);
@@ -274,29 +284,34 @@ interface ReplDeps {
   permissions: PermissionManager;
   mcp: McpClientManager;
   commands: CommandRegistry;
+  customCommands: Map<string, CustomCommand>;
   cwd: string;
   visionRoute?: VisionRoute;
 }
 
 async function runSlashCommand(deps: ReplDeps, trimmed: string): Promise<CommandOutcome> {
-  const { ui, commands } = deps;
+  const { ui, commands, customCommands } = deps;
   const [name, ...rest] = trimmed.slice(1).split(/\s+/);
+  // A builtin always wins over a same-named custom command — see the
+  // ui.setCommands() comment at startup for why.
   const handler = commands.get(name);
-  if (!handler) {
-    const available = commands.names().map((n) => `/${n}`).join(", ");
+  const custom = !handler ? customCommands.get(name) : undefined;
+  if (!handler && !custom) {
+    const available = [...commands.names(), ...customCommands.keys()].map((n) => `/${n}`).join(", ");
     ui.writeError(`Unknown command "/${name}". Available: ${available}`);
     return "continue";
   }
-  return handler({
+  const ctx = {
     ...deps,
     args: rest.join(" "),
     // Mutates deps itself (not a local copy) so repl()'s loop — which reads
     // deps.session fresh every iteration, not a destructured snapshot —
     // picks up the switch on the very next turn.
-    setSession: (session) => {
+    setSession: (session: AgentSession) => {
       deps.session = session;
     },
-  });
+  };
+  return custom ? runCustomCommand(ctx, custom) : handler!(ctx);
 }
 
 async function repl(deps: ReplDeps): Promise<void> {
