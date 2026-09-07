@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir, chmod } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import type { SandboxConfig } from "../util/sandbox.js";
 
 export interface FinanfaConfig {
   provider?: "anthropic" | "openai-compatible";
@@ -36,6 +37,15 @@ export interface FinanfaConfig {
   visionBaseUrl?: string;
   visionApiKey?: string;
   visionModel?: string;
+  /**
+   * OS-level sandbox for the `bash` tool (bubblewrap on Linux — see
+   * util/sandbox.ts). Unset/`{mode: "off"}`/bwrap unavailable all mean
+   * unsandboxed (this project's original behavior). `{mode:
+   * "workspace-write"}` confines writes to the command's cwd plus a
+   * curated set of dev-tool cache dirs; the rest of the filesystem is
+   * read-only, network stays shared.
+   */
+  sandbox?: SandboxConfig;
 }
 
 // Computed lazily (not memoized as a module constant) so it reflects the

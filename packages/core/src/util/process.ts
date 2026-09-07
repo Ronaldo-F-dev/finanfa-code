@@ -1,5 +1,6 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { truncateOrSpill, TRUNCATE_LARGE } from "./truncate.js";
+import { buildBwrapArgs, shouldSandbox, type SandboxConfig } from "./sandbox.js";
 
 /**
  * Shell to use for spawn's `shell` option. `shell: true` alone uses the OS
@@ -47,11 +48,29 @@ export interface RunSubprocessOptions {
    * lint_javascript style): stdout unlabeled, stderr appended only if non-empty.
    */
   format?: "labeled" | "compact";
+  /** OS-level sandbox (bubblewrap, Linux only) wrapping the spawned command — see sandbox.ts. Omitted/mode "off"/bwrap unavailable all mean unsandboxed, unchanged from before this option existed. */
+  sandbox?: SandboxConfig;
 }
 
 export interface RunSubprocessResult {
   content: string;
   isError: boolean;
+}
+
+/**
+ * Wraps the real spawn in `bwrap` (see sandbox.ts) — read-only bind of the
+ * whole filesystem, read-write only for opts.cwd/tmp/curated cache dirs.
+ * `detached: true` still applies to the OUTER bwrap process; verified
+ * (see sandbox.ts's module comment) that killProcessGroup's host-side
+ * process-group SIGKILL still reaches everything bwrap spawned inside the
+ * sandbox, including an unredirected backgrounded grandchild — bwrap
+ * doesn't put its children in a separate session/process group.
+ */
+function spawnSandboxed(command: string, opts: RunSubprocessOptions): ChildProcess {
+  const bwrapArgs = buildBwrapArgs(opts.cwd, opts.sandbox?.extraWritablePaths);
+  const shellPath = typeof SHELL === "string" ? SHELL : "/bin/sh";
+  const argv = opts.args ? [...bwrapArgs, "--", command, ...opts.args] : [...bwrapArgs, "--", shellPath, "-c", command];
+  return spawn("bwrap", argv, { cwd: opts.cwd, detached: true });
 }
 
 /**
@@ -74,9 +93,11 @@ export function runSubprocess(command: string, opts: RunSubprocessOptions): Prom
     // command, would survive). Instead, listen for the abort ourselves and
     // route it through the exact same killProcessGroup call the timeout
     // path already uses below.
-    const child = opts.args
-      ? spawn(command, opts.args, { cwd: opts.cwd, shell: SHELL, detached: true })
-      : spawn(command, { cwd: opts.cwd, shell: SHELL, detached: true });
+    const child = shouldSandbox(opts.sandbox)
+      ? spawnSandboxed(command, opts)
+      : opts.args
+        ? spawn(command, opts.args, { cwd: opts.cwd, shell: SHELL, detached: true })
+        : spawn(command, { cwd: opts.cwd, shell: SHELL, detached: true });
     let stdout = "";
     let stderr = "";
     let timedOut = false;

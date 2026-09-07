@@ -432,7 +432,7 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     let providerKind: string = initial.kind;
 
     const tools = new ToolRegistry();
-    registerBuiltins(tools);
+    registerBuiltins(tools, { sandbox: config.sandbox });
 
     const skills = await loadSkills(CWD);
     if (skills.length > 0) tools.register(createReadSkillTool(skills));

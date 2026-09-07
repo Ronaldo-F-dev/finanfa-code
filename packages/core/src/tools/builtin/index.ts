@@ -3,12 +3,13 @@ import type { LlmProvider } from "../../core/types.js";
 import type { PermissionManager } from "../../permissions/manager.js";
 import type { UIAdapter } from "../../ui/adapter.js";
 import type { BrowserManager } from "../../browser/manager.js";
+import type { SandboxConfig } from "../../util/sandbox.js";
 import { readFileTool } from "./read-file.js";
 import { writeFileTool } from "./write-file.js";
 import { editFileTool } from "./edit-file.js";
 import { globTool } from "./glob.js";
 import { grepTool } from "./grep.js";
-import { bashTool } from "./bash.js";
+import { createBashTool } from "./bash.js";
 import { webSearchTool } from "./web-search.js";
 import { webFetchTool } from "./web-fetch.js";
 import { todoWriteTool } from "./todo-write.js";
@@ -88,13 +89,13 @@ import { securityScanAccountCreationTool } from "./security/account-creation.js"
 import { securityScanCrawlerTool } from "./security/crawler.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
-export function registerBuiltins(registry: ToolRegistry): void {
+export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: SandboxConfig }): void {
   registry.register(readFileTool);
   registry.register(writeFileTool);
   registry.register(editFileTool);
   registry.register(globTool);
   registry.register(grepTool);
-  registry.register(bashTool);
+  registry.register(createBashTool(opts?.sandbox));
   registry.register(webSearchTool);
   registry.register(webFetchTool);
   registry.register(todoWriteTool);
