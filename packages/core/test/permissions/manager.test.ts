@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
 import { PermissionManager } from "../../src/permissions/manager.js";
 import { DEFAULT_PERMISSION_CONFIG } from "../../src/permissions/config.js";
+import type { HooksConfig } from "../../src/hooks/config.js";
 import type { ToolDefinition, ToolContext } from "../../src/core/types.js";
 import type { UIAdapter } from "../../src/ui/adapter.js";
 
@@ -139,6 +140,48 @@ describe("PermissionManager", () => {
     expect(decision).toBe("deny");
     expect(ui.askUser).toHaveBeenCalledTimes(3);
     expect(ui.writeError).toHaveBeenCalledTimes(2);
+  });
+
+  it("a PreToolUse hook that blocks denies without ever prompting, even under --yolo", async () => {
+    const ui = makeUi("y");
+    const hooksConfig: HooksConfig = {
+      PreToolUse: [{ hooks: [{ type: "command", command: "cat > /dev/null; echo '{\"decision\":\"block\",\"reason\":\"org policy\"}'" }] }],
+    };
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true, hooksConfig });
+    const decision = await manager.check(safeTool, {}, ctx);
+    expect(decision).toBe("deny");
+    expect(ui.askUser).not.toHaveBeenCalled();
+    expect(ui.writeError).toHaveBeenCalledWith(expect.stringContaining("org policy"));
+  });
+
+  it("a PreToolUse hook that approves allows without ever prompting", async () => {
+    const ui = makeUi("n"); // would deny if actually asked — proves the prompt was skipped, not coincidentally allowed
+    const hooksConfig: HooksConfig = {
+      PreToolUse: [{ hooks: [{ type: "command", command: "cat > /dev/null; echo '{\"decision\":\"approve\"}'" }] }],
+    };
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, hooksConfig });
+    const decision = await manager.check(bashLikeTool, { command: "rm -rf /" }, ctx);
+    expect(decision).toBe("allow");
+    expect(ui.askUser).not.toHaveBeenCalled();
+  });
+
+  it("a PreToolUse hook with no opinion falls through to the normal permission flow", async () => {
+    const ui = makeUi("y");
+    const hooksConfig: HooksConfig = { PreToolUse: [{ hooks: [{ type: "command", command: "cat > /dev/null; exit 0" }] }] };
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, hooksConfig });
+    const decision = await manager.check(bashLikeTool, { command: "git status" }, ctx);
+    expect(decision).toBe("allow");
+    expect(ui.askUser).toHaveBeenCalledTimes(1);
+  });
+
+  it("only runs a hook whose matcher matches the tool actually being checked", async () => {
+    const ui = makeUi("y");
+    const hooksConfig: HooksConfig = {
+      PreToolUse: [{ matcher: "^write_file$", hooks: [{ type: "command", command: "cat > /dev/null; echo '{\"decision\":\"block\"}'" }] }],
+    };
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, hooksConfig });
+    const decision = await manager.check(bashLikeTool, { command: "git status" }, ctx); // tool name "bash", doesn't match "^write_file$"
+    expect(decision).toBe("allow");
   });
 
   it("a throwing preview()/describeCall() denies instead of crashing the turn", async () => {

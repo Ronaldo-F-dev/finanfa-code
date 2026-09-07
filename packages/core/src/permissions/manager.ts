@@ -1,6 +1,8 @@
 import type { ToolContext, ToolDefinition } from "../core/types.js";
 import type { UIAdapter } from "../ui/adapter.js";
 import type { PermissionConfig, PermissionDecision } from "./config.js";
+import type { HooksConfig } from "../hooks/config.js";
+import { runHooks } from "../hooks/runner.js";
 
 export type AskAnswer = "allow" | "deny" | "always" | "always-tool";
 
@@ -11,6 +13,8 @@ export interface PermissionManagerOptions {
   nonInteractive?: boolean;
   /** If true, auto-approve everything without prompting (opt-in, scripted use). */
   yolo?: boolean;
+  /** PreToolUse hooks, if any are configured. Deliberately checked BEFORE yolo/config/prompting — a hook is a guardrail the user or org opted into, meant to hold even under --yolo. */
+  hooksConfig?: HooksConfig;
 }
 
 export class PermissionManager {
@@ -18,6 +22,7 @@ export class PermissionManager {
   private readonly ui: UIAdapter;
   private readonly nonInteractive: boolean;
   private readonly yolo: boolean;
+  private readonly hooksConfig?: HooksConfig;
   private readonly sessionAllowlist = new Set<string>();
 
   constructor(opts: PermissionManagerOptions) {
@@ -25,6 +30,7 @@ export class PermissionManager {
     this.ui = opts.ui;
     this.nonInteractive = opts.nonInteractive ?? false;
     this.yolo = opts.yolo ?? false;
+    this.hooksConfig = opts.hooksConfig;
   }
 
   private riskKey(tool: ToolDefinition, input: unknown): string {
@@ -40,7 +46,29 @@ export class PermissionManager {
     return undefined;
   }
 
+  /** Returns a decision when a PreToolUse hook has an opinion (block/approve); undefined means the normal permission flow should decide instead. */
+  private async checkPreToolUseHooks(tool: ToolDefinition, input: unknown, ctx: ToolContext): Promise<PermissionDecision | undefined> {
+    if (!this.hooksConfig) return undefined;
+    const outcome = await runHooks(
+      this.hooksConfig,
+      "PreToolUse",
+      { hook_event_name: "PreToolUse", session_id: ctx.sessionId, cwd: ctx.cwd, tool_name: tool.name, tool_input: input },
+      ctx.cwd,
+    );
+    if (outcome.decision === "block") {
+      const reasonSuffix = outcome.reason ? `: ${outcome.reason}` : "";
+      this.ui.writeError(`"${tool.name}" blocked by a PreToolUse hook${reasonSuffix}`);
+      return "deny";
+    }
+    if (outcome.decision === "approve") return "allow";
+    if (outcome.output) this.ui.writeSystem(outcome.output);
+    return undefined;
+  }
+
   async check(tool: ToolDefinition, input: unknown, ctx: ToolContext): Promise<PermissionDecision> {
+    const hookDecision = await this.checkPreToolUseHooks(tool, input, ctx);
+    if (hookDecision) return hookDecision;
+
     if (this.yolo) return "allow";
 
     const key = `${tool.name}:${this.riskKey(tool, input)}`;

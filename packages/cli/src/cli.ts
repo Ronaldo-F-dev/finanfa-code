@@ -10,6 +10,7 @@ import { ToolRegistry } from "@finanfa/core/src/tools/registry.js";
 import { registerBuiltins, registerStatefulBuiltins } from "@finanfa/core/src/tools/builtin/index.js";
 import { PermissionManager } from "@finanfa/core/src/permissions/manager.js";
 import { loadPermissionConfig } from "@finanfa/core/src/permissions/config.js";
+import { loadHooksConfig } from "@finanfa/core/src/hooks/config.js";
 import { CommandRegistry } from "@finanfa/core/src/commands/registry.js";
 import { registerBuiltinCommands } from "@finanfa/core/src/commands/builtin.js";
 import type { CommandOutcome } from "@finanfa/core/src/commands/types.js";
@@ -183,11 +184,13 @@ export async function main(argv: string[]): Promise<void> {
   const session = await resolveSession(cwd, opts, model, systemPrompt, ui);
 
   const permissionConfig = await loadPermissionConfig(cwd);
+  const hooksConfig = await loadHooksConfig(cwd);
   const permissions = new PermissionManager({
     config: permissionConfig,
     ui,
     yolo: opts.yolo,
     nonInteractive: opts.nonInteractive,
+    hooksConfig,
   });
 
   const mcp = new McpClientManager();
