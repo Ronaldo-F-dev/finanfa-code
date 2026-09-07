@@ -11,6 +11,7 @@ import { registerBuiltins, registerStatefulBuiltins } from "@finanfa/core/src/to
 import { PermissionManager } from "@finanfa/core/src/permissions/manager.js";
 import { loadPermissionConfig } from "@finanfa/core/src/permissions/config.js";
 import { loadHooksConfig } from "@finanfa/core/src/hooks/config.js";
+import { resolveTrust } from "@finanfa/core/src/core/trust-gate.js";
 import { CommandRegistry } from "@finanfa/core/src/commands/registry.js";
 import { registerBuiltinCommands } from "@finanfa/core/src/commands/builtin.js";
 import type { CommandOutcome } from "@finanfa/core/src/commands/types.js";
@@ -183,8 +184,9 @@ export async function main(argv: string[]): Promise<void> {
 
   const session = await resolveSession(cwd, opts, model, systemPrompt, ui);
 
-  const permissionConfig = await loadPermissionConfig(cwd);
-  const hooksConfig = await loadHooksConfig(cwd);
+  const trusted = await resolveTrust(cwd, ui, opts.nonInteractive);
+  const permissionConfig = await loadPermissionConfig(cwd, trusted);
+  const hooksConfig = await loadHooksConfig(cwd, trusted);
   const permissions = new PermissionManager({
     config: permissionConfig,
     ui,
