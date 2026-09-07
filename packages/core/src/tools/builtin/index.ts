@@ -19,6 +19,7 @@ import { repoMapTool } from "./repo-map.js";
 import { createMydevopsTool } from "./mydevops.js";
 import { createFirmwareFlashTools } from "./firmware-flash.js";
 import { createEmbeddedDevTools } from "./embedded-dev.js";
+import { createContainerTools } from "./containers.js";
 import { recallSessionsTool } from "./recall-sessions.js";
 import { readTracesTool } from "./read-traces.js";
 import { createSchedulerTools } from "./scheduler.js";
@@ -126,6 +127,9 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   const [arduinoCliTool, platformioTool] = createEmbeddedDevTools();
   if (isCommandAvailable("arduino-cli")) registry.register(arduinoCliTool!);
   if (isCommandAvailable("pio")) registry.register(platformioTool!);
+  const [dockerTool, kubectlTool] = createContainerTools();
+  if (isCommandAvailable("docker")) registry.register(dockerTool!);
+  if (isCommandAvailable("kubectl")) registry.register(kubectlTool!);
   registry.register(mqttPublishTool);
   registry.register(mqttSubscribeTool);
   registry.register(coapRequestTool);
