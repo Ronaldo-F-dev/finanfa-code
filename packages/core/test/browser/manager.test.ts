@@ -10,6 +10,8 @@ const FIXTURE_HTML = `<!doctype html>
 <body>
   <p id="status">before click</p>
   <button id="go" onclick="document.getElementById('status').textContent = 'after click'">Click me</button>
+  <input id="name" type="text" placeholder="Your name" />
+  <div id="fake-button" style="cursor: pointer" onclick="document.getElementById('status').textContent = 'div clicked'">Looks like a button</div>
 </body>
 </html>`;
 
@@ -31,17 +33,42 @@ describe("BrowserManager (real Chromium via Playwright)", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("navigates to a page and returns its title and rendered text", async () => {
-    const { title, text } = await manager.navigate(fixtureUrl);
+  it("navigates to a page and returns its title, rendered text, and a real interactive-elements snapshot", async () => {
+    const { title, text, elements } = await manager.navigate(fixtureUrl);
     expect(title).toBe("Browser Manager Fixture");
     expect(text).toContain("before click");
+    expect(elements).toEqual(expect.arrayContaining([expect.objectContaining({ tag: "button", label: "Click me" })]));
   });
 
-  it("clicks an element and the page reflects the change", async () => {
-    await manager.navigate(fixtureUrl);
-    await manager.click("#go");
+  it("finds the button by its real assigned index and clicks it — the page reflects the change", async () => {
+    const { elements } = await manager.navigate(fixtureUrl);
+    const button = elements.find((el) => el.tag === "button");
+    expect(button).toBeDefined();
+    await manager.click(button!.index);
     const { text } = await manager.content();
     expect(text).toContain("after click");
+  });
+
+  it("also detects a framework-style clickable <div> with no semantic tag/role, via the cursor:pointer heuristic", async () => {
+    const { elements } = await manager.navigate(fixtureUrl);
+    const fakeButton = elements.find((el) => el.label === "Looks like a button");
+    expect(fakeButton).toBeDefined();
+    expect(fakeButton!.tag).toBe("div");
+    await manager.click(fakeButton!.index);
+    const { text } = await manager.content();
+    expect(text).toContain("div clicked");
+  });
+
+  it("fills a text input by its assigned index — the fresh snapshot then shows its real value, not the placeholder", async () => {
+    const { elements: before } = await manager.navigate(fixtureUrl);
+    const input = before.find((el) => el.tag === "input" && el.type === "text");
+    expect(input).toBeDefined();
+    expect(input!.label).toBe("Your name"); // placeholder, before filling
+
+    await manager.fill(input!.index, "Ada Lovelace");
+    const { elements: after } = await manager.content();
+    const filledInput = after.find((el) => el.tag === "input" && el.type === "text");
+    expect(filledInput!.label).toBe("Ada Lovelace");
   });
 
   it("saves a real PNG screenshot of the current page", async () => {
@@ -56,8 +83,9 @@ describe("BrowserManager (real Chromium via Playwright)", () => {
   });
 
   it("prints given HTML to a real PDF without disturbing the shared interactive browsing page", async () => {
-    await manager.navigate(fixtureUrl);
-    await manager.click("#go");
+    const { elements } = await manager.navigate(fixtureUrl);
+    const button = elements.find((el) => el.tag === "button")!;
+    await manager.click(button.index);
 
     const pdfPath = path.join(dir, "printed.pdf");
     await manager.printHtmlToPdf("<html><body><h1>Printed Content</h1></body></html>", pdfPath);

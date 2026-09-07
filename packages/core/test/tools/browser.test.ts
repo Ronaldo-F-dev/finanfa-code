@@ -12,28 +12,37 @@ const ONE_PIXEL_PNG = Buffer.from(
 
 function makeFakeManager(): BrowserManager {
   return {
-    navigate: vi.fn().mockResolvedValue({ title: "Fake Page", text: "some page text", url: "https://example.com" }),
+    navigate: vi.fn().mockResolvedValue({ title: "Fake Page", text: "some page text", url: "https://example.com", elements: [] }),
     click: vi.fn().mockResolvedValue(undefined),
-    content: vi.fn().mockResolvedValue({ title: "Fake Page", text: "clicked text", url: "https://example.com" }),
+    fill: vi.fn().mockResolvedValue(undefined),
+    content: vi.fn().mockResolvedValue({ title: "Fake Page", text: "clicked text", url: "https://example.com", elements: [{ index: 0, tag: "button", label: "Go" }] }),
     screenshot: vi.fn().mockResolvedValue(undefined),
     close: vi.fn().mockResolvedValue(undefined),
   } as unknown as BrowserManager;
 }
 
 describe("browser_* tools", () => {
-  it("exposes navigate, click, and screenshot with sensible risk levels", () => {
-    const [navigate, click, screenshot] = createBrowserTools(makeFakeManager());
+  it("exposes navigate, click, fill, and screenshot with sensible risk levels", () => {
+    const [navigate, click, fill, screenshot] = createBrowserTools(makeFakeManager());
     expect(navigate.name).toBe("browser_navigate");
     expect(navigate.riskLevel).toBe("ask");
     expect(click.name).toBe("browser_click");
     expect(click.riskLevel).toBe("ask");
+    expect(fill.name).toBe("browser_fill");
+    expect(fill.riskLevel).toBe("ask");
     expect(screenshot.name).toBe("browser_screenshot");
     expect(screenshot.riskLevel).toBe("safe");
   });
 
-  it("browser_navigate formats the page title and text, truncating long content", async () => {
+  it("browser_navigate formats the page title, text (truncating long content), and the interactive elements list", async () => {
     const manager = makeFakeManager();
-    vi.mocked(manager.navigate).mockResolvedValue({ title: "Big Page", text: "x".repeat(9000), url: "https://example.com" });
+    vi.mocked(manager.navigate).mockResolvedValue({ title: "Big Page", text: "x".repeat(9000), url: "https://example.com", elements: [] });
+    vi.mocked(manager.content).mockResolvedValue({
+      title: "Big Page",
+      text: "x".repeat(9000),
+      url: "https://example.com",
+      elements: [{ index: 0, tag: "button", label: "Submit" }, { index: 1, tag: "input", type: "email", label: "Email" }],
+    });
     const [navigate] = createBrowserTools(manager);
 
     const result = await navigate.handler({ url: "https://example.com" }, {
@@ -45,20 +54,37 @@ describe("browser_* tools", () => {
     expect(result.content).toContain("# Big Page");
     expect(result.content).toContain("truncated — full output is");
     expect(result.content).toContain("untrusted-external-content");
+    expect(result.content).toContain("Interactive elements");
+    expect(result.content).toContain('[0] <button> "Submit"');
+    expect(result.content).toContain("[1] <input type=email>");
     expect(manager.navigate).toHaveBeenCalledWith("https://example.com");
   });
 
-  it("browser_click delegates to the manager and returns the refreshed page content", async () => {
+  it("browser_click targets the given index (not a CSS selector) and returns the refreshed page content", async () => {
     const manager = makeFakeManager();
     const [, click] = createBrowserTools(manager);
 
-    const result = await click.handler({ selector: "#go" }, {
+    const result = await click.handler({ index: 0 }, {
       cwd: "/tmp",
       sessionId: "s",
       signal: new AbortController().signal,
     });
 
-    expect(manager.click).toHaveBeenCalledWith("#go");
+    expect(manager.click).toHaveBeenCalledWith(0);
+    expect(result.content).toContain("clicked text");
+  });
+
+  it("browser_fill targets the given index with the given value and returns the refreshed page content", async () => {
+    const manager = makeFakeManager();
+    const [, , fill] = createBrowserTools(manager);
+
+    const result = await fill.handler({ index: 1, value: "hello@example.com" }, {
+      cwd: "/tmp",
+      sessionId: "s",
+      signal: new AbortController().signal,
+    });
+
+    expect(manager.fill).toHaveBeenCalledWith(1, "hello@example.com");
     expect(result.content).toContain("clicked text");
   });
 
@@ -66,7 +92,7 @@ describe("browser_* tools", () => {
     const dir = await mkdtemp(path.join(tmpdir(), "finanfa-browser-tool-"));
     try {
       const manager = makeFakeManager();
-      const [, , screenshot] = createBrowserTools(manager);
+      const [, , , screenshot] = createBrowserTools(manager);
 
       const result = await screenshot.handler({ path: "out.png" }, {
         cwd: dir,
@@ -88,7 +114,7 @@ describe("browser_* tools", () => {
       vi.mocked(manager.screenshot).mockImplementation(async (filePath: string) => {
         await writeFile(filePath, ONE_PIXEL_PNG);
       });
-      const [, , screenshot] = createBrowserTools(manager);
+      const [, , , screenshot] = createBrowserTools(manager);
 
       const result = await screenshot.handler({ path: "out.png" }, {
         cwd: dir,
@@ -107,7 +133,7 @@ describe("browser_* tools", () => {
 
   it("browser_screenshot rejects paths escaping the project root", async () => {
     const manager = makeFakeManager();
-    const [, , screenshot] = createBrowserTools(manager);
+    const [, , , screenshot] = createBrowserTools(manager);
 
     await expect(
       screenshot.handler({ path: "../outside.png" }, { cwd: "/tmp/proj", sessionId: "s", signal: new AbortController().signal }),
