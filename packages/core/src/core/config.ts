@@ -4,7 +4,7 @@ import os from "node:os";
 import type { SandboxConfig } from "../util/sandbox.js";
 
 export interface FinanfaConfig {
-  provider?: "anthropic" | "openai-compatible";
+  provider?: "anthropic" | "openai-compatible" | "gemini";
   baseUrl?: string;
   apiKey?: string;
   /**

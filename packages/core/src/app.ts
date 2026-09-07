@@ -5,6 +5,7 @@
 import type { LlmProvider } from "./core/types.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible-provider.js";
+import { GeminiProvider } from "./providers/gemini-provider.js";
 import type { FinanfaConfig } from "./core/config.js";
 import { McpClientManager, NeedsAuthorizationError } from "./mcp/client-manager.js";
 import { loadMcpServers } from "./mcp/config.js";
@@ -179,6 +180,7 @@ export const BASE_SYSTEM_PROMPT =
   SECURITY_INSTRUCTION + CORE_BEHAVIOR_PROMPT + PATH_GUIDANCE_PROMPT + PROCESS_GUIDANCE_PROMPT + DOCUMENT_TOOLS_PROMPT + DEV_TOOLS_PROMPT;
 
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
+const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 
 /** FINANFA_API_KEYS is comma- or newline-separated (a community pasting several keys at once) — undefined if unset, so it doesn't shadow config.apiKeys with an empty array. */
 export function parseApiKeys(raw: string | undefined): string[] | undefined {
@@ -215,6 +217,15 @@ export function selectProvider(config: FinanfaConfig): { provider: LlmProvider; 
       );
     }
     return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey, apiKeys }), defaultModel: model, kind };
+  }
+
+  if (kind === "gemini") {
+    const apiKey = process.env.FINANFA_API_KEY ?? config.apiKey;
+    const model = process.env.FINANFA_MODEL ?? config.model ?? DEFAULT_GEMINI_MODEL;
+    if (!apiKey) {
+      throw new Error("provider gemini requires an API key — set FINANFA_API_KEY, or /config set apiKey <key>.");
+    }
+    return { provider: new GeminiProvider({ apiKey }), defaultModel: model, kind };
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY ?? config.anthropicApiKey ?? config.apiKey;
