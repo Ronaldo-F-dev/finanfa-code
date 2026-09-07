@@ -4,9 +4,12 @@ import os from "node:os";
 import type { SandboxConfig } from "../util/sandbox.js";
 
 export interface FinanfaConfig {
-  provider?: "anthropic" | "openai-compatible" | "gemini";
+  provider?: "anthropic" | "openai-compatible" | "gemini" | "azure-openai";
+  /** For openai-compatible: the server's base URL. For azure-openai: the resource endpoint, e.g. "https://my-resource.openai.azure.com" (no trailing path) — same "where do I connect" role, reused rather than adding a second near-identical field. */
   baseUrl?: string;
   apiKey?: string;
+  /** azure-openai only — defaults to a recent stable Azure OpenAI API version if unset. */
+  azureApiVersion?: string;
   /**
    * A pool of API keys sharing the same baseUrl/model, tried in rotation
    * (see OpenAiCompatibleProvider) — for a community sharing one free-tier

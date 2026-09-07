@@ -6,6 +6,7 @@ import type { LlmProvider } from "./core/types.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible-provider.js";
 import { GeminiProvider } from "./providers/gemini-provider.js";
+import { AzureOpenAiProvider } from "./providers/azure-openai-provider.js";
 import type { FinanfaConfig } from "./core/config.js";
 import { McpClientManager, NeedsAuthorizationError } from "./mcp/client-manager.js";
 import { loadMcpServers } from "./mcp/config.js";
@@ -217,6 +218,21 @@ export function selectProvider(config: FinanfaConfig): { provider: LlmProvider; 
       );
     }
     return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey, apiKeys }), defaultModel: model, kind };
+  }
+
+  if (kind === "azure-openai") {
+    const endpoint = process.env.FINANFA_BASE_URL ?? config.baseUrl;
+    const model = process.env.FINANFA_MODEL ?? config.model; // the Azure deployment name
+    const apiKey = process.env.FINANFA_API_KEY ?? config.apiKey;
+    const apiVersion = process.env.FINANFA_AZURE_API_VERSION ?? config.azureApiVersion;
+    if (!endpoint || !model || !apiKey) {
+      throw new Error(
+        "provider azure-openai requires an endpoint, deployment name (as the model), and API key — set " +
+          "FINANFA_BASE_URL/FINANFA_MODEL/FINANFA_API_KEY, or /config set baseUrl <endpoint>, /config set " +
+          "model <deployment>, and /config set apiKey <key>.",
+      );
+    }
+    return { provider: new AzureOpenAiProvider({ apiKey, endpoint, apiVersion }), defaultModel: model, kind };
   }
 
   if (kind === "gemini") {

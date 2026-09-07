@@ -294,7 +294,8 @@ async function attemptStreamChatCompletion(
   return { content, toolCalls, finishReason, usage };
 }
 
-async function streamChatCompletion(
+/** Exported for AzureOpenAiProvider — Azure OpenAI speaks the same chat-completions wire format and SSE framing, differing only in URL construction (per-deployment path) and auth header (api-key, not Authorization: Bearer), so it reuses this instead of duplicating the whole request/SSE/retry pipeline. */
+export async function streamChatCompletion(
   url: string,
   headers: Record<string, string>,
   body: Record<string, unknown>,
