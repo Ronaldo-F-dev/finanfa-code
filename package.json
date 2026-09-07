@@ -25,6 +25,7 @@
     "@types/react": "^19.2.18",
     "@types/smtp-server": "^3.5.13",
     "@types/word-extractor": "^1.0.6",
+    "aedes": "^1.1.2",
     "ink-testing-library": "^4.0.0",
     "mailparser": "^3.9.23",
     "smtp-server": "^3.19.9",

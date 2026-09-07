@@ -23,6 +23,8 @@ import { readTracesTool } from "./read-traces.js";
 import { createSchedulerTools } from "./scheduler.js";
 import { createSendEmailTool, emailConfigFromEnv } from "./send-email.js";
 import { createSendSlackMessageTool, slackConfigFromEnv } from "./send-slack-message.js";
+import { mqttPublishTool, mqttSubscribeTool } from "./mqtt.js";
+import { isCommandAvailable } from "../../util/command-availability.js";
 import { runTestsTool } from "./run-tests.js";
 import {
   readDocumentTool,
@@ -109,8 +111,16 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(editFileTool);
   registry.register(globTool);
   registry.register(repoMapTool);
-  registry.register(createMydevopsTool());
-  for (const tool of createFirmwareFlashTools()) registry.register(tool);
+  // Optional external-CLI wrappers: only registered when the underlying
+  // binary is actually installed — otherwise the model would see a tool
+  // that can never work on this machine and waste a turn discovering
+  // that at call time instead of the tool simply not being offered.
+  if (isCommandAvailable("mydevops")) registry.register(createMydevopsTool());
+  const [esptoolTool, avrdudeTool] = createFirmwareFlashTools();
+  if (isCommandAvailable("esptool")) registry.register(esptoolTool!);
+  if (isCommandAvailable("avrdude")) registry.register(avrdudeTool!);
+  registry.register(mqttPublishTool);
+  registry.register(mqttSubscribeTool);
   registry.register(recallSessionsTool);
   registry.register(readTracesTool);
   for (const tool of createSchedulerTools()) registry.register(tool);
