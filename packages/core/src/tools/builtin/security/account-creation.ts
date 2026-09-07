@@ -70,7 +70,7 @@ async function findSubmitControl(page: import("playwright-core").Page) {
   return count > 0 ? buttons.nth(count - 1) : undefined;
 }
 
-function syntheticValue(name: string, fieldType: string, runId: string): string {
+export function syntheticValue(name: string, fieldType: string, runId: string): string {
   const loweredName = name.toLowerCase();
   const loweredType = fieldType.toLowerCase();
 
