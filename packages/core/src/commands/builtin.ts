@@ -15,6 +15,51 @@ async function reloadMcpTools(ctx: CommandContext): Promise<void> {
   for (const def of definitions) ctx.tools.register(def);
 }
 
+/**
+ * Lists every registered tool. Genuinely useful once there are 90+ of them
+ * spanning file I/O, security scanning, IoT/embedded dev, DevOps wrappers,
+ * red-teaming, and more — a user has no other way to discover what's
+ * actually available beyond reading source, since the model's own tool
+ * list is never shown verbatim in the transcript.
+ */
+function handleToolsList(ctx: CommandContext): CommandOutcome {
+  const tools = [...ctx.tools.list()].sort((a, b) => a.name.localeCompare(b.name));
+  if (tools.length === 0) {
+    ctx.ui.writeSystem("No tools registered.");
+    return "continue";
+  }
+  const lines = tools.map((t) => {
+    const disabled = ctx.session.disabledTools.has(t.name) ? " (disabled)" : "";
+    return `${t.name} [${t.riskLevel}]${disabled}`;
+  });
+  ctx.ui.writeSystem(`${tools.length} tool(s):\n${lines.join("\n")}`);
+  return "continue";
+}
+
+function handleToolsEnableDisable(ctx: CommandContext, enable: boolean, name: string | undefined): CommandOutcome {
+  if (!name) {
+    ctx.ui.writeError(`Usage: /tools ${enable ? "enable" : "disable"} <name>`);
+    return "continue";
+  }
+  if (!ctx.tools.get(name)) {
+    ctx.ui.writeError(`No registered tool named "${name}". Use /tools to see the full list.`);
+    return "continue";
+  }
+  if (enable) ctx.session.disabledTools.delete(name);
+  else ctx.session.disabledTools.add(name);
+  ctx.ui.writeSystem(enable ? `"${name}" will be offered to the model again.` : `"${name}" won't be offered to the model until re-enabled.`);
+  return "continue";
+}
+
+function handleTools(ctx: CommandContext): CommandOutcome {
+  const [sub, name] = ctx.args.trim().split(/\s+/);
+  if (!sub || sub === "list") return handleToolsList(ctx);
+  if (sub === "enable") return handleToolsEnableDisable(ctx, true, name);
+  if (sub === "disable") return handleToolsEnableDisable(ctx, false, name);
+  ctx.ui.writeError("Usage: /tools [list] | /tools enable <name> | /tools disable <name>");
+  return "continue";
+}
+
 function handleMcpEnableDisable(ctx: CommandContext, enable: boolean, name: string | undefined): CommandOutcome {
   if (!name) {
     ctx.ui.writeError(`Usage: /mcp ${enable ? "enable" : "disable"} <name>`);
@@ -452,5 +497,11 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
     "goal",
     handleGoal,
     "Set a standing goal for this session (/goal <text>), show it (/goal), or remove it (/goal clear)",
+  );
+
+  commands.register(
+    "tools",
+    handleTools,
+    "List every registered tool with its risk level: /tools [list] | /tools enable <name> | /tools disable <name>",
   );
 }
