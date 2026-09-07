@@ -80,6 +80,20 @@ async function runOneToolCall(
     return { result: { toolCallId: call.id, isError: true, content: `Unknown tool "${call.name}"` } };
   }
 
+  // Plan mode (/plan): only read-only tools and exit_plan_mode itself get
+  // through — everything else is denied without even reaching the normal
+  // permission flow (no prompt, no hook), since the whole point is that
+  // NOTHING can mutate anything until a plan is presented and approved.
+  if (session.planMode && tool.riskLevel !== "safe" && tool.name !== "exit_plan_mode") {
+    return {
+      result: {
+        toolCallId: call.id,
+        isError: true,
+        content: `"${tool.name}" is unavailable while in plan mode. Keep researching with read-only tools, then call exit_plan_mode with your plan once ready.`,
+      },
+    };
+  }
+
   // Registered on the session (not just held locally) so Ctrl+C — handled in
   // cli.ts's registerShutdownHandlers, far from this call stack — can abort
   // whichever tool call(s) are actually running right now. Without this, the
@@ -98,6 +112,9 @@ async function runOneToolCall(
     todos: session.todos,
     fileFreshness: session.fileFreshness,
     ui,
+    exitPlanMode: () => {
+      session.planMode = false;
+    },
   };
 
   try {

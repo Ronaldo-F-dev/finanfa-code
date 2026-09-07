@@ -71,6 +71,15 @@ export class AgentSession {
    * of surviving as an orphan after the parent process exits.
    */
   readonly activeAbortControllers = new Set<AbortController>();
+  /**
+   * Runtime-only (never persisted, always false on a fresh/resumed
+   * session), same as disabledTools/disabledMcpServers. Toggled via /plan;
+   * while true, loop.ts auto-denies any tool call whose riskLevel isn't
+   * "safe" (except exit_plan_mode itself) without even prompting — the
+   * model can research freely but can't make changes until it presents a
+   * plan via exit_plan_mode and the user approves it.
+   */
+  planMode = false;
 
   constructor(opts: { id?: string; cwd: string; model: string; systemPrompt: string }) {
     this.id = opts.id ?? randomUUID();

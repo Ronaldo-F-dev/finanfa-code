@@ -40,6 +40,8 @@ export interface ToolContext {
   fileFreshness?: FileFreshnessTracker;
   /** The active UI adapter, for tools that want to show live feedback (e.g. todo_write). */
   ui?: UIAdapter;
+  /** Called by exit_plan_mode's handler once its plan is approved, turning plan mode off for the rest of the session. */
+  exitPlanMode?: () => void;
 }
 
 export interface ToolDefinition<TInput = any> {

@@ -153,3 +153,107 @@ describe("runTurn: UserPromptSubmit hook", () => {
     expect(capturedContent).toContain("extra-context-here");
   });
 });
+
+describe("runTurn: plan mode", () => {
+  function makeToolCallThenDoneProvider(toolName: string, toolInput: unknown) {
+    let call = 0;
+    class Provider implements LlmProvider {
+      async streamTurn(): Promise<StreamTurnResult> {
+        call++;
+        if (call === 1) {
+          return {
+            assistantMessage: { role: "assistant", content: "", toolCalls: [{ id: "call-1", name: toolName, input: toolInput }] },
+            usage: { inputTokens: 1, outputTokens: 1 },
+            stopReason: "tool_use",
+          };
+        }
+        return { assistantMessage: { role: "assistant", content: "done" }, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: "end_turn" };
+      }
+    }
+    return new Provider();
+  }
+
+  it("auto-denies a mutating tool without ever calling it or prompting, while plan mode is on", async () => {
+    let handlerCalled = false;
+    const dangerousTool: ToolDefinition = {
+      name: "write_file",
+      description: "",
+      riskLevel: "dangerous",
+      inputSchema: { type: "object" },
+      handler: async () => {
+        handlerCalled = true;
+        return { content: "wrote", isError: false };
+      },
+    };
+
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const tools = new ToolRegistry();
+    tools.register(dangerousTool);
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+    session.planMode = true;
+
+    await runTurn(session, makeToolCallThenDoneProvider("write_file", {}), ui, tools, permissions, "do the thing");
+
+    expect(handlerCalled).toBe(false);
+    expect(ui.askUser).not.toHaveBeenCalled();
+    const toolResultMessage = session.messages.find((m) => m.role === "tool");
+    expect(toolResultMessage && "results" in toolResultMessage ? toolResultMessage.results[0]!.content : undefined).toContain("unavailable while in plan mode");
+  });
+
+  it("still allows a safe (read-only) tool while plan mode is on", async () => {
+    let handlerCalled = false;
+    const safeTool: ToolDefinition = {
+      name: "read_file",
+      description: "",
+      riskLevel: "safe",
+      inputSchema: { type: "object" },
+      handler: async () => {
+        handlerCalled = true;
+        return { content: "file contents", isError: false };
+      },
+    };
+
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const tools = new ToolRegistry();
+    tools.register(safeTool);
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+    session.planMode = true;
+
+    await runTurn(session, makeToolCallThenDoneProvider("read_file", {}), ui, tools, permissions, "look around");
+
+    expect(handlerCalled).toBe(true);
+  });
+
+  it("exit_plan_mode goes through the normal permission flow and turns plan mode off on approval", async () => {
+    const ui = makeStubUi();
+    (ui.askUser as ReturnType<typeof vi.fn>).mockResolvedValue("y");
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+    const tools = new ToolRegistry();
+    const { exitPlanModeTool } = await import("../../src/tools/builtin/exit-plan-mode.js");
+    tools.register(exitPlanModeTool);
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+    session.planMode = true;
+
+    await runTurn(session, makeToolCallThenDoneProvider("exit_plan_mode", { plan: "1. do X" }), ui, tools, permissions, "ready");
+
+    expect(ui.askUser).toHaveBeenCalledTimes(1);
+    expect(session.planMode).toBe(false);
+  });
+
+  it("exit_plan_mode leaves plan mode on when the user declines", async () => {
+    const ui = makeStubUi();
+    (ui.askUser as ReturnType<typeof vi.fn>).mockResolvedValue("n");
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+    const tools = new ToolRegistry();
+    const { exitPlanModeTool } = await import("../../src/tools/builtin/exit-plan-mode.js");
+    tools.register(exitPlanModeTool);
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+    session.planMode = true;
+
+    await runTurn(session, makeToolCallThenDoneProvider("exit_plan_mode", { plan: "1. do X" }), ui, tools, permissions, "ready");
+
+    expect(session.planMode).toBe(true);
+  });
+});

@@ -14,6 +14,7 @@ import { createBashTool } from "./bash.js";
 import { webSearchTool } from "./web-search.js";
 import { webFetchTool } from "./web-fetch.js";
 import { todoWriteTool } from "./todo-write.js";
+import { exitPlanModeTool } from "./exit-plan-mode.js";
 import { viewImageTool } from "./view-image.js";
 import { gitTools } from "./git.js";
 import { repoMapTool } from "./repo-map.js";
@@ -148,6 +149,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(webSearchTool);
   registry.register(webFetchTool);
   registry.register(todoWriteTool);
+  registry.register(exitPlanModeTool);
   registry.register(viewImageTool);
   registry.register(runTestsTool);
   registry.register(readDocumentTool);
