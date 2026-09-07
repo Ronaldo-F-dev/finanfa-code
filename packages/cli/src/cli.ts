@@ -12,6 +12,8 @@ import { PermissionManager } from "@finanfa/core/src/permissions/manager.js";
 import { loadPermissionConfig } from "@finanfa/core/src/permissions/config.js";
 import { loadHooksConfig } from "@finanfa/core/src/hooks/config.js";
 import { resolveTrust } from "@finanfa/core/src/core/trust-gate.js";
+import { isBwrapAvailable } from "@finanfa/core/src/util/sandbox.js";
+import type { HooksConfig } from "@finanfa/core/src/hooks/config.js";
 import { CommandRegistry } from "@finanfa/core/src/commands/registry.js";
 import { registerBuiltinCommands } from "@finanfa/core/src/commands/builtin.js";
 import type { CommandOutcome } from "@finanfa/core/src/commands/types.js";
@@ -52,6 +54,11 @@ export interface CliOptions {
   prompt?: string;
   /** Project directory to operate in; defaults to process.cwd(). Needed for --prompt invocations, since a cron job's cwd is the user's home directory, not the project. */
   cwd?: string;
+}
+
+export function countConfiguredHooks(hooksConfig: HooksConfig): number {
+  const events = [hooksConfig.PreToolUse, hooksConfig.PostToolUse, hooksConfig.UserPromptSubmit];
+  return events.reduce((total, matchers) => total + (matchers ?? []).reduce((n, m) => n + m.hooks.length, 0), 0);
 }
 
 function createUi(mode: "ink" | "readline"): UIAdapter {
@@ -187,6 +194,17 @@ export async function main(argv: string[]): Promise<void> {
   const trusted = await resolveTrust(cwd, ui, opts.nonInteractive);
   const permissionConfig = await loadPermissionConfig(cwd, trusted);
   const hooksConfig = await loadHooksConfig(cwd, trusted);
+
+  // A one-time, glanceable summary of security-relevant state that's
+  // otherwise invisible until something actually triggers it (a hook
+  // firing, a sandboxed write failing) — sandbox/trust/hooks are all real
+  // gates a user should be aware of at a glance, not just when they bite.
+  const sandboxed = (config.sandbox?.mode ?? "workspace-write") === "workspace-write" && isBwrapAvailable();
+  const hookCount = countConfiguredHooks(hooksConfig);
+  ui.writeSystem(
+    `sandbox=${sandboxed ? "on" : "off"} folder-trust=${trusted ? "trusted" : "untrusted"} hooks=${hookCount > 0 ? `${hookCount} active` : "none"}`,
+  );
+
   const permissions = new PermissionManager({
     config: permissionConfig,
     ui,
