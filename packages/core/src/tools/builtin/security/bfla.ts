@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import type { ToolDefinition } from "../../../core/types.js";
 import { severityFromScore } from "./cvss.js";
+import { getObservedGetRequests } from "./site-map-cache.js";
 import { formatScanOutput, type Finding, type PassedControl, type ScanOutput } from "./types.js";
 
 // Port of cyberlens's bfla.py. The anonymous-visitor check is the primary,
@@ -10,12 +11,13 @@ import { formatScanOutput, type Finding, type PassedControl, type ScanOutput } f
 // of `ctx.authenticated` + `ctx.client` carrying a pre-established
 // session, this tool takes optional `headers` directly (same pattern as
 // idor.ts) — the caller's own non-admin session. Candidates come from the
-// curated path list plus, when the caller supplies `observedEndpoints`
-// (e.g. from security_scan_crawler's observed GET XHR/fetch calls),
-// any admin-keyword-matching URL among them — reusing crawler.ts output
-// instead of an internal crawl. Uses the same soft-404 baseline technique
-// as the original: a JS-SPA that serves the same 200 shell for every path
-// shouldn't get every admin path flagged as reachable.
+// curated path list plus any admin-keyword-matching URL among
+// `observedEndpoints` — an explicit caller-supplied list if given, else
+// automatically pulled from security_scan_crawler's session cache for
+// this site (site-map-cache.ts) if a crawl already ran. Uses the same
+// soft-404 baseline technique as the original: a JS-SPA that serves the
+// same 200 shell for every path shouldn't get every admin path flagged as
+// reachable.
 const MAX_CANDIDATES = 21;
 const LENGTH_TOLERANCE_BYTES = 32;
 const ADMIN_KEYWORD_RE = /admin|manage|internal|staff|moderator|superuser|privileged|backoffice/i;
@@ -138,7 +140,8 @@ async function scanBfla(targetUrl: string, headers?: Record<string, string>, obs
       candidates.push(url);
     }
   }
-  for (const url of observedEndpoints ?? []) {
+  const endpoints = observedEndpoints ?? getObservedGetRequests(target.toString());
+  for (const url of endpoints) {
     try {
       const parsed = new URL(url);
       if (!seen.has(url) && ADMIN_KEYWORD_RE.test(parsed.pathname)) {
@@ -178,10 +181,10 @@ export const securityScanBflaTool: ToolDefinition<SecurityScanBflaInput> = {
     "visitor with functional content, not a login gate — Broken Function Level Authorization. Uses a soft-404 " +
     "baseline so a JS-SPA serving the same shell for every path isn't misread as every admin path being " +
     "reachable. Optionally also retests with a supplied non-admin session's `headers` (a weaker heuristic " +
-    "signal — this tool can't confirm the account isn't legitimately an administrator). Optionally accepts " +
-    "`observedEndpoints` (e.g. from security_scan_crawler's observed GET XHR/fetch calls) and adds any " +
-    "admin-keyword-matching URL among them as extra candidates. GET-only. A full port of the user's own " +
-    "cyberlens scanner's bfla check. " +
+    "signal — this tool can't confirm the account isn't legitimately an administrator). Adds any admin-" +
+    "keyword-matching URL as an extra candidate from `observedEndpoints` if given, else automatically from a " +
+    "security_scan_crawler run against the same site earlier in this session, if any. GET-only. A full port " +
+    "of the user's own cyberlens scanner's bfla check. " +
     "IMPORTANT: only scan a target the user owns or has explicit, documented authorization to test.",
   riskLevel: "ask",
   inputSchema: {
@@ -189,7 +192,7 @@ export const securityScanBflaTool: ToolDefinition<SecurityScanBflaInput> = {
     properties: {
       url: { type: "string", description: "Target base URL, e.g. https://example.com" },
       headers: { type: "object", description: "Optional headers (e.g. Cookie/Authorization) for a non-admin authenticated session to also test", additionalProperties: { type: "string" } },
-      observedEndpoints: { type: "array", items: { type: "string" }, description: "Optional URLs observed elsewhere (e.g. from security_scan_crawler) to check for admin-keyword matches" },
+      observedEndpoints: { type: "array", items: { type: "string" }, description: "Optional URLs to check for admin-keyword matches; defaults to this session's security_scan_crawler results for the same site, if any" },
     },
     required: ["url"],
   },

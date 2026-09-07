@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { ToolDefinition } from "../../../core/types.js";
 import { severityFromScore } from "./cvss.js";
 import { syntheticValue } from "./account-creation.js";
+import { findDiscoveredForm } from "./site-map-cache.js";
 import { formatScanOutput, type Finding, type PassedControl, type ScanOutput } from "./types.js";
 
 // Port of cyberlens's csrf.py. The PASSIVE structural check (does a POST
@@ -88,7 +89,7 @@ async function testActive(
 interface SecurityScanCsrfInput {
   pageUrl: string;
   formAction: string;
-  fieldNames: string[];
+  fieldNames?: string[];
   fieldTypes?: Record<string, string>;
   headers?: Record<string, string>;
 }
@@ -99,7 +100,9 @@ export const securityScanCsrfTool: ToolDefinition<SecurityScanCsrfInput> = {
     "Security tool. Checks whether a POST form's fields include one that looks like an anti-CSRF token " +
     "(csrf, _token, authenticity_token, nonce, xsrf, RequestVerificationToken) — zero requests sent by default, " +
     "purely structural. Pass the form's page URL, its action URL, and its field names (read the page's HTML " +
-    "yourself first, e.g. via read_file or a browser tool, to get these). Without a token field, this is a " +
+    "yourself first, e.g. via read_file or a browser tool, to get these — or omit fieldNames if " +
+    "security_scan_crawler already ran against this site this session, and its result for this exact page/" +
+    "action is used automatically). Without a token field, this is a " +
     "HEURISTIC only, not proof the form is actually forgeable — some apps validate Origin/Referer server-side " +
     "instead. Optionally supply `headers` (an authenticated session's Cookie/Authorization) and `fieldTypes` " +
     "(name -> input type) to ACTIVELY confirm it for real: submits the form once normally, once with a forged, " +
@@ -113,29 +116,31 @@ export const securityScanCsrfTool: ToolDefinition<SecurityScanCsrfInput> = {
     properties: {
       pageUrl: { type: "string", description: "URL of the page containing the form" },
       formAction: { type: "string", description: "The form's action URL (where it submits to)" },
-      fieldNames: { type: "array", items: { type: "string" }, description: "Names of every field in the form" },
+      fieldNames: { type: "array", items: { type: "string" }, description: "Names of every field in the form; defaults to this session's security_scan_crawler results for this exact pageUrl+formAction, if any" },
       fieldTypes: { type: "object", description: "Optional map of field name -> input type (e.g. email, password), used to generate synthetic values for the active test", additionalProperties: { type: "string" } },
       headers: { type: "object", description: "Optional authenticated session headers (e.g. Cookie) to actively confirm exploitability by submitting the form twice", additionalProperties: { type: "string" } },
     },
-    required: ["pageUrl", "formAction", "fieldNames"],
+    required: ["pageUrl", "formAction"],
   },
   describeCall: (input) => `check CSRF protection: form at ${input.pageUrl} -> ${input.formAction}`,
   async handler(input) {
-    if (input.fieldNames.length === 0) {
-      const output: ScanOutput = { findings: [], passedControls: [{ label: "No fields given", detail: "No form fields were provided to check." }] };
+    const fieldNames = input.fieldNames && input.fieldNames.length > 0 ? input.fieldNames : (findDiscoveredForm(input.pageUrl, input.formAction)?.fieldNames ?? []);
+
+    if (fieldNames.length === 0) {
+      const output: ScanOutput = { findings: [], passedControls: [{ label: "No fields given", detail: "No form fields were provided to check, and none were found in this session's crawl cache for this page/action." }] };
       return { content: formatScanOutput(input.pageUrl, output), isError: false };
     }
 
-    if (hasCsrfToken(input.fieldNames)) {
+    if (hasCsrfToken(fieldNames)) {
       const output: ScanOutput = {
         findings: [],
-        passedControls: [{ label: "CSRF token present", detail: `The form includes a field that looks like an anti-CSRF token: ${input.fieldNames.join(", ")}` }],
+        passedControls: [{ label: "CSRF token present", detail: `The form includes a field that looks like an anti-CSRF token: ${fieldNames.join(", ")}` }],
       };
       return { content: formatScanOutput(input.pageUrl, output), isError: false };
     }
 
     if (input.headers) {
-      const { finding, passed } = await testActive(input.pageUrl, input.formAction, input.fieldNames, input.fieldTypes ?? {}, input.headers);
+      const { finding, passed } = await testActive(input.pageUrl, input.formAction, fieldNames, input.fieldTypes ?? {}, input.headers);
       if (finding) return { content: formatScanOutput(input.pageUrl, { findings: [finding], passedControls: [] }), isError: false };
       if (passed) return { content: formatScanOutput(input.pageUrl, { findings: [], passedControls: [passed] }), isError: false };
       // inconclusive (request failed, or baseline itself didn't look like success) — fall through to the passive finding
@@ -151,7 +156,7 @@ export const securityScanCsrfTool: ToolDefinition<SecurityScanCsrfInput> = {
       cvssScore: score,
       cwe: "CWE-352",
       description: `A POST form at ${input.pageUrl} (submits to ${input.formAction}) has no field that looks like an anti-CSRF token.`,
-      evidence: `Form fields: ${input.fieldNames.join(", ")}`,
+      evidence: `Form fields: ${fieldNames.join(", ")}`,
       impact:
         "Without a per-session CSRF token, an attacker may be able to trick an authenticated user's browser into submitting this form unintentionally (e.g. via a hidden auto-submitting form on an attacker-controlled page). Heuristic: pass `headers` to confirm this for real instead of just inferring it from the missing field.",
       remediation: "Add a per-session, per-request anti-CSRF token to this form and validate it server-side; also set the session cookie's SameSite attribute to Lax or Strict as defense in depth.",

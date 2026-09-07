@@ -56,7 +56,7 @@ describe("security_scan_crawler tool (real Chromium, real local HTTP server)", (
     expect(result.content).toContain(`${baseUrl}/contact`);
     expect(result.content).not.toContain("external.example.com");
     expect(result.content).toContain("POST");
-    expect(result.content).toContain("3 field(s)");
+    expect(result.content).toContain("fields: name, email, message");
   }, 30_000);
 
   it("rejects an invalid URL", async () => {
