@@ -1,5 +1,5 @@
 import type { ToolDefinition } from "../../core/types.js";
-import { runSubprocess } from "../../util/process.js";
+import { createGenericCliTool } from "./generic-cli-wrapper.js";
 
 // Firmware flashing for microcontrollers, via the real official tools —
 // hand-rolling a serial bootloader protocol (ESP32's, AVR's) would be a
@@ -17,37 +17,13 @@ import { runSubprocess } from "../../util/process.js";
 // this runs in.
 const DEFAULT_TIMEOUT_MS = 120_000; // flashing a real chip can take a while, especially at a low baud rate
 
-function createFlashTool(toolName: string, binaryDefault: string, description: string, binaryOverride?: string): ToolDefinition<{ args: string[]; cwd?: string; timeout_ms?: number }> {
-  const binary = binaryOverride ?? binaryDefault;
-  return {
-    name: toolName,
-    description,
-    riskLevel: "dangerous",
-    inputSchema: {
-      type: "object",
-      properties: {
-        args: { type: "array", items: { type: "string" }, description: "Arguments/flags, as a plain array (never a shell string)" },
-        cwd: { type: "string", description: "Working directory, relative to the project root (defaults to the project root)" },
-        timeout_ms: { type: "number", description: "Timeout in milliseconds (default 120000 — flashing can be slow)" },
-      },
-      required: ["args"],
-    },
-    riskKey: (input) => `${toolName}:${input.args[0] ?? ""}`,
-    describeCall: (input) => `${binaryDefault} ${input.args.join(" ")}`,
-    async handler(input, ctx) {
-      const cwd = input.cwd ? `${ctx.cwd}/${input.cwd}` : ctx.cwd;
-      return runSubprocess(binary, { cwd, sessionId: ctx.sessionId, timeoutMs: input.timeout_ms ?? DEFAULT_TIMEOUT_MS, signal: ctx.signal, args: input.args });
-    },
-  };
-}
-
 export interface FirmwareFlashToolOptions {
   esptoolBinary?: string;
   avrdudeBinary?: string;
 }
 
 export function createFirmwareFlashTools(options: FirmwareFlashToolOptions = {}): ToolDefinition[] {
-  const esptool = createFlashTool(
+  const esptool = createGenericCliTool(
     "run_esptool",
     "esptool",
     "Run esptool (Espressif's official ESP32/ESP8266 serial utility) — flash firmware (write-flash), read " +
@@ -58,10 +34,10 @@ export function createFirmwareFlashTools(options: FirmwareFlashToolOptions = {})
       "IMPORTANT: write-flash/erase-flash/write-flash-status modify real hardware and can be destructive " +
       "(overwriting existing firmware) — confirm with the user before running one of those against a real " +
       "device.",
-    options.esptoolBinary,
+    { binaryOverride: options.esptoolBinary, defaultTimeoutMs: DEFAULT_TIMEOUT_MS },
   );
 
-  const avrdude = createFlashTool(
+  const avrdude = createGenericCliTool(
     "run_avrdude",
     "avrdude",
     "Run avrdude (the standard AVR/Arduino programmer) — flash firmware (.hex) to an AVR microcontroller, " +
@@ -70,7 +46,7 @@ export function createFirmwareFlashTools(options: FirmwareFlashToolOptions = {})
       "IMPORTANT: writing flash/fuses modifies real hardware and can be destructive (a wrong fuse setting can " +
       "brick the chip until it's reprogrammed via a hardware programmer) — confirm with the user before " +
       "writing anything to a real device.",
-    options.avrdudeBinary,
+    { binaryOverride: options.avrdudeBinary, defaultTimeoutMs: DEFAULT_TIMEOUT_MS },
   );
 
   return [esptool, avrdude];

@@ -12,6 +12,7 @@
     "@opentelemetry/resources": "^2.11.0",
     "@opentelemetry/sdk-trace-node": "^2.11.0",
     "@opentelemetry/semantic-conventions": "^1.43.0",
+    "coap": "^1.6.0",
     "diff": "^9.0.0",
     "docx": "^9.7.1",
     "exceljs": "^4.4.0",
