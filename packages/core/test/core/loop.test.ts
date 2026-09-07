@@ -107,3 +107,49 @@ describe("runTurn: PostToolUse hook", () => {
     expect(ui.writeSystem).toHaveBeenCalledWith("hook-saw-it");
   });
 });
+
+describe("runTurn: UserPromptSubmit hook", () => {
+  it("blocks the prompt before the model is ever called, and records nothing in history", async () => {
+    let providerCalled = false;
+    class ShouldNeverBeCalledProvider implements LlmProvider {
+      async streamTurn(): Promise<StreamTurnResult> {
+        providerCalled = true;
+        throw new Error("must not be called");
+      }
+    }
+
+    const ui = makeStubUi();
+    const hooksConfig: HooksConfig = {
+      UserPromptSubmit: [{ hooks: [{ type: "command", command: "cat > /dev/null; echo '{\"decision\":\"block\",\"reason\":\"not right now\"}'" }] }],
+    };
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true, hooksConfig });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(session, new ShouldNeverBeCalledProvider(), ui, new ToolRegistry(), permissions, "do something");
+
+    expect(providerCalled).toBe(false);
+    expect(session.messages).toHaveLength(0);
+    expect(ui.writeError).toHaveBeenCalledWith("not right now");
+  });
+
+  it("appends a hook's stdout as extra context the model sees alongside the real prompt", async () => {
+    let capturedContent: string | undefined;
+    class CapturingProvider implements LlmProvider {
+      async streamTurn(params: { messages: { role: string; content?: string }[] }): Promise<StreamTurnResult> {
+        const lastMessage = params.messages[params.messages.length - 1];
+        capturedContent ??= lastMessage && "content" in lastMessage ? lastMessage.content : undefined;
+        return { assistantMessage: { role: "assistant", content: "ok" }, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: "end_turn" };
+      }
+    }
+
+    const ui = makeStubUi();
+    const hooksConfig: HooksConfig = { UserPromptSubmit: [{ hooks: [{ type: "command", command: "cat > /dev/null; echo extra-context-here" }] }] };
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true, hooksConfig });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(session, new CapturingProvider(), ui, new ToolRegistry(), permissions, "the real question");
+
+    expect(capturedContent).toContain("the real question");
+    expect(capturedContent).toContain("extra-context-here");
+  });
+});

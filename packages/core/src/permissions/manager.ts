@@ -65,6 +65,22 @@ export class PermissionManager {
     if (message) this.ui.writeSystem(message);
   }
 
+  /**
+   * Runs any configured UserPromptSubmit hooks before a user's message is
+   * sent to the model. "block" prevents the prompt from being sent at all
+   * (its reason is shown to the user instead); otherwise a hook's plain
+   * stdout is appended to the prompt as extra context the model sees
+   * alongside it (real Claude Code's own use for this hook: injecting
+   * project-specific context, a reminder, current git state, etc.).
+   */
+  async runUserPromptSubmitHook(prompt: string, cwd: string, sessionId: string): Promise<{ blockedReason?: string; prompt: string }> {
+    if (!this.hooksConfig) return { prompt };
+    const outcome = await runHooks(this.hooksConfig, "UserPromptSubmit", { hook_event_name: "UserPromptSubmit", session_id: sessionId, cwd, prompt }, cwd);
+    if (outcome.decision === "block") return { blockedReason: outcome.reason ?? "Blocked by a UserPromptSubmit hook.", prompt };
+    if (outcome.output) return { prompt: `${prompt}\n\n<user-prompt-submit-hook-context>\n${outcome.output}\n</user-prompt-submit-hook-context>` };
+    return { prompt };
+  }
+
   /** Returns a decision when a PreToolUse hook has an opinion (block/approve); undefined means the normal permission flow should decide instead. */
   private async checkPreToolUseHooks(tool: ToolDefinition, input: unknown, ctx: ToolContext): Promise<PermissionDecision | undefined> {
     if (!this.hooksConfig) return undefined;

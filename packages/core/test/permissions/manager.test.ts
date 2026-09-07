@@ -209,6 +209,33 @@ describe("PermissionManager", () => {
     expect(ui.writeSystem).not.toHaveBeenCalled();
   });
 
+  it("runUserPromptSubmitHook appends a hook's stdout as extra context on the prompt", async () => {
+    const ui = makeUi("y");
+    const hooksConfig: HooksConfig = { UserPromptSubmit: [{ hooks: [{ type: "command", command: "cat > /dev/null; echo 'on branch main, 2 files changed'" }] }] };
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, hooksConfig });
+    const result = await manager.runUserPromptSubmitHook("what's the status?", "/tmp", "s");
+    expect(result.blockedReason).toBeUndefined();
+    expect(result.prompt).toContain("what's the status?");
+    expect(result.prompt).toContain("on branch main, 2 files changed");
+  });
+
+  it("runUserPromptSubmitHook returns a blockedReason instead of the prompt when a hook blocks", async () => {
+    const ui = makeUi("y");
+    const hooksConfig: HooksConfig = {
+      UserPromptSubmit: [{ hooks: [{ type: "command", command: "cat > /dev/null; echo '{\"decision\":\"block\",\"reason\":\"prompts are disabled right now\"}'" }] }],
+    };
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, hooksConfig });
+    const result = await manager.runUserPromptSubmitHook("do something", "/tmp", "s");
+    expect(result.blockedReason).toBe("prompts are disabled right now");
+  });
+
+  it("runUserPromptSubmitHook returns the prompt unchanged when no hooks are configured", async () => {
+    const ui = makeUi("y");
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+    const result = await manager.runUserPromptSubmitHook("hello", "/tmp", "s");
+    expect(result).toEqual({ prompt: "hello" });
+  });
+
   it("a throwing preview()/describeCall() denies instead of crashing the turn", async () => {
     const ui = makeUi("y");
     const throwingTool: ToolDefinition = {

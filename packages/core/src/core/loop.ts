@@ -455,7 +455,12 @@ export async function runTurn(
   visionRoute?: VisionRoute,
   images?: NeutralImage[],
 ): Promise<void> {
-  session.messages.push({ role: "user", content: userInput, images });
+  const hookOutcome = await permissions.runUserPromptSubmitHook(userInput, session.cwd, session.id);
+  if (hookOutcome.blockedReason) {
+    ui.writeError(hookOutcome.blockedReason);
+    return;
+  }
+  session.messages.push({ role: "user", content: hookOutcome.prompt, images });
   // Same as a tool-produced image (browser_screenshot, view_image) — route
   // the very next call through visionRoute if one is configured, since the
   // primary model may not support image input at all.
