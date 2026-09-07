@@ -213,6 +213,16 @@ function parseMcpAddArgs(name: string, rest: string): McpServerConfig | undefine
   return { name, transport: "stdio", command, args };
 }
 
+/** Writes one EditRecord's "before" content back to disk (or deletes the file if it didn't exist before that change) — shared by /undo and /rewind. */
+async function revertFileRecord(record: { path: string; before: string | undefined }): Promise<void> {
+  if (record.before === undefined) {
+    await rm(record.path, { force: true });
+  } else {
+    await mkdir(path.dirname(record.path), { recursive: true });
+    await writeFile(record.path, record.before, "utf-8");
+  }
+}
+
 async function handleUndo(ctx: CommandContext): Promise<CommandOutcome> {
   const record = ctx.session.history.pop();
   if (!record) {
@@ -220,15 +230,52 @@ async function handleUndo(ctx: CommandContext): Promise<CommandOutcome> {
     return "continue";
   }
 
+  await revertFileRecord(record);
   const relative = path.relative(ctx.cwd, record.path);
-  if (record.before === undefined) {
-    await rm(record.path, { force: true });
-    ctx.ui.writeSystem(`Undone: deleted ${relative} (it didn't exist before that change).`);
-  } else {
-    await mkdir(path.dirname(record.path), { recursive: true });
-    await writeFile(record.path, record.before, "utf-8");
-    ctx.ui.writeSystem(`Undone: restored ${relative} to its previous content.`);
+  ctx.ui.writeSystem(
+    record.before === undefined
+      ? `Undone: deleted ${relative} (it didn't exist before that change).`
+      : `Undone: restored ${relative} to its previous content.`,
+  );
+  return "continue";
+}
+
+/**
+ * /rewind: restores the conversation AND every file change made since a
+ * given checkpoint (see AgentSession.checkpoints) in one step — /undo only
+ * ever reverts one file at a time and never touches the conversation.
+ */
+async function handleRewind(ctx: CommandContext): Promise<CommandOutcome> {
+  const { checkpoints } = ctx.session;
+  const arg = ctx.args.trim();
+
+  if (!arg) {
+    if (checkpoints.length === 0) {
+      ctx.ui.writeSystem("No checkpoints yet — one is recorded each time you send a message.");
+      return "continue";
+    }
+    const lines = checkpoints.map((c, i) => `${i + 1}. ${c.preview}`);
+    ctx.ui.writeSystem(`Checkpoints (use /rewind <number> to restore the conversation and files to right before that message):\n${lines.join("\n")}`);
+    return "continue";
   }
+
+  const index = Number(arg);
+  if (!Number.isInteger(index) || index < 1 || index > checkpoints.length) {
+    ctx.ui.writeError(`Usage: /rewind [<number>] — /rewind with no args lists checkpoints (currently 1-${checkpoints.length}).`);
+    return "continue";
+  }
+
+  const checkpoint = checkpoints[index - 1]!;
+  const reverted = ctx.session.history.revertTo(checkpoint.historySize);
+  for (const record of reverted) await revertFileRecord(record);
+
+  ctx.session.messages = ctx.session.messages.slice(0, checkpoint.messageIndex - 1);
+  ctx.session.checkpoints = checkpoints.slice(0, index - 1);
+  await ctx.session.persist();
+
+  ctx.ui.writeSystem(
+    `Rewound to right before "${checkpoint.preview}" — reverted ${reverted.length} file change(s), conversation now has ${ctx.session.messages.length} message(s).`,
+  );
   return "continue";
 }
 
@@ -486,6 +533,12 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
     "undo",
     handleUndo,
     "Revert the most recent file write/edit made by the agent",
+  );
+
+  commands.register(
+    "rewind",
+    handleRewind,
+    "Restore the conversation and every file change to right before a past message: /rewind [<number>] (no args lists checkpoints)",
   );
 
   commands.register("todos", handleTodos, "Show the current task checklist");
