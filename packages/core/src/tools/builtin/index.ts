@@ -16,6 +16,7 @@ import { todoWriteTool } from "./todo-write.js";
 import { viewImageTool } from "./view-image.js";
 import { gitTools } from "./git.js";
 import { repoMapTool } from "./repo-map.js";
+import { recallSessionsTool } from "./recall-sessions.js";
 import { runTestsTool } from "./run-tests.js";
 import {
   readDocumentTool,
@@ -99,6 +100,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(editFileTool);
   registry.register(globTool);
   registry.register(repoMapTool);
+  registry.register(recallSessionsTool);
   registry.register(grepTool);
   registry.register(createBashTool(opts?.sandbox));
   registry.register(webSearchTool);

@@ -25,15 +25,15 @@ export interface SessionFile {
 // current $HOME/os.homedir() at call time rather than whatever it was when
 // this module first loaded — matters for tests that override $HOME (see
 // core/config.ts's globalConfigPath for the same pattern/reasoning).
-function sessionsRoot(): string {
+export function sessionsRoot(): string {
   return path.join(os.homedir(), ".finanfa-code", "sessions");
 }
 
-function projectHash(cwd: string): string {
+export function projectHash(cwd: string): string {
   return createHash("sha256").update(cwd).digest("hex").slice(0, 12);
 }
 
-function sessionDir(cwd: string): string {
+export function sessionDir(cwd: string): string {
   return path.join(sessionsRoot(), projectHash(cwd));
 }
 
