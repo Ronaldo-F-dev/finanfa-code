@@ -19,6 +19,8 @@ import { repoMapTool } from "./repo-map.js";
 import { recallSessionsTool } from "./recall-sessions.js";
 import { readTracesTool } from "./read-traces.js";
 import { createSchedulerTools } from "./scheduler.js";
+import { createSendEmailTool, emailConfigFromEnv } from "./send-email.js";
+import { createSendSlackMessageTool, slackConfigFromEnv } from "./send-slack-message.js";
 import { runTestsTool } from "./run-tests.js";
 import {
   readDocumentTool,
@@ -105,6 +107,8 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(recallSessionsTool);
   registry.register(readTracesTool);
   for (const tool of createSchedulerTools()) registry.register(tool);
+  registry.register(createSendEmailTool(emailConfigFromEnv()));
+  registry.register(createSendSlackMessageTool(slackConfigFromEnv()));
   registry.register(grepTool);
   registry.register(createBashTool(opts?.sandbox));
   registry.register(webSearchTool);
