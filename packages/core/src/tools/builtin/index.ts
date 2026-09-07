@@ -77,6 +77,7 @@ import { securityScanInfraExposureTool } from "./security/infra-exposure.js";
 import { securityScanParamFuzzingTool } from "./security/param-fuzzing.js";
 import { securityScanWebsocketTool } from "./security/websocket.js";
 import { securityScanSqliTool } from "./security/sqli.js";
+import { securityScanNosqlInjectionTool } from "./security/nosql-injection.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -142,6 +143,7 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(securityScanParamFuzzingTool);
   registry.register(securityScanWebsocketTool);
   registry.register(securityScanSqliTool);
+  registry.register(securityScanNosqlInjectionTool);
   for (const tool of gitTools) registry.register(tool);
 }
 
