@@ -80,6 +80,17 @@ export class AgentSession {
    * plan via exit_plan_mode and the user approves it.
    */
   planMode = false;
+  /**
+   * One entry per user message this session, in order — recorded by
+   * runTurn right when the message is appended, before any tool runs in
+   * response to it. Runtime-only (never persisted; a resumed session
+   * starts empty, same as history/disabledTools — nothing to rewind past
+   * a point the in-memory edit history doesn't cover either). Backs
+   * /rewind: messageIndex is where to truncate session.messages back to,
+   * historySize is where to call session.history.revertTo() to undo every
+   * file change made since.
+   */
+  checkpoints: { messageIndex: number; historySize: number; preview: string }[] = [];
 
   constructor(opts: { id?: string; cwd: string; model: string; systemPrompt: string }) {
     this.id = opts.id ?? randomUUID();

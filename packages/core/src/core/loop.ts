@@ -478,6 +478,14 @@ export async function runTurn(
     return;
   }
   session.messages.push({ role: "user", content: hookOutcome.prompt, images });
+  // Recorded here, not after the turn finishes — a checkpoint marks "right
+  // before this message and anything it caused," so /rewind can restore
+  // that state even if the turn itself is later interrupted or errors out.
+  session.checkpoints.push({
+    messageIndex: session.messages.length,
+    historySize: session.history.size,
+    preview: hookOutcome.prompt.slice(0, 60),
+  });
   // Same as a tool-produced image (browser_screenshot, view_image) — route
   // the very next call through visionRoute if one is configured, since the
   // primary model may not support image input at all.

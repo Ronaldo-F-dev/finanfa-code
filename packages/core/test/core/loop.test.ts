@@ -257,3 +257,44 @@ describe("runTurn: plan mode", () => {
     expect(session.planMode).toBe(true);
   });
 });
+
+describe("runTurn: checkpoints (for /rewind)", () => {
+  it("records one checkpoint per user message, with the message index and edit-history size at that point", async () => {
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    class EchoProvider implements LlmProvider {
+      async streamTurn(): Promise<StreamTurnResult> {
+        return { assistantMessage: { role: "assistant", content: "ok" }, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: "end_turn" };
+      }
+    }
+
+    await runTurn(session, new EchoProvider(), ui, new ToolRegistry(), permissions, "first message");
+    expect(session.checkpoints).toHaveLength(1);
+    expect(session.checkpoints[0]).toMatchObject({ messageIndex: 1, historySize: 0, preview: "first message" });
+
+    session.history.push({ path: "/tmp/a.txt", before: "old" });
+    await runTurn(session, new EchoProvider(), ui, new ToolRegistry(), permissions, "second message");
+    expect(session.checkpoints).toHaveLength(2);
+    expect(session.checkpoints[1]).toMatchObject({ historySize: 1, preview: "second message" });
+  });
+
+  it("does not record a checkpoint when a UserPromptSubmit hook blocks the message", async () => {
+    const ui = makeStubUi();
+    const hooksConfig: HooksConfig = {
+      UserPromptSubmit: [{ hooks: [{ type: "command", command: "cat > /dev/null; echo '{\"decision\":\"block\",\"reason\":\"no\"}'" }] }],
+    };
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true, hooksConfig });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    class ShouldNeverBeCalledProvider implements LlmProvider {
+      async streamTurn(): Promise<StreamTurnResult> {
+        throw new Error("must not be called");
+      }
+    }
+
+    await runTurn(session, new ShouldNeverBeCalledProvider(), ui, new ToolRegistry(), permissions, "blocked message");
+    expect(session.checkpoints).toHaveLength(0);
+  });
+});
