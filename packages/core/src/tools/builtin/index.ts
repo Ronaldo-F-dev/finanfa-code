@@ -106,6 +106,7 @@ import { securityScanStorageTool } from "./security/storage.js";
 import { securityScanAccountCreationTool } from "./security/account-creation.js";
 import { securityScanCrawlerTool } from "./security/crawler.js";
 import { createPromptInjectionScanTool } from "./security/prompt-injection.js";
+import { createPiiLeakageScanTool } from "./security/pii-leakage.js";
 import { createSystemPromptLeakScanTool } from "./security/system-prompt-leak.js";
 import { createJailbreakScanTool } from "./security/jailbreak.js";
 
@@ -236,6 +237,7 @@ export function registerStatefulBuiltins(registry: ToolRegistry, deps: StatefulT
   registry.register(createPromptInjectionScanTool(redteamDeps));
   registry.register(createSystemPromptLeakScanTool(redteamDeps));
   registry.register(createJailbreakScanTool(redteamDeps));
+  registry.register(createPiiLeakageScanTool(redteamDeps));
   for (const tool of createBrowserTools(deps.browser)) registry.register(tool);
   for (const tool of createSerialTools(new SerialManager())) registry.register(tool);
   for (const tool of createBackgroundProcessTools(new BackgroundProcessManager())) registry.register(tool);
