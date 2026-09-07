@@ -7,6 +7,7 @@ import type { SandboxConfig } from "../../util/sandbox.js";
 import { readFileTool } from "./read-file.js";
 import { writeFileTool } from "./write-file.js";
 import { editFileTool } from "./edit-file.js";
+import { multiEditFileTool } from "./multi-edit-file.js";
 import { globTool } from "./glob.js";
 import { grepTool } from "./grep.js";
 import { createBashTool } from "./bash.js";
@@ -116,6 +117,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(readFileTool);
   registry.register(writeFileTool);
   registry.register(editFileTool);
+  registry.register(multiEditFileTool);
   registry.register(globTool);
   registry.register(repoMapTool);
   // Optional external-CLI wrappers: only registered when the underlying
