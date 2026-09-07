@@ -1,7 +1,8 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { securityScanXssTool } from "../../../src/tools/builtin/security/xss.js";
+import { securityScanXssTool, mergeEngineFindings } from "../../../src/tools/builtin/security/xss.js";
+import type { Finding } from "../../../src/tools/builtin/security/types.js";
 
 const ctx = { cwd: "/tmp", sessionId: "test", signal: new AbortController().signal };
 
@@ -52,5 +53,42 @@ describe("security_scan_xss tool (real Chromium, real local HTTP server)", () =>
   it("reports no candidates for a URL with no query parameters", async () => {
     const result = await securityScanXssTool.handler({ url: `${baseUrl}/vulnerable` }, ctx);
     expect(result.content).toContain("No injectable GET parameters found");
+  });
+});
+
+describe("mergeEngineFindings (pure cross-engine merge logic)", () => {
+  function fakeFinding(id: string): Finding {
+    return { id, title: `Reflected XSS in Parameter 'name'`, severity: "HIGH", description: "desc" };
+  }
+
+  it("merges a finding confirmed on every tested engine without flagging it inconsistent", () => {
+    const perEngine = new Map([
+      ["chromium", [fakeFinding("xss-reflected-abc")]],
+      ["firefox", [fakeFinding("xss-reflected-abc")]],
+    ]);
+    const merged = mergeEngineFindings(perEngine);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.title).toBe("Reflected XSS in Parameter 'name'");
+    expect(merged[0]!.title).not.toContain("Inconsistent");
+  });
+
+  it("flags a finding confirmed on only some engines as Browser-Inconsistent, naming which", () => {
+    const perEngine = new Map([
+      ["chromium", [fakeFinding("xss-reflected-abc")]],
+      ["firefox", [] as Finding[]],
+    ]);
+    const merged = mergeEngineFindings(perEngine);
+    expect(merged).toHaveLength(1);
+    expect(merged[0]!.title).toContain("Browser-Inconsistent");
+    expect(merged[0]!.description).toContain("Confirmed on: chromium");
+    expect(merged[0]!.description).toContain("NOT reproduced on: firefox");
+  });
+
+  it("produces no findings when no engine found anything", () => {
+    const perEngine = new Map([
+      ["chromium", [] as Finding[]],
+      ["firefox", [] as Finding[]],
+    ]);
+    expect(mergeEngineFindings(perEngine)).toHaveLength(0);
   });
 });
