@@ -22,6 +22,7 @@ import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
 import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "@finanfa/core/src/memory/loader.js";
 import { loadCustomCommands, runCustomCommand, type CustomCommand } from "@finanfa/core/src/commands/custom-commands.js";
+import { loadSubagentTypes } from "@finanfa/core/src/agents/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
@@ -185,6 +186,7 @@ export async function main(argv: string[]): Promise<void> {
   if (memories.length > 0) tools.register(createReadMemoryTool(cwd));
 
   const customCommands = await loadCustomCommands(cwd);
+  const agentTypes = await loadSubagentTypes(cwd);
 
   const projectInstructions = await loadProjectInstructions(cwd);
   const designContract = await loadDesignContract(cwd);
@@ -242,7 +244,7 @@ export async function main(argv: string[]): Promise<void> {
   await connectMcpServers(cwd, mcp, ui);
   for (const def of await mcp.listAllTools()) tools.register(def);
 
-  registerStatefulBuiltins(tools, { provider, permissions, ui, model, cwd, browser, designContract: designContract.content, systemPrompt });
+  registerStatefulBuiltins(tools, { provider, permissions, ui, model, cwd, browser, designContract: designContract.content, systemPrompt, agentTypes });
 
   if (opts.prompt) {
     // Single-shot mode (scripts/cron via schedule_task): run exactly one

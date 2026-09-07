@@ -4,6 +4,7 @@ import { runTurn, isLoopGuardStopMessage } from "../../core/loop.js";
 import { ToolRegistry } from "../registry.js";
 import type { PermissionManager } from "../../permissions/manager.js";
 import type { UIAdapter } from "../../ui/adapter.js";
+import type { SubagentType } from "../../agents/loader.js";
 
 export interface TaskToolDeps {
   provider: LlmProvider;
@@ -12,11 +13,15 @@ export interface TaskToolDeps {
   ui: UIAdapter;
   model: string;
   cwd: string;
+  /** Custom subagent types loaded from .finanfa-code/agents/ (see agents/loader.ts) — selectable via TaskInput.agentType. */
+  agentTypes?: SubagentType[];
 }
 
 interface TaskInput {
   prompt: string;
   description?: string;
+  /** Name of a custom subagent type (see .finanfa-code/agents/) to delegate to instead of the generic default — its own system prompt and, if it sets one, a restricted tool whitelist. */
+  agentType?: string;
 }
 
 export const SUBAGENT_SYSTEM_PROMPT =
@@ -49,32 +54,51 @@ function wrapUiForSubagent(ui: UIAdapter, label: string): UIAdapter {
  * loop (see core/loop.ts) for real parallelism.
  */
 export function createTaskTool(deps: TaskToolDeps): ToolDefinition<TaskInput> {
+  const agentTypesByName = new Map((deps.agentTypes ?? []).map((a) => [a.name, a]));
+  const agentTypeSummaries = [...agentTypesByName.values()].map((a) => a.name + " (" + a.description + ")");
+  const agentTypeNote =
+    agentTypeSummaries.length > 0
+      ? " Available agentType values (each with its own system prompt, and sometimes a restricted tool set): " + agentTypeSummaries.join("; ") + "."
+      : "";
+
   return {
     name: "task",
     description:
       "Delegate a self-contained piece of work to a sub-agent that runs independently (same tools and " +
-      "permissions as you) and reports back a final summary. Good for parallelizable or isolated work — " +
-      "e.g. researching one thing while you do another. Multiple task calls in the same turn run concurrently.",
+      "permissions as you, unless agentType restricts them) and reports back a final summary. Good for " +
+      "parallelizable or isolated work — e.g. researching one thing while you do another. Multiple task calls " +
+      "in the same turn run concurrently." +
+      agentTypeNote,
     riskLevel: "safe", // the sub-agent's own tool calls are each individually permission-checked as usual
     inputSchema: {
       type: "object",
       properties: {
         prompt: { type: "string", description: "Full instructions for the sub-agent" },
         description: { type: "string", description: "Short label for this task, shown in logs" },
+        agentType: { type: "string", description: "Name of a custom subagent type to delegate to instead of the generic default (see the tool description for available values)" },
       },
       required: ["prompt"],
     },
-    describeCall: (input) => `task: ${input.description ?? input.prompt.slice(0, 60)}`,
+    describeCall: (input) => {
+      const typeSuffix = input.agentType ? ` (${input.agentType})` : "";
+      return `task${typeSuffix}: ${input.description ?? input.prompt.slice(0, 60)}`;
+    },
     async handler(input) {
+      const agentType = input.agentType ? agentTypesByName.get(input.agentType) : undefined;
+
       // Fresh registry sharing the same tool instances as the parent, minus
-      // "task" itself, so a sub-agent can't spawn further sub-agents.
+      // "task" itself (so a sub-agent can't spawn further sub-agents), and
+      // further restricted to agentType's own tool whitelist when it set one.
       const subTools = new ToolRegistry();
       for (const tool of deps.tools.list()) {
-        if (tool.name !== "task") subTools.register(tool);
+        if (tool.name === "task") continue;
+        if (agentType?.tools && !agentType.tools.includes(tool.name)) continue;
+        subTools.register(tool);
       }
 
-      const session = new AgentSession({ cwd: deps.cwd, model: deps.model, systemPrompt: SUBAGENT_SYSTEM_PROMPT });
-      const label = input.description ?? "subagent";
+      const systemPrompt = agentType?.systemPrompt || SUBAGENT_SYSTEM_PROMPT;
+      const session = new AgentSession({ cwd: deps.cwd, model: deps.model, systemPrompt });
+      const label = input.description ?? agentType?.name ?? "subagent";
       const ui = wrapUiForSubagent(deps.ui, label);
 
       await runTurn(session, deps.provider, ui, subTools, deps.permissions, input.prompt);

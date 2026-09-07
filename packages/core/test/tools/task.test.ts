@@ -162,4 +162,116 @@ describe("task tool (sub-agent delegation)", () => {
       expect(toolResultMsg.results[0].content).toContain("repeated");
     }
   });
+
+  it("uses a custom agentType's own system prompt instead of the generic default", async () => {
+    const CUSTOM_PROMPT = "You are the explorer subagent — read-only, never modify anything.";
+    let capturedSystemPrompt: string | undefined;
+    class Provider implements LlmProvider {
+      async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {
+        capturedSystemPrompt ??= params.systemPrompt;
+        return { assistantMessage: { role: "assistant", content: "explored" }, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: "end_turn" };
+      }
+    }
+
+    const tools = new ToolRegistry();
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const provider = new Provider();
+    const taskTool = createTaskTool({
+      provider,
+      tools,
+      permissions,
+      ui,
+      model: "test-model",
+      cwd: "/tmp",
+      agentTypes: [{ name: "explorer", description: "Read-only exploration", systemPrompt: CUSTOM_PROMPT, scope: "project" }],
+    });
+
+    const result = await taskTool.handler({ prompt: "look around", agentType: "explorer" }, {
+      cwd: "/tmp",
+      sessionId: "s",
+      signal: new AbortController().signal,
+    });
+
+    expect(result.isError).toBe(false);
+    expect(capturedSystemPrompt).toContain(CUSTOM_PROMPT);
+  });
+
+  it("restricts the sub-agent to an agentType's tool whitelist", async () => {
+    let capturedTools: string[] | undefined;
+    class Provider implements LlmProvider {
+      async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {
+        capturedTools ??= params.tools.map((t) => t.name);
+        return { assistantMessage: { role: "assistant", content: "done" }, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: "end_turn" };
+      }
+    }
+
+    const tools = new ToolRegistry();
+    tools.register({ name: "read_file", description: "", riskLevel: "safe", inputSchema: { type: "object" }, handler: async () => ({ content: "", isError: false }) });
+    tools.register({ name: "write_file", description: "", riskLevel: "ask", inputSchema: { type: "object" }, handler: async () => ({ content: "", isError: false }) });
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const provider = new Provider();
+    const taskTool = createTaskTool({
+      provider,
+      tools,
+      permissions,
+      ui,
+      model: "test-model",
+      cwd: "/tmp",
+      agentTypes: [{ name: "explorer", description: "Read-only", systemPrompt: "explore only", tools: ["read_file"], scope: "project" }],
+    });
+
+    await taskTool.handler({ prompt: "look around", agentType: "explorer" }, { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal });
+
+    expect(capturedTools).toContain("read_file");
+    expect(capturedTools).not.toContain("write_file");
+  });
+
+  it("falls back to the generic default when agentType names an unknown type", async () => {
+    let capturedSystemPrompt: string | undefined;
+    class Provider implements LlmProvider {
+      async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {
+        capturedSystemPrompt ??= params.systemPrompt;
+        return { assistantMessage: { role: "assistant", content: "done" }, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: "end_turn" };
+      }
+    }
+
+    const tools = new ToolRegistry();
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const taskTool = createTaskTool({ provider: new Provider(), tools, permissions, ui, model: "test-model", cwd: "/tmp" });
+
+    await taskTool.handler({ prompt: "do something", agentType: "not_a_real_type" }, { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal });
+
+    expect(capturedSystemPrompt).toContain(SUBAGENT_SYSTEM_PROMPT);
+  });
+
+  it("mentions available agentType values in the tool description", () => {
+    const tools = new ToolRegistry();
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const taskTool = createTaskTool({
+      provider: {} as LlmProvider,
+      tools,
+      permissions,
+      ui,
+      model: "test-model",
+      cwd: "/tmp",
+      agentTypes: [{ name: "explorer", description: "Read-only exploration", systemPrompt: "x", scope: "project" }],
+    });
+
+    expect(taskTool.description).toContain("explorer");
+    expect(taskTool.description).toContain("Read-only exploration");
+  });
+
+  it("includes the agentType name in describeCall", () => {
+    const tools = new ToolRegistry();
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const taskTool = createTaskTool({ provider: {} as LlmProvider, tools, permissions, ui, model: "test-model", cwd: "/tmp" });
+
+    expect(taskTool.describeCall!({ prompt: "do X", agentType: "explorer" })).toContain("(explorer)");
+    expect(taskTool.describeCall!({ prompt: "do X" })).not.toContain("(");
+  });
 });

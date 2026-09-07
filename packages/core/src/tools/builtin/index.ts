@@ -112,6 +112,7 @@ import { createPiiLeakageScanTool } from "./security/pii-leakage.js";
 import { createExcessiveAgencyScanTool } from "./security/excessive-agency.js";
 import { createSystemPromptLeakScanTool } from "./security/system-prompt-leak.js";
 import { createJailbreakScanTool } from "./security/jailbreak.js";
+import type { SubagentType } from "../../agents/loader.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: SandboxConfig }): void {
@@ -225,6 +226,8 @@ export interface StatefulToolDeps {
   designContract: string;
   /** The session's real system prompt — used by the LLM self-red-team tools (security_scan_prompt_injection/system_prompt_leak/jailbreak) to test what THIS agent actually does, not a stand-in. */
   systemPrompt: string;
+  /** Custom subagent types (see agents/loader.ts), selectable by the task tool's agentType input. */
+  agentTypes?: SubagentType[];
 }
 
 /**
