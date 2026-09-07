@@ -41,6 +41,7 @@ import { httpRequestTool } from "./http-request.js";
 import { waitForPortTool } from "./wait-for-port.js";
 import { lintJavascriptTool } from "./lint-javascript.js";
 import { createTaskTool } from "./task.js";
+import { createWorkflowTools } from "./workflow.js";
 import { createBrowserTools } from "./browser.js";
 import { createBackgroundProcessTools } from "./background-process.js";
 import { BackgroundProcessManager } from "../../core/background-process.js";
@@ -201,6 +202,7 @@ export interface StatefulToolDeps {
  */
 export function registerStatefulBuiltins(registry: ToolRegistry, deps: StatefulToolDeps): void {
   registry.register(createTaskTool({ ...deps, tools: registry }));
+  for (const tool of createWorkflowTools({ ...deps, tools: registry })) registry.register(tool);
   const redteamDeps = { provider: deps.provider, model: deps.model, systemPrompt: deps.systemPrompt };
   registry.register(createPromptInjectionScanTool(redteamDeps));
   registry.register(createSystemPromptLeakScanTool(redteamDeps));
