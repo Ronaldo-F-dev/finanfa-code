@@ -1,51 +1,19 @@
-import { readdir, readFile, stat } from "node:fs/promises";
-import path from "node:path";
 import type { ToolDefinition } from "../../core/types.js";
-import { sessionDir, sessionsRoot, type SessionFile } from "../../core/session.js";
+import { searchSessionIndex, type SessionSearchHit } from "../../core/session-search-index.js";
 
 // Cross-session recall, inspired by Hermes Agent's own "searches its own
 // past conversations" feature: this project already persists every
 // session's full message history to disk (core/session.ts, one JSON file
 // per session under ~/.finanfa-code/sessions/<project-hash>/), but had no
 // way to search across that history — only /resume + /continue by exact
-// session id. This adds keyword search over past sessions' actual
-// conversation content (user/assistant text; tool-call/tool-result
-// messages are skipped — noisy, and usually not what "what did we decide
-// about X" recall is after).
-//
-// Disclosed scope reduction vs Hermes Agent's real FTS5 index: this scans
-// session JSON files directly (bounded to the MAX_SESSIONS_SCANNED most
-// recently modified) rather than maintaining a persistent full-text
-// index — no new dependency (sqlite3/FTS5 needs native compilation), and
-// a typical user's session count makes a live scan genuinely fast enough;
-// revisit with a real index if session volume ever makes this slow.
-const MAX_SESSIONS_SCANNED = 500;
+// session id. Searches real user/assistant message text (tool-call/
+// tool-result messages are skipped — noisy, and usually not what "what
+// did we decide about X" recall is after) via a real SQLite FTS5 index
+// (core/session-search-index.ts) — genuinely fast at any session volume,
+// since an unchanged session file is never re-read/re-parsed on a later
+// call; only new/changed sessions get indexed.
 const MAX_EXCERPTS_PER_SESSION = 2;
 const EXCERPT_CONTEXT_CHARS = 200;
-
-interface ScoredExcerpt {
-  role: "user" | "assistant";
-  text: string;
-  score: number;
-}
-
-interface ScoredSession {
-  id: string;
-  cwd: string;
-  title?: string;
-  mtimeMs: number;
-  score: number;
-  excerpts: ScoredExcerpt[];
-}
-
-function queryTerms(query: string): string[] {
-  return [...new Set(query.toLowerCase().split(/\s+/).filter((t) => t.length > 1))];
-}
-
-function scoreText(text: string, terms: string[]): number {
-  const lower = text.toLowerCase();
-  return terms.reduce((score, term) => score + (lower.includes(term) ? 1 : 0), 0);
-}
 
 function excerptAround(text: string, terms: string[]): string {
   const lower = text.toLowerCase();
@@ -57,88 +25,37 @@ function excerptAround(text: string, terms: string[]): string {
   return `${prefix}${text.slice(start, end).trim()}${suffix}`;
 }
 
-async function listSessionFiles(scope: "project" | "all", cwd: string): Promise<{ filePath: string; mtimeMs: number }[]> {
-  const dirs: string[] = [];
-  if (scope === "project") {
-    dirs.push(sessionDir(cwd));
-  } else {
-    try {
-      const projectDirs = await readdir(sessionsRoot());
-      for (const projectDir of projectDirs) dirs.push(path.join(sessionsRoot(), projectDir));
-    } catch {
-      return [];
-    }
-  }
-
-  const files: { filePath: string; mtimeMs: number }[] = [];
-  for (const dir of dirs) {
-    let entries: string[];
-    try {
-      entries = await readdir(dir);
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      if (!entry.endsWith(".json")) continue;
-      files.push({ filePath: path.join(dir, entry), mtimeMs: 0 });
-    }
-  }
-  return files;
+interface GroupedSession {
+  id: string;
+  cwd: string;
+  title?: string;
+  mtimeMs: number;
+  rank: number; // aggregate bm25 rank across this session's matching messages — more negative is a better match
+  excerpts: { role: string; text: string; rank: number }[];
 }
 
-async function searchSessions(cwd: string, query: string, scope: "project" | "all", maxResults: number): Promise<ScoredSession[]> {
-  const terms = queryTerms(query);
-  if (terms.length === 0) return [];
-
-  const files = await listSessionFiles(scope, cwd);
-
-  // Most-recently-modified first, so a bounded scan still favors recent
-  // (more likely relevant) sessions over ancient ones when there are more
-  // sessions on disk than MAX_SESSIONS_SCANNED.
-  const withStats = await Promise.all(
-    files.map(async (f) => {
-      try {
-        const st = await stat(f.filePath);
-        return { ...f, mtimeMs: st.mtimeMs };
-      } catch {
-        return f;
-      }
-    }),
-  );
-  withStats.sort((a, b) => b.mtimeMs - a.mtimeMs);
-  const candidates = withStats.slice(0, MAX_SESSIONS_SCANNED);
-
-  const scored: ScoredSession[] = [];
-  for (const { filePath, mtimeMs } of candidates) {
-    let data: SessionFile;
-    try {
-      data = JSON.parse(await readFile(filePath, "utf-8")) as SessionFile;
-    } catch {
-      continue;
+function groupBySession(hits: SessionSearchHit[], terms: string[], maxResults: number): GroupedSession[] {
+  const bySessionId = new Map<string, GroupedSession>();
+  for (const hit of hits) {
+    let session = bySessionId.get(hit.sessionId);
+    if (!session) {
+      session = { id: hit.sessionId, cwd: hit.cwd, title: hit.title, mtimeMs: hit.mtimeMs, rank: 0, excerpts: [] };
+      bySessionId.set(hit.sessionId, session);
     }
-
-    const excerpts: ScoredExcerpt[] = [];
-    let sessionScore = 0;
-    for (const message of data.messages) {
-      if (message.role !== "user" && message.role !== "assistant") continue;
-      const text = message.content;
-      if (!text) continue;
-      const score = scoreText(text, terms);
-      if (score === 0) continue;
-      sessionScore += score;
-      excerpts.push({ role: message.role, text: excerptAround(text, terms), score });
-    }
-    if (sessionScore === 0) continue;
-
-    excerpts.sort((a, b) => b.score - a.score);
-    scored.push({ id: data.id, cwd: data.cwd, title: data.title, mtimeMs, score: sessionScore, excerpts: excerpts.slice(0, MAX_EXCERPTS_PER_SESSION) });
+    session.rank += hit.rank;
+    session.excerpts.push({ role: hit.role, text: excerptAround(hit.content, terms), rank: hit.rank });
   }
 
-  scored.sort((a, b) => b.score - a.score);
-  return scored.slice(0, maxResults);
+  const sessions = [...bySessionId.values()];
+  sessions.sort((a, b) => a.rank - b.rank); // ascending: SQLite's bm25() ranks a better match more negative
+  for (const s of sessions) {
+    s.excerpts.sort((a, b) => a.rank - b.rank);
+    s.excerpts = s.excerpts.slice(0, MAX_EXCERPTS_PER_SESSION);
+  }
+  return sessions.slice(0, maxResults);
 }
 
-function formatResults(sessions: ScoredSession[], scope: "project" | "all"): string {
+function formatResults(sessions: GroupedSession[], scope: "project" | "all"): string {
   if (sessions.length === 0) return "No past session matched that query.";
 
   const lines: string[] = [`${sessions.length} matching past session(s) (${scope === "all" ? "across all projects" : "this project"}):`, ""];
@@ -165,14 +82,14 @@ export const recallSessionsTool: ToolDefinition<RecallSessionsInput> = {
   description:
     "Search past conversation sessions (this project's, or across all projects) for keywords, to recall what " +
     "was discussed or decided earlier without the user having to remember an exact session id. Searches real " +
-    "user/assistant message text from persisted session history; returns matching sessions with a short " +
-    "excerpt around the match, ranked by how many query terms matched. Use /resume <session id> to actually " +
-    "reopen a matched session.",
+    "user/assistant message text from persisted session history via a real full-text index, returning " +
+    "matching sessions with a short excerpt around the match, ranked by relevance. Use /resume <session id> " +
+    "to actually reopen a matched session.",
   riskLevel: "safe",
   inputSchema: {
     type: "object",
     properties: {
-      query: { type: "string", description: "Keywords to search for (space-separated; matches are case-insensitive substrings)" },
+      query: { type: "string", description: "Keywords to search for (space-separated; matches any of the terms, ranked by relevance)" },
       scope: { type: "string", enum: ["project", "all"], description: "'project' (default) searches only this project's sessions; 'all' searches every project" },
       maxResults: { type: "number", description: "Maximum number of sessions to return (default 5)" },
     },
@@ -181,7 +98,10 @@ export const recallSessionsTool: ToolDefinition<RecallSessionsInput> = {
   describeCall: (input) => `recall past sessions matching "${input.query}"${input.scope === "all" ? " (all projects)" : ""}`,
   async handler(input, ctx) {
     const scope = input.scope ?? "project";
-    const results = await searchSessions(ctx.cwd, input.query, scope, input.maxResults ?? 5);
-    return { content: formatResults(results, scope), isError: false };
+    const maxResults = input.maxResults ?? 5;
+    const terms = [...new Set(input.query.toLowerCase().split(/\s+/).filter((t) => t.length > 1))];
+    const hits = await searchSessionIndex(input.query, scope === "project" ? ctx.cwd : undefined, maxResults);
+    const sessions = groupBySession(hits, terms, maxResults);
+    return { content: formatResults(sessions, scope), isError: false };
   },
 };

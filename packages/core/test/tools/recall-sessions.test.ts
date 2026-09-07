@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { AgentSession } from "../../src/core/session.js";
 import { recallSessionsTool } from "../../src/tools/builtin/recall-sessions.js";
+import { resetSessionSearchIndexForTests } from "../../src/core/session-search-index.js";
 
 const ctx = (cwd: string) => ({ cwd, sessionId: "current", signal: new AbortController().signal });
 
@@ -17,6 +18,7 @@ describe("recall_past_sessions tool (real session files on disk, real AgentSessi
     homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-recall-"));
     originalHome = process.env.HOME;
     process.env.HOME = homeDir;
+    resetSessionSearchIndexForTests(); // the sqlite handle is cached at module level, keyed to sessionsRoot() — must reopen against this test's fresh HOME
 
     const s1 = new AgentSession({ cwd: projectA, model: "m", systemPrompt: "s" });
     s1.title = "Fixing the login bug";
@@ -41,6 +43,7 @@ describe("recall_past_sessions tool (real session files on disk, real AgentSessi
   });
 
   afterEach(async () => {
+    resetSessionSearchIndexForTests(); // close the handle before deleting the temp dir it lives in
     process.env.HOME = originalHome;
     await rm(homeDir, { recursive: true, force: true });
   });
