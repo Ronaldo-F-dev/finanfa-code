@@ -472,7 +472,7 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     const needsAuthSet = new Set(needsAuth);
     for (const def of await mcp.listAllTools()) tools.register(def);
 
-    registerStatefulBuiltins(tools, { provider, permissions, ui: adapter, model, cwd: CWD, browser, designContract: designContract.content });
+    registerStatefulBuiltins(tools, { provider, permissions, ui: adapter, model, cwd: CWD, browser, designContract: designContract.content, systemPrompt });
 
     function sendSessionInfo(): void {
       ws.send(

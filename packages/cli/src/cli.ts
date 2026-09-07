@@ -193,7 +193,7 @@ export async function main(argv: string[]): Promise<void> {
   await connectMcpServers(cwd, mcp, ui);
   for (const def of await mcp.listAllTools()) tools.register(def);
 
-  registerStatefulBuiltins(tools, { provider, permissions, ui, model, cwd, browser, designContract: designContract.content });
+  registerStatefulBuiltins(tools, { provider, permissions, ui, model, cwd, browser, designContract: designContract.content, systemPrompt });
 
   ui.writeSystem(`session ${session.id} · ${session.model} via ${providerKind} · ${tools.list().length} tools loaded`);
   if (mcp.connectedServers().length > 0) ui.writeSystem(`MCP servers: ${mcp.connectedServers().join(", ")}`);

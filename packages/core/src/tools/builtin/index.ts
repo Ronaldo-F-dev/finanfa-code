@@ -87,6 +87,9 @@ import { securityScanSecretsTool } from "./security/secrets.js";
 import { securityScanStorageTool } from "./security/storage.js";
 import { securityScanAccountCreationTool } from "./security/account-creation.js";
 import { securityScanCrawlerTool } from "./security/crawler.js";
+import { createPromptInjectionScanTool } from "./security/prompt-injection.js";
+import { createSystemPromptLeakScanTool } from "./security/system-prompt-leak.js";
+import { createJailbreakScanTool } from "./security/jailbreak.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: SandboxConfig }): void {
@@ -172,6 +175,8 @@ export interface StatefulToolDeps {
   cwd: string;
   browser: BrowserManager;
   designContract: string;
+  /** The session's real system prompt — used by the LLM self-red-team tools (security_scan_prompt_injection/system_prompt_leak/jailbreak) to test what THIS agent actually does, not a stand-in. */
+  systemPrompt: string;
 }
 
 /**
@@ -184,6 +189,10 @@ export interface StatefulToolDeps {
  */
 export function registerStatefulBuiltins(registry: ToolRegistry, deps: StatefulToolDeps): void {
   registry.register(createTaskTool({ ...deps, tools: registry }));
+  const redteamDeps = { provider: deps.provider, model: deps.model, systemPrompt: deps.systemPrompt };
+  registry.register(createPromptInjectionScanTool(redteamDeps));
+  registry.register(createSystemPromptLeakScanTool(redteamDeps));
+  registry.register(createJailbreakScanTool(redteamDeps));
   for (const tool of createBrowserTools(deps.browser)) registry.register(tool);
   for (const tool of createBackgroundProcessTools(new BackgroundProcessManager())) registry.register(tool);
   registry.register(createPythonReplTool(new PythonReplManager()));
