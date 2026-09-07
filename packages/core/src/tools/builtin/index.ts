@@ -80,6 +80,7 @@ import { securityScanSqliTool } from "./security/sqli.js";
 import { securityScanNosqlInjectionTool } from "./security/nosql-injection.js";
 import { securityScanSstiTool } from "./security/ssti.js";
 import { securityScanCommandInjectionTool } from "./security/command-injection.js";
+import { securityScanLdapInjectionTool } from "./security/ldap-injection.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
 export function registerBuiltins(registry: ToolRegistry): void {
@@ -148,6 +149,7 @@ export function registerBuiltins(registry: ToolRegistry): void {
   registry.register(securityScanNosqlInjectionTool);
   registry.register(securityScanSstiTool);
   registry.register(securityScanCommandInjectionTool);
+  registry.register(securityScanLdapInjectionTool);
   for (const tool of gitTools) registry.register(tool);
 }
 
