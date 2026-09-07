@@ -123,6 +123,7 @@ async function runOneToolCall(
       // visibility short of asking it to repeat itself or re-running by hand.
       echoToolOutput(ui, result.content, result.isError);
       if (!result.isError && result.media) ui.writeMedia?.(result.media);
+      await permissions.runPostToolUseHook(tool, call.input, { isError: result.isError, content: result.content }, ctx);
       return {
         // media is carried into the persisted tool-result message (not just
         // fired as a live UI event above) so a page reload/resumed session

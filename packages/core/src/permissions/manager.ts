@@ -46,6 +46,25 @@ export class PermissionManager {
     return undefined;
   }
 
+  /**
+   * Runs any configured PostToolUse hooks for informational purposes only —
+   * the tool has already completed by this point, so unlike PreToolUse a
+   * "block" decision here can't undo anything real; only its stdout (or a
+   * block's reason) is ever surfaced to the user. Never throws: a broken
+   * hook must not turn a successful tool call into a failed turn.
+   */
+  async runPostToolUseHook(tool: ToolDefinition, input: unknown, toolResponse: unknown, ctx: ToolContext): Promise<void> {
+    if (!this.hooksConfig) return;
+    const outcome = await runHooks(
+      this.hooksConfig,
+      "PostToolUse",
+      { hook_event_name: "PostToolUse", session_id: ctx.sessionId, cwd: ctx.cwd, tool_name: tool.name, tool_input: input, tool_response: toolResponse },
+      ctx.cwd,
+    );
+    const message = outcome.decision === "block" ? (outcome.reason ?? "(blocked by a PostToolUse hook)") : outcome.output;
+    if (message) this.ui.writeSystem(message);
+  }
+
   /** Returns a decision when a PreToolUse hook has an opinion (block/approve); undefined means the normal permission flow should decide instead. */
   private async checkPreToolUseHooks(tool: ToolDefinition, input: unknown, ctx: ToolContext): Promise<PermissionDecision | undefined> {
     if (!this.hooksConfig) return undefined;

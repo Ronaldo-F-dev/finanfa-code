@@ -184,6 +184,31 @@ describe("PermissionManager", () => {
     expect(decision).toBe("allow");
   });
 
+  it("runPostToolUseHook surfaces a hook's plain stdout to the user", async () => {
+    const ui = makeUi("y");
+    const hooksConfig: HooksConfig = { PostToolUse: [{ hooks: [{ type: "command", command: "cat > /dev/null; echo formatted 3 files" }] }] };
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, hooksConfig });
+    await manager.runPostToolUseHook(safeTool, {}, { isError: false, content: "ok" }, ctx);
+    expect(ui.writeSystem).toHaveBeenCalledWith("formatted 3 files");
+  });
+
+  it("runPostToolUseHook surfaces a block's reason, never throwing (the tool already ran)", async () => {
+    const ui = makeUi("y");
+    const hooksConfig: HooksConfig = {
+      PostToolUse: [{ hooks: [{ type: "command", command: "cat > /dev/null; echo '{\"decision\":\"block\",\"reason\":\"flagged for review\"}'" }] }],
+    };
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, hooksConfig });
+    await expect(manager.runPostToolUseHook(safeTool, {}, { isError: false, content: "ok" }, ctx)).resolves.toBeUndefined();
+    expect(ui.writeSystem).toHaveBeenCalledWith("flagged for review");
+  });
+
+  it("runPostToolUseHook does nothing when no PostToolUse hooks are configured", async () => {
+    const ui = makeUi("y");
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+    await manager.runPostToolUseHook(safeTool, {}, { isError: false, content: "ok" }, ctx);
+    expect(ui.writeSystem).not.toHaveBeenCalled();
+  });
+
   it("a throwing preview()/describeCall() denies instead of crashing the turn", async () => {
     const ui = makeUi("y");
     const throwingTool: ToolDefinition = {
