@@ -19,6 +19,22 @@ export interface SessionFile {
   title?: string;
   /** Standing objective set via /goal, kept in the model's context every turn (see systemPromptWithDate in loop.ts) until /goal clear. */
   goal?: string;
+  /**
+   * Which provider family/endpoint `model` actually belongs to — set by
+   * the web UI's /model switcher (see web-server's "set_model"), undefined
+   * for a session that's never switched providers (the CLI has no such
+   * switch; its one provider is fixed for the session's whole lifetime,
+   * so this is always undefined there). Without persisting this, resuming
+   * a session whose last-used model was a local/non-default provider
+   * (crash, restart, page reload) reconstructs the provider from the
+   * global/project default config instead — a real, reproduced bug: a
+   * resumed session kept its local model's name but silently talked to
+   * the default remote provider with it, which naturally rejected a model
+   * name it had never heard of.
+   */
+  providerKind?: string;
+  /** Only set for an openai-compatible provider pointed at a specific endpoint (a detected local runtime, or the one configured default) — undefined for Anthropic. */
+  providerBaseUrl?: string;
 }
 
 // Computed lazily (not memoized as a module constant) so it reflects the
@@ -44,14 +60,18 @@ export class AgentSession {
    * Mutable (unlike id/cwd/systemPrompt) so a frontend can offer switching
    * models mid-conversation, the way Claude.ai/ChatGPT do — runTurn always
    * reads session.model fresh per call, so a change takes effect on the very
-   * next turn. Only meaningful within the same provider/family (switching
-   * from an Anthropic model to another Anthropic model, say) — the provider
-   * instance itself is chosen once per session and isn't swapped here.
+   * next turn. Switching to a model from a different provider/family (e.g.
+   * a detected local runtime) swaps the actual provider instance the web
+   * server uses too — see providerKind/providerBaseUrl below, which is
+   * where that gets recorded so it survives a resume.
    */
   model: string;
   readonly systemPrompt: string;
   title?: string;
   goal?: string;
+  /** See SessionFile's own doc comment — set by the web UI's /model switcher whenever it changes provider, read back on resume so the right provider/endpoint is reconstructed instead of defaulting to the global/project config. */
+  providerKind?: string;
+  providerBaseUrl?: string;
   messages: NeutralMessage[] = [];
   usage: UsageTotals = { inputTokens: 0, outputTokens: 0 };
   readonly history = new EditHistory();
@@ -113,6 +133,8 @@ export class AgentSession {
     session.usage = data.usage;
     session.title = data.title;
     session.goal = data.goal;
+    session.providerKind = data.providerKind;
+    session.providerBaseUrl = data.providerBaseUrl;
     return session;
   }
 
@@ -178,6 +200,8 @@ export class AgentSession {
         usage: this.usage,
         title: this.title,
         goal: this.goal,
+        providerKind: this.providerKind,
+        providerBaseUrl: this.providerBaseUrl,
       };
       await writeFile(tmp, JSON.stringify(data, null, 2), "utf-8");
       await rename(tmp, file);

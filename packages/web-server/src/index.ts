@@ -537,6 +537,31 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     }
     const model = session.model;
 
+    // Reconstructs the provider/endpoint this session actually last talked
+    // to, if it ever switched away from the global/project default (see
+    // the "set_model" handler below, which is the only thing that ever
+    // sets these two fields) — otherwise `initial` above (the ordinary
+    // config-derived default) is exactly right and this is a no-op. Without
+    // this, a resumed session whose last-used model belonged to a local
+    // runtime kept that model's name but silently reverted to whatever
+    // provider is configured as the default, sending a model name that
+    // provider had never heard of.
+    if (session.providerBaseUrl) {
+      provider = new OpenAiCompatibleProvider({ baseUrl: session.providerBaseUrl, apiKey: undefined });
+      providerKind = "openai-compatible";
+    } else if (session.providerKind && session.providerKind !== providerKind) {
+      const family: ProviderFamily = session.providerKind === "openai-compatible" ? "openai-compatible" : "anthropic";
+      const availability = await familyAvailability(config);
+      if (availability[family]) {
+        provider = buildProvider(family, config);
+        providerKind = family;
+      } else {
+        adapter.writeError(
+          `This session was last using a ${family} model, but ${family} isn't configured — falling back to the default (${providerKind}). Switch models or update Settings to restore it.`,
+        );
+      }
+    }
+
     // Same folder-trust gate the CLI applies (see core/trust-gate.ts): a
     // project's own .finanfa-code/settings.json can define permission
     // rules and hooks that run automatically — including a PreToolUse hook
@@ -769,6 +794,19 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
             provider = buildProvider(family, config);
             providerKind = family;
           }
+          // Persisted alongside model so a resume (crash, restart, page
+          // reload) reconstructs the SAME provider/endpoint this session
+          // actually last talked to, instead of always defaulting back to
+          // the global/project config's provider — a real, reproduced bug:
+          // a session last using a local model kept that model's name on
+          // resume, but session.persist() had nowhere to remember it was
+          // local at all, so the freshly reconnected session silently sent
+          // that (to it, meaningless) local model name to the default
+          // remote provider instead, which naturally rejected it. Cleared
+          // (not left stale) when this switch has no baseUrl of its own —
+          // e.g. switching back to a normal remote model after a local one.
+          session.providerKind = providerKind;
+          session.providerBaseUrl = typeof msg.baseUrl === "string" && msg.baseUrl ? msg.baseUrl : undefined;
           session.model = msg.model;
           sendSessionInfo();
         } else if (msg.type === "mcp_status") {

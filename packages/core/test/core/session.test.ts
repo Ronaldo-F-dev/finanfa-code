@@ -48,6 +48,28 @@ describe("AgentSession.persist", () => {
     const resumed = await AgentSession.resume("/some/project", session.id, "s");
     expect(resumed.messages).toEqual(session.messages);
   });
+
+  it("persists providerKind/providerBaseUrl and restores them on resume — the real fix for a resumed session reconstructing the wrong provider for its model", async () => {
+    const session = new AgentSession({ cwd: "/some/project", model: "local-only-model", systemPrompt: "s" });
+    session.providerKind = "openai-compatible";
+    session.providerBaseUrl = "http://localhost:11434/v1";
+
+    await session.persist();
+
+    const resumed = await AgentSession.resume("/some/project", session.id, "s");
+    expect(resumed.model).toBe("local-only-model");
+    expect(resumed.providerKind).toBe("openai-compatible");
+    expect(resumed.providerBaseUrl).toBe("http://localhost:11434/v1");
+  });
+
+  it("leaves providerKind/providerBaseUrl undefined on resume for a session that never switched providers", async () => {
+    const session = new AgentSession({ cwd: "/some/project", model: "claude-sonnet-5", systemPrompt: "s" });
+    await session.persist();
+
+    const resumed = await AgentSession.resume("/some/project", session.id, "s");
+    expect(resumed.providerKind).toBeUndefined();
+    expect(resumed.providerBaseUrl).toBeUndefined();
+  });
 });
 
 describe("AgentSession.list", () => {
