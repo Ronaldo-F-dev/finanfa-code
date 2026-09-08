@@ -31,6 +31,7 @@ import { loadConfig, saveGlobalConfig, type FinanfaConfig } from "@finanfa/core/
 import { CONFIG_KEYS, SECRET_KEYS, maskSecret } from "@finanfa/core/src/commands/builtin.js";
 import { BASE_SYSTEM_PROMPT, selectProvider, connectMcpServers, parseApiKeys } from "@finanfa/core/src/app.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
+import { isDockerModelRunnerAvailable, listDockerModels, searchDockerModels, pullDockerModel } from "@finanfa/core/src/core/docker-models.js";
 import { AnthropicProvider } from "@finanfa/core/src/providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "@finanfa/core/src/providers/openai-compatible-provider.js";
 import type { LlmProvider, NeutralImage } from "@finanfa/core/src/core/types.js";
@@ -136,6 +137,51 @@ app.get("/api/models", async (req, res) => {
     ...localModels.map((m) => ({ id: `${m.source}: ${m.id}`, family: "openai-compatible" as const, configured: true, baseUrl: m.baseUrl, localModelId: m.id })),
   ];
   res.json({ activeProviderKind: kind, defaultModel, models });
+});
+
+app.get("/api/docker-models/status", async (_req, res) => {
+  res.json({ available: await isDockerModelRunnerAvailable() });
+});
+
+app.get("/api/docker-models/installed", async (_req, res) => {
+  try {
+    res.json({ models: await listDockerModels() });
+  } catch (err) {
+    res.status(503).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.get("/api/docker-models/search", async (req, res) => {
+  const query = typeof req.query.q === "string" ? req.query.q : undefined;
+  try {
+    res.json({ results: await searchDockerModels(query, 30) });
+  } catch (err) {
+    res.status(503).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// A pull can take anywhere from seconds (small model) to minutes (a large
+// one over a slow connection) — Server-Sent Events so the client can show
+// real progress instead of a spinner with no feedback for however long
+// that takes. One "line" event per real stdout/stderr line from the CLI,
+// then one "done"/"error" event; the connection closes either way.
+app.get("/api/docker-models/pull", (req, res) => {
+  const name = req.query.name;
+  if (typeof name !== "string" || !name) {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
+  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+  const controller = new AbortController();
+  req.on("close", () => controller.abort());
+  pullDockerModel(
+    name,
+    (line) => res.write(`event: line\ndata: ${JSON.stringify(line)}\n\n`),
+    controller.signal,
+  )
+    .then(() => res.write("event: done\ndata: {}\n\n"))
+    .catch((err) => res.write(`event: error\ndata: ${JSON.stringify(err instanceof Error ? err.message : String(err))}\n\n`))
+    .finally(() => res.end());
 });
 
 app.post("/api/upload", async (req, res) => {
