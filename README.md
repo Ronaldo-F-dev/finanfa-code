@@ -37,14 +37,26 @@ Prefer a model with reliable tool-calling support — a model that writes tool c
 
 Saved to `~/.finanfa-code/config.json` (global) or `.finanfa-code/config.json` (project-local, overrides global). Priority: env var/CLI flag > project config > global config > default. Takes effect on the next run.
 
-### Web UI
+## Running
+
+### Terminal (default)
 
 ```bash
-npm run dev:web-server   # terminal 1
-npm run dev:web-client   # terminal 2
+npm run dev
 ```
 
-Same agent, same tools/config, browser front end instead of the terminal.
+### Browser
+
+Two processes, in two terminals — the server (agent + WebSocket) and the client (Vite dev server) run separately:
+
+```bash
+npm run dev:web-server   # terminal 1 — API/WebSocket server on http://localhost:4600
+npm run dev:web-client   # terminal 2 — Vite dev server, proxies /api and /ws to the server above
+```
+
+Open the URL `dev:web-client` prints (`http://localhost:5173` by default). Same agent, same tools/config as the terminal UI — a chat UI with sessions, projects, MCP/skills/memory panels, and model switching, instead of a terminal.
+
+By default the web server operates on the directory it was started from; point it elsewhere with `FINANFA_WEB_CWD=/path/to/project npm run dev:web-server`, or change the port with `PORT=4601 npm run dev:web-server` (update the proxy target in `packages/web-client/vite.config.ts` to match). For a one-off production build instead of the dev server: `npm run build:web-client`, then `npm run dev:web-server` serves the built client directly — no separate client process needed.
 
 ## CLI flags
 
