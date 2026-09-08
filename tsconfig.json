@@ -23,6 +23,7 @@
     "packages/cli/bin",
     "packages/cli/src",
     "packages/cli/test",
-    "packages/web-server/src"
+    "packages/web-server/src",
+    "packages/web-server/test"
   ]
 }

@@ -32,6 +32,9 @@ export function createWebUiAdapter(ws: WebSocket): { adapter: UIAdapter; resolve
     writeSystem(text) {
       send("system", { text });
     },
+    writeToolCall(info) {
+      send("tool_call", { ...info });
+    },
     writeError(text) {
       send("error", { text });
     },

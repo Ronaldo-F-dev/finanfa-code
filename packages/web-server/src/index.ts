@@ -8,6 +8,9 @@ import { ToolRegistry } from "@finanfa/core/src/tools/registry.js";
 import { registerBuiltins, registerStatefulBuiltins } from "@finanfa/core/src/tools/builtin/index.js";
 import { PermissionManager } from "@finanfa/core/src/permissions/manager.js";
 import { loadPermissionConfig } from "@finanfa/core/src/permissions/config.js";
+import { loadHooksConfig } from "@finanfa/core/src/hooks/config.js";
+import { resolveTrust } from "@finanfa/core/src/core/trust-gate.js";
+import { loadSubagentTypes } from "@finanfa/core/src/agents/loader.js";
 import { McpClientManager, MCP_TOOL_PREFIX } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadMcpServers } from "@finanfa/core/src/mcp/config.js";
 import { MCP_CATALOG } from "./mcp-catalog.js";
@@ -417,6 +420,30 @@ wss.on("connection", (ws: WebSocket, req) => {
 
 async function handleConnection(ws: WebSocket, url: string): Promise<void> {
   const { adapter, resolvePending } = createWebUiAdapter(ws);
+
+  // Registered immediately — not just as part of the big ws.on("message")
+  // handler further down, which isn't attached until session/tools/
+  // permissions setup finishes. resolveTrust (called during that setup,
+  // below) can itself send an "ask" prompt and await its answer; without
+  // this early listener, a permission_response answering it arrives with
+  // nothing yet listening to relay it to resolvePending(), and
+  // handleConnection hangs forever awaiting a reply that already arrived.
+  // Real bug, caught by an actual WebSocket round-trip test, not a guess —
+  // multiple "message" listeners on the same ws are fine in Node; this one
+  // only ever touches permission_response, the later handler's own
+  // (redundant but harmless) resolvePending call just finds nothing left.
+  ws.on("message", (raw: Buffer) => {
+    try {
+      const msg = JSON.parse(raw.toString()) as { type?: string; requestId?: unknown; answer?: unknown };
+      if (msg.type === "permission_response" && typeof msg.requestId === "number" && typeof msg.answer === "string") {
+        resolvePending(msg.requestId, msg.answer);
+      }
+    } catch {
+      // Malformed JSON is handled (with a user-visible error) by the main
+      // message handler below once it's attached — nothing to do here.
+    }
+  });
+
   const params = new URL(url, "http://localhost").searchParams;
   const requestedModel = params.get("model") ?? undefined;
   const requestedSessionId = params.get("session") ?? undefined;
@@ -464,8 +491,18 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     }
     const model = session.model;
 
-    const permissionConfig = await loadPermissionConfig(CWD);
-    const permissions = new PermissionManager({ config: permissionConfig, ui: adapter });
+    // Same folder-trust gate the CLI applies (see core/trust-gate.ts): a
+    // project's own .finanfa-code/settings.json can define permission
+    // rules and hooks that run automatically — including a PreToolUse hook
+    // that auto-approves every tool call — so it must never take effect
+    // just because the web server happened to be pointed at that
+    // directory. resolveTrust prompts over the same askUser round-trip
+    // permission prompts already use; nonInteractive is never set here
+    // (the web UI always has a live client to answer it).
+    const trusted = await resolveTrust(CWD, adapter);
+    const permissionConfig = await loadPermissionConfig(CWD, trusted);
+    const hooksConfig = await loadHooksConfig(CWD, trusted);
+    const permissions = new PermissionManager({ config: permissionConfig, ui: adapter, hooksConfig });
 
     const mcp = new McpClientManager();
     const browser = new BrowserManager();
@@ -473,7 +510,8 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     const needsAuthSet = new Set(needsAuth);
     for (const def of await mcp.listAllTools()) tools.register(def);
 
-    registerStatefulBuiltins(tools, { provider, permissions, ui: adapter, model, cwd: CWD, browser, designContract: designContract.content, systemPrompt });
+    const agentTypes = await loadSubagentTypes(CWD);
+    registerStatefulBuiltins(tools, { provider, permissions, ui: adapter, model, cwd: CWD, browser, designContract: designContract.content, systemPrompt, agentTypes });
 
     function sendSessionInfo(): void {
       ws.send(
@@ -720,6 +758,19 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
         } else if (msg.type === "set_tool_enabled" && typeof msg.name === "string" && typeof msg.enabled === "boolean") {
           if (msg.enabled) session.disabledTools.delete(msg.name);
           else session.disabledTools.add(msg.name);
+        } else if (msg.type === "set_plan_mode" && typeof msg.enabled === "boolean") {
+          // Same gate as /plan in the CLI (see loop.ts's runOneToolCall):
+          // while on, only read-only tools and exit_plan_mode run. Pushed
+          // as a status update immediately, not just on the next turn's
+          // ui.setStatus — the client shouldn't have to send a message
+          // first to see the toggle actually took effect.
+          session.planMode = msg.enabled;
+          adapter.setStatus({
+            tokens: session.usage.inputTokens + session.usage.outputTokens,
+            costUsd: session.costUsd,
+            model: session.model,
+            planMode: session.planMode,
+          });
         }
       })();
     });
