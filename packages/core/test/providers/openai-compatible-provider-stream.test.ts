@@ -163,6 +163,16 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
       expect((fetchMock.mock.calls[2][1] as RequestInit).headers).toMatchObject({ Authorization: "Bearer good-key" });
     });
 
+    it("names the exact url and model in a 404 error — actionable when several local backends are in play", async () => {
+      const fetchMock = vi.fn().mockResolvedValue(new Response('{"error":"please check the model you provided"}', { status: 404 }));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:12434/v1" });
+      await expect(
+        provider.streamTurn({ model: "docker.io/ai/smollm2:latest", systemPrompt: "s", messages: [], tools: [], onTextDelta: () => {} }),
+      ).rejects.toThrow(/http:\/\/localhost:12434\/v1\/chat\/completions.*docker\.io\/ai\/smollm2:latest/);
+    });
+
     it("does not rotate keys for a transient 5xx or a non-key-related error — same key, same behavior as a single-key setup", async () => {
       const fetchMock = vi.fn().mockResolvedValue(new Response("bad request", { status: 400 }));
       vi.stubGlobal("fetch", fetchMock);

@@ -165,7 +165,7 @@ async function fetchInitialResponse(
       const retryable = RETRYABLE_STATUSES.has(response.status) || (retryOn429 && response.status === 429);
       if (retryable) {
         const text = await response.text().catch(() => "");
-        throw new RetryableHttpError(`OpenAI-compatible API error (${response.status}): ${text}`);
+        throw new RetryableHttpError(`OpenAI-compatible API error (${response.status}) from ${url} (model: ${body.model}): ${text}`);
       }
       return response;
     },
@@ -193,7 +193,12 @@ async function attemptStreamChatCompletion(
 
   if (!response.ok || !response.body) {
     const text = await response.text().catch(() => "");
-    throw new Error(`OpenAI-compatible API error (${response.status}): ${text}`);
+    // Naming the exact url/model this request actually used is what makes a
+    // "model not found"-style error from a self-hosted/local backend
+    // (several available at once — Ollama, Docker Model Runner, a
+    // configured remote one, ...) actionable instead of ambiguous about
+    // which server or model string was really sent.
+    throw new Error(`OpenAI-compatible API error (${response.status}) from ${url} (model: ${body.model}): ${text}`);
   }
 
   const reader = response.body.getReader();
