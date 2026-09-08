@@ -203,6 +203,12 @@ describe("runTurn: a provider call that throws ends the turn cleanly instead of 
     "context_length_exceeded",
     "prompt is too long: 210004 tokens > 200000 maximum",
     "Please reduce the length of the messages.",
+    // Real, reported wording from a local llama.cpp-backed server (Docker
+    // Model Runner, Ollama's own llama.cpp core, ...) — a small local model
+    // with a modest context window rejecting this project's real system
+    // prompt + full tool list, which easily runs to tens of thousands of
+    // tokens on its own before a single user message is added.
+    "request (41645 tokens) exceeds the available context size (14336 tokens), try increasing it",
   ])(
     "gives an actionable /clear-or-/session message, not the raw error alone, for a real context-length wording: %s",
     async (providerMessage) => {

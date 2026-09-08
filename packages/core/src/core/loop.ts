@@ -281,7 +281,7 @@ function describeError(err: unknown): string {
 // than one exact string, since it's never been worth depending on a single
 // provider's phrasing.
 const CONTEXT_LENGTH_ERROR_PATTERN =
-  /context.{0,20}(length|window)|too (many|long).{0,30}tokens|maximum.{0,30}tokens|tokens.{0,30}maximum|reduce the (length|amount)/i;
+  /context.{0,20}(length|window|size)|too (many|long).{0,30}tokens|maximum.{0,30}tokens|tokens.{0,30}maximum|reduce the (length|amount)|exceeds.{0,30}context/i;
 
 function isLikelyContextLengthError(message: string): boolean {
   return CONTEXT_LENGTH_ERROR_PATTERN.test(message);
