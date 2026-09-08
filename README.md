@@ -87,6 +87,9 @@ Type `/` to see live autocomplete suggestions (Ink UI: arrow keys to select, Tab
 - `/session <id>` — switch to a different saved session mid-run, without restarting finanfa-code (`/sessions` lists ids; the currently-running one is checkpointed first, same as a normal exit). Also the escape hatch a context-length error now points you to (see below), alongside `/clear`.
 - `/goal [text]` — set (or, with no argument, clear) a standing goal for the session, injected fresh into the system prompt on every turn rather than baked in once — so changing or clearing it mid-session takes effect immediately, and it survives context compaction the way an ordinary early message wouldn't.
 - `/config [show]` / `/config set <provider|model|baseUrl|apiKey> <value>` / `/config clear` — persistent defaults, so you don't have to re-export `FINANFA_*`/`ANTHROPIC_API_KEY` every session (see below)
+- `/tools [list]` / `/tools enable <name>` / `/tools disable <name>` — list every registered tool (90+ of them, spanning file I/O, security scanning, IoT/embedded dev, DevOps wrappers, red-teaming, and more) with its risk level and enabled/disabled status, and toggle one off/on for the session without needing an MCP server involved.
+- `/plan [on|off]` — plan mode (real Claude Code's "look before you act" gate for large/risky tasks): while on, every tool except read-only ones is auto-denied with no prompt at all — the agent can only research. The only way out is the agent calling `exit_plan_mode` with its full plan, which goes through the normal `ask`-risk permission prompt (previewing the plan text itself); approving turns plan mode off, declining leaves it on so the agent revises and tries again. No args reports the current state without changing it.
+- `/rewind [<number>]` — restore the conversation AND every file change made since a checkpoint, in one step (a checkpoint is recorded automatically each time you send a message). Unlike `/undo` (one file at a time, conversation untouched), this actually rewinds the whole session back to right before a past message. No args lists the available checkpoints with a short preview of each.
 - `/exit` — quit
 
 Sessions are auto-titled once there's enough conversation to summarize (like ChatGPT/Claude.ai) — a short title generated from the transcript so far and shown in `/sessions`, rather than every entry just being a bare id/timestamp.
@@ -103,7 +106,21 @@ Ctrl+C (or `kill -TERM`) triggers a graceful shutdown in both UI modes: the curr
 
 ## Project-local configuration (`.finanfa-code/`)
 
-- `settings.json` — permission rules (see `src/permissions/config.ts` for the shape)
+- `settings.json` — permission rules (see `src/permissions/config.ts` for the shape), plus an optional `hooks` field: shell commands that run at points in the agent loop, matching real Claude Code's own hooks convention.
+  ```json
+  {
+    "hooks": {
+      "PreToolUse": [{ "matcher": "bash", "hooks": [{ "type": "command", "command": "my-policy-check.sh" }] }],
+      "PostToolUse": [{ "hooks": [{ "type": "command", "command": "echo done >> ~/tool.log" }] }],
+      "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "git branch --show-current" }] }]
+    }
+  }
+  ```
+  Each hook command gets the event as JSON on stdin and can respond with `{"decision":"block"|"approve","reason":"..."}` on stdout, or exit code `2` to block (stderr becomes the reason) — anything else is "no opinion" and the normal flow proceeds, with any plain stdout surfaced to you. `PreToolUse` is checked before every tool call (an `approve` skips the confirmation prompt entirely, a `block` denies without one — both take precedence over `--yolo`); `PostToolUse` runs after a tool completes (informational only — the action already happened); `UserPromptSubmit` runs before your message reaches the model (a `block` stops it from being sent at all; otherwise its stdout is appended to your message as extra context, e.g. the current git branch).
+
+  **Because this is a project file, a folder is untrusted by default.** The first time you run finanfa-code in a project that has a `.finanfa-code/settings.json`, you're asked once whether you trust it — declining ignores that project's rules/hooks for the run (your global `~/.finanfa-code/config.json` still applies) without disabling anything permanently; accepting remembers the folder (`~/.finanfa-code/trusted-folders.json`) so you're never asked again. This exists specifically because a hook can auto-approve every tool call — without the gate, cloning an untrusted repo and running finanfa-code in it would silently hand that repo's `settings.json` the ability to bypass every permission prompt. `--non-interactive` fails closed (project config ignored) rather than hanging on a prompt with no TTY to answer it.
+- `commands/*.md` — custom slash commands: a markdown file becomes a `/<name>` shortcut. Frontmatter (`name`, `description`) + a body used as a prompt template — `$ARGUMENTS` in the body is replaced with whatever follows the command name (or, if the template doesn't mention it, the args are appended on their own paragraph). Unlike a skill (loaded on demand by the model itself) or a builtin command (a fixed, synchronous, code-defined action), invoking one actually runs a real turn through the agent loop, same as if you'd typed the expanded template yourself.
+- `agents/*.md` — custom subagent types for the `task` tool: a markdown file defines a named persona (its own system prompt, and optionally a restricted tool whitelist via a `tools` frontmatter field) that `task` can delegate to via an `agentType` input, instead of every delegated task getting the same one-size-fits-all generic sub-agent prompt with full tool access.
 - `mcp.json` — `{ "servers": [ ... ] }`, one entry per MCP server:
   - stdio (local process): `{ "name": "github", "transport": "stdio", "command": "npx", "args": ["-y", "@modelcontextprotocol/server-github"] }`
   - http / sse (remote server): `{ "name": "example", "transport": "http", "url": "https://mcp.example.com/mcp" }`
@@ -113,7 +130,7 @@ Ctrl+C (or `kill -TERM`) triggers a graceful shutdown in both UI modes: the curr
 - `finanfa.md` (project root, not under `.finanfa-code/`) — free-form project instructions, the finanfa-code equivalent of a `CLAUDE.md`/`AGENTS.md`: loaded at startup (`loadProjectInstructions(cwd)`, `src/core/project-instructions.ts`) and folded into the system prompt verbatim if present. No merging logic beyond "present or not" — it's plain instructions text, not a structured config file.
 - `finanfa-design.md` (project root) — design contract consumed specifically by `create_artifact` (see below); if present, it fully replaces finanfa-code's own built-in default rather than merging with it.
 
-**Both also have a global counterpart** — `~/.finanfa-code/skills/*.md` and `~/.finanfa-code/memory/*.md` — merged with the project-local ones on every load (project-local wins on a name collision). Use global for something true in *every* project, not just this one: a systemwide CLI tool the agent should know to reach for, or a durable preference that isn't project-specific. `write_memory` takes an optional `scope: "global"` (default `"project"`) to write there directly; skills are hand-authored either way, so just drop the file in `~/.finanfa-code/skills/` yourself.
+**All four (skills, memory, commands, agents) also have a global counterpart** — `~/.finanfa-code/skills/*.md`, `~/.finanfa-code/memory/*.md`, `~/.finanfa-code/commands/*.md`, `~/.finanfa-code/agents/*.md` — merged with the project-local ones on every load (project-local wins on a name collision). Use global for something true in *every* project, not just this one: a systemwide CLI tool the agent should know to reach for, a durable preference that isn't project-specific, a slash-command shortcut you want everywhere, or a subagent persona you reuse across repos. `write_memory` takes an optional `scope: "global"` (default `"project"`) to write there directly; skills/commands/agents are hand-authored either way, so just drop the file in the matching `~/.finanfa-code/` subdirectory yourself.
 
 ### Connecting third-party services (GitHub, etc.) via MCP
 
