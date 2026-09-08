@@ -123,7 +123,9 @@ async function runOneToolCall(
       return { result: { toolCallId: call.id, isError: true, content: "User declined to run this tool." } };
     }
 
-    ui.writeSystem(`→ ${tool.name}: ${tool.describeCall ? tool.describeCall(call.input) : ""}`);
+    const callDescription = tool.describeCall ? tool.describeCall(call.input) : "";
+    if (ui.writeToolCall) ui.writeToolCall({ toolName: tool.name, description: callDescription, riskLevel: tool.riskLevel });
+    else ui.writeSystem(`→ ${tool.name}: ${callDescription}`);
     ui.setBusy(true, tool.name);
     try {
       const result = await withSpan("tool.call", { "tool.name": tool.name, "tool.risk_level": tool.riskLevel }, async (span) => {

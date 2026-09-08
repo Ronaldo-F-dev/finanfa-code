@@ -1,3 +1,11 @@
+import type { ToolRiskLevel } from "../core/types.js";
+
+export interface ToolCallAnnouncement {
+  toolName: string;
+  description: string;
+  riskLevel: ToolRiskLevel;
+}
+
 export interface StatusInfo {
   tokens: number;
   costUsd: number;
@@ -19,6 +27,14 @@ export interface UIAdapter {
   writeBanner(version: string): void;
   writeSystem(text: string): void;
   writeError(text: string): void;
+  /**
+   * A tool is about to run — distinct from writeSystem so each adapter can
+   * render it richly (an icon/color per risk level) instead of a plain
+   * "→ tool_name: ..." line. Optional: falls back to writeSystem (see
+   * core/loop.ts) so every existing UIAdapter fake in tests keeps compiling
+   * unchanged.
+   */
+  writeToolCall?(info: ToolCallAnnouncement): void;
   setStatus(status: StatusInfo): void;
   getStatus(): StatusInfo | undefined;
   /** Registers the available slash commands, used to drive autocomplete/suggestions. */
