@@ -121,8 +121,18 @@ class StreamNotYetVisibleError extends Error {
  * Once we start reading the response body below, we never retry: some of it
  * may already be visible to the user, and redoing it would duplicate output.
  */
-const REQUEST_TIMEOUT_MS = 60_000;
-const STREAM_IDLE_TIMEOUT_MS = 60_000;
+// 60s was too short for a real, reported case: switching to a local model
+// (Docker Model Runner/Ollama) served through this provider timed out with
+// "The operation was aborted due to timeout" — not a hung server, just a
+// legitimate cold start (loading a multi-GB GGUF file from disk into RAM,
+// no GPU) taking longer than a minute before the first token comes back.
+// Raised generously rather than tuned tightly, since the whole point of
+// this timeout is "eventually give up on a truly hung server" — a real
+// remote API essentially never takes this long, so a well-behaved backend
+// never notices the difference; only a local cold start or a genuinely
+// stuck server does.
+const REQUEST_TIMEOUT_MS = 300_000;
+const STREAM_IDLE_TIMEOUT_MS = 120_000;
 
 async function fetchInitialResponse(
   url: string,
