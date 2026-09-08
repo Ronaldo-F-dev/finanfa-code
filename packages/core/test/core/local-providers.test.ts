@@ -30,4 +30,18 @@ describe("detectLocalProviders (real network probes)", () => {
     },
     10_000,
   );
+
+  it(
+    "detects a real running Docker Model Runner instance and its real pulled models, when one happens to be running in this environment",
+    async () => {
+      const models = await detectLocalProviders();
+      const dmrModels = models.filter((m) => m.source === "Docker Model Runner");
+      if (dmrModels.length === 0) return; // not running here — not this test's job to start one
+      for (const m of dmrModels) {
+        expect(m.baseUrl).toBe("http://localhost:12434/v1");
+        expect(m.id.length).toBeGreaterThan(0);
+      }
+    },
+    10_000,
+  );
 });

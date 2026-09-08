@@ -26,6 +26,12 @@ const CANDIDATES: Candidate[] = [
   { port: 1234, source: "LM Studio" },
   { port: 8080, source: "llama.cpp" },
   { port: 8000, source: "vLLM" },
+  // Docker Model Runner (`docker model ...`) — its OpenAI-compatible gateway
+  // listens on 12434 by default when the runner is installed/enabled.
+  // Verified directly against a real running instance with real pulled
+  // models (granite/qwen2.5-coder/smollm/...), not just documented like the
+  // others above.
+  { port: 12434, source: "Docker Model Runner" },
 ];
 
 async function probe(candidate: Candidate): Promise<LocalModel[]> {
