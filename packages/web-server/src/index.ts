@@ -596,6 +596,23 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
       );
     }
 
+    // Lets the client manage the full tool list (see the "Tools" panel) —
+    // the web UI previously had no equivalent of the CLI's /tools command
+    // at all, a real problem for a small-context local model: this
+    // project's system prompt + full tool list alone can run to tens of
+    // thousands of tokens, easily overflowing a 4k/8k-context local model
+    // before a single user message is even added. Disabling most tools
+    // here is the direct, immediate fix for that — this is what makes it
+    // reachable from the browser.
+    function sendToolsStatus(): void {
+      ws.send(
+        JSON.stringify({
+          type: "tools_status",
+          tools: tools.list().map((t) => ({ name: t.name, riskLevel: t.riskLevel, enabled: !session.disabledTools.has(t.name) })),
+        }),
+      );
+    }
+
     async function reloadMcpTools(): Promise<void> {
       tools.unregisterByPrefix(MCP_TOOL_PREFIX);
       for (const def of await mcp.listAllTools()) tools.register(def);
@@ -804,6 +821,9 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
         } else if (msg.type === "set_tool_enabled" && typeof msg.name === "string" && typeof msg.enabled === "boolean") {
           if (msg.enabled) session.disabledTools.delete(msg.name);
           else session.disabledTools.add(msg.name);
+          sendToolsStatus();
+        } else if (msg.type === "tools_status") {
+          sendToolsStatus();
         } else if (msg.type === "set_plan_mode" && typeof msg.enabled === "boolean") {
           // Same gate as /plan in the CLI (see loop.ts's runOneToolCall):
           // while on, only read-only tools and exit_plan_mode run. Pushed
