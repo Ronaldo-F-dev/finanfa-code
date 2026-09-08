@@ -200,6 +200,11 @@ body {
   overflow-y: auto;
 }
 
+/* 90+ builtin tools vs. a handful of MCP servers — more scroll room. */
+.tools-panel-list {
+  max-height: 420px;
+}
+
 .mcp-row {
   display: flex;
   align-items: center;

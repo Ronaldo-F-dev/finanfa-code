@@ -8,6 +8,7 @@ import { SettingsModal } from "./components/SettingsModal";
 import { McpPanel } from "./components/McpPanel";
 import { MemoryPanel } from "./components/MemoryPanel";
 import { DockerModelsPanel } from "./components/DockerModelsPanel";
+import { ToolsPanel } from "./components/ToolsPanel";
 import { ProjectsListView } from "./components/ProjectsListView";
 import { ProjectDetailView } from "./components/ProjectDetailView";
 
@@ -54,6 +55,7 @@ export default function App() {
   const [mcpOpen, setMcpOpen] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
@@ -97,6 +99,7 @@ export default function App() {
     sessionInfo,
     mcpServers,
     mcpLoaded,
+    toolsStatus,
     modelUnavailable,
     sendMessage,
     answerPermission,
@@ -109,6 +112,7 @@ export default function App() {
     mcpToggle,
     mcpReload,
     setToolEnabled,
+    requestToolsStatus,
     setPlanMode,
   } = useAgentSocket(connectModel || undefined, activeSessionId, activeProjectId, onTitled);
 
@@ -260,6 +264,10 @@ export default function App() {
         }}
         onOpenModels={() => {
           setModelsOpen(true);
+          setSidebarOpen(false);
+        }}
+        onOpenTools={() => {
+          setToolsOpen(true);
           setSidebarOpen(false);
         }}
       />
@@ -437,6 +445,9 @@ export default function App() {
       )}
       {memoryOpen && <MemoryPanel projectId={activeProjectId} onClose={() => setMemoryOpen(false)} />}
       {modelsOpen && <DockerModelsPanel onClose={() => setModelsOpen(false)} />}
+      {toolsOpen && (
+        <ToolsPanel tools={toolsStatus} onClose={() => setToolsOpen(false)} onToggle={setToolEnabled} onRefresh={requestToolsStatus} />
+      )}
     </div>
   );
 }

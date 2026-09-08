@@ -19,6 +19,7 @@ export function Sidebar({
   onOpenProjects,
   onOpenMemory,
   onOpenModels,
+  onOpenTools,
 }: {
   activeSessionId: string | undefined;
   projectId: string | undefined;
@@ -32,6 +33,7 @@ export function Sidebar({
   onOpenProjects: () => void;
   onOpenMemory: () => void;
   onOpenModels: () => void;
+  onOpenTools: () => void;
 }) {
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
 
@@ -82,6 +84,9 @@ export function Sidebar({
         </button>
         <button className="sidebar-settings" onClick={onOpenModels}>
           🧩 Models
+        </button>
+        <button className="sidebar-settings" onClick={onOpenTools}>
+          🧰 Tools
         </button>
         <button className="sidebar-settings" onClick={onOpenSettings}>
           ⚙ Settings

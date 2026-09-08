@@ -29,6 +29,12 @@ export interface SessionInfo {
   toolCount: number;
 }
 
+export interface ToolStatus {
+  name: string;
+  riskLevel: ToolRiskLevel;
+  enabled: boolean;
+}
+
 export interface McpServerStatus {
   name: string;
   transport: string;
@@ -79,6 +85,7 @@ export function useAgentSocket(
   // from "genuinely nothing configured" so the panel doesn't flash a wrong
   // "no servers" message to someone who opens it quickly.
   const [mcpLoaded, setMcpLoaded] = useState(false);
+  const [toolsStatus, setToolsStatus] = useState<ToolStatus[]>([]);
   const [modelUnavailable, setModelUnavailable] = useState<ModelUnavailable | null>(null);
   const [resumeToken, setResumeToken] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
@@ -165,6 +172,9 @@ export function useAgentSocket(
           setMcpServers(msg.servers);
           setMcpLoaded(true);
           break;
+        case "tools_status":
+          setToolsStatus(msg.tools);
+          break;
         case "model_unavailable":
           setModelUnavailable({ model: msg.model, family: msg.family, message: msg.message });
           break;
@@ -232,6 +242,7 @@ export function useAgentSocket(
   const mcpToggle = useCallback((name: string, enabled: boolean) => send({ type: enabled ? "mcp_enable" : "mcp_disable", name }), [send]);
   const mcpReload = useCallback(() => send({ type: "mcp_reload" }), [send]);
   const setToolEnabled = useCallback((name: string, enabled: boolean) => send({ type: "set_tool_enabled", name, enabled }), [send]);
+  const requestToolsStatus = useCallback(() => send({ type: "tools_status" }), [send]);
   const compact = useCallback(() => send({ type: "compact" }), [send]);
   const setPlanMode = useCallback((enabled: boolean) => send({ type: "set_plan_mode", enabled }), [send]);
 
@@ -244,6 +255,7 @@ export function useAgentSocket(
     sessionInfo,
     mcpServers,
     mcpLoaded,
+    toolsStatus,
     modelUnavailable,
     sendMessage,
     answerPermission,
@@ -256,6 +268,7 @@ export function useAgentSocket(
     mcpToggle,
     mcpReload,
     setToolEnabled,
+    requestToolsStatus,
     setPlanMode,
   };
 }
