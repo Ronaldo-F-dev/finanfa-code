@@ -246,4 +246,26 @@ describe("runTurn: a provider call that throws ends the turn cleanly instead of 
 
     expect(ui.writeSystem).not.toHaveBeenCalledWith(expect.stringContaining("context-length error"));
   });
+
+  it("gives an actionable message for a real 'model doesn't support tools' error, not the raw error alone", async () => {
+    class FailingProvider implements LlmProvider {
+      async streamTurn(): Promise<StreamTurnResult> {
+        // Real, reported wording from Ollama serving a model with no
+        // function-calling support (yi-coder:9b-chat).
+        throw new Error(
+          'OpenAI-compatible API error (400) from http://localhost:11434/v1/chat/completions (model: yi-coder:9b-chat): ' +
+            '{"error":{"message":"registry.ollama.ai/library/yi-coder:9b-chat does not support tools","type":"invalid_request_error","param":null,"code":null}}',
+        );
+      }
+    }
+
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "yi-coder:9b-chat", systemPrompt: "sys" });
+
+    await runTurn(session, new FailingProvider(), ui, new ToolRegistry(), permissions, "hello");
+
+    expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("doesn't support tool/function calling"));
+    expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/tools"));
+  });
 });

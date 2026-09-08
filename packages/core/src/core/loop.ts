@@ -287,6 +287,17 @@ function isLikelyContextLengthError(message: string): boolean {
   return CONTEXT_LENGTH_ERROR_PATTERN.test(message);
 }
 
+// Real, reported case: a local model (Ollama serving a model with no
+// function-calling support, e.g. yi-coder:9b-chat) rejected the request
+// outright with "... does not support tools" — this project always sends
+// its full tool list on every call, with no way to opt a specific model
+// out short of disabling every tool for the whole session (see /tools).
+const TOOLS_UNSUPPORTED_ERROR_PATTERN = /does.{0,15}not support tools|calling.{0,20}not.{0,10}support/i;
+
+function isLikelyToolsUnsupportedError(message: string): boolean {
+  return TOOLS_UNSUPPORTED_ERROR_PATTERN.test(message);
+}
+
 // Both LoopGuard messages below start with this — a distinctive marker so
 // callers (task.ts) can tell "the turn was cut off by the guard" apart from
 // "the model naturally finished", without runTurn needing a richer return
@@ -584,6 +595,20 @@ export async function runTurn(
           `(the model call failed — this looks like a context-length error: the conversation is too large for ` +
             `${active.model} even after compaction. Use /clear to start fresh in this session, or /session <id> ` +
             `to switch to a different one — see /sessions for ids. Original error: ${message})`,
+        );
+      } else if (isLikelyToolsUnsupportedError(message)) {
+        // This project always sends its full tool list on every call —
+        // there's no per-model "text-only" mode short of disabling every
+        // tool for the whole session (/tools disable <name> for each one,
+        // or the web UI's Tools panel). Some local models (a smaller
+        // fine-tune with no function-calling training) genuinely can't
+        // accept a request with tools attached at all, distinct from a
+        // model that just doesn't reliably *use* them.
+        ui.writeSystem(
+          `(the model call failed — ${active.model} doesn't support tool/function calling at all, and every call ` +
+            "here includes the full tool list. Pick a model that supports it, or disable every tool for this " +
+            "session (/tools, or the web UI's Tools panel) to use this one for plain text chat with no tool use. " +
+            `Original error: ${message})`,
         );
       } else {
         ui.writeSystem(`(the model call failed: ${message})`);
