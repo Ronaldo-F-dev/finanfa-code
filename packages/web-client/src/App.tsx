@@ -7,6 +7,7 @@ import { Sidebar } from "./components/Sidebar";
 import { SettingsModal } from "./components/SettingsModal";
 import { McpPanel } from "./components/McpPanel";
 import { MemoryPanel } from "./components/MemoryPanel";
+import { DockerModelsPanel } from "./components/DockerModelsPanel";
 import { ProjectsListView } from "./components/ProjectsListView";
 import { ProjectDetailView } from "./components/ProjectDetailView";
 
@@ -52,6 +53,7 @@ export default function App() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [mcpOpen, setMcpOpen] = useState(false);
   const [memoryOpen, setMemoryOpen] = useState(false);
+  const [modelsOpen, setModelsOpen] = useState(false);
   const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
@@ -256,6 +258,10 @@ export default function App() {
           setMemoryOpen(true);
           setSidebarOpen(false);
         }}
+        onOpenModels={() => {
+          setModelsOpen(true);
+          setSidebarOpen(false);
+        }}
       />
 
       {view.kind === "projects" && <ProjectsListView onOpenProject={(id) => setView({ kind: "project", id })} />}
@@ -430,6 +436,7 @@ export default function App() {
         <McpPanel servers={mcpServers} loaded={mcpLoaded} onClose={() => setMcpOpen(false)} onConnect={mcpConnect} onToggle={mcpToggle} onReload={mcpReload} />
       )}
       {memoryOpen && <MemoryPanel projectId={activeProjectId} onClose={() => setMemoryOpen(false)} />}
+      {modelsOpen && <DockerModelsPanel onClose={() => setModelsOpen(false)} />}
     </div>
   );
 }

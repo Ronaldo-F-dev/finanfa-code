@@ -247,6 +247,39 @@ body {
   color: var(--text-muted);
 }
 
+.docker-models-search-row {
+  display: flex;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+.docker-models-search-row input {
+  flex: 1;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  color: var(--text);
+  font-size: 13px;
+}
+.docker-models-pull-log {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--text-muted);
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px 10px;
+  margin-bottom: 12px;
+  max-height: 140px;
+  overflow-y: auto;
+  white-space: pre-wrap;
+}
+.docker-models-error {
+  color: #e5534b;
+  font-size: 12.5px;
+  margin-bottom: 12px;
+}
+
 .topbar {
   display: flex;
   align-items: center;
