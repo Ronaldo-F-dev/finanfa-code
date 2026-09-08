@@ -49,6 +49,27 @@ describe("Ink App", () => {
     expect(lastFrame()).not.toContain("PLAN MODE");
   });
 
+  it("renders a tool call line with its risk-level icon and description", () => {
+    const store = new UiStore();
+    store.pushLog({ kind: "tool", toolName: "bash", description: "rm -rf /tmp/x", riskLevel: "dangerous" });
+
+    const { lastFrame } = render(<App store={store} onSubmit={vi.fn()} />);
+    const frame = lastFrame();
+
+    expect(frame).toContain("bash");
+    expect(frame).toContain("rm -rf /tmp/x");
+    expect(frame).toContain("▲"); // dangerous risk icon
+  });
+
+  it("uses a distinct icon for a safe tool call vs a dangerous one", () => {
+    const store = new UiStore();
+    store.pushLog({ kind: "tool", toolName: "read_file", description: "a.txt", riskLevel: "safe" });
+
+    const { lastFrame } = render(<App store={store} onSubmit={vi.fn()} />);
+
+    expect(lastFrame()).toContain("›"); // safe risk icon
+  });
+
   it("shows the permission prompt text when kind is confirm", () => {
     const store = new UiStore();
     store.setPrompt({ text: "run bash: rm -rf /tmp/x", kind: "confirm" });

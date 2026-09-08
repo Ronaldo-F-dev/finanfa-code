@@ -1,12 +1,14 @@
 import { EventEmitter } from "node:events";
 import type { CommandInfo, StatusInfo } from "@finanfa/core/src/ui/adapter.js";
+import type { ToolRiskLevel } from "@finanfa/core/src/core/types.js";
 
 export type LogItem =
   | { kind: "user"; text: string }
   | { kind: "assistant"; text: string }
   | { kind: "system"; text: string }
   | { kind: "error"; text: string }
-  | { kind: "banner"; version: string };
+  | { kind: "banner"; version: string }
+  | { kind: "tool"; toolName: string; description: string; riskLevel: ToolRiskLevel };
 
 export interface PendingPrompt {
   text: string;

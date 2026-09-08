@@ -1,10 +1,20 @@
 import * as readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import type { CommandInfo, StatusInfo, UIAdapter } from "@finanfa/core/src/ui/adapter.js";
+import type { ToolRiskLevel } from "@finanfa/core/src/core/types.js";
 import { renderMarkdown } from "./markdown.js";
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
 const SPINNER_INTERVAL_MS = 80;
+
+// Same risk-level -> icon/color mapping as the Ink UI's ToolCallLine.tsx —
+// kept in sync by eye since these are two different rendering targets
+// (raw ANSI here vs Ink <Text>), not worth sharing a single source over.
+const RISK_ANSI: Record<ToolRiskLevel, { icon: string; color: string }> = {
+  safe: { icon: "›", color: "\x1b[36m" }, // cyan
+  ask: { icon: "◆", color: "\x1b[33m" }, // yellow
+  dangerous: { icon: "▲", color: "\x1b[31m" }, // red
+};
 
 export function createReadlineAdapter(): UIAdapter {
   let commands: CommandInfo[] = [];
@@ -100,6 +110,15 @@ export function createReadlineAdapter(): UIAdapter {
       clearSpinner();
       if (!atLineStart) stdout.write("\n");
       stdout.write(`\x1b[31m${text}\x1b[0m\n`);
+      atLineStart = true;
+    },
+    writeToolCall({ toolName, description, riskLevel }): void {
+      flushAssistantBuffer();
+      clearSpinner();
+      if (!atLineStart) stdout.write("\n");
+      const { icon, color } = RISK_ANSI[riskLevel];
+      const descriptionPart = description ? `\x1b[2m  ${description}\x1b[0m` : "";
+      stdout.write(`${color}\x1b[1m${icon} ${toolName}\x1b[0m${descriptionPart}\n`);
       atLineStart = true;
     },
     setStatus(status: StatusInfo): void {

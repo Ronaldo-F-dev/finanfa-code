@@ -44,6 +44,11 @@ export function createInkAdapter(): UIAdapter {
       store.commitStreaming();
       store.pushLog({ kind: "system", text });
     },
+    writeToolCall(info): void {
+      store.setBusy(false);
+      store.commitStreaming();
+      store.pushLog({ kind: "tool", ...info });
+    },
     writeError(text: string): void {
       store.setBusy(false);
       store.commitStreaming();

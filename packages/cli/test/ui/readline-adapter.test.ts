@@ -148,3 +148,48 @@ describe("readline UIAdapter assistant message buffering", () => {
     expect(writeSpy).not.toHaveBeenCalled();
   });
 });
+
+describe("readline UIAdapter writeToolCall", () => {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  let writeSpy: any;
+
+  beforeEach(() => {
+    writeSpy = vi.spyOn(process.stdout, "write").mockImplementation(() => true);
+  });
+
+  afterEach(() => {
+    writeSpy.mockRestore();
+  });
+
+  it("writes the tool name and description", () => {
+    const ui = createReadlineAdapter();
+    ui.writeToolCall!({ toolName: "bash", description: "rm -rf /tmp/x", riskLevel: "dangerous" });
+
+    const written = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
+    expect(written).toContain("bash");
+    expect(written).toContain("rm -rf /tmp/x");
+  });
+
+  it("uses a different color per risk level", () => {
+    const ui = createReadlineAdapter();
+
+    ui.writeToolCall!({ toolName: "read_file", description: "a.txt", riskLevel: "safe" });
+    const safeWritten = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
+    writeSpy.mockClear();
+
+    ui.writeToolCall!({ toolName: "bash", description: "rm x", riskLevel: "dangerous" });
+    const dangerousWritten = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
+
+    expect(safeWritten).toContain("\x1b[36m"); // cyan
+    expect(dangerousWritten).toContain("\x1b[31m"); // red
+    expect(safeWritten).not.toBe(dangerousWritten);
+  });
+
+  it("omits the description part cleanly when there is none", () => {
+    const ui = createReadlineAdapter();
+    ui.writeToolCall!({ toolName: "noop", description: "", riskLevel: "safe" });
+
+    const written = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
+    expect(written).toContain("noop");
+  });
+});

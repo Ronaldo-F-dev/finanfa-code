@@ -4,6 +4,7 @@ import type { LogItem } from "../store.js";
 import { MultilineText } from "./MultilineText.js";
 import { RenderedMarkdown } from "./RenderedMarkdown.js";
 import { Banner } from "./Banner.js";
+import { ToolCallLine } from "./ToolCallLine.js";
 
 export function LogLine({ item }: { item: LogItem }) {
   switch (item.kind) {
@@ -17,6 +18,8 @@ export function LogLine({ item }: { item: LogItem }) {
       return <Text color="red">{item.text}</Text>;
     case "banner":
       return <Banner version={item.version} />;
+    case "tool":
+      return <ToolCallLine toolName={item.toolName} description={item.description} riskLevel={item.riskLevel} />;
     default:
       return null;
   }
