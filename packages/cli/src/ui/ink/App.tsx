@@ -4,10 +4,10 @@ import TextInput from "ink-text-input";
 import Spinner from "ink-spinner";
 import type { UiStore } from "./store.js";
 import { LogLine } from "./components/LogLine.js";
-import { MultilineText } from "./components/MultilineText.js";
 import { RenderedMarkdown } from "./components/RenderedMarkdown.js";
 import { StatusBar } from "./components/StatusBar.js";
 import { CommandSuggestions } from "./components/CommandSuggestions.js";
+import { ConfirmPrompt } from "./components/ConfirmPrompt.js";
 
 export function App({
   store,
@@ -88,7 +88,7 @@ export function App({
       )}
 
       <Box marginTop={1} flexDirection="column">
-        {showPromptLabel && <MultilineText text={store.prompt!.text} dimColor />}
+        {showPromptLabel && <ConfirmPrompt text={store.prompt!.text} />}
         <Box>
           <Text color="cyan">{"> "}</Text>
           <TextInput

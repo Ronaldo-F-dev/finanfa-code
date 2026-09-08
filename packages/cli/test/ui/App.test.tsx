@@ -79,6 +79,17 @@ describe("Ink App", () => {
     expect(lastFrame()).toContain("run bash: rm -rf /tmp/x");
   });
 
+  it("renders the confirm prompt inside a bordered dialog, not plain inline text", () => {
+    const store = new UiStore();
+    store.setPrompt({ text: "run bash: rm -rf /tmp/x", kind: "confirm" });
+
+    const { lastFrame } = render(<App store={store} onSubmit={vi.fn()} />);
+    const frame = lastFrame();
+
+    expect(frame).toContain("⚠ Confirm");
+    expect(frame).toMatch(/[╭╮╯╰─│]/); // a real border, not just dim text
+  });
+
   it("shows matching command suggestions as the user types a slash command", async () => {
     const store = new UiStore();
     store.setCommands([
