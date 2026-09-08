@@ -1,9 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
+export type ToolRiskLevel = "safe" | "ask" | "dangerous";
+
 export type TimelineItem =
   | { kind: "user"; id: string; text: string; images?: Attachment[] }
   | { kind: "assistant"; id: string; text: string; streaming: boolean }
   | { kind: "log"; id: string; variant: "system" | "error"; text: string }
+  | { kind: "tool_call"; id: string; toolName: string; description: string; riskLevel: ToolRiskLevel }
   | { kind: "media"; id: string; mediaKind: "audio" | "image"; path: string; mimeType: string };
 
 export interface PermissionRequest {
@@ -15,6 +18,7 @@ export interface StatusInfo {
   tokens: number;
   costUsd: number;
   model: string;
+  planMode?: boolean;
 }
 
 export interface SessionInfo {
@@ -135,6 +139,9 @@ export function useAgentSocket(
         case "error":
           setTimeline((t) => [...t, { kind: "log", id: uid(), variant: "error", text: msg.text }]);
           break;
+        case "tool_call":
+          setTimeline((t) => [...t, { kind: "tool_call", id: uid(), toolName: msg.toolName, description: msg.description, riskLevel: msg.riskLevel }]);
+          break;
         case "media":
           setTimeline((t) => [...t, { kind: "media", id: uid(), mediaKind: msg.kind, path: msg.path, mimeType: msg.mimeType }]);
           break;
@@ -226,6 +233,7 @@ export function useAgentSocket(
   const mcpReload = useCallback(() => send({ type: "mcp_reload" }), [send]);
   const setToolEnabled = useCallback((name: string, enabled: boolean) => send({ type: "set_tool_enabled", name, enabled }), [send]);
   const compact = useCallback(() => send({ type: "compact" }), [send]);
+  const setPlanMode = useCallback((enabled: boolean) => send({ type: "set_plan_mode", enabled }), [send]);
 
   return {
     connected,
@@ -248,5 +256,6 @@ export function useAgentSocket(
     mcpToggle,
     mcpReload,
     setToolEnabled,
+    setPlanMode,
   };
 }

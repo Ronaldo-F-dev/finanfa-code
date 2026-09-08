@@ -7,6 +7,7 @@
   --accent: #d97757;
   --accent-hover: #c96a4c;
   --danger: #e5534b;
+  --safe: #4f9cf0;
   --user-bubble: #1f1f22;
   --font-sans: -apple-system, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
@@ -21,6 +22,7 @@
   --accent: #c96a4c;
   --accent-hover: #b85a3d;
   --danger: #d1372e;
+  --safe: #2b6cb0;
   --user-bubble: #ececea;
 }
 
@@ -303,6 +305,16 @@ body {
 .btn-compact {
   font-size: 12px;
   padding: 5px 10px;
+}
+
+.btn-plan-mode {
+  font-size: 12px;
+  padding: 5px 10px;
+}
+.btn-plan-mode-active {
+  color: var(--accent);
+  border-color: var(--accent);
+  font-weight: 700;
 }
 
 .model-picker {
@@ -604,6 +616,45 @@ body {
 .log-error {
   color: var(--danger);
   border-color: var(--danger);
+}
+/* A tool call, risk-colored (safe/ask/dangerous) — distinct from a plain
+   .log-line so it's clear at a glance what kind of thing just ran, not
+   just that something did. Same icon/color scheme as the terminal UI's
+   ToolCallLine.tsx. */
+.tool-call {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  font-family: var(--font-mono);
+  font-size: 12.5px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+}
+.tool-call-icon {
+  font-weight: 700;
+}
+.tool-call-name {
+  font-weight: 700;
+}
+.tool-call-description {
+  color: var(--text-muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.tool-call-safe .tool-call-icon,
+.tool-call-safe .tool-call-name {
+  color: var(--safe);
+}
+.tool-call-ask .tool-call-icon,
+.tool-call-ask .tool-call-name {
+  color: var(--accent);
+}
+.tool-call-dangerous .tool-call-icon,
+.tool-call-dangerous .tool-call-name {
+  color: var(--danger);
 }
 .log-busy {
   display: flex;

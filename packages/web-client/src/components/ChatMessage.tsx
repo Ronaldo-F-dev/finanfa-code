@@ -1,7 +1,9 @@
 import { marked } from "marked";
-import type { TimelineItem } from "../hooks/useAgentSocket";
+import type { TimelineItem, ToolRiskLevel } from "../hooks/useAgentSocket";
 
 marked.setOptions({ breaks: true });
+
+const TOOL_RISK_ICON: Record<ToolRiskLevel, string> = { safe: "›", ask: "◆", dangerous: "▲" };
 
 function withCopyButtons(html: string): string {
   // Injected as the <pre>'s first child, positioned via CSS (absolute,
@@ -51,6 +53,19 @@ export function ChatMessageView({ item, projectId }: { item: TimelineItem; proje
         <div className="bubble bubble-assistant">
           <div className="markdown" onClick={handleMarkdownClick} dangerouslySetInnerHTML={{ __html: html }} />
           {item.streaming && <span className="cursor" />}
+        </div>
+      </div>
+    );
+  }
+
+  if (item.kind === "tool_call") {
+    const icon = TOOL_RISK_ICON[item.riskLevel];
+    return (
+      <div className="row row-log">
+        <div className={`tool-call tool-call-${item.riskLevel}`}>
+          <span className="tool-call-icon">{icon}</span>
+          <span className="tool-call-name">{item.toolName}</span>
+          {item.description && <span className="tool-call-description">{item.description}</span>}
         </div>
       </div>
     );

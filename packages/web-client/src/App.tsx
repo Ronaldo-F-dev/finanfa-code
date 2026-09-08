@@ -107,6 +107,7 @@ export default function App() {
     mcpToggle,
     mcpReload,
     setToolEnabled,
+    setPlanMode,
   } = useAgentSocket(connectModel || undefined, activeSessionId, activeProjectId, onTitled);
 
   // The server's session_info is the source of truth for what model the
@@ -281,6 +282,15 @@ export default function App() {
           <header className="topbar">
             <div className="brand">{sessionInfo?.title ?? "finanfa AI"}</div>
             <div className="topbar-right">
+              <button
+                type="button"
+                className={`btn btn-ghost btn-plan-mode${status?.planMode ? " btn-plan-mode-active" : ""}`}
+                onClick={() => setPlanMode(!status?.planMode)}
+                disabled={!connected}
+                title="Plan mode: while on, only read-only tools work until the agent presents a plan for approval"
+              >
+                {status?.planMode ? "◆ Plan mode" : "Plan mode"}
+              </button>
               {status && (
                 <span className="cost-pill">
                   {status.tokens.toLocaleString()} tok · ${status.costUsd.toFixed(4)}
