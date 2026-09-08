@@ -11,9 +11,12 @@ export function StatusBar({ status }: { status: StatusInfo | undefined }) {
           [PLAN MODE]{" "}
         </Text>
       )}
-      <Text dimColor>
-        tokens={status.tokens} cost=${status.costUsd.toFixed(4)} model={status.model}
-      </Text>
+      <Text dimColor>tokens=</Text>
+      <Text color="magenta">{status.tokens}</Text>
+      <Text dimColor> cost=</Text>
+      <Text color="green">${status.costUsd.toFixed(4)}</Text>
+      <Text dimColor> model=</Text>
+      <Text color="cyan">{status.model}</Text>
     </Box>
   );
 }
