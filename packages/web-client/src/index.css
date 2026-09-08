@@ -344,6 +344,11 @@ body {
   border-radius: 10px;
   padding: 6px;
   min-width: 260px;
+  /* With Docker Model Runner/Ollama/LM Studio detection, this list can
+     easily grow past a dozen entries — without a cap it used to just keep
+     growing until it filled (or overflowed) the whole viewport. */
+  max-height: min(360px, 60vh);
+  overflow-y: auto;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
   z-index: 5;
 }
