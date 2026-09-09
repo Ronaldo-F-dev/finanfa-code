@@ -31,7 +31,14 @@ import { loadConfig, saveGlobalConfig, type FinanfaConfig } from "@finanfa/core/
 import { CONFIG_KEYS, SECRET_KEYS, maskSecret } from "@finanfa/core/src/commands/builtin.js";
 import { BASE_SYSTEM_PROMPT, selectProvider, connectMcpServers, parseApiKeys } from "@finanfa/core/src/app.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
-import { isDockerModelRunnerAvailable, listDockerModels, searchDockerModels, pullDockerModel } from "@finanfa/core/src/core/docker-models.js";
+import {
+  isDockerModelRunnerAvailable,
+  listDockerModels,
+  searchDockerModels,
+  pullDockerModel,
+  deleteDockerModel,
+  purgeDockerModels,
+} from "@finanfa/core/src/core/docker-models.js";
 import { AnthropicProvider } from "@finanfa/core/src/providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "@finanfa/core/src/providers/openai-compatible-provider.js";
 import type { LlmProvider, NeutralImage } from "@finanfa/core/src/core/types.js";
@@ -182,6 +189,37 @@ app.get("/api/docker-models/pull", (req, res) => {
     .then(() => res.write("event: done\ndata: {}\n\n"))
     .catch((err) => res.write(`event: error\ndata: ${JSON.stringify(err instanceof Error ? err.message : String(err))}\n\n`))
     .finally(() => res.end());
+});
+
+// A model name can itself contain "/" (e.g. "ai/qwen3",
+// "huggingface.co/qwen/qwen2.5-coder-3b-instruct-gguf:Q4_K_M") — a query
+// param, same as the pull endpoint above, avoids URL-encoding it into a
+// path segment.
+app.delete("/api/docker-models", async (req, res) => {
+  const name = req.query.name;
+  if (typeof name !== "string" || !name) {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
+  try {
+    await deleteDockerModel(name);
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// Removes every pulled model in one call, for "clear all of them" rather
+// than one at a time. A distinct path from the single-model delete above
+// (which takes ?name=) rather than overloading the same route on presence/
+// absence of a query param.
+app.delete("/api/docker-models/purge", async (_req, res) => {
+  try {
+    await purgeDockerModels();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
 });
 
 app.post("/api/upload", async (req, res) => {

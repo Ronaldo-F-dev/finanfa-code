@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { isDockerModelRunnerAvailable, listDockerModels, searchDockerModels, pullDockerModel } from "../../src/core/docker-models.js";
+import { isDockerModelRunnerAvailable, listDockerModels, searchDockerModels, pullDockerModel, deleteDockerModel } from "../../src/core/docker-models.js";
 
 describe("core/docker-models (real `docker model` CLI, when present in this environment)", () => {
   let available = false;
@@ -73,5 +73,22 @@ describe("core/docker-models (real `docker model` CLI, when present in this envi
       await expect(pullDockerModel("ai/this-model-definitely-does-not-exist-xyz123", () => {})).rejects.toThrow();
     },
     20_000,
+  );
+
+  it(
+    "deleteDockerModel rejects cleanly for a model that doesn't exist — proves the real CLI call actually happens without touching any real pulled model",
+    async () => {
+      if (!available) return;
+      // Deliberately does NOT test the success path against a real pulled
+      // model here — this environment's already-pulled models are relied
+      // on by this file's own list/search/pull tests above (and by
+      // local-providers.test.ts's real-detection test), so actually
+      // deleting one would be a destructive side effect on shared real
+      // state this test doesn't own. The error path alone already proves
+      // deleteDockerModel really invokes `docker model rm` and surfaces a
+      // real failure instead of swallowing it.
+      await expect(deleteDockerModel("this-model-definitely-does-not-exist-xyz123")).rejects.toThrow(/no such model|not found/i);
+    },
+    15_000,
   );
 });

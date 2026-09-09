@@ -94,6 +94,16 @@ export async function searchDockerModels(query?: string, limit = 30): Promise<Do
   }));
 }
 
+/** Removes one pulled model (frees the disk space it took up) — `docker model rm <name>`, forced so an in-use/no-longer-tagged model doesn't need a separate confirmation this wrapper has no way to relay anyway. */
+export async function deleteDockerModel(name: string): Promise<void> {
+  await runDockerModel(["rm", "-f", name]);
+}
+
+/** Removes every locally pulled model in one call — `docker model purge -f`, the direct fix for "these are taking up too much disk/RAM, just clear them all" rather than removing one at a time. */
+export async function purgeDockerModels(): Promise<void> {
+  await runDockerModel(["purge", "-f"]);
+}
+
 /**
  * Pulls a model, forwarding each real stdout/stderr line to `onLine` as it
  * arrives — no attempt to parse a progress percentage out of it (the CLI's

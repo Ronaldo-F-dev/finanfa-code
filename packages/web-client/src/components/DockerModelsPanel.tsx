@@ -94,6 +94,42 @@ export function DockerModelsPanel({ onClose }: { onClose: () => void }) {
     });
   }
 
+  const [removing, setRemoving] = useState<string | null>(null);
+  const [removeError, setRemoveError] = useState<string | null>(null);
+
+  async function removeModel(name: string) {
+    if (!window.confirm(`Remove "${name}"? This deletes it from disk — you'd need to pull it again to use it.`)) return;
+    setRemoving(name);
+    setRemoveError(null);
+    try {
+      const res = await fetch(`/api/docker-models?name=${encodeURIComponent(name)}`, { method: "DELETE" });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+      refreshInstalled();
+    } catch (err) {
+      setRemoveError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRemoving(null);
+    }
+  }
+
+  async function removeAll() {
+    if (installed.length === 0) return;
+    if (!window.confirm(`Remove all ${installed.length} installed model(s)? This deletes every one of them from disk.`)) return;
+    setRemoving("*");
+    setRemoveError(null);
+    try {
+      const res = await fetch("/api/docker-models/purge", { method: "DELETE" });
+      const body = (await res.json()) as { error?: string };
+      if (!res.ok) throw new Error(body.error ?? `HTTP ${res.status}`);
+      refreshInstalled();
+    } catch (err) {
+      setRemoveError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setRemoving(null);
+    }
+  }
+
   const installedNames = new Set(installed.map((m) => displayTag(m)));
 
   return (
@@ -116,22 +152,36 @@ export function DockerModelsPanel({ onClose }: { onClose: () => void }) {
 
             {installed.length > 0 && (
               <>
-                <div className="sidebar-section-label">Installed</div>
+                <div className="sidebar-section-label docker-models-installed-header">
+                  <span>Installed</span>
+                  <button className="btn btn-ghost btn-danger" onClick={removeAll} disabled={removing !== null}>
+                    {removing === "*" ? "Removing…" : "Remove all"}
+                  </button>
+                </div>
                 <div className="mcp-list">
-                  {installed.map((m) => (
-                    <div className="mcp-row" key={m.id}>
-                      <div className="mcp-row-main">
-                        <span className="mcp-icon">🧩</span>
-                        <div>
-                          <div className="mcp-name">{displayTag(m)}</div>
-                          <div className="mcp-meta">
-                            {[m.parameters, m.quantization, m.size].filter(Boolean).join(" · ")}
+                  {installed.map((m) => {
+                    const tag = displayTag(m);
+                    return (
+                      <div className="mcp-row" key={m.id}>
+                        <div className="mcp-row-main">
+                          <span className="mcp-icon">🧩</span>
+                          <div>
+                            <div className="mcp-name">{tag}</div>
+                            <div className="mcp-meta">
+                              {[m.parameters, m.quantization, m.size].filter(Boolean).join(" · ")}
+                            </div>
                           </div>
                         </div>
+                        <div className="mcp-row-actions">
+                          <button className="btn btn-ghost btn-danger" onClick={() => removeModel(tag)} disabled={removing !== null}>
+                            {removing === tag ? "Removing…" : "Remove"}
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
+                {removeError && <div className="docker-models-error">Remove failed: {removeError}</div>}
               </>
             )}
 

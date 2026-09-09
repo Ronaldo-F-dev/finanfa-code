@@ -114,4 +114,28 @@ describe("web-server /api/docker-models/* (real subprocess, real `docker model` 
     },
     30_000,
   );
+
+  it("DELETE /api/docker-models requires a name", async () => {
+    const res = await fetch(`http://127.0.0.1:${port}/api/docker-models`, { method: "DELETE" });
+    expect(res.status).toBe(400);
+  });
+
+  it(
+    "DELETE /api/docker-models?name=... reports a real failure for a model that doesn't exist, without ever touching a real pulled model",
+    async () => {
+      // Deliberately does not exercise the success path here — this
+      // environment's real pulled models are relied on by the other tests
+      // above (and local-providers.test.ts's real-detection test), so
+      // actually deleting one would be a destructive side effect on shared
+      // real state this test doesn't own. This still proves the route is
+      // wired to the real deleteDockerModel/`docker model rm` call and
+      // surfaces its real failure as a 400, not a silently-swallowed error.
+      if (!dmrAvailable) return;
+      const res = await fetch(`http://127.0.0.1:${port}/api/docker-models?name=this-model-definitely-does-not-exist-xyz123`, { method: "DELETE" });
+      expect(res.status).toBe(400);
+      const body = (await res.json()) as { error: string };
+      expect(body.error).toMatch(/no such model|not found/i);
+    },
+    15_000,
+  );
 });

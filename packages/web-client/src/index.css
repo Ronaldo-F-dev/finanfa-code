@@ -285,6 +285,20 @@ body {
   margin-bottom: 12px;
 }
 
+.docker-models-installed-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.btn-danger {
+  color: #e5534b;
+  border-color: #e5534b55;
+}
+.btn-danger:hover:not(:disabled) {
+  background: #e5534b1a;
+}
+
 .topbar {
   display: flex;
   align-items: center;
