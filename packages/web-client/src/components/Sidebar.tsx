@@ -55,11 +55,11 @@ export function Sidebar({
 
   return (
     <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
+      <button className="sidebar-new" onClick={onNewChat}>
+        ✎ New chat
+      </button>
       <button className="sidebar-project" onClick={onOpenProjects} title="Browse projects">
         📁 Projects{projectName ? ` — ${projectName}` : ""}
-      </button>
-      <button className="sidebar-new" onClick={onNewChat}>
-        + New chat
       </button>
 
       <div className="sidebar-section-label">Chats</div>

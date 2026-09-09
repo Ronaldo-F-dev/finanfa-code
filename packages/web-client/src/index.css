@@ -70,36 +70,41 @@ body {
   gap: 10px;
 }
 
+/* Reference: ChatGPT's own sidebar treats "Projects" as a normal row in
+   its primary nav list (icon + label, same size/weight/hover as every
+   other row there) — not a small caption-style link floating above
+   everything else, which is what this used to look like. */
 .sidebar-project {
   background: transparent;
-  color: var(--text-muted);
   border: none;
-  padding: 4px 4px 0;
+  border-radius: 8px;
+  color: var(--text-muted);
+  padding: 8px 10px;
   text-align: left;
-  font-size: 12px;
-  font-weight: 600;
+  font-size: 13px;
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
 .sidebar-project:hover {
+  background: var(--bg);
   color: var(--text);
 }
 
 .sidebar-new {
-  background: var(--bg);
+  background: transparent;
   color: var(--text);
-  border: 1px solid var(--border);
+  border: none;
   border-radius: 8px;
-  padding: 9px 12px;
+  padding: 8px 10px;
   text-align: left;
   font-size: 13px;
   font-weight: 600;
   cursor: pointer;
 }
 .sidebar-new:hover {
-  border-color: var(--accent);
+  background: var(--bg);
 }
 
 .sidebar-section-label {
