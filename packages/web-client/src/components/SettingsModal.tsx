@@ -14,6 +14,20 @@ interface ConfigShape {
 
 type Theme = "dark" | "light";
 
+// Known openai-compatible provider presets — DeepSeek's own pricing page
+// gives its OpenAI-format base URL as exactly "https://api.deepseek.com"
+// (no /v1 suffix; their server mounts /chat/completions directly there,
+// matching this project's own OpenAiCompatibleProvider request path) and
+// its three current model names. A preset only pre-fills the base URL and
+// suggests model names via a <datalist> — it never supplies an API key,
+// since this project has no way to know the user's own DeepSeek key.
+const OPENAI_COMPATIBLE_PRESETS: Record<string, { baseUrl: string; models: string[] }> = {
+  deepseek: {
+    baseUrl: "https://api.deepseek.com",
+    models: ["deepseek-v4-flash", "deepseek-v4-pro", "deepseek-v4-flash-vision-exp"],
+  },
+};
+
 function getStoredTheme(): Theme {
   try {
     return (localStorage.getItem("finanfa-theme") as Theme) ?? "dark";
@@ -167,8 +181,24 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
         <div className="provider-card">
           <div className="provider-card-title">
-            Other provider <span className="provider-card-sub">(Ollama, OpenRouter, LM Studio, self-hosted…)</span>
+            Other provider <span className="provider-card-sub">(DeepSeek, Ollama, OpenRouter, LM Studio, self-hosted…)</span>
             {saved.baseUrl && <span className="provider-badge">configured</span>}
+          </div>
+          <div className="provider-preset-row">
+            <span>Quick setup:</span>
+            {Object.entries(OPENAI_COMPATIBLE_PRESETS).map(([key, preset]) => (
+              <button
+                key={key}
+                type="button"
+                className="btn btn-ghost"
+                onClick={() => {
+                  setBaseUrlDraft(preset.baseUrl);
+                  setModelDraft(preset.models[0] ?? "");
+                }}
+              >
+                {key === "deepseek" ? "DeepSeek" : key}
+              </button>
+            ))}
           </div>
           <label className="settings-field">
             <span>Base URL</span>
@@ -181,7 +211,20 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </label>
           <label className="settings-field">
             <span>Model</span>
-            <input type="text" placeholder={saved.model ?? "e.g. llama3.1"} value={modelDraft} onChange={(e) => setModelDraft(e.target.value)} />
+            <input
+              type="text"
+              list="openai-compatible-model-suggestions"
+              placeholder={saved.model ?? "e.g. llama3.1"}
+              value={modelDraft}
+              onChange={(e) => setModelDraft(e.target.value)}
+            />
+            <datalist id="openai-compatible-model-suggestions">
+              {Object.values(OPENAI_COMPATIBLE_PRESETS)
+                .flatMap((p) => p.models)
+                .map((m) => (
+                  <option key={m} value={m} />
+                ))}
+            </datalist>
           </label>
           <label className="settings-field">
             <span>API key (optional)</span>
