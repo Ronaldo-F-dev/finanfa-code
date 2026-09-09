@@ -9,7 +9,7 @@ import { Sidebar } from "./components/Sidebar";
 import { SettingsModal } from "./components/SettingsModal";
 import { McpPanel } from "./components/McpPanel";
 import { MemoryPanel } from "./components/MemoryPanel";
-import { DockerModelsPanel } from "./components/DockerModelsPanel";
+import { ModelsPanel } from "./components/ModelsPanel";
 import { ToolsPanel } from "./components/ToolsPanel";
 import { ProjectsListView } from "./components/ProjectsListView";
 import { ProjectDetailView } from "./components/ProjectDetailView";
@@ -491,7 +491,7 @@ export default function App() {
         <McpPanel servers={mcpServers} loaded={mcpLoaded} onClose={() => setMcpOpen(false)} onConnect={mcpConnect} onToggle={mcpToggle} onReload={mcpReload} />
       )}
       {memoryOpen && <MemoryPanel projectId={activeProjectId} onClose={() => setMemoryOpen(false)} />}
-      {modelsOpen && <DockerModelsPanel onClose={() => setModelsOpen(false)} />}
+      {modelsOpen && <ModelsPanel onClose={() => setModelsOpen(false)} />}
       {toolsOpen && (
         <ToolsPanel tools={toolsStatus} onClose={() => setToolsOpen(false)} onToggle={setToolEnabled} onRefresh={requestToolsStatus} />
       )}

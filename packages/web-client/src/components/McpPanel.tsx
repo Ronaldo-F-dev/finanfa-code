@@ -32,8 +32,14 @@ export function McpPanel({
 }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal mcp-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-title">Connectors</div>
+      <div className="modal panel-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="panel-header">
+          <span className="panel-header-icon">🔌</span>
+          <span className="panel-header-title">Connectors</span>
+          <button className="panel-header-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
         <p className="settings-hint">
           Adding a connector saves it to this project's <code>.finanfa-code/mcp.json</code>. Connecting to a remote one may open a browser tab on the
           machine running the server for OAuth.
@@ -76,9 +82,6 @@ export function McpPanel({
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onReload}>
             Reload tools
-          </button>
-          <button className="btn btn-allow" onClick={onClose}>
-            Close
           </button>
         </div>
       </div>

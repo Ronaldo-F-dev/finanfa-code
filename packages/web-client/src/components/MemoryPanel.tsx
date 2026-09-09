@@ -91,8 +91,14 @@ export function MemoryPanel({ projectId, onClose }: { projectId: string | undefi
 
   return (
     <div className="modal-backdrop" onClick={onClose}>
-      <div className="modal mcp-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-title">Memory & skills</div>
+      <div className="modal panel-modal" onClick={(e) => e.stopPropagation()}>
+        <div className="panel-header">
+          <span className="panel-header-icon">🧠</span>
+          <span className="panel-header-title">Memory & skills</span>
+          <button className="panel-header-close" onClick={onClose} aria-label="Close">
+            ×
+          </button>
+        </div>
         <p className="settings-hint">
           Global entries apply to every project on this machine — this is where your own personal notes and tools live. Project entries only apply
           here.
@@ -236,11 +242,6 @@ export function MemoryPanel({ projectId, onClose }: { projectId: string | undefi
           </div>
         )}
 
-        <div className="modal-actions">
-          <button className="btn btn-allow" onClick={onClose}>
-            Close
-          </button>
-        </div>
       </div>
     </div>
   );
