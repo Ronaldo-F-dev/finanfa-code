@@ -734,6 +734,11 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     }
 
     let turnInFlight = false;
+    // Per-connection, not persisted on the session — reopening a session
+    // later should warn again (a fresh reminder is fine there), this is
+    // only about not repeating the same warning for every single model
+    // switch within one already-informed browser tab.
+    let warnedAboutLocalModelThisConnection = false;
 
     ws.on("message", (raw: Buffer) => {
       void (async () => {
@@ -892,7 +897,14 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           // cleanly the way a remote API would. Warned here, proactively,
           // the moment a local model is selected — before the crash, not
           // only after it via the "context size exceeded" error message.
-          if (session.providerBaseUrl && isLocalBaseUrl(session.providerBaseUrl)) {
+          // Once per connection, not once per switch — the risk is exactly
+          // the same for every local model (it's about the tool list this
+          // agent always sends, not about which specific model you picked),
+          // so repeating it on every single switch just becomes noise
+          // someone trying several local models in a row has to scroll
+          // past — a real, reported annoyance.
+          if (!warnedAboutLocalModelThisConnection && session.providerBaseUrl && isLocalBaseUrl(session.providerBaseUrl)) {
+            warnedAboutLocalModelThisConnection = true;
             const enabledToolCount = tools.list().filter((t) => !session.disabledTools.has(t.name)).length;
             adapter.writeSystem(
               `⚠ ${msg.model} is a local model — every message sent here includes this agent's full system prompt ` +
