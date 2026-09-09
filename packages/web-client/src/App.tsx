@@ -63,6 +63,14 @@ export default function App() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFirstMessageRef = useRef<string | null>(null);
+  // Real, reported annoyance: auto-scroll used to fire on every timeline
+  // update unconditionally, so scrolling up to reread something while the
+  // agent was still streaming got yanked back to the bottom on the very
+  // next delta. Tracked via a ref (not state — updated on every scroll
+  // event, doesn't need a re-render) so the auto-scroll effect below can
+  // skip itself once the user has deliberately scrolled away from the
+  // bottom, and resume once they've scrolled back down themselves.
+  const isNearBottomRef = useRef(true);
 
   useEffect(() => {
     const qs = activeProjectId ? `?project=${encodeURIComponent(activeProjectId)}` : "";
@@ -151,8 +159,19 @@ export default function App() {
   }, [connected, sendMessage]);
 
   useEffect(() => {
+    if (!isNearBottomRef.current) return;
     scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [timeline, busy]);
+
+  // Threshold, not an exact-bottom check — smooth scrolling and streaming
+  // text both mean the container is essentially never at exactly
+  // scrollHeight, so an exact match would basically never re-arm auto-scroll.
+  const NEAR_BOTTOM_PX = 80;
+  function handleTimelineScroll() {
+    const el = scrollRef.current;
+    if (!el) return;
+    isNearBottomRef.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM_PX;
+  }
 
   function handleNewChat() {
     setView({ kind: "chat" });
@@ -160,12 +179,14 @@ export default function App() {
     setActiveSessionId(undefined);
     // Whatever's currently selected becomes the new chat's starting model.
     setConnectModel(model);
+    isNearBottomRef.current = true;
     if (wasAlreadyFresh) reconnect();
   }
 
   function handleSelectSession(id: string) {
     setView({ kind: "chat" });
     setActiveSessionId(id);
+    isNearBottomRef.current = true;
   }
 
   function handleSelectProject(id: string | undefined) {
@@ -342,7 +363,7 @@ export default function App() {
             </div>
           )}
 
-          <main className="timeline" ref={scrollRef}>
+          <main className="timeline" ref={scrollRef} onScroll={handleTimelineScroll}>
             {timeline.length === 0 && (
               <div className="empty-state">
                 <div className="empty-title">finanfa AI</div>
