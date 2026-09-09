@@ -11,6 +11,7 @@ import {
   gitBranch,
   gitAdd,
   gitCommit,
+  gitReset,
   gitCheckout,
   gitPush,
   gitFetch,
@@ -108,6 +109,73 @@ describe("git tools (real git repo)", () => {
     const result = await gitCommit.handler({ message: "   " }, ctx());
     expect(result.isError).toBe(true);
     expect(result.content).toContain("empty");
+  });
+
+  it("git_commit still succeeds with no git identity configured anywhere (a fresh sandboxed environment, e.g. a benchmark container)", async () => {
+    // Real, reproduced bug found while reviewing this file for benchmark
+    // readiness: a genuinely fresh container (no ~/.gitconfig at all, the
+    // kind SWE-bench-style benchmarks run in) fails outright on plain
+    // `git commit` — "Please tell me who you are" — confirmed by
+    // reproducing it directly against a real repo before this fix. This
+    // machine's own dev environment DOES have a real global git identity
+    // configured, so unsetting only the repo-local config (as a fresh
+    // container's repo would already lack) isn't enough to reproduce
+    // "nothing configured" here — GIT_CONFIG_GLOBAL/SYSTEM=/dev/null
+    // makes git ignore that real global config for this one process,
+    // same net effect as a container with no ~/.gitconfig at all.
+    await execFileAsync("git", ["config", "--unset", "user.email"], { cwd: dir });
+    await execFileAsync("git", ["config", "--unset", "user.name"], { cwd: dir });
+    const prevGlobal = process.env.GIT_CONFIG_GLOBAL;
+    const prevSystem = process.env.GIT_CONFIG_SYSTEM;
+    process.env.GIT_CONFIG_GLOBAL = "/dev/null";
+    process.env.GIT_CONFIG_SYSTEM = "/dev/null";
+    try {
+      const identity = await execFileAsync("git", ["config", "user.email"], { cwd: dir }).catch((e) => e);
+      expect(identity).toHaveProperty("code"); // sanity: confirms identity is genuinely unset before testing the fix
+
+      await writeFile(path.join(dir, "b.txt"), "new\n");
+      await gitAdd.handler({ paths: ["b.txt"] }, ctx());
+      const commit = await gitCommit.handler({ message: "add b.txt" }, ctx());
+      expect(commit.isError).toBe(false);
+
+      const log = await gitLog.handler({}, ctx());
+      expect(log.content).toContain("add b.txt");
+    } finally {
+      if (prevGlobal === undefined) delete process.env.GIT_CONFIG_GLOBAL;
+      else process.env.GIT_CONFIG_GLOBAL = prevGlobal;
+      if (prevSystem === undefined) delete process.env.GIT_CONFIG_SYSTEM;
+      else process.env.GIT_CONFIG_SYSTEM = prevSystem;
+    }
+  });
+
+  describe("git_reset", () => {
+    it("unstages a specific file, keeping its working-tree edit", async () => {
+      await writeFile(path.join(dir, "a.txt"), "hello\nworld\n");
+      await gitAdd.handler({ paths: ["a.txt"] }, ctx());
+      const staged = await gitDiff.handler({ staged: true }, ctx());
+      expect(staged.content).toContain("+world");
+
+      const reset = await gitReset.handler({ paths: ["a.txt"] }, ctx());
+      expect(reset.isError).toBe(false);
+
+      const stagedAfter = await gitDiff.handler({ staged: true }, ctx());
+      expect(stagedAfter.content).toBe("(no output)");
+      const unstaged = await gitDiff.handler({}, ctx());
+      expect(unstaged.content).toContain("+world"); // the edit itself survives
+    });
+
+    it("hard reset discards uncommitted changes entirely", async () => {
+      await writeFile(path.join(dir, "a.txt"), "hello\nworld\n");
+      const reset = await gitReset.handler({ hard: true }, ctx());
+      expect(reset.isError).toBe(false);
+
+      const status = await gitStatus.handler({}, ctx());
+      expect(status.content).toContain("clean");
+    });
+
+    it("rejects a path escaping the project root", async () => {
+      await expect(gitReset.handler({ paths: ["../outside.txt"] }, ctx())).rejects.toThrow(/outside the project root/);
+    });
   });
 
   it("git_checkout creates and switches to a new branch, visible in git_branch", async () => {

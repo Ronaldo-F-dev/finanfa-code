@@ -4,6 +4,13 @@ import { resolveAllowedPath } from "./path-guard.js";
 import { truncateOrSpill, TRUNCATE_MEDIUM } from "../../util/truncate.js";
 
 const TIMEOUT_MS = 15_000;
+// Real gap found while reviewing this file for benchmark readiness: fetch/
+// pull/push actually reach a remote over the network, unlike every other
+// command here (all purely local) — a real OSS repo (the kind SWE-bench-
+// style benchmarks use) can easily take longer than 15s to fetch/push,
+// which would have failed as a false "timed out" on a merely slow
+// connection, not a genuinely stuck command.
+const NETWORK_TIMEOUT_MS = 120_000;
 
 /**
  * Runs `git <args>` in `cwd` via spawn with an argv array (never a shell) —
@@ -11,7 +18,7 @@ const TIMEOUT_MS = 15_000;
  * puts in a diff path or commit message can be interpreted as a shell
  * command, unlike the general-purpose `bash` tool.
  */
-function runGit(cwd: string, sessionId: string, args: string[]): Promise<ToolResult> {
+function runGit(cwd: string, sessionId: string, args: string[], timeoutMs = TIMEOUT_MS): Promise<ToolResult> {
   return new Promise((resolve) => {
     // Force the C locale so output (status labels, etc.) is consistent and
     // parseable regardless of the host machine's configured locale.
@@ -23,7 +30,7 @@ function runGit(cwd: string, sessionId: string, args: string[]): Promise<ToolRes
     const timer = setTimeout(() => {
       timedOut = true;
       child.kill("SIGKILL");
-    }, TIMEOUT_MS);
+    }, timeoutMs);
 
     child.stdout.on("data", (d) => (stdout += d));
     child.stderr.on("data", (d) => (stderr += d));
@@ -31,7 +38,7 @@ function runGit(cwd: string, sessionId: string, args: string[]): Promise<ToolRes
     child.on("close", (code) => {
       clearTimeout(timer);
       if (timedOut) {
-        resolve({ content: `git ${args.join(" ")} timed out after ${TIMEOUT_MS}ms`, isError: true });
+        resolve({ content: `git ${args.join(" ")} timed out after ${timeoutMs}ms`, isError: true });
         return;
       }
       void (async () => {
@@ -154,11 +161,22 @@ export const gitCommit: ToolDefinition<GitCommitInput> = {
     required: ["message"],
   },
   describeCall: (input) => `commit: "${input.message}"`,
-  handler: (input, ctx) => {
+  async handler(input, ctx) {
     if (input.message.trim() === "") {
-      return Promise.resolve({ content: "Commit message cannot be empty.", isError: true });
+      return { content: "Commit message cannot be empty.", isError: true };
     }
-    return runGit(ctx.cwd, ctx.sessionId, ["commit", "-m", input.message]);
+    // Real gap found while reviewing this file for benchmark readiness: a
+    // fresh sandboxed environment (the kind SWE-bench-style benchmarks run
+    // in) typically has no ~/.gitconfig at all — confirmed by reproducing
+    // it directly: `git commit` fails outright ("Please tell me who you
+    // are", exit 128) with neither global nor repo identity configured.
+    // Only falls back when nothing is already configured, so an identity
+    // the user (or repo) actually set is never silently overridden.
+    const email = await runGit(ctx.cwd, ctx.sessionId, ["config", "user.email"]);
+    const args = email.isError
+      ? ["-c", "user.name=finanfa-code", "-c", "user.email=agent@finanfa.local", "commit", "-m", input.message]
+      : ["commit", "-m", input.message];
+    return runGit(ctx.cwd, ctx.sessionId, args);
   },
 };
 
@@ -221,7 +239,7 @@ export const gitPush: ToolDefinition<GitPushInput> = {
     const args = ["push"];
     if (input.setUpstream) args.push("-u");
     args.push(input.remote ?? "origin", branch);
-    return runGit(ctx.cwd, ctx.sessionId, args);
+    return runGit(ctx.cwd, ctx.sessionId, args, NETWORK_TIMEOUT_MS);
   },
 };
 
@@ -238,7 +256,7 @@ export const gitFetch: ToolDefinition<GitFetchInput> = {
     properties: { remote: { type: "string", description: 'Remote name (default: "origin")' } },
   },
   describeCall: (input) => `fetch ${input.remote ?? "origin"}`,
-  handler: (input, ctx) => runGit(ctx.cwd, ctx.sessionId, ["fetch", input.remote ?? "origin"]),
+  handler: (input, ctx) => runGit(ctx.cwd, ctx.sessionId, ["fetch", input.remote ?? "origin"], NETWORK_TIMEOUT_MS),
 };
 
 interface GitPullInput {
@@ -262,7 +280,7 @@ export const gitPull: ToolDefinition<GitPullInput> = {
   handler: (input, ctx) => {
     const args = ["pull", input.remote ?? "origin"];
     if (input.branch) args.push(input.branch);
-    return runGit(ctx.cwd, ctx.sessionId, args);
+    return runGit(ctx.cwd, ctx.sessionId, args, NETWORK_TIMEOUT_MS);
   },
 };
 
@@ -292,6 +310,42 @@ export const gitStash: ToolDefinition<GitStashInput> = {
   },
 };
 
+interface GitResetInput {
+  paths?: string[];
+  hard?: boolean;
+  ref?: string;
+}
+
+// Real gap found while reviewing this file for benchmark readiness: there
+// was no way to unstage a mistaken `git_add`, or throw away uncommitted
+// changes to retry cleanly — every other real git workflow needs at least
+// one of those, and a benchmark run has no human around to drop to a
+// terminal for it.
+export const gitReset: ToolDefinition<GitResetInput> = {
+  name: "git_reset",
+  description:
+    "Unstage one or more files (paths, keeps working-tree edits), or with hard: true, discard ALL uncommitted " +
+    "changes and reset to ref (default HEAD) — destructive, use git_stash instead if the changes might still be needed.",
+  riskLevel: "ask",
+  inputSchema: {
+    type: "object",
+    properties: {
+      paths: { type: "array", items: { type: "string" }, description: "Files to unstage, relative to the project root — omit for a full/hard reset" },
+      hard: { type: "boolean", description: "Discard uncommitted changes entirely instead of just unstaging" },
+      ref: { type: "string", description: 'Only with hard: true — reset to this ref instead of HEAD (default "HEAD")' },
+    },
+  },
+  riskKey: (input) => (input.hard ? "hard" : "unstage"),
+  describeCall: (input) =>
+    input.hard ? `reset --hard ${input.ref ?? "HEAD"} (discards uncommitted changes)` : `unstage ${input.paths?.join(" ") ?? "everything"}`,
+  async handler(input, ctx) {
+    if (input.hard) return runGit(ctx.cwd, ctx.sessionId, ["reset", "--hard", input.ref ?? "HEAD"]);
+    const args = ["reset"];
+    if (input.paths && input.paths.length > 0) args.push("--", ...relativePaths(ctx.cwd, input.paths));
+    return runGit(ctx.cwd, ctx.sessionId, args);
+  },
+};
+
 export const gitTools: ToolDefinition[] = [
   gitStatus,
   gitDiff,
@@ -299,6 +353,7 @@ export const gitTools: ToolDefinition[] = [
   gitBranch,
   gitAdd,
   gitCommit,
+  gitReset,
   gitCheckout,
   gitPush,
   gitFetch,
