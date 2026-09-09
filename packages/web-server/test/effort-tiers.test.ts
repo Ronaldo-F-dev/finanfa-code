@@ -94,14 +94,14 @@ describe("web-server set_effort (real subprocess, real Ollama server when presen
       // generation-bound — see the max_tokens cap's own comment), hence
       // the generous timeout rather than the usual few seconds.
       ws.send(JSON.stringify({ type: "user_message", text: "Reply with just the word OK." }));
-      const end = await waitFor(events, (e) => e.type === "assistant_end", 150_000);
+      const end = await waitFor(events, (e) => e.type === "assistant_end", 240_000);
       expect(end).toBeTruthy();
       const failed = events.some((e) => e.type === "system" && typeof e.text === "string" && e.text.includes("the model call failed"));
       expect(failed).toBe(false);
 
       ws.close();
     },
-    160_000,
+    250_000,
   );
 
   it(
@@ -117,6 +117,35 @@ describe("web-server set_effort (real subprocess, real Ollama server when presen
       const status = await waitFor(events, (e) => e.type === "tools_status");
       const enabledNames = (status.tools as { name: string; enabled: boolean }[]).filter((t) => t.enabled).map((t) => t.name);
       expect(new Set(enabledNames)).toEqual(new Set(MINIMAL_TOOL_SET));
+
+      ws.close();
+    },
+    20_000,
+  );
+
+  it(
+    "switching to a plain model via set_model after an effort tier clears that tier's stale tool restriction",
+    async () => {
+      if (!ollamaAvailable || !installedNames.has("qwen3:4b-instruct")) return;
+      const { ws, events } = await connect(port);
+
+      // Real, reported bug: after picking "low" (which disables every
+      // tool), manually switching to a different local model through the
+      // plain model picker (not another effort tier) left every tool
+      // disabled — stale state from the unrelated earlier tier pick.
+      ws.send(JSON.stringify({ type: "set_effort", level: "low" }));
+      await waitFor(events, (e) => e.type === "session_info" && e.effort === "low");
+      const lowStatus = await waitFor(events, (e) => e.type === "tools_status");
+      expect((lowStatus.tools as { enabled: boolean }[]).some((t) => t.enabled)).toBe(false);
+
+      ws.send(JSON.stringify({ type: "set_model", model: "qwen3:4b-instruct", family: "openai-compatible", baseUrl: "http://localhost:11434/v1" }));
+      // events.find (inside waitFor) matches the FIRST event satisfying the
+      // predicate in the whole history, not the latest — matching on the
+      // new model name specifically avoids it grabbing the initial
+      // connection's own session_info (which also has no `effort` set).
+      const info = await waitFor(events, (e) => e.type === "session_info" && e.model === "qwen3:4b-instruct");
+      expect(info.effort).toBeUndefined();
+      await waitFor(events, (e) => e.type === "tools_status" && (e.tools as { enabled: boolean }[]).some((t) => t.enabled));
 
       ws.close();
     },

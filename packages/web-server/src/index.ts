@@ -953,6 +953,23 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           session.providerKind = providerKind;
           session.providerBaseUrl = typeof msg.baseUrl === "string" && msg.baseUrl ? msg.baseUrl : undefined;
           session.model = msg.model;
+          // Real, reported bug: picking an effort tier (e.g. "Faible")
+          // disables most/all tools as part of that tier's own budget (see
+          // set_effort below); switching to a different model afterwards
+          // through this plain picker left that restriction in place, since
+          // nothing here ever touched disabledTools. A user who then picked
+          // qwen3:4b-instruct by hand saw "currently 0 tools" and a model
+          // struggling to answer with no read/edit/grep access at all —
+          // stale state from an unrelated earlier choice, not anything this
+          // switch itself asked for. Only reset when the tool budget was
+          // actually set by a tier (session.effort is only ever set by
+          // set_effort) — a manual Tools-panel choice with no tier involved
+          // is left alone, since that one *is* an intentional user choice.
+          if (session.effort) {
+            session.effort = undefined;
+            session.disabledTools.clear();
+            sendToolsStatus();
+          }
           sendSessionInfo();
           // Real, reported case: switching to a local model and sending one
           // message crashed the whole machine — not this project's bug in
