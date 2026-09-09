@@ -39,6 +39,7 @@ import {
   deleteDockerModel,
   purgeDockerModels,
 } from "@finanfa/core/src/core/docker-models.js";
+import { isOllamaAvailable, listOllamaModels, pullOllamaModel, deleteOllamaModel } from "@finanfa/core/src/core/ollama-models.js";
 import { AnthropicProvider } from "@finanfa/core/src/providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "@finanfa/core/src/providers/openai-compatible-provider.js";
 import type { LlmProvider, NeutralImage } from "@finanfa/core/src/core/types.js";
@@ -226,6 +227,55 @@ app.delete("/api/docker-models", async (req, res) => {
 app.delete("/api/docker-models/purge", async (_req, res) => {
   try {
     await purgeDockerModels();
+    res.json({ ok: true });
+  } catch (err) {
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+app.get("/api/ollama-models/status", async (_req, res) => {
+  res.json({ available: await isOllamaAvailable() });
+});
+
+app.get("/api/ollama-models/installed", async (_req, res) => {
+  try {
+    res.json({ models: await listOllamaModels() });
+  } catch (err) {
+    res.status(503).json({ error: err instanceof Error ? err.message : String(err) });
+  }
+});
+
+// Same SSE-streamed-progress shape as /api/docker-models/pull above, but
+// forwarding Ollama's own structured {status, completed, total} progress
+// objects (one "progress" event per NDJSON line from /api/pull) instead of
+// opaque CLI text lines.
+app.get("/api/ollama-models/pull", (req, res) => {
+  const name = req.query.name;
+  if (typeof name !== "string" || !name) {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
+  res.writeHead(200, { "content-type": "text/event-stream", "cache-control": "no-cache", connection: "keep-alive" });
+  const controller = new AbortController();
+  req.on("close", () => controller.abort());
+  pullOllamaModel(
+    name,
+    (p) => res.write(`event: progress\ndata: ${JSON.stringify(p)}\n\n`),
+    controller.signal,
+  )
+    .then(() => res.write("event: done\ndata: {}\n\n"))
+    .catch((err) => res.write(`event: error\ndata: ${JSON.stringify(err instanceof Error ? err.message : String(err))}\n\n`))
+    .finally(() => res.end());
+});
+
+app.delete("/api/ollama-models", async (req, res) => {
+  const name = req.query.name;
+  if (typeof name !== "string" || !name) {
+    res.status(400).json({ error: "name is required" });
+    return;
+  }
+  try {
+    await deleteOllamaModel(name);
     res.json({ ok: true });
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
