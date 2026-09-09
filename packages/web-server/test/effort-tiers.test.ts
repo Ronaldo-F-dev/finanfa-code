@@ -125,6 +125,25 @@ describe("web-server set_effort (real subprocess, real Ollama server when presen
   );
 
   it(
+    "legal tier: switches to SaulLM with no tools (no tool-calling support, same as gemma2:2b/yi-coder)",
+    async () => {
+      if (!ollamaAvailable || !installedNames.has("hf.co/MaziyarPanahi/Saul-Instruct-v1-GGUF:Q4_K_M")) return;
+      const { ws, events } = await connect(port);
+
+      ws.send(JSON.stringify({ type: "set_effort", level: "legal" }));
+      const info = await waitFor(events, (e) => e.type === "session_info" && e.effort === "legal");
+      expect(info.model).toBe("hf.co/MaziyarPanahi/Saul-Instruct-v1-GGUF:Q4_K_M");
+
+      const status = await waitFor(events, (e) => e.type === "tools_status");
+      const enabled = (status.tools as { name: string; enabled: boolean }[]).filter((t) => t.enabled);
+      expect(enabled).toHaveLength(0);
+
+      ws.close();
+    },
+    20_000,
+  );
+
+  it(
     "picking a tool-capable local model directly via set_model (not an effort tier) auto-restricts tools to the minimal set",
     async () => {
       if (!ollamaAvailable || !installedNames.has("qwen3:4b-instruct")) return;

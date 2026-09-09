@@ -9,7 +9,7 @@
 // Ollama instance in this environment (see EFFORT_TIERS' own per-tier
 // comments) rather than picked by name/size alone.
 
-export type EffortLevel = "low" | "medium" | "high";
+export type EffortLevel = "low" | "medium" | "high" | "legal";
 
 /** Which of this project's own tool names stay enabled for a tier — everything else is disabled the same way the web UI's Tools panel would. "none" sends no tools field at all (see toolsForProvider/streamTurn), which is required for a model with no tool-calling support, not just a size optimization. */
 export type ToolBudget = "none" | "minimal" | "full";
@@ -72,6 +72,30 @@ export const EFFORT_TIERS: EffortTier[] = [
     model: "",
     maxTokens: 8192,
     toolBudget: "full",
+  },
+  {
+    id: "legal",
+    label: "Juridique",
+    // SaulLM-7B-Instruct (Equall, MIT) — a real, open, domain-specific
+    // legal LLM, not a general model asked to "act like a lawyer". Pulled
+    // via Ollama's HuggingFace GGUF support (no official ollama.com/library
+    // entry for it). Verified directly against this project's own Ollama
+    // instance: capabilities are ["completion"] only, same as gemma2/
+    // yi-coder — a domain fine-tune of Mistral-7B, no tool-calling
+    // training — so toolBudget "none" for the same reason as the "low"
+    // tier. Its training corpus is primarily English/US-UK/EU case law,
+    // not French law specifically — real-tested with a French legal
+    // question and got a coherent, on-topic (if imperfect) answer, but
+    // that mismatch is worth knowing, not hidden.
+    description:
+      "SaulLM-7B — modèle spécialisé droit (Equall, licence MIT), aucun tool calling. Corpus principalement anglo-saxon (UK/US/UE), " +
+      "testé en français avec des réponses cohérentes mais pas natif du droit français. Réponses lentes (>1min) sur CPU.",
+    model: "hf.co/MaziyarPanahi/Saul-Instruct-v1-GGUF:Q4_K_M",
+    family: "openai-compatible",
+    baseUrl: OLLAMA_BASE_URL,
+    ollamaModel: "hf.co/MaziyarPanahi/Saul-Instruct-v1-GGUF:Q4_K_M",
+    maxTokens: 1024,
+    toolBudget: "none",
   },
 ];
 
