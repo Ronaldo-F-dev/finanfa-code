@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface OllamaModel {
   name: string;
@@ -47,6 +48,7 @@ function displayDockerTag(m: DockerModel): string {
  * always by exact name), unlike Docker Hub/HuggingFace's real search.
  */
 function OllamaSection() {
+  const { t } = useLanguage();
   const [available, setAvailable] = useState<boolean | null>(null);
   const [installed, setInstalled] = useState<OllamaModel[]>([]);
   const [pullName, setPullName] = useState("");
@@ -102,7 +104,7 @@ function OllamaSection() {
   }
 
   async function removeModel(name: string) {
-    if (!window.confirm(`Remove "${name}"? This deletes it from disk — you'd need to pull it again to use it.`)) return;
+    if (!window.confirm(t("models.confirmRemove", { name }))) return;
     setRemoving(name);
     setRemoveError(null);
     try {
@@ -118,19 +120,14 @@ function OllamaSection() {
   }
 
   if (available === false) {
-    return (
-      <p className="settings-hint">
-        Ollama isn't reachable at <code>localhost:11434</code> — install it from <code>ollama.com</code> and make sure it's running to manage
-        models here.
-      </p>
-    );
+    return <p className="settings-hint">{t("models.ollamaUnavailable")}</p>;
   }
 
   return (
     <>
-      <p className="settings-hint">Pulled models run locally and show up automatically in the model picker — nothing else to configure.</p>
+      <p className="settings-hint">{t("models.autoConfigHint")}</p>
 
-      <div className="sidebar-section-label">Installed</div>
+      <div className="sidebar-section-label">{t("models.installed")}</div>
       <div className="mcp-list">
         {installed.map((m) => (
           <div className="mcp-row" key={m.name}>
@@ -145,20 +142,20 @@ function OllamaSection() {
             </div>
             <div className="mcp-row-actions">
               <button className="btn btn-ghost btn-danger" onClick={() => removeModel(m.name)} disabled={removing !== null}>
-                {removing === m.name ? "Removing…" : "Remove"}
+                {removing === m.name ? t("models.removing") : t("models.remove")}
               </button>
             </div>
           </div>
         ))}
-        {available === true && installed.length === 0 && <div className="sidebar-empty">No models pulled yet.</div>}
-        {available === null && <div className="sidebar-empty">Checking…</div>}
+        {available === true && installed.length === 0 && <div className="sidebar-empty">{t("models.noneOllama")}</div>}
+        {available === null && <div className="sidebar-empty">{t("models.checking")}</div>}
       </div>
-      {removeError && <div className="docker-models-error">Remove failed: {removeError}</div>}
+      {removeError && <div className="docker-models-error">{t("models.removeFailed", { error: removeError })}</div>}
 
-      <div className="sidebar-section-label">Pull a model</div>
+      <div className="sidebar-section-label">{t("models.pullSection")}</div>
       <div className="docker-models-search-row">
         <input
-          placeholder="e.g. qwen2.5-coder:7b"
+          placeholder={t("models.pullPlaceholder")}
           value={pullName}
           onChange={(e) => setPullName(e.target.value)}
           onKeyDown={(e) => {
@@ -167,7 +164,7 @@ function OllamaSection() {
           disabled={pulling !== null}
         />
         <button className="btn btn-allow" onClick={() => pull(pullName)} disabled={pulling !== null || !pullName.trim()}>
-          {pulling ? "Pulling…" : "Pull"}
+          {pulling ? t("models.pulling") : t("models.pull")}
         </button>
       </div>
       {pulling && (
@@ -176,16 +173,17 @@ function OllamaSection() {
             <div className="pull-progress-fill" style={{ width: `${pullPercent ?? 0}%` }} />
           </div>
           <div className="pull-progress-label">
-            {pullStatus ?? "starting…"} {pullPercent !== null ? `${pullPercent}%` : ""}
+            {pullStatus ?? t("models.starting")} {pullPercent !== null ? `${pullPercent}%` : ""}
           </div>
         </div>
       )}
-      {pullError && <div className="docker-models-error">Pull failed: {pullError}</div>}
+      {pullError && <div className="docker-models-error">{t("models.pullFailed", { error: pullError })}</div>}
     </>
   );
 }
 
 function DockerSection() {
+  const { t } = useLanguage();
   const [available, setAvailable] = useState<boolean | null>(null);
   const [installed, setInstalled] = useState<DockerModel[]>([]);
   const [query, setQuery] = useState("");
@@ -250,7 +248,7 @@ function DockerSection() {
   }
 
   async function removeModel(name: string) {
-    if (!window.confirm(`Remove "${name}"? This deletes it from disk — you'd need to pull it again to use it.`)) return;
+    if (!window.confirm(t("models.confirmRemove", { name }))) return;
     setRemoving(name);
     setRemoveError(null);
     try {
@@ -267,7 +265,7 @@ function DockerSection() {
 
   async function removeAll() {
     if (installed.length === 0) return;
-    if (!window.confirm(`Remove all ${installed.length} installed model(s)? This deletes every one of them from disk.`)) return;
+    if (!window.confirm(t("models.confirmRemoveAll", { count: installed.length }))) return;
     setRemoving("*");
     setRemoveError(null);
     try {
@@ -285,24 +283,19 @@ function DockerSection() {
   const installedNames = new Set(installed.map((m) => displayDockerTag(m)));
 
   if (available === false) {
-    return (
-      <p className="settings-hint">
-        Docker Model Runner isn't available — install/enable it (Docker Desktop 4.40+, or <code>docker model install-runner</code> on Docker
-        Engine) to browse and pull local models here.
-      </p>
-    );
+    return <p className="settings-hint">{t("models.dockerUnavailable")}</p>;
   }
 
   return (
     <>
-      <p className="settings-hint">Pulled models run locally and show up automatically in the model picker — nothing else to configure.</p>
+      <p className="settings-hint">{t("models.autoConfigHint")}</p>
 
       {installed.length > 0 && (
         <>
           <div className="sidebar-section-label docker-models-installed-header">
-            <span>Installed</span>
+            <span>{t("models.installed")}</span>
             <button className="btn btn-ghost btn-danger" onClick={removeAll} disabled={removing !== null}>
-              {removing === "*" ? "Removing…" : "Remove all"}
+              {removing === "*" ? t("models.removing") : t("models.removeAll")}
             </button>
           </div>
           <div className="mcp-list">
@@ -319,21 +312,21 @@ function DockerSection() {
                   </div>
                   <div className="mcp-row-actions">
                     <button className="btn btn-ghost btn-danger" onClick={() => removeModel(tag)} disabled={removing !== null}>
-                      {removing === tag ? "Removing…" : "Remove"}
+                      {removing === tag ? t("models.removing") : t("models.remove")}
                     </button>
                   </div>
                 </div>
               );
             })}
           </div>
-          {removeError && <div className="docker-models-error">Remove failed: {removeError}</div>}
+          {removeError && <div className="docker-models-error">{t("models.removeFailed", { error: removeError })}</div>}
         </>
       )}
 
-      <div className="sidebar-section-label">Search Docker Hub / HuggingFace</div>
+      <div className="sidebar-section-label">{t("models.searchSection")}</div>
       <div className="docker-models-search-row">
         <input
-          placeholder="qwen, llama, phi…"
+          placeholder={t("models.searchPlaceholder")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
           onKeyDown={(e) => {
@@ -341,7 +334,7 @@ function DockerSection() {
           }}
         />
         <button className="btn btn-ghost" onClick={() => runSearch(query)} disabled={searching}>
-          {searching ? "…" : "Search"}
+          {searching ? "…" : t("models.search")}
         </button>
       </div>
 
@@ -360,18 +353,18 @@ function DockerSection() {
             </div>
             <div className="mcp-row-actions">
               {installedNames.has(r.name) ? (
-                <span className="model-picker-blurb">installed</span>
+                <span className="model-picker-blurb">{t("models.installedTag")}</span>
               ) : pulling === r.name ? (
-                <span className="model-picker-blurb">pulling…</span>
+                <span className="model-picker-blurb">{t("models.pullingTag")}</span>
               ) : (
                 <button className="btn btn-allow" onClick={() => pull(r.name)} disabled={pulling !== null}>
-                  Pull
+                  {t("models.pull")}
                 </button>
               )}
             </div>
           </div>
         ))}
-        {results.length === 0 && !searching && <div className="sidebar-empty">No results.</div>}
+        {results.length === 0 && !searching && <div className="sidebar-empty">{t("models.noResults")}</div>}
       </div>
 
       {pulling && (
@@ -381,12 +374,13 @@ function DockerSection() {
           ))}
         </div>
       )}
-      {pullError && <div className="docker-models-error">Pull failed: {pullError}</div>}
+      {pullError && <div className="docker-models-error">{t("models.pullFailed", { error: pullError })}</div>}
     </>
   );
 }
 
 export function ModelsPanel({ onClose }: { onClose: () => void }) {
+  const { t } = useLanguage();
   const [tab, setTab] = useState<"ollama" | "docker">("ollama");
 
   return (
@@ -394,18 +388,18 @@ export function ModelsPanel({ onClose }: { onClose: () => void }) {
       <div className="modal panel-modal" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
           <span className="panel-header-icon">🧩</span>
-          <span className="panel-header-title">Models</span>
-          <button className="panel-header-close" onClick={onClose} aria-label="Close">
+          <span className="panel-header-title">{t("models.title")}</span>
+          <button className="panel-header-close" onClick={onClose} aria-label={t("settings.close")}>
             ×
           </button>
         </div>
 
         <div className="panel-tabs">
           <button type="button" className={`panel-tab ${tab === "ollama" ? "panel-tab-active" : ""}`} onClick={() => setTab("ollama")}>
-            🦙 Ollama
+            {t("models.tabOllama")}
           </button>
           <button type="button" className={`panel-tab ${tab === "docker" ? "panel-tab-active" : ""}`} onClick={() => setTab("docker")}>
-            🧩 Docker Model Runner
+            {t("models.tabDocker")}
           </button>
         </div>
 

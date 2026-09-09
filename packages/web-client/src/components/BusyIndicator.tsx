@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 /**
  * Real, reported UX confusion: a local model's initial prompt processing
@@ -13,6 +14,7 @@ import { useEffect, useState } from "react";
  * *why* a local model in particular can take this long.
  */
 export function BusyIndicator({ label, isLocalModel }: { label?: string; isLocalModel: boolean }) {
+  const { t } = useLanguage();
   const [elapsedSec, setElapsedSec] = useState(0);
 
   useEffect(() => {
@@ -29,12 +31,8 @@ export function BusyIndicator({ label, isLocalModel }: { label?: string; isLocal
   return (
     <div className="row row-log">
       <div className="log-line log-busy">
-        <span className="spinner" /> {label ?? "working"}… <span className="busy-elapsed">{elapsedSec}s</span>
-        {isLocalModel && elapsedSec >= 5 && (
-          <div className="busy-local-hint">
-            Modèle local — le traitement du prompt peut prendre une à deux minutes sur une machine sans GPU, avant même le début de la génération.
-          </div>
-        )}
+        <span className="spinner" /> {label ?? t("busy.working")}… <span className="busy-elapsed">{elapsedSec}s</span>
+        {isLocalModel && elapsedSec >= 5 && <div className="busy-local-hint">{t("busy.localModelHint")}</div>}
       </div>
     </div>
   );

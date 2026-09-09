@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export interface SessionListItem {
   id: string;
@@ -35,6 +36,7 @@ export function Sidebar({
   onOpenModels: () => void;
   onOpenTools: () => void;
 }) {
+  const { t } = useLanguage();
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
 
   useEffect(() => {
@@ -56,41 +58,42 @@ export function Sidebar({
   return (
     <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
       <button className="sidebar-new" onClick={onNewChat}>
-        ✎ New chat
+        {t("sidebar.newChat")}
       </button>
-      <button className="sidebar-project" onClick={onOpenProjects} title="Browse projects">
-        📁 Projects{projectName ? ` — ${projectName}` : ""}
+      <button className="sidebar-project" onClick={onOpenProjects} title={t("sidebar.browseProjects")}>
+        {t("sidebar.projects")}
+        {projectName ? ` — ${projectName}` : ""}
       </button>
 
-      <div className="sidebar-section-label">Chats</div>
+      <div className="sidebar-section-label">{t("sidebar.chats")}</div>
       <div className="sidebar-list">
         {sessions.map((s) => (
           <div key={s.id} className={`sidebar-item ${s.id === activeSessionId ? "sidebar-item-active" : ""}`} onClick={() => onSelect(s.id)}>
-            <span className="sidebar-item-title">{s.title ?? "New chat"}</span>
-            <button className="sidebar-item-delete" onClick={(e) => handleDelete(e, s.id)} title="Delete">
+            <span className="sidebar-item-title">{s.title ?? t("sidebar.newChatFallback")}</span>
+            <button className="sidebar-item-delete" onClick={(e) => handleDelete(e, s.id)} title={t("sidebar.delete")}>
               ×
             </button>
           </div>
         ))}
-        {sessions.length === 0 && <div className="sidebar-empty">No chats yet</div>}
+        {sessions.length === 0 && <div className="sidebar-empty">{t("sidebar.noChats")}</div>}
       </div>
 
-      <div className="sidebar-section-label sidebar-workspace-label">Workspace</div>
+      <div className="sidebar-section-label sidebar-workspace-label">{t("sidebar.workspace")}</div>
       <div className="sidebar-menu">
         <button className="sidebar-settings" onClick={onOpenMemory}>
-          🧠 Memory & skills
+          {t("sidebar.memory")}
         </button>
         <button className="sidebar-settings" onClick={onOpenMcp}>
-          🔌 Connectors
+          {t("sidebar.connectors")}
         </button>
         <button className="sidebar-settings" onClick={onOpenModels}>
-          🧩 Models
+          {t("sidebar.models")}
         </button>
         <button className="sidebar-settings" onClick={onOpenTools}>
-          🧰 Tools
+          {t("sidebar.tools")}
         </button>
         <button className="sidebar-settings" onClick={onOpenSettings}>
-          ⚙ Settings
+          {t("sidebar.settings")}
         </button>
       </div>
     </aside>

@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export interface ModelOption {
   id: string;
@@ -10,10 +11,10 @@ export interface ModelOption {
   localModelId?: string;
 }
 
-const BLURBS: Record<string, string> = {
-  "claude-opus-5": "For complex tasks",
-  "claude-sonnet-5": "Most efficient for everyday tasks",
-  "claude-haiku-4-5-20251001": "Fastest for quick answers",
+const BLURB_KEYS: Record<string, string> = {
+  "claude-opus-5": "modelPicker.blurbOpus",
+  "claude-sonnet-5": "modelPicker.blurbSonnet",
+  "claude-haiku-4-5-20251001": "modelPicker.blurbHaiku",
 };
 
 export function ModelPicker({
@@ -27,6 +28,7 @@ export function ModelPicker({
   onChange: (model: string, family: string, baseUrl?: string) => void;
   onNeedsKey: () => void;
 }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -41,7 +43,7 @@ export function ModelPicker({
   return (
     <div className="model-picker" ref={ref}>
       <button type="button" className="model-picker-trigger" onClick={() => setOpen((o) => !o)}>
-        {model || "model"}
+        {model || t("modelPicker.trigger")}
       </button>
       {open && (
         <div className="model-picker-menu">
@@ -62,8 +64,8 @@ export function ModelPicker({
               >
                 <div>
                   <div className="model-picker-name">{m.id}</div>
-                  {BLURBS[m.id] && <div className="model-picker-blurb">{BLURBS[m.id]}</div>}
-                  {!m.configured && <div className="model-picker-warn">needs API key — set one in Settings</div>}
+                  {BLURB_KEYS[m.id] && <div className="model-picker-blurb">{t(BLURB_KEYS[m.id]!)}</div>}
+                  {!m.configured && <div className="model-picker-warn">{t("modelPicker.needsKey")}</div>}
                 </div>
                 {modelId === model && <span className="model-picker-check">✓</span>}
               </button>

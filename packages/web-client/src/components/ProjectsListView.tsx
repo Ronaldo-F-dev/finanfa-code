@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 export interface ProjectItem {
   id: string;
@@ -8,6 +9,7 @@ export interface ProjectItem {
 }
 
 export function ProjectsListView({ onOpenProject }: { onOpenProject: (id: string) => void }) {
+  const { t } = useLanguage();
   const [projects, setProjects] = useState<ProjectItem[]>([]);
   const [newName, setNewName] = useState("");
 
@@ -38,20 +40,20 @@ export function ProjectsListView({ onOpenProject }: { onOpenProject: (id: string
   return (
     <div className="page">
       <div className="page-header">
-        <h1>Projects</h1>
-        <p className="page-sub">Isolated workspaces — files, chats, and reference material stay scoped to the project they belong to.</p>
+        <h1>{t("projects.title")}</h1>
+        <p className="page-sub">{t("projects.sub")}</p>
       </div>
 
       <div className="projects-new page-new">
         <input
           type="text"
-          placeholder="New project name…"
+          placeholder={t("projects.newNamePlaceholder")}
           value={newName}
           onChange={(e) => setNewName(e.target.value)}
           onKeyDown={(e) => e.key === "Enter" && handleCreate()}
         />
         <button className="btn btn-allow" onClick={handleCreate}>
-          + Create project
+          {t("projects.create")}
         </button>
       </div>
 
@@ -60,9 +62,7 @@ export function ProjectsListView({ onOpenProject }: { onOpenProject: (id: string
           <div key={p.id} className="project-card" onClick={() => onOpenProject(p.id)}>
             <div className="project-card-icon">📁</div>
             <div className="project-card-name">{p.name}</div>
-            <div className="mcp-meta">
-              {p.fileCount} file{p.fileCount === 1 ? "" : "s"}
-            </div>
+            <div className="mcp-meta">{t(p.fileCount === 1 ? "projects.fileCount" : "projects.fileCountPlural", { count: p.fileCount })}</div>
           </div>
         ))}
       </div>

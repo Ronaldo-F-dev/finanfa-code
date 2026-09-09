@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface ConfigShape {
   provider?: string;
@@ -47,6 +48,7 @@ function applyTheme(theme: Theme): void {
 }
 
 export function SettingsModal({ onClose }: { onClose: () => void }) {
+  const { language, setLanguage, t } = useLanguage();
   const [saved, setSaved] = useState<ConfigShape>({});
   const [savedApiKeys, setSavedApiKeys] = useState<string[]>([]);
   const [anthropicKeyDraft, setAnthropicKeyDraft] = useState("");
@@ -73,20 +75,20 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
   async function saveAnthropic() {
     if (!anthropicKeyDraft.trim()) return;
-    setStatus("Saving…");
+    setStatus(t("settings.saving"));
     const res = await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ anthropicApiKey: anthropicKeyDraft.trim() }),
     });
     const data = await res.json();
-    setStatus(data.note ?? "Saved.");
+    setStatus(data.note ?? t("settings.saved"));
     setAnthropicKeyDraft("");
     refresh();
   }
 
   async function saveOther() {
-    setStatus("Saving…");
+    setStatus(t("settings.saving"));
     const apiKeys = apiKeysDraft
       .split(/[,\n]/)
       .map((k) => k.trim())
@@ -106,7 +108,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
       }),
     });
     const data = await res.json();
-    setStatus(data.note ?? "Saved.");
+    setStatus(data.note ?? t("settings.saved"));
     setBaseUrlDraft("");
     setModelDraft("");
     setOtherKeyDraft("");
@@ -115,14 +117,14 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   }
 
   async function saveVision() {
-    setStatus("Saving…");
+    setStatus(t("settings.saving"));
     const res = await fetch("/api/config", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(visionDraft),
     });
     const data = await res.json();
-    setStatus(data.note ?? "Saved.");
+    setStatus(data.note ?? t("settings.saved"));
     setVisionDraft({});
     refresh();
   }
@@ -135,35 +137,44 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-title">Settings</div>
+        <div className="modal-title">{t("settings.title")}</div>
 
-        <div className="side-panel-title settings-first-title">Appearance</div>
+        <div className="side-panel-title settings-first-title">{t("settings.appearance")}</div>
         <div className="theme-switch">
           <button className={`btn btn-toggle ${theme === "dark" ? "btn-toggle-on" : ""}`} onClick={() => handleThemeChange("dark")}>
-            🌙 Dark
+            {t("settings.dark")}
           </button>
           <button className={`btn btn-toggle ${theme === "light" ? "btn-toggle-on" : ""}`} onClick={() => handleThemeChange("light")}>
-            ☀️ Light
+            {t("settings.light")}
           </button>
         </div>
 
-        <div className="side-panel-title">Models & tokens</div>
-        <p className="settings-hint">
-          Saved to <code>~/.finanfa-code/config.json</code>. Adding a key here doesn't disturb whichever provider is already active — start a new chat
-          (or switch models mid-chat) to use it.
-        </p>
+        <div className="side-panel-title">{t("settings.language")}</div>
+        <div className="theme-switch">
+          <button className={`btn btn-toggle ${language === "en" ? "btn-toggle-on" : ""}`} onClick={() => setLanguage("en")}>
+            🇬🇧 English
+          </button>
+          <button className={`btn btn-toggle ${language === "fr" ? "btn-toggle-on" : ""}`} onClick={() => setLanguage("fr")}>
+            🇫🇷 Français
+          </button>
+        </div>
+
+        <div className="side-panel-title">{t("settings.modelsAndTokens")}</div>
+        <p className="settings-hint">{t("settings.modelsHint")}</p>
 
         <div className="provider-card">
           <div className="provider-card-title">
-            Claude (Anthropic)
+            {t("settings.anthropicTitle")}
             {/* apiKey is a single field shared with the "Other provider" card below, scoped by
                 which one `provider` currently names — only anthropicApiKey unambiguously belongs
                 here, so a saved apiKey only counts when provider is actually "anthropic" too
                 (otherwise it's the other card's key and showing "configured" here would be a lie). */}
-            {(saved.anthropicApiKey || (saved.provider === "anthropic" && saved.apiKey)) && <span className="provider-badge">configured</span>}
+            {(saved.anthropicApiKey || (saved.provider === "anthropic" && saved.apiKey)) && (
+              <span className="provider-badge">{t("settings.configured")}</span>
+            )}
           </div>
           <p className="settings-hint">
-            {saved.anthropicApiKey ? `Key saved: ${saved.anthropicApiKey}` : "No key saved here yet — works anyway if ANTHROPIC_API_KEY is set on the server."}
+            {saved.anthropicApiKey ? t("settings.anthropicKeySaved", { key: saved.anthropicApiKey }) : t("settings.anthropicNoKey")}
           </p>
           <div className="provider-card-row">
             <input
@@ -174,18 +185,18 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
               onKeyDown={(e) => e.key === "Enter" && saveAnthropic()}
             />
             <button className="btn btn-allow" onClick={saveAnthropic} disabled={!anthropicKeyDraft.trim()}>
-              Save
+              {t("settings.save")}
             </button>
           </div>
         </div>
 
         <div className="provider-card">
           <div className="provider-card-title">
-            Other provider <span className="provider-card-sub">(DeepSeek, Ollama, OpenRouter, LM Studio, self-hosted…)</span>
-            {saved.baseUrl && <span className="provider-badge">configured</span>}
+            {t("settings.otherProviderTitle")} <span className="provider-card-sub">{t("settings.otherProviderSub")}</span>
+            {saved.baseUrl && <span className="provider-badge">{t("settings.configured")}</span>}
           </div>
           <div className="provider-preset-row">
-            <span>Quick setup:</span>
+            <span>{t("settings.quickSetup")}</span>
             {Object.entries(OPENAI_COMPATIBLE_PRESETS).map(([key, preset]) => (
               <button
                 key={key}
@@ -201,7 +212,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             ))}
           </div>
           <label className="settings-field">
-            <span>Base URL</span>
+            <span>{t("settings.baseUrl")}</span>
             <input
               type="text"
               placeholder={saved.baseUrl ?? "https://…/v1"}
@@ -210,7 +221,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             />
           </label>
           <label className="settings-field">
-            <span>Model</span>
+            <span>{t("settings.model")}</span>
             <input
               type="text"
               list="openai-compatible-model-suggestions"
@@ -227,23 +238,21 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             </datalist>
           </label>
           <label className="settings-field">
-            <span>API key (optional)</span>
+            <span>{t("settings.apiKeyOptional")}</span>
             <input
               type="password"
-              placeholder={saved.apiKey ? `saved: ${saved.apiKey}` : "leave blank if none needed"}
+              placeholder={saved.apiKey ? t("settings.apiKeySaved", { key: saved.apiKey }) : t("settings.apiKeyBlank")}
               value={otherKeyDraft}
               onChange={(e) => setOtherKeyDraft(e.target.value)}
             />
           </label>
           <label className="settings-field">
             <span>
-              Multiple API keys (optional) {savedApiKeys.length > 0 && <span className="provider-badge">{savedApiKeys.length} saved</span>}
+              {t("settings.multipleApiKeys")}{" "}
+              {savedApiKeys.length > 0 && <span className="provider-badge">{t("settings.savedCount", { count: savedApiKeys.length })}</span>}
             </span>
-            <p className="settings-hint">
-              One per line — for a community sharing one model, e.g. several Laguna keys. Tried in order, automatically moving to the next if one is
-              rate-limited or revoked. Leave blank to keep whatever's already saved.
-            </p>
-            {savedApiKeys.length > 0 && <p className="settings-hint">Saved: {savedApiKeys.join(", ")}</p>}
+            <p className="settings-hint">{t("settings.multipleKeysHint")}</p>
+            {savedApiKeys.length > 0 && <p className="settings-hint">{t("settings.savedKeysList", { keys: savedApiKeys.join(", ") })}</p>}
             <textarea
               className="instructions-textarea"
               placeholder={"key1\nkey2\nkey3"}
@@ -252,29 +261,29 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
             />
           </label>
           <button className="btn btn-allow" onClick={saveOther}>
-            Save
+            {t("settings.save")}
           </button>
         </div>
 
         <button className="settings-toggle" onClick={() => setShowVision((v) => !v)}>
-          {showVision ? "− Hide" : "+ Show"} vision routing (optional)
+          {showVision ? t("settings.hideVision") : t("settings.showVision")}
         </button>
         {showVision && (
           <div className="provider-card">
-            <p className="settings-hint">A second model used only for the turn right after a screenshot, if your main model can't see images.</p>
+            <p className="settings-hint">{t("settings.visionHint")}</p>
             {(["visionProvider", "visionModel", "visionBaseUrl", "visionApiKey"] as const).map((key) => (
               <label className="settings-field" key={key}>
                 <span>{key.replace("vision", "Vision ")}</span>
                 <input
                   type={key === "visionApiKey" ? "password" : "text"}
                   value={visionDraft[key] ?? ""}
-                  placeholder={key === "visionApiKey" && saved[key] ? `saved: ${saved[key]}` : (saved[key] ?? "")}
+                  placeholder={key === "visionApiKey" && saved[key] ? t("settings.apiKeySaved", { key: saved[key]! }) : (saved[key] ?? "")}
                   onChange={(e) => setVisionDraft((d) => ({ ...d, [key]: e.target.value }))}
                 />
               </label>
             ))}
             <button className="btn btn-allow" onClick={saveVision}>
-              Save vision routing
+              {t("settings.saveVisionRouting")}
             </button>
           </div>
         )}
@@ -283,7 +292,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
 
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onClose}>
-            Close
+            {t("settings.close")}
           </button>
         </div>
       </div>

@@ -1,9 +1,10 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ToolStatus } from "../hooks/useAgentSocket";
+import { useLanguage } from "../i18n/LanguageContext";
 
 const RISK_ICON: Record<string, string> = { safe: "🟢", ask: "🟡", dangerous: "🔴" };
 const RISK_ORDER = ["safe", "ask", "dangerous"];
-const RISK_LABEL: Record<string, string> = { safe: "Safe", ask: "Ask", dangerous: "Dangerous" };
+const RISK_LABEL_KEYS: Record<string, string> = { safe: "tools.riskSafe", ask: "tools.riskAsk", dangerous: "tools.riskDangerous" };
 
 /**
  * Manage the full tool list from the browser — the CLI's own /tools has
@@ -31,6 +32,7 @@ export function ToolsPanel({
   onToggle: (name: string, enabled: boolean) => void;
   onRefresh: () => void;
 }) {
+  const { t } = useLanguage();
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -42,15 +44,15 @@ export function ToolsPanel({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const enabledCount = tools.filter((t) => t.enabled).length;
+  const enabledCount = tools.filter((tl) => tl.enabled).length;
   const q = query.trim().toLowerCase();
 
   const groups = useMemo(() => {
     const byRisk = new Map<string, ToolStatus[]>();
     for (const risk of RISK_ORDER) byRisk.set(risk, []);
-    for (const t of tools) {
-      if (q && !t.name.toLowerCase().includes(q)) continue;
-      (byRisk.get(t.riskLevel) ?? byRisk.set(t.riskLevel, []).get(t.riskLevel)!).push(t);
+    for (const tl of tools) {
+      if (q && !tl.name.toLowerCase().includes(q)) continue;
+      (byRisk.get(tl.riskLevel) ?? byRisk.set(tl.riskLevel, []).get(tl.riskLevel)!).push(tl);
     }
     return byRisk;
   }, [tools, q]);
@@ -65,7 +67,7 @@ export function ToolsPanel({
   }
 
   function setGroupEnabled(list: ToolStatus[], enabled: boolean) {
-    for (const t of list) if (t.enabled !== enabled) onToggle(t.name, enabled);
+    for (const tl of list) if (tl.enabled !== enabled) onToggle(tl.name, enabled);
   }
 
   return (
@@ -73,20 +75,19 @@ export function ToolsPanel({
       <div className="modal panel-modal" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
           <span className="panel-header-icon">🧰</span>
-          <span className="panel-header-title">Tools</span>
-          <button className="panel-header-close" onClick={onClose} aria-label="Close">
+          <span className="panel-header-title">{t("tools.title")}</span>
+          <button className="panel-header-close" onClick={onClose} aria-label={t("settings.close")}>
             ×
           </button>
         </div>
         <p className="settings-hint">
-          {tools.length > 0 ? `${enabledCount} of ${tools.length} enabled.` : "Loading…"} Disabling tools shrinks what's sent to the model on every
-          turn — useful for a small-context local model that otherwise overflows before a single message is even sent.
+          {tools.length > 0 ? t("tools.hintCount", { enabled: enabledCount, total: tools.length }) : t("tools.loading")} {t("tools.hintExplain")}
         </p>
 
         <input
           className="panel-search"
           type="text"
-          placeholder="Search tools…"
+          placeholder={t("tools.searchPlaceholder")}
           value={query}
           onChange={(e) => setQuery(e.target.value)}
         />
@@ -102,30 +103,30 @@ export function ToolsPanel({
                   <button type="button" className="tool-group-toggle" onClick={() => toggleGroup(risk)}>
                     <span className={`tool-group-chevron ${isOpen ? "tool-group-chevron-open" : ""}`}>▸</span>
                     <span className="tool-group-icon">{RISK_ICON[risk]}</span>
-                    <span className="tool-group-label">{RISK_LABEL[risk] ?? risk}</span>
+                    <span className="tool-group-label">{t(RISK_LABEL_KEYS[risk] ?? risk)}</span>
                     <span className="tool-group-count">
-                      {list.filter((t) => t.enabled).length}/{list.length}
+                      {list.filter((tl) => tl.enabled).length}/{list.length}
                     </span>
                   </button>
                   <button type="button" className="tool-group-bulk" onClick={() => setGroupEnabled(list, true)}>
-                    Enable all
+                    {t("tools.enableAll")}
                   </button>
                   <button type="button" className="tool-group-bulk" onClick={() => setGroupEnabled(list, false)}>
-                    Disable all
+                    {t("tools.disableAll")}
                   </button>
                 </div>
                 {isOpen && (
                   <div className="tool-group-body">
-                    {list.map((t) => (
-                      <div className="mcp-row" key={t.name}>
+                    {list.map((tl) => (
+                      <div className="mcp-row" key={tl.name}>
                         <div className="mcp-row-main">
                           <div>
-                            <div className="mcp-name">{t.name}</div>
+                            <div className="mcp-name">{tl.name}</div>
                           </div>
                         </div>
                         <div className="mcp-row-actions">
-                          <button className="btn btn-ghost" onClick={() => onToggle(t.name, !t.enabled)}>
-                            {t.enabled ? "Disable" : "Enable"}
+                          <button className="btn btn-ghost" onClick={() => onToggle(tl.name, !tl.enabled)}>
+                            {tl.enabled ? t("tools.disable") : t("tools.enable")}
                           </button>
                         </div>
                       </div>
@@ -135,9 +136,9 @@ export function ToolsPanel({
               </div>
             );
           })}
-          {tools.length === 0 && <div className="sidebar-empty">Loading tools…</div>}
+          {tools.length === 0 && <div className="sidebar-empty">{t("tools.loadingTools")}</div>}
           {tools.length > 0 && [...groups.values()].every((l) => l.length === 0) && (
-            <div className="sidebar-empty">No tool matches "{query}".</div>
+            <div className="sidebar-empty">{t("tools.noMatch", { query })}</div>
           )}
         </div>
       </div>

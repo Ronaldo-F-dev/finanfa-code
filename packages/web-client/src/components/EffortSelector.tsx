@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface EffortTierInfo {
   id: string;
@@ -46,6 +47,7 @@ export function EffortSelector({
   onSelect: (level: string) => void;
   onDismissNeedsDownload: () => void;
 }) {
+  const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [tiers, setTiers] = useState<EffortTierInfo[]>([]);
   const [defaultForNewChats, setDefaultForNewChats] = useState<string | null>(() => getDefaultEffortPreference());
@@ -115,35 +117,35 @@ export function EffortSelector({
   return (
     <div className="effort-selector" ref={ref}>
       <button type="button" className="effort-selector-trigger" onClick={() => setOpen((o) => !o)}>
-        {current ? `Effort: ${current.label}` : "Effort"}
+        {current ? t("effort.triggerWithLabel", { label: current.label }) : t("effort.trigger")}
       </button>
       {open && (
         <div className="effort-selector-menu">
-          {tiers.map((t) => (
+          {tiers.map((tier) => (
             <button
-              key={t.id}
+              key={tier.id}
               type="button"
               className="effort-selector-item"
               onClick={() => {
                 setOpen(false);
-                onSelect(t.id);
+                onSelect(tier.id);
               }}
             >
               <div className="effort-selector-row">
                 <div>
                   <div className="effort-selector-name">
-                    {t.label} {t.id === currentEffort && <span className="effort-selector-check">✓</span>}
+                    {tier.label} {tier.id === currentEffort && <span className="effort-selector-check">✓</span>}
                   </div>
-                  <div className="effort-selector-blurb">{t.description}</div>
-                  {t.ollamaModel && !t.installed && <div className="effort-selector-warn">modèle non installé — sera téléchargé au premier choix</div>}
+                  <div className="effort-selector-blurb">{tier.description}</div>
+                  {tier.ollamaModel && !tier.installed && <div className="effort-selector-warn">{t("effort.notInstalled")}</div>}
                 </div>
                 <button
                   type="button"
-                  className={`effort-selector-default-star ${defaultForNewChats === t.id ? "effort-selector-default-star-on" : ""}`}
-                  title={defaultForNewChats === t.id ? "Ne plus utiliser par défaut pour les nouveaux chats" : "Utiliser par défaut pour les nouveaux chats"}
-                  onClick={(e) => toggleDefaultForNewChats(t.id, e)}
+                  className={`effort-selector-default-star ${defaultForNewChats === tier.id ? "effort-selector-default-star-on" : ""}`}
+                  title={defaultForNewChats === tier.id ? t("effort.starOn") : t("effort.starOff")}
+                  onClick={(e) => toggleDefaultForNewChats(tier.id, e)}
                 >
-                  {defaultForNewChats === t.id ? "★" : "☆"}
+                  {defaultForNewChats === tier.id ? "★" : "☆"}
                 </button>
               </div>
             </button>
@@ -153,18 +155,18 @@ export function EffortSelector({
 
       {needsDownload && (
         <div className="effort-download-prompt">
-          <div>
-            Le modèle <strong>{needsDownload.ollamaModel}</strong> n'est pas installé.
-          </div>
+          <div>{t("effort.modelNotInstalled", { model: needsDownload.ollamaModel })}</div>
           {pulling === needsDownload.ollamaModel ? (
-            <div className="effort-download-progress">Téléchargement… {pullPercent !== null ? `${pullPercent}%` : ""}</div>
+            <div className="effort-download-progress">
+              {t("effort.downloading")} {pullPercent !== null ? `${pullPercent}%` : ""}
+            </div>
           ) : (
             <div className="effort-download-actions">
               <button type="button" onClick={() => pull(needsDownload.ollamaModel, needsDownload.level)}>
-                Télécharger et activer
+                {t("effort.downloadAndUse")}
               </button>
               <button type="button" onClick={onDismissNeedsDownload}>
-                Annuler
+                {t("effort.cancel")}
               </button>
             </div>
           )}

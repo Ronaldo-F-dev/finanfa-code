@@ -13,6 +13,7 @@ import { ModelsPanel } from "./components/ModelsPanel";
 import { ToolsPanel } from "./components/ToolsPanel";
 import { ProjectsListView } from "./components/ProjectsListView";
 import { ProjectDetailView } from "./components/ProjectDetailView";
+import { useLanguage } from "./i18n/LanguageContext";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
@@ -28,6 +29,7 @@ function readFileAsBase64(file: File): Promise<string> {
 }
 
 export default function App() {
+  const { t } = useLanguage();
   const [view, setView] = useState<View>({ kind: "chat" });
   const [models, setModels] = useState<ModelOption[]>([]);
   // connectModel only ever feeds the WebSocket's connection query string —
@@ -273,7 +275,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <button className="sidebar-toggle" onClick={() => setSidebarOpen(true)} aria-label="Open menu" title="Menu">
+      <button className="sidebar-toggle" onClick={() => setSidebarOpen(true)} aria-label={t("app.openMenu")} title={t("app.menu")}>
         ☰
       </button>
       {sidebarOpen && <div className="sidebar-backdrop" onClick={() => setSidebarOpen(false)} />}
@@ -346,9 +348,9 @@ export default function App() {
                 className={`btn btn-ghost btn-plan-mode${status?.planMode ? " btn-plan-mode-active" : ""}`}
                 onClick={() => setPlanMode(!status?.planMode)}
                 disabled={!connected}
-                title="Plan mode: while on, only read-only tools work until the agent presents a plan for approval"
+                title={t("app.planModeTitle")}
               >
-                {status?.planMode ? "◆ Plan mode" : "Plan mode"}
+                {status?.planMode ? t("app.planModeOn") : t("app.planMode")}
               </button>
               {status && (
                 <span className="cost-pill">
@@ -360,12 +362,12 @@ export default function App() {
                   className="btn btn-ghost btn-compact"
                   onClick={compact}
                   disabled={!connected || busy.active}
-                  title="Summarize the conversation so far into a condensed note, freeing up context"
+                  title={t("app.compactTitle")}
                 >
-                  Compact
+                  {t("app.compact")}
                 </button>
               )}
-              <span className={`conn-dot ${connected ? "conn-on" : "conn-off"}`} title={connected ? "connected" : "disconnected"} />
+              <span className={`conn-dot ${connected ? "conn-on" : "conn-off"}`} title={connected ? t("app.connected") : t("app.disconnected")} />
             </div>
           </header>
 
@@ -374,10 +376,10 @@ export default function App() {
               <span>{modelUnavailable.message}</span>
               <div className="inline-banner-actions">
                 <button className="btn btn-ghost" onClick={() => setSettingsOpen(true)}>
-                  Open Settings
+                  {t("app.openSettings")}
                 </button>
                 <button className="btn btn-ghost" onClick={dismissModelUnavailable}>
-                  Dismiss
+                  {t("app.dismiss")}
                 </button>
               </div>
             </div>
@@ -386,8 +388,8 @@ export default function App() {
           <main className="timeline" ref={scrollRef} onScroll={handleTimelineScroll}>
             {timeline.length === 0 && (
               <div className="empty-state">
-                <div className="empty-title">finanfa AI</div>
-                <div className="empty-sub">Ask it to read, edit, run, or build something in this project.</div>
+                <div className="empty-title">{t("app.emptyTitle")}</div>
+                <div className="empty-sub">{t("app.emptySub")}</div>
               </div>
             )}
             {timeline.map((item) => (
@@ -412,7 +414,7 @@ export default function App() {
               )}
               <textarea
                 className="composer-input"
-                placeholder={connected ? "Message finanfa AI…" : "Connecting…"}
+                placeholder={connected ? t("app.composerPlaceholder") : t("app.connecting")}
                 value={input}
                 disabled={!connected}
                 onChange={(e) => setInput(e.target.value)}
@@ -426,34 +428,34 @@ export default function App() {
               <div className="composer-toolbar">
                 <div className="composer-toolbar-left">
                   <input ref={fileInputRef} type="file" multiple hidden onChange={(e) => handleFiles(e.target.files)} />
-                  <button className="btn btn-ghost composer-plus-btn" onClick={() => setToolsMenuOpen((v) => !v)} title="More options">
+                  <button className="btn btn-ghost composer-plus-btn" onClick={() => setToolsMenuOpen((v) => !v)} title={t("app.moreOptions")}>
                     +
                   </button>
                   {toolsMenuOpen && <div className="composer-tools-backdrop" onClick={() => setToolsMenuOpen(false)} />}
                   <div className={`composer-tools-group ${toolsMenuOpen ? "composer-tools-open" : ""}`}>
-                    <button className="btn btn-ghost attach-btn" onClick={() => fileInputRef.current?.click()} disabled={!connected || uploading} title="Attach image or file">
+                    <button className="btn btn-ghost attach-btn" onClick={() => fileInputRef.current?.click()} disabled={!connected || uploading} title={t("app.attachTitle")}>
                       📎
                     </button>
                     <button
                       className={`btn btn-toggle ${webSearchEnabled ? "btn-toggle-on" : ""}`}
                       onClick={toggleWebSearch}
-                      title={webSearchEnabled ? "Web search allowed — click to disable" : "Web search disabled — click to enable"}
+                      title={webSearchEnabled ? t("app.webOnTitle") : t("app.webOffTitle")}
                     >
-                      🌐 Web
+                      {t("app.web")}
                     </button>
                     <button
                       className={`btn btn-toggle ${imageGenEnabled ? "btn-toggle-on" : ""}`}
                       onClick={toggleImageGen}
-                      title={imageGenEnabled ? "Image generation allowed — click to disable" : "Image generation disabled — click to enable"}
+                      title={imageGenEnabled ? t("app.imageOnTitle") : t("app.imageOffTitle")}
                     >
-                      🖼️ Image
+                      {t("app.image")}
                     </button>
                     <button
                       className={`btn btn-toggle ${deepResearch ? "btn-toggle-on" : ""}`}
                       onClick={() => setDeepResearch((v) => !v)}
-                      title="Deep research: push the agent to search thoroughly across multiple sources before answering"
+                      title={t("app.deepResearchTitle")}
                     >
-                      🔎 Deep research
+                      {t("app.deepResearch")}
                     </button>
                     <ModelPicker
                       models={models}
@@ -471,16 +473,18 @@ export default function App() {
                 </div>
                 {busy.active ? (
                   <button className="btn btn-stop" onClick={interrupt}>
-                    Stop
+                    {t("app.stop")}
                   </button>
                 ) : (
                   <button className="btn btn-send" onClick={handleSend} disabled={!connected || (!input.trim() && pendingImages.length === 0)}>
-                    Send
+                    {t("app.send")}
                   </button>
                 )}
               </div>
             </div>
-            <div className="composer-hint">finanfa AI can make mistakes. Check important info. · Enter to send · Shift+Enter for a new line</div>
+            <div className="composer-hint">
+              {t("app.disclaimer")} · {t("app.keyboardHint")}
+            </div>
           </footer>
         </div>
       )}

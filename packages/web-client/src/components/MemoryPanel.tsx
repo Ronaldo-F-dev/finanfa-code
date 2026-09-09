@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 type Scope = "project" | "global";
 
@@ -27,6 +28,7 @@ interface DraftBase {
 }
 
 export function MemoryPanel({ projectId, onClose }: { projectId: string | undefined; onClose: () => void }) {
+  const { t } = useLanguage();
   const [skills, setSkills] = useState<Skill[]>([]);
   const [memories, setMemories] = useState<Memory[]>([]);
   const [expanded, setExpanded] = useState<string | null>(null);
@@ -94,20 +96,17 @@ export function MemoryPanel({ projectId, onClose }: { projectId: string | undefi
       <div className="modal panel-modal" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
           <span className="panel-header-icon">🧠</span>
-          <span className="panel-header-title">Memory & skills</span>
-          <button className="panel-header-close" onClick={onClose} aria-label="Close">
+          <span className="panel-header-title">{t("memory.title")}</span>
+          <button className="panel-header-close" onClick={onClose} aria-label={t("settings.close")}>
             ×
           </button>
         </div>
-        <p className="settings-hint">
-          Global entries apply to every project on this machine — this is where your own personal notes and tools live. Project entries only apply
-          here.
-        </p>
+        <p className="settings-hint">{t("memory.hint")}</p>
 
         <div className="side-panel-title">
-          Memory ({memories.length})
+          {t("memory.memoryCount", { count: memories.length })}
           <button className="settings-toggle memory-add-btn" onClick={() => setMemoryDraft({ name: "", description: "", content: "", scope: "project", type: "user" })}>
-            + New
+            {t("memory.new")}
           </button>
         </div>
         <div className="mcp-list">
@@ -124,65 +123,65 @@ export function MemoryPanel({ projectId, onClose }: { projectId: string | undefi
               </div>
               <div className="mcp-row-actions">
                 <button className="btn btn-ghost" onClick={() => setMemoryDraft({ name: m.name, description: m.description, content: m.content, scope: m.scope, type: m.type })}>
-                  Edit
+                  {t("memory.edit")}
                 </button>
                 <button className="btn btn-deny" onClick={() => deleteMemoryEntry(m)}>
-                  Delete
+                  {t("memory.delete")}
                 </button>
               </div>
             </div>
           ))}
-          {memories.length === 0 && <div className="sidebar-empty">Nothing saved yet.</div>}
+          {memories.length === 0 && <div className="sidebar-empty">{t("memory.nothingSaved")}</div>}
         </div>
 
         {memoryDraft && (
           <div className="provider-card">
             <label className="settings-field">
-              <span>Name (slug)</span>
+              <span>{t("memory.nameSlug")}</span>
               <input type="text" value={memoryDraft.name} onChange={(e) => setMemoryDraft((d) => d && { ...d, name: e.target.value })} />
             </label>
             <label className="settings-field">
-              <span>Description</span>
+              <span>{t("memory.description")}</span>
               <input type="text" value={memoryDraft.description} onChange={(e) => setMemoryDraft((d) => d && { ...d, description: e.target.value })} />
             </label>
             <div className="draft-row">
               <label className="settings-field">
-                <span>Type</span>
+                <span>{t("memory.type")}</span>
                 <select value={memoryDraft.type} onChange={(e) => setMemoryDraft((d) => d && { ...d, type: e.target.value })}>
-                  {MEMORY_TYPES.map((t) => (
-                    <option key={t} value={t}>
-                      {t}
+                  {MEMORY_TYPES.map((mt) => (
+                    <option key={mt} value={mt}>
+                      {mt}
                     </option>
                   ))}
                 </select>
               </label>
               <label className="settings-field">
-                <span>Scope</span>
+                <span>{t("memory.scope")}</span>
                 <select value={memoryDraft.scope} onChange={(e) => setMemoryDraft((d) => d && { ...d, scope: e.target.value as Scope })}>
-                  <option value="project">This project</option>
-                  <option value="global">Global (every project)</option>
+                  <option value="project">{t("memory.scopeProject")}</option>
+                  <option value="global">{t("memory.scopeGlobal")}</option>
                 </select>
               </label>
             </div>
             <label className="settings-field">
-              <span>Content</span>
+              <span>{t("memory.content")}</span>
               <textarea className="instructions-textarea" value={memoryDraft.content} onChange={(e) => setMemoryDraft((d) => d && { ...d, content: e.target.value })} />
             </label>
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={() => setMemoryDraft(null)}>
-                Cancel
+                {t("memory.cancel")}
               </button>
               <button className="btn btn-allow" onClick={saveMemory}>
-                Save memory
+                {t("memory.saveMemory")}
               </button>
             </div>
           </div>
         )}
 
         <div className="side-panel-title">
-          Skills ({skills.length})
+          {t("memory.skillsCount", { count: skills.length })}
           <button className="settings-toggle memory-add-btn" onClick={() => setSkillDraft({ name: "", description: "", content: "", scope: "project" })}>
-            + New
+            {t("memory.new")}
           </button>
         </div>
         <div className="mcp-list">
@@ -199,44 +198,44 @@ export function MemoryPanel({ projectId, onClose }: { projectId: string | undefi
               </div>
               <div className="mcp-row-actions">
                 <button className="btn btn-ghost" onClick={() => setSkillDraft({ name: s.name, description: s.description, content: s.content, scope: s.scope })}>
-                  Edit
+                  {t("memory.edit")}
                 </button>
                 <button className="btn btn-deny" onClick={() => deleteSkillEntry(s)}>
-                  Delete
+                  {t("memory.delete")}
                 </button>
               </div>
             </div>
           ))}
-          {skills.length === 0 && <div className="sidebar-empty">No skills yet.</div>}
+          {skills.length === 0 && <div className="sidebar-empty">{t("memory.noSkills")}</div>}
         </div>
 
         {skillDraft && (
           <div className="provider-card">
             <label className="settings-field">
-              <span>Name (slug)</span>
+              <span>{t("memory.nameSlug")}</span>
               <input type="text" value={skillDraft.name} onChange={(e) => setSkillDraft((d) => d && { ...d, name: e.target.value })} />
             </label>
             <label className="settings-field">
-              <span>Description</span>
+              <span>{t("memory.description")}</span>
               <input type="text" value={skillDraft.description} onChange={(e) => setSkillDraft((d) => d && { ...d, description: e.target.value })} />
             </label>
             <label className="settings-field">
-              <span>Scope</span>
+              <span>{t("memory.scope")}</span>
               <select value={skillDraft.scope} onChange={(e) => setSkillDraft((d) => d && { ...d, scope: e.target.value as Scope })}>
-                <option value="project">This project</option>
-                <option value="global">Global (every project)</option>
+                <option value="project">{t("memory.scopeProject")}</option>
+                <option value="global">{t("memory.scopeGlobal")}</option>
               </select>
             </label>
             <label className="settings-field">
-              <span>Content (Markdown instructions)</span>
+              <span>{t("memory.contentMarkdown")}</span>
               <textarea className="instructions-textarea" value={skillDraft.content} onChange={(e) => setSkillDraft((d) => d && { ...d, content: e.target.value })} />
             </label>
             <div className="modal-actions">
               <button className="btn btn-ghost" onClick={() => setSkillDraft(null)}>
-                Cancel
+                {t("memory.cancel")}
               </button>
               <button className="btn btn-allow" onClick={saveSkill}>
-                Save skill
+                {t("memory.saveSkill")}
               </button>
             </div>
           </div>

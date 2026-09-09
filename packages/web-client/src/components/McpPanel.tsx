@@ -1,4 +1,5 @@
 import type { McpServerStatus } from "../hooks/useAgentSocket";
+import { useLanguage } from "../i18n/LanguageContext";
 
 // No real service logos available without pulling images from the network
 // (blocked here) — a recognizable emoji per known catalog entry beats a
@@ -30,22 +31,20 @@ export function McpPanel({
   onToggle: (name: string, enabled: boolean) => void;
   onReload: () => void;
 }) {
+  const { t } = useLanguage();
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal panel-modal" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
           <span className="panel-header-icon">🔌</span>
-          <span className="panel-header-title">Connectors</span>
-          <button className="panel-header-close" onClick={onClose} aria-label="Close">
+          <span className="panel-header-title">{t("mcp.title")}</span>
+          <button className="panel-header-close" onClick={onClose} aria-label={t("settings.close")}>
             ×
           </button>
         </div>
-        <p className="settings-hint">
-          Adding a connector saves it to this project's <code>.finanfa-code/mcp.json</code>. Connecting to a remote one may open a browser tab on the
-          machine running the server for OAuth.
-        </p>
+        <p className="settings-hint">{t("mcp.hint")}</p>
 
-        {servers.length === 0 && <div className="sidebar-empty">{loaded ? "No connectors available." : "Loading connectors…"}</div>}
+        {servers.length === 0 && <div className="sidebar-empty">{loaded ? t("mcp.noneAvailable") : t("mcp.loading")}</div>}
 
         <div className="mcp-list">
           {servers.map((s) => (
@@ -57,21 +56,21 @@ export function McpPanel({
                   <div className="mcp-name">{s.name}</div>
                   <div className="mcp-meta">
                     {s.transport}
-                    {s.connected && s.disabled ? " · disabled" : ""}
-                    {s.needsAuth ? " · needs authorization" : ""}
-                    {!s.connected && !s.inProject ? " · not added yet" : ""}
+                    {s.connected && s.disabled ? ` · ${t("mcp.disabled")}` : ""}
+                    {s.needsAuth ? ` · ${t("mcp.needsAuth")}` : ""}
+                    {!s.connected && !s.inProject ? ` · ${t("mcp.notAddedYet")}` : ""}
                   </div>
                 </div>
               </div>
               <div className="mcp-row-actions">
                 {!s.connected && (
                   <button className="btn btn-allow" onClick={() => onConnect(s.name)}>
-                    + Add
+                    {t("mcp.add")}
                   </button>
                 )}
                 {s.connected && (
                   <button className="btn btn-ghost" onClick={() => onToggle(s.name, s.disabled)}>
-                    {s.disabled ? "Enable" : "Disable"}
+                    {s.disabled ? t("mcp.enable") : t("mcp.disable")}
                   </button>
                 )}
               </div>
@@ -81,7 +80,7 @@ export function McpPanel({
 
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={onReload}>
-            Reload tools
+            {t("mcp.reloadTools")}
           </button>
         </div>
       </div>

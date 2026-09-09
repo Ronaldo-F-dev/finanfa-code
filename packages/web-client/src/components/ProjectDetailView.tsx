@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { useLanguage } from "../i18n/LanguageContext";
 
 interface ProjectMeta {
   id: string;
@@ -40,6 +41,7 @@ export function ProjectDetailView({
   onStartChat: (firstMessage: string) => void;
   onDeleted: () => void;
 }) {
+  const { t } = useLanguage();
   const [project, setProject] = useState<ProjectMeta | null>(null);
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
   const [instructions, setInstructions] = useState("");
@@ -109,7 +111,7 @@ export function ProjectDetailView({
     <div className="page">
       <div className="breadcrumb">
         <span className="breadcrumb-link" onClick={onBack}>
-          Projects
+          {t("projectDetail.breadcrumb")}
         </span>{" "}
         / {project.name}
       </div>
@@ -118,11 +120,11 @@ export function ProjectDetailView({
         <h1>{project.name}</h1>
         <div className="page-header-actions">
           <a className="btn btn-ghost" href={`/api/projects/${projectId}/download`} download>
-            Download source
+            {t("projectDetail.downloadSource")}
           </a>
           {project.id !== "default" && (
             <button className="btn btn-deny" onClick={handleDeleteProject}>
-              Delete project
+              {t("projectDetail.deleteProject")}
             </button>
           )}
         </div>
@@ -133,7 +135,7 @@ export function ProjectDetailView({
           <div className="composer-box project-start-composer">
             <textarea
               className="composer-input"
-              placeholder={`Start a new chat in ${project.name}…`}
+              placeholder={t("projectDetail.startChatPlaceholder", { name: project.name })}
               value={composer}
               onChange={(e) => setComposer(e.target.value)}
               onKeyDown={(e) => {
@@ -146,29 +148,29 @@ export function ProjectDetailView({
             <div className="composer-toolbar">
               <span />
               <button className="btn btn-send" onClick={handleSend} disabled={!composer.trim()}>
-                Start chat
+                {t("projectDetail.startChat")}
               </button>
             </div>
           </div>
 
-          <div className="page-section-label">Chats in this project</div>
+          <div className="page-section-label">{t("projectDetail.chatsInProject")}</div>
           <div className="project-chat-list">
             {sessions.map((s) => (
               <div key={s.id} className="sidebar-item project-chat-row" onClick={() => onOpenChat(s.id)}>
-                <span className="sidebar-item-title">{s.title ?? "New chat"}</span>
+                <span className="sidebar-item-title">{s.title ?? t("sidebar.newChatFallback")}</span>
               </div>
             ))}
-            {sessions.length === 0 && <div className="sidebar-empty">No chats yet — start one above.</div>}
+            {sessions.length === 0 && <div className="sidebar-empty">{t("projectDetail.noChats")}</div>}
           </div>
         </div>
 
         <div className="project-detail-side">
           <div className="side-panel">
-            <div className="side-panel-title">Instructions</div>
-            <p className="settings-hint">Custom guidance folded into every chat's system prompt in this project (saved as finanfa.md).</p>
+            <div className="side-panel-title">{t("projectDetail.instructions")}</div>
+            <p className="settings-hint">{t("projectDetail.instructionsHint")}</p>
             <textarea
               className="instructions-textarea"
-              placeholder="e.g. Always use TypeScript strict mode. Prefer functional components…"
+              placeholder={t("projectDetail.instructionsPlaceholder")}
               value={instructions}
               onChange={(e) => {
                 setInstructions(e.target.value);
@@ -177,17 +179,17 @@ export function ProjectDetailView({
             />
             {instructionsDirty && (
               <button className="btn btn-allow" onClick={saveInstructions}>
-                Save instructions
+                {t("projectDetail.saveInstructions")}
               </button>
             )}
           </div>
 
           <div className="side-panel">
-            <div className="side-panel-title">Knowledge</div>
-            <p className="settings-hint">Reference files the agent can read directly (docs, specs, data samples).</p>
+            <div className="side-panel-title">{t("projectDetail.knowledge")}</div>
+            <p className="settings-hint">{t("projectDetail.knowledgeHint")}</p>
             <input ref={fileInputRef} type="file" multiple hidden onChange={(e) => handleUpload(e.target.files)} />
             <button className="btn btn-ghost" onClick={() => fileInputRef.current?.click()}>
-              + Add files
+              {t("projectDetail.addFiles")}
             </button>
             {files.map((f) => (
               <div className="project-file-row" key={f.name}>

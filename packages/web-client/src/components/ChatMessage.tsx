@@ -1,33 +1,34 @@
 import { marked } from "marked";
 import type { TimelineItem, ToolRiskLevel } from "../hooks/useAgentSocket";
+import { useLanguage } from "../i18n/LanguageContext";
 
 marked.setOptions({ breaks: true });
 
 const TOOL_RISK_ICON: Record<ToolRiskLevel, string> = { safe: "›", ask: "◆", dangerous: "▲" };
 
-function withCopyButtons(html: string): string {
+function withCopyButtons(html: string, copyLabel: string): string {
   // Injected as the <pre>'s first child, positioned via CSS (absolute,
   // top-right) rather than DOM order — simplest way to add a per-block
   // "Copy" affordance without a full markdown-renderer plugin.
-  return html.replace(/<pre>/g, '<pre><button type="button" class="code-copy-btn" data-code-copy>Copy</button>');
+  return html.replace(/<pre>/g, `<pre><button type="button" class="code-copy-btn" data-code-copy>${copyLabel}</button>`);
 }
 
-function handleMarkdownClick(e: React.MouseEvent<HTMLDivElement>): void {
+function handleMarkdownClick(e: React.MouseEvent<HTMLDivElement>, copyLabel: string, copiedLabel: string): void {
   const btn = (e.target as HTMLElement).closest<HTMLElement>("[data-code-copy]");
   if (!btn) return;
   const pre = btn.closest("pre");
   const code = pre?.querySelector("code");
-  const text = (code ?? pre)?.textContent?.replace(/^Copy/, "") ?? "";
+  const text = (code ?? pre)?.textContent?.replace(new RegExp(`^${copyLabel}`), "") ?? "";
   navigator.clipboard.writeText(text).then(() => {
-    const original = btn.textContent;
-    btn.textContent = "Copied!";
+    btn.textContent = copiedLabel;
     setTimeout(() => {
-      btn.textContent = original;
+      btn.textContent = copyLabel;
     }, 1500);
   });
 }
 
 export function ChatMessageView({ item, projectId }: { item: TimelineItem; projectId?: string }) {
+  const { t } = useLanguage();
   if (item.kind === "user") {
     return (
       <div className="row row-user">
@@ -46,12 +47,17 @@ export function ChatMessageView({ item, projectId }: { item: TimelineItem; proje
   }
 
   if (item.kind === "assistant") {
-    const html = withCopyButtons(marked.parse(item.text || (item.streaming ? "" : "")) as string);
+    const copyLabel = t("chatMessage.copy");
+    const html = withCopyButtons(marked.parse(item.text || (item.streaming ? "" : "")) as string, copyLabel);
     return (
       <div className="row row-assistant">
         <div className="avatar">f</div>
         <div className="bubble bubble-assistant">
-          <div className="markdown" onClick={handleMarkdownClick} dangerouslySetInnerHTML={{ __html: html }} />
+          <div
+            className="markdown"
+            onClick={(e) => handleMarkdownClick(e, copyLabel, t("chatMessage.copied"))}
+            dangerouslySetInnerHTML={{ __html: html }}
+          />
           {item.streaming && <span className="cursor" />}
         </div>
       </div>
