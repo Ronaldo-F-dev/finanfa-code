@@ -488,6 +488,28 @@ body {
 .effort-selector-item:hover {
   background: var(--bg);
 }
+.effort-selector-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+.effort-selector-default-star {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 15px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 2px;
+  flex-shrink: 0;
+}
+.effort-selector-default-star:hover {
+  color: var(--text);
+}
+.effort-selector-default-star-on {
+  color: var(--accent);
+}
 
 .effort-selector-name {
   font-size: 13px;

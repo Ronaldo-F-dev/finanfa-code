@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 
 interface EffortTierInfo {
   id: string;
@@ -7,6 +7,25 @@ interface EffortTierInfo {
   model: string;
   ollamaModel?: string;
   installed: boolean;
+}
+
+/**
+ * Real, reported preference: every new chat started on this project's
+ * cloud default (Poolside) even for someone who mostly wants a small
+ * local model — reaching that meant clicking Effort every single time. A
+ * viewer-local preference (not synced across machines/browsers, same as
+ * every other localStorage UI convenience here) lets one tier become the
+ * one new chats start on automatically, without changing what anyone else
+ * connecting to this server gets.
+ */
+export const DEFAULT_EFFORT_STORAGE_KEY = "finanfa.defaultEffortForNewChats";
+
+export function getDefaultEffortPreference(): string | null {
+  try {
+    return localStorage.getItem(DEFAULT_EFFORT_STORAGE_KEY);
+  } catch {
+    return null;
+  }
 }
 
 /**
@@ -29,6 +48,7 @@ export function EffortSelector({
 }) {
   const [open, setOpen] = useState(false);
   const [tiers, setTiers] = useState<EffortTierInfo[]>([]);
+  const [defaultForNewChats, setDefaultForNewChats] = useState<string | null>(() => getDefaultEffortPreference());
   const [pulling, setPulling] = useState<string | null>(null);
   const [pullPercent, setPullPercent] = useState<number | null>(null);
   const [pullError, setPullError] = useState<string | null>(null);
@@ -77,6 +97,19 @@ export function EffortSelector({
     });
   }
 
+  function toggleDefaultForNewChats(id: string, e: ReactMouseEvent) {
+    e.stopPropagation();
+    const next = defaultForNewChats === id ? null : id;
+    setDefaultForNewChats(next);
+    try {
+      if (next) localStorage.setItem(DEFAULT_EFFORT_STORAGE_KEY, next);
+      else localStorage.removeItem(DEFAULT_EFFORT_STORAGE_KEY);
+    } catch {
+      // Best-effort — a private window or blocked site data just means this
+      // preference doesn't persist, not that the click itself should fail.
+    }
+  }
+
   const current = tiers.find((t) => t.id === currentEffort);
 
   return (
@@ -96,12 +129,22 @@ export function EffortSelector({
                 onSelect(t.id);
               }}
             >
-              <div>
-                <div className="effort-selector-name">
-                  {t.label} {t.id === currentEffort && <span className="effort-selector-check">✓</span>}
+              <div className="effort-selector-row">
+                <div>
+                  <div className="effort-selector-name">
+                    {t.label} {t.id === currentEffort && <span className="effort-selector-check">✓</span>}
+                  </div>
+                  <div className="effort-selector-blurb">{t.description}</div>
+                  {t.ollamaModel && !t.installed && <div className="effort-selector-warn">modèle non installé — sera téléchargé au premier choix</div>}
                 </div>
-                <div className="effort-selector-blurb">{t.description}</div>
-                {t.ollamaModel && !t.installed && <div className="effort-selector-warn">modèle non installé — sera téléchargé au premier choix</div>}
+                <button
+                  type="button"
+                  className={`effort-selector-default-star ${defaultForNewChats === t.id ? "effort-selector-default-star-on" : ""}`}
+                  title={defaultForNewChats === t.id ? "Ne plus utiliser par défaut pour les nouveaux chats" : "Utiliser par défaut pour les nouveaux chats"}
+                  onClick={(e) => toggleDefaultForNewChats(t.id, e)}
+                >
+                  {defaultForNewChats === t.id ? "★" : "☆"}
+                </button>
               </div>
             </button>
           ))}

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentSocket, type Attachment } from "./hooks/useAgentSocket";
 import { ChatMessageView } from "./components/ChatMessage";
 import { ModelPicker, type ModelOption } from "./components/ModelPicker";
-import { EffortSelector } from "./components/EffortSelector";
+import { EffortSelector, getDefaultEffortPreference } from "./components/EffortSelector";
 import { PermissionModal } from "./components/PermissionModal";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsModal } from "./components/SettingsModal";
@@ -144,6 +144,25 @@ export default function App() {
   // server with a fresh connectMcpServers() every few hundred ms. Caught by
   // actually watching the raw WebSocket frames, not by reading this code.
   // Sidebar highlighting uses sessionInfo.id directly instead (below).
+  // Real, reported preference: every new chat started on this project's
+  // configured default provider even for someone who mostly wants a small
+  // local model — applying a saved "default effort" preference here means
+  // a brand-new chat auto-switches to it right after connecting, instead
+  // of requiring the Effort menu click every single time. Only for a
+  // genuinely NEW chat (activeSessionId undefined) — a resumed one keeps
+  // whatever provider/effort it was last using, same as everything else
+  // that reconstructs a resumed session's state. Tracked per session id so
+  // it fires exactly once per fresh session, not on every session_info
+  // update (e.g. title changes) that connection receives afterward.
+  const appliedDefaultEffortForSessionRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    if (!connected || activeSessionId !== undefined || !sessionInfo?.id) return;
+    if (appliedDefaultEffortForSessionRef.current.has(sessionInfo.id)) return;
+    appliedDefaultEffortForSessionRef.current.add(sessionInfo.id);
+    const pref = getDefaultEffortPreference();
+    if (pref && sessionInfo.effort !== pref) setEffort(pref);
+  }, [connected, activeSessionId, sessionInfo, setEffort]);
+
   useEffect(() => {
     if (sessionInfo?.model && sessionInfo.model !== model) setModel(sessionInfo.model);
     // eslint-disable-next-line react-hooks/exhaustive-deps
