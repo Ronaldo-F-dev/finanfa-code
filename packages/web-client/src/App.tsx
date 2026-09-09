@@ -12,7 +12,7 @@ import { MemoryPanel } from "./components/MemoryPanel";
 import { ModelsPanel } from "./components/ModelsPanel";
 import { ToolsPanel } from "./components/ToolsPanel";
 import { ProjectsListView } from "./components/ProjectsListView";
-import { ProjectDetailView } from "./components/ProjectDetailView";
+import { ProjectDetailView, type StartChatOptions } from "./components/ProjectDetailView";
 import { useLanguage } from "./i18n/LanguageContext";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
@@ -66,6 +66,7 @@ export default function App() {
   const scrollRef = useRef<HTMLDivElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const pendingFirstMessageRef = useRef<string | null>(null);
+  const pendingFirstMessageOptionsRef = useRef<StartChatOptions | null>(null);
   // Real, reported annoyance: auto-scroll used to fire on every timeline
   // update unconditionally, so scrolling up to reread something while the
   // agent was still streaming got yanked back to the bottom on the very
@@ -172,13 +173,35 @@ export default function App() {
   }, [sessionInfo?.model]);
 
   // Fires the message a project's own "start chat" composer queued, once the
-  // freshly (re)connected socket is actually ready to receive it.
+  // freshly (re)connected socket is actually ready to receive it. Real,
+  // reported gap: that composer used to offer no model/effort/tool choice
+  // at all, unlike the main chat composer — the options it captured (no
+  // live connection existed yet to apply them to) are applied here, right
+  // as the connection opens, before the message itself goes out. Order
+  // matters: the model/effort switch must land before the user_message so
+  // the very first turn actually uses it, not whatever this session
+  // happened to connect with by default.
   useEffect(() => {
     if (connected && pendingFirstMessageRef.current) {
-      sendMessage(pendingFirstMessageRef.current);
+      const opts = pendingFirstMessageOptionsRef.current;
+      if (opts) {
+        if (opts.effort) setEffort(opts.effort);
+        else if (opts.model) switchModel(opts.model, opts.family ?? "openai-compatible", opts.baseUrl);
+        if (!opts.webSearchEnabled) setToolEnabled("web_search", false);
+        if (!opts.imageGenEnabled) {
+          setToolEnabled("generate_2d", false);
+          setToolEnabled("generate_3d", false);
+        }
+        setWebSearchEnabled(opts.webSearchEnabled);
+        setImageGenEnabled(opts.imageGenEnabled);
+        setDeepResearch(opts.deepResearch);
+      }
+      sendMessage(pendingFirstMessageRef.current, opts?.images, opts?.deepResearch);
       pendingFirstMessageRef.current = null;
+      pendingFirstMessageOptionsRef.current = null;
     }
-  }, [connected, sendMessage]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [connected, sendMessage, setEffort, switchModel, setToolEnabled]);
 
   useEffect(() => {
     if (!isNearBottomRef.current) return;
@@ -217,8 +240,9 @@ export default function App() {
     setActiveSessionId(undefined); // a session belongs to exactly one project's cwd
   }
 
-  function handleStartChatFromProject(projectId: string, firstMessage: string) {
+  function handleStartChatFromProject(projectId: string, firstMessage: string, options: StartChatOptions) {
     pendingFirstMessageRef.current = firstMessage;
+    pendingFirstMessageOptionsRef.current = options;
     setActiveProjectId(projectId);
     setActiveSessionId(undefined);
     setView({ kind: "chat" });
@@ -330,7 +354,7 @@ export default function App() {
             setActiveSessionId(sessionId);
             setView({ kind: "chat" });
           }}
-          onStartChat={(firstMessage) => handleStartChatFromProject(view.id, firstMessage)}
+          onStartChat={(firstMessage, options) => handleStartChatFromProject(view.id, firstMessage, options)}
           onDeleted={() => {
             if (activeProjectId === view.id) handleSelectProject(undefined);
             setView({ kind: "projects" });
