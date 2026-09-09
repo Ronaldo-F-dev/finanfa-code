@@ -99,6 +99,16 @@ type ProviderFamily = "anthropic" | "openai-compatible";
  * provider is actually "openai-compatible" (it'd be that provider's key),
  * or every model would show as configured off of an unrelated secret.
  */
+/** True for a baseUrl pointed at this machine itself (localhost/127.0.0.1/::1) — a locally-run model, as opposed to a remote hosted API. */
+function isLocalBaseUrl(baseUrl: string): boolean {
+  try {
+    const hostname = new URL(baseUrl).hostname;
+    return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+  } catch {
+    return false;
+  }
+}
+
 async function familyAvailability(config: FinanfaConfig): Promise<Record<ProviderFamily, boolean>> {
   const savedFamily: ProviderFamily = config.provider === "openai-compatible" ? "openai-compatible" : "anthropic";
   return {
@@ -869,6 +879,30 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           session.providerBaseUrl = typeof msg.baseUrl === "string" && msg.baseUrl ? msg.baseUrl : undefined;
           session.model = msg.model;
           sendSessionInfo();
+          // Real, reported case: switching to a local model and sending one
+          // message crashed the whole machine — not this project's bug in
+          // the usual sense, but a real consequence of this project's own
+          // behavior: every call includes the full tool list (100+ tools,
+          // several tens of thousands of tokens on its own, before any
+          // conversation). A local runtime (Ollama, Docker Model Runner,
+          // llama.cpp, ...) has to allocate KV-cache proportional to
+          // whatever context that prompt needs — on constrained hardware
+          // (no/limited GPU, modest RAM) that allocation can exhaust memory
+          // badly enough to take the whole system down, not just fail
+          // cleanly the way a remote API would. Warned here, proactively,
+          // the moment a local model is selected — before the crash, not
+          // only after it via the "context size exceeded" error message.
+          if (session.providerBaseUrl && isLocalBaseUrl(session.providerBaseUrl)) {
+            const enabledToolCount = tools.list().filter((t) => !session.disabledTools.has(t.name)).length;
+            adapter.writeSystem(
+              `⚠ ${msg.model} is a local model — every message sent here includes this agent's full system prompt ` +
+                `and tool list (currently ${enabledToolCount} tools, tens of thousands of tokens on its own, before ` +
+                "any conversation). On a machine with limited RAM/no GPU, a local runtime trying to allocate enough " +
+                "context for that can exhaust memory badly enough to freeze or crash the whole system, not just fail " +
+                "cleanly. If that happens, use /tools (or the Tools panel here) to disable most tools before trying " +
+                "a local model again — a handful of tools is a much smaller, safer prompt than the full set.",
+            );
+          }
         } else if (msg.type === "mcp_status") {
           await sendMcpStatus();
         } else if (msg.type === "mcp_connect" && typeof msg.name === "string") {

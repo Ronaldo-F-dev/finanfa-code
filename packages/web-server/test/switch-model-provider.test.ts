@@ -132,4 +132,49 @@ describe("web-server: switching back to a default-family model after a local one
     },
     20_000,
   );
+
+  it(
+    "warns proactively when switching to a local model, before any message is sent — not just after a crash/failure",
+    async () => {
+      const localBaseUrl = await localServer.baseUrl;
+      const events: WsEvent[] = [];
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+      await new Promise<void>((resolve, reject) => {
+        ws.on("open", () => resolve());
+        ws.on("error", reject);
+      });
+      ws.on("message", (raw: Buffer) => events.push(JSON.parse(raw.toString()) as WsEvent));
+      await waitFor(events, (e) => e.type === "session_info");
+
+      ws.send(JSON.stringify({ type: "set_model", model: "local-only-model", family: "openai-compatible", baseUrl: localBaseUrl }));
+      const warning = await waitFor(events, (e) => e.type === "system" && typeof e.text === "string" && e.text.includes("local model"));
+      expect(warning.text).toContain("/tools");
+      // No message was ever sent for this to fire on — it's proactive.
+      expect(events.some((e) => e.type === "assistant_end")).toBe(false);
+
+      ws.close();
+    },
+    15_000,
+  );
+
+  it(
+    "does not warn when switching to a normal (non-local) model",
+    async () => {
+      const events: WsEvent[] = [];
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+      await new Promise<void>((resolve, reject) => {
+        ws.on("open", () => resolve());
+        ws.on("error", reject);
+      });
+      ws.on("message", (raw: Buffer) => events.push(JSON.parse(raw.toString()) as WsEvent));
+      await waitFor(events, (e) => e.type === "session_info");
+
+      ws.send(JSON.stringify({ type: "set_model", model: "default/laguna", family: "openai-compatible" }));
+      await new Promise((r) => setTimeout(r, 500)); // give a would-be warning time to arrive
+      expect(events.some((e) => e.type === "system" && typeof e.text === "string" && e.text.includes("local model"))).toBe(false);
+
+      ws.close();
+    },
+    15_000,
+  );
 });
