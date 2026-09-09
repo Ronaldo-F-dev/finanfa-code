@@ -237,4 +237,48 @@ describe("web-server: switching back to a default-family model after a local one
     },
     20_000,
   );
+
+  it(
+    "a user_message sent immediately after set_effort (no wait, matching the real client) always lands on the new model, never the stale one",
+    async () => {
+      // Real, reported bug (reproduced directly with a real fake-provider
+      // HTTP server logging which model name it actually received): this
+      // server used to process each incoming WS message as an independent,
+      // unserialized async handler. set_effort does real awaited work
+      // (probing Ollama) before reassigning the connection's provider/
+      // model — a user_message arriving during that window used to start
+      // its turn immediately, silently using the OLD provider/model for
+      // that one turn instead of waiting for the switch already in flight.
+      if (!(await isOllamaAvailable().catch(() => false))) return;
+      if (!(await listOllamaModels().catch(() => [])).some((m) => m.name === "gemma2:2b")) return;
+
+      const events: WsEvent[] = [];
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+      await new Promise<void>((resolve, reject) => {
+        ws.on("open", () => resolve());
+        ws.on("error", reject);
+      });
+      ws.on("message", (raw: Buffer) => events.push(JSON.parse(raw.toString()) as WsEvent));
+      await waitFor(events, (e) => e.type === "session_info");
+
+      const requestsToDefaultBefore = defaultServer.requestedModels().length;
+      // Sent back-to-back, no await in between — mirrors the real client's
+      // own "switch tier, then immediately send the first message" flow.
+      ws.send(JSON.stringify({ type: "set_effort", level: "low" }));
+      ws.send(JSON.stringify({ type: "user_message", text: "bonjour" }));
+
+      await waitFor(events, (e) => e.type === "assistant_end", 240_000);
+
+      // The real assertion: the default (fake-Poolside-like) server must
+      // never have seen this turn at all — it should have gone entirely to
+      // Ollama, since set_effort's switch must land before user_message's
+      // turn starts, not race it.
+      expect(defaultServer.requestedModels().length).toBe(requestsToDefaultBefore);
+      const failed = events.some((e) => e.type === "system" && typeof e.text === "string" && e.text.includes("the model call failed"));
+      expect(failed).toBe(false);
+
+      ws.close();
+    },
+    250_000,
+  );
 });

@@ -820,8 +820,26 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     // switch within one already-informed browser tab.
     let warnedAboutLocalModelThisConnection = false;
 
+    // Real, reproduced race: this handler used to spawn an independent,
+    // unserialized async IIFE per incoming message — two messages sent
+    // back-to-back (e.g. the web client's own "switch effort tier, then
+    // immediately send the first message" flow) could have their async
+    // work interleave. set_effort/set_model do real awaited work (probing
+    // Ollama) before reassigning `provider`/session.model; a user_message
+    // arriving during that window used to start runTurn immediately,
+    // capturing the STALE provider/model for that one turn instead of
+    // waiting for the switch already in flight to land — reproduced
+    // directly against a real fake-provider HTTP server logging which
+    // model name it actually received. Chaining every message onto one
+    // per-connection queue makes them process strictly in arrival order,
+    // each fully finishing (including its own awaits) before the next
+    // starts — no message can ever observe another's half-applied state.
+    let messageQueue: Promise<void> = Promise.resolve();
     ws.on("message", (raw: Buffer) => {
-      void (async () => {
+      messageQueue = messageQueue.then(handleMessage).catch((err) => {
+        console.error(`Unhandled error handling a WS message for session ${session.id}:`, err);
+      });
+      async function handleMessage(): Promise<void> {
         let msg: { type: string; [key: string]: unknown };
         try {
           msg = JSON.parse(raw.toString());
@@ -1173,7 +1191,7 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
             planMode: session.planMode,
           });
         }
-      })();
+      }
     });
 
     ws.on("close", () => {
