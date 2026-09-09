@@ -6,6 +6,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
+import { isOllamaAvailable, listOllamaModels } from "@finanfa/core/src/core/ollama-models.js";
 import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
 
 // Real, reported bug: switching FROM a local model (a specific baseUrl
@@ -185,5 +186,55 @@ describe("web-server: switching back to a default-family model after a local one
       ws.close();
     },
     15_000,
+  );
+
+  it(
+    "switching back to the default provider after an effort tier clears that tier's stale tool restriction",
+    async () => {
+      if (!(await isOllamaAvailable().catch(() => false))) return;
+      if (!(await listOllamaModels().catch(() => [])).some((m) => m.name === "gemma2:2b")) return;
+
+      const events: WsEvent[] = [];
+      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
+      await new Promise<void>((resolve, reject) => {
+        ws.on("open", () => resolve());
+        ws.on("error", reject);
+      });
+      ws.on("message", (raw: Buffer) => events.push(JSON.parse(raw.toString()) as WsEvent));
+      await waitFor(events, (e) => e.type === "session_info");
+
+      // Real, reported bug: after picking "low" (which disables every
+      // tool), manually switching back to this project's normal default
+      // provider through the plain model picker left every tool disabled —
+      // stale state from the unrelated earlier tier pick.
+      ws.send(JSON.stringify({ type: "set_effort", level: "low" }));
+      await waitFor(events, (e) => e.type === "session_info" && e.effort === "low");
+      const lowStatus = await waitFor(events, (e) => e.type === "tools_status");
+      expect((lowStatus.tools as { enabled: boolean }[]).some((t) => t.enabled)).toBe(false);
+
+      ws.send(JSON.stringify({ type: "set_model", model: "default/laguna", family: "openai-compatible" }));
+      // events.find (inside waitFor) matches the FIRST event satisfying a
+      // predicate, not the latest — "model === default/laguna" alone
+      // would grab the initial connection's own session_info (that's this
+      // project's default model too), sent before "low" was even applied.
+      // Waiting for a SECOND tools_status event specifically sidesteps
+      // that: the first is "low"'s (already captured above as lowStatus),
+      // so a second one only exists once this switch-back actually sent
+      // its own.
+      const secondToolsStatus = await new Promise<WsEvent>((resolve, reject) => {
+        const start = Date.now();
+        const check = () => {
+          const matches = events.filter((e) => e.type === "tools_status");
+          if (matches.length >= 2) return resolve(matches[1]!);
+          if (Date.now() - start > 15_000) return reject(new Error(`timed out waiting for a 2nd tools_status: ${JSON.stringify(events)}`));
+          setTimeout(check, 50);
+        };
+        check();
+      });
+      expect((secondToolsStatus.tools as { enabled: boolean }[]).some((t) => t.enabled)).toBe(true);
+
+      ws.close();
+    },
+    20_000,
   );
 });

@@ -75,24 +75,25 @@ describe("web-server set_effort (real subprocess, real Ollama server when presen
   it(
     "low tier: switches to the real local model with no tools, and a real turn succeeds even though the model has no tool-calling support",
     async () => {
-      if (!ollamaAvailable || !installedNames.has("yi-coder:1.5b-chat")) return;
+      if (!ollamaAvailable || !installedNames.has("gemma2:2b")) return;
       const { ws, events } = await connect(port);
 
       ws.send(JSON.stringify({ type: "set_effort", level: "low" }));
       const info = await waitFor(events, (e) => e.type === "session_info" && e.effort === "low");
-      expect(info.model).toBe("yi-coder:1.5b-chat");
+      expect(info.model).toBe("gemma2:2b");
 
       const status = await waitFor(events, (e) => e.type === "tools_status");
       const enabled = (status.tools as { name: string; enabled: boolean }[]).filter((t) => t.enabled);
       expect(enabled).toHaveLength(0); // toolBudget "none"
 
-      // The real, reported crash: yi-coder doesn't support tool calling at
+      // The real, reported crash: gemma2:2b doesn't support tool calling at
       // all — sending it a tool list failed outright. With every tool
       // disabled, this turn must actually succeed. Real measured latency
       // for this project's ~14k-char system prompt on this environment's
-      // CPU-only 1.5B inference: ~80s (prompt-processing-bound, not
-      // generation-bound — see the max_tokens cap's own comment), hence
-      // the generous timeout rather than the usual few seconds.
+      // CPU-only small-model inference: on the order of a minute or more
+      // (prompt-processing-bound, not generation-bound — see the
+      // max_tokens cap's own comment), hence the generous timeout rather
+      // than the usual few seconds.
       ws.send(JSON.stringify({ type: "user_message", text: "Reply with just the word OK." }));
       const end = await waitFor(events, (e) => e.type === "assistant_end", 240_000);
       expect(end).toBeTruthy();
@@ -124,33 +125,57 @@ describe("web-server set_effort (real subprocess, real Ollama server when presen
   );
 
   it(
-    "switching to a plain model via set_model after an effort tier clears that tier's stale tool restriction",
+    "picking a tool-capable local model directly via set_model (not an effort tier) auto-restricts tools to the minimal set",
     async () => {
       if (!ollamaAvailable || !installedNames.has("qwen3:4b-instruct")) return;
       const { ws, events } = await connect(port);
 
-      // Real, reported bug: after picking "low" (which disables every
-      // tool), manually switching to a different local model through the
-      // plain model picker (not another effort tier) left every tool
-      // disabled — stale state from the unrelated earlier tier pick.
-      ws.send(JSON.stringify({ type: "set_effort", level: "low" }));
-      await waitFor(events, (e) => e.type === "session_info" && e.effort === "low");
-      const lowStatus = await waitFor(events, (e) => e.type === "tools_status");
-      expect((lowStatus.tools as { enabled: boolean }[]).some((t) => t.enabled)).toBe(false);
-
+      // Real, reported crash: picking qwen3:4b-instruct directly through
+      // the plain model picker (bypassing Effort tiers) left every tool
+      // enabled, and its default 4096-token context couldn't hold this
+      // project's ~40k-token system-prompt-plus-full-tool-list — the exact
+      // "context size exceeded" error reported. Picking it directly must
+      // now auto-apply the same protective minimal tool budget the tiers
+      // use, derived from Ollama's own real capabilities.
       ws.send(JSON.stringify({ type: "set_model", model: "qwen3:4b-instruct", family: "openai-compatible", baseUrl: "http://localhost:11434/v1" }));
-      // events.find (inside waitFor) matches the FIRST event satisfying the
-      // predicate in the whole history, not the latest — matching on the
-      // new model name specifically avoids it grabbing the initial
-      // connection's own session_info (which also has no `effort` set).
       const info = await waitFor(events, (e) => e.type === "session_info" && e.model === "qwen3:4b-instruct");
       expect(info.effort).toBeUndefined();
-      await waitFor(events, (e) => e.type === "tools_status" && (e.tools as { enabled: boolean }[]).some((t) => t.enabled));
+      const status = await waitFor(events, (e) => e.type === "tools_status" && e.tools !== undefined);
+      const enabledNames = (status.tools as { name: string; enabled: boolean }[]).filter((t) => t.enabled).map((t) => t.name);
+      expect(new Set(enabledNames)).toEqual(new Set(MINIMAL_TOOL_SET));
 
       ws.close();
     },
     20_000,
   );
+
+  it(
+    "picking a local model with no tool-calling support directly via set_model auto-disables every tool",
+    async () => {
+      if (!ollamaAvailable || !installedNames.has("gemma2:2b")) return;
+      const { ws, events } = await connect(port);
+
+      // Real, reported crash: picking gemma2:2b directly failed outright
+      // with "does not support tools" — it has no tool-calling capability
+      // at all (confirmed via Ollama's own /api/tags capabilities field),
+      // a hard incompatibility no context-size tuning fixes. Picking it
+      // directly must now auto-disable every tool, the only thing that
+      // actually makes this model usable through this agent.
+      ws.send(JSON.stringify({ type: "set_model", model: "gemma2:2b", family: "openai-compatible", baseUrl: "http://localhost:11434/v1" }));
+      await waitFor(events, (e) => e.type === "session_info" && e.model === "gemma2:2b");
+      const status = await waitFor(events, (e) => e.type === "tools_status" && e.tools !== undefined);
+      expect((status.tools as { enabled: boolean }[]).some((t) => t.enabled)).toBe(false);
+
+      ws.close();
+    },
+    20_000,
+  );
+
+  // The "switch away from a local model back to the project's default
+  // remote provider clears the tier's stale tool restriction" case (the
+  // `hadEffort` branch in set_model) is covered in switch-model-provider
+  // .test.ts, which has a real configured default provider to switch to —
+  // this describe block's fixture deliberately has none (see beforeAll).
 
   it("high tier: reports model_unavailable cleanly when no default provider is configured, instead of crashing", async () => {
     const { ws, events } = await connect(port);

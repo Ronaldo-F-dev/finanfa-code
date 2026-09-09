@@ -14,6 +14,8 @@ export interface OllamaModelInfo {
   quantization?: string;
   family?: string;
   contextLength?: number;
+  /** From /api/tags' own "capabilities" field — real, reported bug: several installed models (yi-coder, gemma2) have no tool-calling support at all, so sending them this project's tool list fails outright (not a size/context problem, a hard incompatibility). Undefined when Ollama's response doesn't carry the field (an older Ollama version) — callers should treat that as "unknown", not "false". */
+  supportsTools?: boolean;
 }
 
 export interface OllamaPullProgress {
@@ -40,6 +42,7 @@ export async function listOllamaModels(): Promise<OllamaModelInfo[]> {
       name: string;
       size: number;
       details?: { parameter_size?: string; quantization_level?: string; family?: string };
+      capabilities?: string[];
     }[];
   };
   return body.models.map((m) => ({
@@ -48,6 +51,7 @@ export async function listOllamaModels(): Promise<OllamaModelInfo[]> {
     parameterSize: m.details?.parameter_size,
     quantization: m.details?.quantization_level,
     family: m.details?.family,
+    supportsTools: m.capabilities ? m.capabilities.includes("tools") : undefined,
   }));
 }
 

@@ -39,11 +39,18 @@ export const EFFORT_TIERS: EffortTier[] = [
   {
     id: "low",
     label: "Faible",
-    description: "Réponses rapides, sans outils — yi-coder:1.5b-chat (aucun tool calling, donc aucun outil envoyé : c'est ce qui évite le crash déjà rencontré avec ce modèle).",
-    model: "yi-coder:1.5b-chat",
+    // Swapped from yi-coder:1.5b-chat after a real side-by-side: gemma2:2b
+    // gave noticeably warmer, more natural French chat responses in a
+    // direct comparison (see the "chat only" use case this tier targets —
+    // it's picked for conversation quality, not coding). Same underlying
+    // reason for toolBudget "none" as before: gemma2:2b's own Ollama
+    // /api/tags capabilities are ["completion"] only, no "tools" — sending
+    // it a tool list fails outright regardless of how many are in it.
+    description: "Réponses rapides, sans outils — gemma2:2b (aucun tool calling, donc aucun outil envoyé : c'est ce qui évite le crash déjà rencontré avec ce type de modèle). Bon pour la conversation en français.",
+    model: "gemma2:2b",
     family: "openai-compatible",
     baseUrl: OLLAMA_BASE_URL,
-    ollamaModel: "yi-coder:1.5b-chat",
+    ollamaModel: "gemma2:2b",
     maxTokens: 512,
     toolBudget: "none",
   },

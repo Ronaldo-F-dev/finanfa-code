@@ -111,6 +111,16 @@ function isLocalBaseUrl(baseUrl: string): boolean {
   }
 }
 
+/** Real capability lookup against Ollama's own /api/tags, not a guess by name/size — returns undefined for a local runtime that isn't Ollama (LM Studio/llama.cpp/vLLM) or that this model name isn't in, since there's no signal to act on either way. */
+async function lookupOllamaToolSupport(modelName: string): Promise<boolean | undefined> {
+  try {
+    const models = await listOllamaModels();
+    return models.find((m) => m.name === modelName)?.supportsTools;
+  } catch {
+    return undefined;
+  }
+}
+
 async function familyAvailability(config: FinanfaConfig): Promise<Record<ProviderFamily, boolean>> {
   const savedFamily: ProviderFamily = config.provider === "openai-compatible" ? "openai-compatible" : "anthropic";
   return {
@@ -953,20 +963,35 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           session.providerKind = providerKind;
           session.providerBaseUrl = typeof msg.baseUrl === "string" && msg.baseUrl ? msg.baseUrl : undefined;
           session.model = msg.model;
-          // Real, reported bug: picking an effort tier (e.g. "Faible")
-          // disables most/all tools as part of that tier's own budget (see
-          // set_effort below); switching to a different model afterwards
-          // through this plain picker left that restriction in place, since
-          // nothing here ever touched disabledTools. A user who then picked
-          // qwen3:4b-instruct by hand saw "currently 0 tools" and a model
-          // struggling to answer with no read/edit/grep access at all —
-          // stale state from an unrelated earlier choice, not anything this
-          // switch itself asked for. Only reset when the tool budget was
-          // actually set by a tier (session.effort is only ever set by
-          // set_effort) — a manual Tools-panel choice with no tier involved
-          // is left alone, since that one *is* an intentional user choice.
-          if (session.effort) {
-            session.effort = undefined;
+          // A manual pick through this plain picker is a distinct action
+          // from an effort tier (see set_effort below) — the "effort" badge
+          // shouldn't keep claiming Faible/Moyen/Fort once the user has
+          // overridden it by hand.
+          const hadEffort = Boolean(session.effort);
+          session.effort = undefined;
+          if (typeof msg.baseUrl === "string" && msg.baseUrl && isLocalBaseUrl(msg.baseUrl)) {
+            // Real, reported crashes from picking a local model directly
+            // through this plain picker (bypassing the Effort tiers, whose
+            // whole job is protecting against exactly this): qwen3:4b's
+            // default 4096-token context can't hold this project's own
+            // ~40k-token system-prompt-plus-full-tool-list, and some models
+            // (gemma2, yi-coder) don't support tool calling at all — both
+            // failed outright. Applying the same protective tool budget the
+            // Effort tiers use — derived from the model's real, reported
+            // capabilities, not a guess — closes that gap here too, instead
+            // of only warning about it after the user already hit the wall.
+            const supportsTools = await lookupOllamaToolSupport(msg.model);
+            session.disabledTools.clear();
+            if (supportsTools === false) {
+              for (const t of tools.list()) session.disabledTools.add(t.name);
+            } else if (supportsTools === true) {
+              for (const t of tools.list()) if (!MINIMAL_TOOL_SET.includes(t.name)) session.disabledTools.add(t.name);
+            }
+            // undefined (unknown runtime, e.g. LM Studio/llama.cpp/vLLM
+            // that doesn't expose Ollama's capabilities field, or the
+            // lookup itself failed) — no signal to act on, leave as-is.
+            sendToolsStatus();
+          } else if (hadEffort) {
             session.disabledTools.clear();
             sendToolsStatus();
           }
