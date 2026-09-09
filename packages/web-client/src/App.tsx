@@ -3,6 +3,7 @@ import { useAgentSocket, type Attachment } from "./hooks/useAgentSocket";
 import { ChatMessageView } from "./components/ChatMessage";
 import { ModelPicker, type ModelOption } from "./components/ModelPicker";
 import { EffortSelector, getDefaultEffortPreference } from "./components/EffortSelector";
+import { BusyIndicator } from "./components/BusyIndicator";
 import { PermissionModal } from "./components/PermissionModal";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsModal } from "./components/SettingsModal";
@@ -393,11 +394,7 @@ export default function App() {
               <ChatMessageView key={item.id} item={item} projectId={activeProjectId} />
             ))}
             {busy.active && (
-              <div className="row row-log">
-                <div className="log-line log-busy">
-                  <span className="spinner" /> {busy.label ?? "working"}…
-                </div>
-              </div>
+              <BusyIndicator label={busy.label} isLocalModel={models.some((m) => Boolean(m.baseUrl) && m.localModelId === model)} />
             )}
           </main>
 

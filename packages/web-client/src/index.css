@@ -848,7 +848,18 @@ body {
 .log-busy {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
   gap: 8px;
+}
+.busy-elapsed {
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.busy-local-hint {
+  flex-basis: 100%;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
 }
 
 .spinner {
