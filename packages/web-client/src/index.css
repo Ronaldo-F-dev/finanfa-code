@@ -166,25 +166,37 @@ body {
   padding: 8px 10px;
 }
 
+/* Reference: ChatGPT's own sidebar groups its utility nav (Images,
+   Library, Projects, ...) as one continuous list — no per-row border, only
+   a hover highlight — with a small uppercase label ("Pinned", "Recents")
+   marking each distinct section. Our Memory/Connectors/Models/Tools block
+   used to look like a stack of separate chip buttons instead of one list;
+   the label + flat-row treatment below matches that reference instead. */
+.sidebar-workspace-label {
+  margin-top: 4px;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
 .sidebar-menu {
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 2px;
 }
 
 .sidebar-settings {
   background: transparent;
-  border: 1px solid var(--border);
-  color: var(--text-muted);
+  border: none;
   border-radius: 8px;
-  padding: 8px 12px;
+  color: var(--text-muted);
+  padding: 8px 10px;
   text-align: left;
   font-size: 13px;
   cursor: pointer;
 }
 .sidebar-settings:hover {
+  background: var(--bg);
   color: var(--text);
-  border-color: var(--text-muted);
 }
 
 .mcp-modal {

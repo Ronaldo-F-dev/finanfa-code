@@ -75,6 +75,7 @@ export function Sidebar({
         {sessions.length === 0 && <div className="sidebar-empty">No chats yet</div>}
       </div>
 
+      <div className="sidebar-section-label sidebar-workspace-label">Workspace</div>
       <div className="sidebar-menu">
         <button className="sidebar-settings" onClick={onOpenMemory}>
           🧠 Memory & skills
