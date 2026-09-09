@@ -6,7 +6,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
-import { spawnWebServer } from "./support/spawn-server.js";
+import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
 
 // Real, reported gap: a failed turn's error ("the model call failed: ...")
 // only ever reached the browser as a one-off WS "error" event — never
@@ -85,7 +85,7 @@ describe("web-server: a resumed session replays past errors, not just the ordina
   }, 15_000);
 
   afterAll(async () => {
-    child?.kill("SIGTERM");
+    killWebServer(child);
     fake?.server.close();
     await rm(projectDir, { recursive: true, force: true });
     await rm(homeDir, { recursive: true, force: true });
@@ -120,7 +120,7 @@ describe("web-server: a resumed session replays past errors, not just the ordina
       await new Promise((r) => setTimeout(r, 200)); // let session.persist() from the finally block land
 
       const second = await spawnWebServer(projectDir, homeDir, 4990);
-      child.kill("SIGTERM");
+      killWebServer(child);
       child = second.child;
 
       const resumedEvents: WsEvent[] = [];

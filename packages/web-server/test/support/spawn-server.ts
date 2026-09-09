@@ -1,6 +1,7 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { killProcessGroup } from "@finanfa/core/src/util/process.js";
 
 // Shared by every web-server e2e test that needs the real server running
 // as a real subprocess (index.ts has top-level side effects — app.listen
@@ -47,7 +48,21 @@ export async function spawnWebServer(
   const env: NodeJS.ProcessEnv = { ...process.env, PORT: String(port), FINANFA_WEB_CWD: projectDir, HOME: homeDir };
   for (const k of ["FINANFA_PROVIDER", "FINANFA_BASE_URL", "FINANFA_MODEL", "FINANFA_API_KEY", "FINANFA_API_KEYS", "ANTHROPIC_API_KEY"]) delete env[k];
 
-  const child = spawn("npx", ["tsx", "src/index.ts"], { cwd: webServerDir, env }) as ChildProcessWithoutNullStreams;
+  // detached: true (+ killWebServer's process-group kill below) — real bug
+  // found running this suite repeatedly: `npx tsx src/index.ts` spawns tsx
+  // as a grandchild of the `npx` process this actually returns, so
+  // `child.kill()` alone only killed the outer npx wrapper — the real
+  // server (and its bound port) survived as an orphan. Every test run
+  // leaked another one, and they eventually collided on a reused port
+  // number, failing later runs with EADDRINUSE for a reason that had
+  // nothing to do with the code under test. Same shape of bug as
+  // background-process.ts's own real orphan-process fix.
+  const child = spawn("npx", ["tsx", "src/index.ts"], { cwd: webServerDir, env, detached: true }) as ChildProcessWithoutNullStreams;
   await waitForServerReady(child, port);
   return { child, port };
+}
+
+/** Kills the real server process AND the npx wrapper it was spawned through — see spawnWebServer's own comment on why a plain child.kill() alone isn't enough. */
+export function killWebServer(child: ChildProcessWithoutNullStreams | undefined): void {
+  if (child) killProcessGroup(child);
 }

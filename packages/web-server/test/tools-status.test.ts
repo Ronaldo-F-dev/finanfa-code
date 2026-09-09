@@ -4,7 +4,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
-import { spawnWebServer } from "./support/spawn-server.js";
+import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
 
 // Real end-to-end test of the "Tools" management round trip the web
 // client's new panel drives: list every registered tool with its
@@ -59,7 +59,7 @@ describe("web-server tools_status / set_tool_enabled (real subprocess, real WebS
   }, 30_000);
 
   afterAll(async () => {
-    child?.kill("SIGTERM");
+    killWebServer(child);
     await rm(projectDir, { recursive: true, force: true });
     await rm(homeDir, { recursive: true, force: true });
   });

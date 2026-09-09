@@ -6,7 +6,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
-import { spawnWebServer } from "./support/spawn-server.js";
+import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
 
 // Real, reported bug: a session's provider/endpoint was never persisted
 // alongside its model — only the bare model string was. Resuming a
@@ -101,7 +101,7 @@ describe("web-server: a resumed session reconstructs the right provider, not jus
   }, 15_000);
 
   afterEach(() => {
-    child?.kill("SIGTERM");
+    killWebServer(child);
     child = undefined;
   });
 
@@ -133,7 +133,7 @@ describe("web-server: a resumed session reconstructs the right provider, not jus
       ws.close();
 
       // --- Simulate the crash/restart: kill this instance entirely, start a brand new one ---
-      child.kill("SIGTERM");
+      killWebServer(child);
       await new Promise((r) => setTimeout(r, 300));
       const localRequestsBeforeRestart = localServer.requestCount();
       const defaultRequestsBeforeRestart = defaultServer.requestCount();

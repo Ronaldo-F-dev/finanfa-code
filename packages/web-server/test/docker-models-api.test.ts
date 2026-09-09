@@ -1,10 +1,10 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
-import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { fileURLToPath } from "node:url";
 import { isDockerModelRunnerAvailable } from "@finanfa/core/src/core/docker-models.js";
+import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
 
 // Real end-to-end test of the /api/docker-models/* REST endpoints: spawns
 // the real web server as a subprocess (same reasoning as
@@ -13,27 +13,6 @@ import { isDockerModelRunnerAvailable } from "@finanfa/core/src/core/docker-mode
 // model` CLI genuinely installed in this environment. Skips gracefully
 // (asserting nothing) when it isn't — same convention as
 // local-providers.test.ts/docker-models.test.ts.
-const webServerDir = path.dirname(fileURLToPath(import.meta.url)).replace(/\/test$/, "");
-
-async function waitForServerReady(child: ChildProcessWithoutNullStreams, port: number): Promise<void> {
-  await new Promise<void>((resolve, reject) => {
-    const timeout = setTimeout(() => reject(new Error("web server did not start in time")), 15_000);
-    let buf = "";
-    child.stdout.on("data", (d: Buffer) => {
-      buf += d.toString();
-      if (buf.includes(`listening on http://localhost:${port}`)) {
-        clearTimeout(timeout);
-        resolve();
-      }
-    });
-    child.stderr.on("data", (d: Buffer) => (buf += d.toString()));
-    child.on("exit", (code) => {
-      clearTimeout(timeout);
-      reject(new Error(`web server exited early (code ${code}): ${buf}`));
-    });
-  });
-}
-
 describe("web-server /api/docker-models/* (real subprocess, real `docker model` CLI when present)", () => {
   let projectDir: string;
   let homeDir: string;
@@ -47,16 +26,11 @@ describe("web-server /api/docker-models/* (real subprocess, real `docker model` 
     projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-dockermodels-project-"));
     homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-dockermodels-home-"));
 
-    port = 4800 + Math.floor(Math.random() * 500);
-    const env: NodeJS.ProcessEnv = { ...process.env, PORT: String(port), FINANFA_WEB_CWD: projectDir, HOME: homeDir };
-    for (const k of ["FINANFA_PROVIDER", "FINANFA_BASE_URL", "FINANFA_MODEL", "FINANFA_API_KEY", "FINANFA_API_KEYS", "ANTHROPIC_API_KEY"]) delete env[k];
-
-    child = spawn("npx", ["tsx", "src/index.ts"], { cwd: webServerDir, env }) as ChildProcessWithoutNullStreams;
-    await waitForServerReady(child, port);
+    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4800));
   }, 30_000);
 
   afterAll(async () => {
-    child?.kill("SIGTERM");
+    killWebServer(child);
     await rm(projectDir, { recursive: true, force: true });
     await rm(homeDir, { recursive: true, force: true });
   });

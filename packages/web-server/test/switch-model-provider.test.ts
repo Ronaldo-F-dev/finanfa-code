@@ -6,7 +6,7 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import WebSocket from "ws";
-import { spawnWebServer } from "./support/spawn-server.js";
+import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
 
 // Real, reported bug: switching FROM a local model (a specific baseUrl
 // override, e.g. Ollama/Docker Model Runner) back TO a normal same-family
@@ -90,7 +90,7 @@ describe("web-server: switching back to a default-family model after a local one
   }, 20_000);
 
   afterAll(async () => {
-    child?.kill("SIGTERM");
+    killWebServer(child);
     defaultServer?.server.close();
     localServer?.server.close();
     await rm(projectDir, { recursive: true, force: true });
@@ -151,6 +151,15 @@ describe("web-server: switching back to a default-family model after a local one
       expect(warning.text).toContain("/tools");
       // No message was ever sent for this to fire on — it's proactive.
       expect(events.some((e) => e.type === "assistant_end")).toBe(false);
+
+      // Real, reported annoyance: switching between several local models
+      // in a row used to repeat the identical warning every single time.
+      // A second switch to another local model on the SAME connection
+      // must not fire it again.
+      ws.send(JSON.stringify({ type: "set_model", model: "another-local-model", family: "openai-compatible", baseUrl: localBaseUrl }));
+      await new Promise((r) => setTimeout(r, 500));
+      const warnings = events.filter((e) => e.type === "system" && typeof e.text === "string" && e.text.includes("local model"));
+      expect(warnings).toHaveLength(1);
 
       ws.close();
     },
