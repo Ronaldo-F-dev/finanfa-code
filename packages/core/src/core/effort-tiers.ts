@@ -1,0 +1,78 @@
+// Curated "effort" presets — a shortcut past manually picking a model,
+// tuning its max_tokens, and remembering to strip most tools every time a
+// small/local model is chosen. Real, reported crash pattern this exists to
+// fix: the same ~40k-token system-prompt-plus-tool-list overhead was sent
+// to every local model regardless of its own context window, and at least
+// one installed model (yi-coder) doesn't support tool calling at all —
+// sending it a tool list failed outright. Each tier below is deliberately
+// matched to what its model can actually handle, verified against the real
+// Ollama instance in this environment (see EFFORT_TIERS' own per-tier
+// comments) rather than picked by name/size alone.
+
+export type EffortLevel = "low" | "medium" | "high";
+
+/** Which of this project's own tool names stay enabled for a tier — everything else is disabled the same way the web UI's Tools panel would. "none" sends no tools field at all (see toolsForProvider/streamTurn), which is required for a model with no tool-calling support, not just a size optimization. */
+export type ToolBudget = "none" | "minimal" | "full";
+
+/** The safe, high-value core every "minimal" tier keeps: enough to read/search/edit a codebase, nothing that shells out or reaches the network — keeps the tool-list JSON small (a few hundred tokens instead of tens of thousands) without leaving the model unable to do real work. */
+export const MINIMAL_TOOL_SET = ["read_file", "write_file", "edit_file", "glob", "grep"];
+
+export interface EffortTier {
+  id: EffortLevel;
+  label: string;
+  description: string;
+  /** Model id as the provider expects it — for a local tier, the exact Ollama tag (e.g. "qwen3:4b-instruct"). Empty for the "high" tier — see isDefaultProviderTier. */
+  model: string;
+  /** Undefined for the "high" tier, which deliberately has no fixed family of its own — see isDefaultProviderTier. */
+  family?: "openai-compatible" | "anthropic";
+  /** Set only for a local tier — the same detected-local-runtime baseUrl override the model picker already sends on set_model. Undefined selects whatever provider is configured as the project/global default (Poolside/Anthropic/...). */
+  baseUrl?: string;
+  /** Ollama model name to check for / offer to pull when this tier is picked and the model isn't installed yet — undefined for the cloud tier, which needs no local download. */
+  ollamaModel?: string;
+  maxTokens: number;
+  toolBudget: ToolBudget;
+}
+
+const OLLAMA_BASE_URL = "http://localhost:11434/v1";
+
+export const EFFORT_TIERS: EffortTier[] = [
+  {
+    id: "low",
+    label: "Faible",
+    description: "Réponses rapides, sans outils — yi-coder:1.5b-chat (aucun tool calling, donc aucun outil envoyé : c'est ce qui évite le crash déjà rencontré avec ce modèle).",
+    model: "yi-coder:1.5b-chat",
+    family: "openai-compatible",
+    baseUrl: OLLAMA_BASE_URL,
+    ollamaModel: "yi-coder:1.5b-chat",
+    maxTokens: 512,
+    toolBudget: "none",
+  },
+  {
+    id: "medium",
+    label: "Moyen",
+    description: "Un modèle local qui supporte les outils (lecture/édition de fichiers) avec un jeu d'outils réduit — qwen3:4b-instruct.",
+    model: "qwen3:4b-instruct",
+    family: "openai-compatible",
+    baseUrl: OLLAMA_BASE_URL,
+    ollamaModel: "qwen3:4b-instruct",
+    maxTokens: 2048,
+    toolBudget: "minimal",
+  },
+  {
+    id: "high",
+    label: "Fort",
+    description: "Le modèle cloud par défaut du projet (ex: Poolside/laguna, ou Claude), avec tous les outils — pour les tâches complexes.",
+    model: "",
+    maxTokens: 8192,
+    toolBudget: "full",
+  },
+];
+
+/** The "high" tier deliberately has no fixed model/family of its own — it means "use whatever this project/global config already has configured as its default provider" (Poolside via openai-compatible, Anthropic, ...), not a specific hardcoded one. Callers must resolve both `model` and `family` against the caller's own default (e.g. selectProvider's {defaultModel, kind}) instead of this tier's own (empty/undefined) fields. */
+export function isDefaultProviderTier(tier: EffortTier): boolean {
+  return tier.id === "high";
+}
+
+export function getEffortTier(id: string): EffortTier | undefined {
+  return EFFORT_TIERS.find((t) => t.id === id);
+}

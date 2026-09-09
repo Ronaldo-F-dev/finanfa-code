@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentSocket, type Attachment } from "./hooks/useAgentSocket";
 import { ChatMessageView } from "./components/ChatMessage";
 import { ModelPicker, type ModelOption } from "./components/ModelPicker";
+import { EffortSelector } from "./components/EffortSelector";
 import { PermissionModal } from "./components/PermissionModal";
 import { Sidebar } from "./components/Sidebar";
 import { SettingsModal } from "./components/SettingsModal";
@@ -101,6 +102,7 @@ export default function App() {
     mcpLoaded,
     toolsStatus,
     modelUnavailable,
+    effortNeedsDownload,
     sendMessage,
     answerPermission,
     interrupt,
@@ -108,12 +110,14 @@ export default function App() {
     reconnect,
     switchModel,
     dismissModelUnavailable,
+    dismissEffortNeedsDownload,
     mcpConnect,
     mcpToggle,
     mcpReload,
     setToolEnabled,
     requestToolsStatus,
     setPlanMode,
+    setEffort,
   } = useAgentSocket(connectModel || undefined, activeSessionId, activeProjectId, onTitled);
 
   // The server's session_info is the source of truth for what model the
@@ -419,6 +423,12 @@ export default function App() {
                       model={model}
                       onChange={(m, family, baseUrl) => switchModel(m, family, baseUrl)}
                       onNeedsKey={() => setSettingsOpen(true)}
+                    />
+                    <EffortSelector
+                      currentEffort={sessionInfo?.effort}
+                      needsDownload={effortNeedsDownload}
+                      onSelect={(level) => setEffort(level)}
+                      onDismissNeedsDownload={dismissEffortNeedsDownload}
                     />
                   </div>
                 </div>

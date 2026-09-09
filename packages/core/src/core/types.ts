@@ -107,6 +107,8 @@ export interface StreamTurnParams {
   onTextDelta: (text: string) => void;
   /** Aborts the in-flight request when the user interrupts mid-stream (Ctrl+C, the web UI's Stop) — unlike a tool call, nothing else guards this network call, so without this a Stop during "model is thinking" does nothing. */
   signal?: AbortSignal;
+  /** Overrides the provider's default max_tokens — used by the effort-tier picker to cap output on small/local models where a large response is itself part of what exhausts a tiny context window. Falls back to each provider's own default when unset. */
+  maxTokens?: number;
 }
 
 export interface StreamTurnResult {

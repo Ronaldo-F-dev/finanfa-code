@@ -393,6 +393,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
             model: params.model,
             messages: toOpenAiMessages(params.systemPrompt, params.messages),
             tools: params.tools.length > 0 ? toOpenAiTools(params.tools) : undefined,
+            max_tokens: params.maxTokens,
           },
           params.onTextDelta,
           params.signal,

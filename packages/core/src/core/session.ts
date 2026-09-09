@@ -48,6 +48,10 @@ export interface SessionFile {
    * right position rather than all bunched at the start or end.
    */
   errorLog?: { text: string; afterMessageIndex: number }[];
+  /** Set by the effort-tier picker (see EFFORT_TIERS in effort-tiers.ts) — caps provider output so a small/local model isn't asked to generate more than its own context can hold. Undefined uses each provider's own default. */
+  maxTokens?: number;
+  /** The effort tier ("low"/"medium"/"high") this session is currently on, if any — kept alongside maxTokens/model/providerBaseUrl purely so a resumed session's UI can show which tier is active without re-deriving it from the model name. */
+  effort?: string;
 }
 
 // Computed lazily (not memoized as a module constant) so it reflects the
@@ -126,6 +130,9 @@ export class AgentSession {
   checkpoints: { messageIndex: number; historySize: number; preview: string }[] = [];
   /** See SessionFile's own doc comment. Persisted (unlike checkpoints/history above) — the whole point is surviving a resume. */
   errorLog: { text: string; afterMessageIndex: number }[] = [];
+  /** See SessionFile's own doc comment — set by the effort-tier picker, read back on resume. */
+  maxTokens?: number;
+  effort?: string;
 
   constructor(opts: { id?: string; cwd: string; model: string; systemPrompt: string }) {
     this.id = opts.id ?? randomUUID();
@@ -151,6 +158,8 @@ export class AgentSession {
     session.providerKind = data.providerKind;
     session.providerBaseUrl = data.providerBaseUrl;
     session.errorLog = data.errorLog ?? [];
+    session.maxTokens = data.maxTokens;
+    session.effort = data.effort;
     return session;
   }
 
@@ -219,6 +228,8 @@ export class AgentSession {
         providerKind: this.providerKind,
         providerBaseUrl: this.providerBaseUrl,
         errorLog: this.errorLog,
+        maxTokens: this.maxTokens,
+        effort: this.effort,
       };
       await writeFile(tmp, JSON.stringify(data, null, 2), "utf-8");
       await rename(tmp, file);

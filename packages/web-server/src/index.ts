@@ -40,6 +40,7 @@ import {
   purgeDockerModels,
 } from "@finanfa/core/src/core/docker-models.js";
 import { isOllamaAvailable, listOllamaModels, pullOllamaModel, deleteOllamaModel } from "@finanfa/core/src/core/ollama-models.js";
+import { EFFORT_TIERS, getEffortTier, isDefaultProviderTier, MINIMAL_TOOL_SET } from "@finanfa/core/src/core/effort-tiers.js";
 import { AnthropicProvider } from "@finanfa/core/src/providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "@finanfa/core/src/providers/openai-compatible-provider.js";
 import type { LlmProvider, NeutralImage } from "@finanfa/core/src/core/types.js";
@@ -231,6 +232,24 @@ app.delete("/api/docker-models/purge", async (_req, res) => {
   } catch (err) {
     res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
   }
+});
+
+// Static catalog — no per-request work — plus each local tier's real
+// installed/missing state, so the UI can show "download needed" without a
+// separate round trip.
+app.get("/api/effort-tiers", async (req, res) => {
+  const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
+  const config = await loadConfig(cwd);
+  const { defaultModel } = selectProvider(config);
+  const ollamaModels = (await isOllamaAvailable().catch(() => false)) ? await listOllamaModels().catch(() => []) : [];
+  const installedNames = new Set(ollamaModels.map((m) => m.name));
+  res.json({
+    tiers: EFFORT_TIERS.map((t) => ({
+      ...t,
+      model: isDefaultProviderTier(t) ? (defaultModel ?? t.model) : t.model,
+      installed: t.ollamaModel ? installedNames.has(t.ollamaModel) : true,
+    })),
+  });
 });
 
 app.get("/api/ollama-models/status", async (_req, res) => {
@@ -691,6 +710,7 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           model: session.model,
           providerKind,
           toolCount: tools.list().length,
+          effort: session.effort,
         }),
       );
     }
@@ -965,6 +985,85 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
                 "a local model again — a handful of tools is a much smaller, safer prompt than the full set.",
             );
           }
+        } else if (msg.type === "set_effort" && typeof msg.level === "string") {
+          // Shortcut past manually picking a model + remembering to strip
+          // tools every time: one message picks a model, a max_tokens cap,
+          // and a curated tool budget together (see effort-tiers.ts for why
+          // each tier's exact settings are what they are).
+          const tier = getEffortTier(msg.level);
+          if (!tier) {
+            ws.send(JSON.stringify({ type: "error", message: `Unknown effort level: ${msg.level}` }));
+            return;
+          }
+          if (tier.ollamaModel) {
+            const available = await isOllamaAvailable().catch(() => false);
+            const installed = available && (await listOllamaModels().catch(() => [])).some((m) => m.name === tier.ollamaModel);
+            if (!installed) {
+              ws.send(JSON.stringify({ type: "effort_needs_download", level: tier.id, ollamaModel: tier.ollamaModel }));
+              return;
+            }
+          }
+          // "high" has no fixed model/family of its own — it means "this
+          // project's already-configured default provider", whatever that
+          // is (Poolside via openai-compatible, Anthropic, ...), not a
+          // hardcoded family. Resolving it wrong here would mean "high"
+          // silently requiring an Anthropic key even for a project whose
+          // actual default is an openai-compatible endpoint like Poolside.
+          let resolvedModel = tier.model;
+          let resolvedFamily = tier.family;
+          if (isDefaultProviderTier(tier)) {
+            try {
+              const selected = selectProvider(config);
+              resolvedModel = selected.defaultModel;
+              resolvedFamily = selected.kind === "openai-compatible" ? "openai-compatible" : "anthropic";
+            } catch {
+              ws.send(
+                JSON.stringify({
+                  type: "model_unavailable",
+                  model: tier.model,
+                  family: "anthropic",
+                  message: "No default provider configured for this project. Set one in Settings first.",
+                }),
+              );
+              return;
+            }
+          }
+          if (tier.baseUrl) {
+            provider = new OpenAiCompatibleProvider({ baseUrl: tier.baseUrl, apiKey: undefined });
+            providerKind = "openai-compatible";
+          } else if (resolvedFamily) {
+            const availability = await familyAvailability(config);
+            if (!availability[resolvedFamily]) {
+              ws.send(
+                JSON.stringify({
+                  type: "model_unavailable",
+                  model: resolvedModel,
+                  family: resolvedFamily,
+                  message: resolvedFamily === "anthropic" ? "No Anthropic API key configured. Add one in Settings." : "No base URL configured. Add one in Settings.",
+                }),
+              );
+              return;
+            }
+            provider = buildProvider(resolvedFamily, config);
+            providerKind = resolvedFamily;
+          }
+          session.providerKind = providerKind;
+          session.providerBaseUrl = tier.baseUrl;
+          session.model = resolvedModel;
+          session.maxTokens = tier.maxTokens;
+          session.effort = tier.id;
+          if (tier.toolBudget === "none") {
+            for (const t of tools.list()) session.disabledTools.add(t.name);
+          } else if (tier.toolBudget === "minimal") {
+            for (const t of tools.list()) {
+              if (MINIMAL_TOOL_SET.includes(t.name)) session.disabledTools.delete(t.name);
+              else session.disabledTools.add(t.name);
+            }
+          } else {
+            session.disabledTools.clear();
+          }
+          sendToolsStatus();
+          sendSessionInfo();
         } else if (msg.type === "mcp_status") {
           await sendMcpStatus();
         } else if (msg.type === "mcp_connect" && typeof msg.name === "string") {

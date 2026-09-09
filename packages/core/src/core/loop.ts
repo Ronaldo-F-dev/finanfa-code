@@ -551,6 +551,7 @@ export async function runTurn(
           tools: toolsForProvider(tools, session),
           onTextDelta: (text) => ui.writeAssistantDelta(text),
           signal: streamController.signal,
+          maxTokens: session.maxTokens,
         });
         span.setAttribute("llm.input_tokens", r.usage.inputTokens);
         span.setAttribute("llm.output_tokens", r.usage.outputTokens);

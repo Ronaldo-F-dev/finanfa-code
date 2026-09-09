@@ -121,7 +121,7 @@ export class AnthropicProvider implements LlmProvider {
     const stream = this.client.messages.stream(
       {
         model: params.model,
-        max_tokens: 8192,
+        max_tokens: params.maxTokens ?? 8192,
         system: [{ type: "text", text: params.systemPrompt, cache_control: { type: "ephemeral" } }],
         messages: toAnthropicMessages(params.messages),
         tools: anthropicTools.length > 0 ? anthropicTools : undefined,

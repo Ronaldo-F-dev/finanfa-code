@@ -27,6 +27,12 @@ export interface SessionInfo {
   model: string;
   providerKind: string;
   toolCount: number;
+  effort?: string;
+}
+
+export interface EffortNeedsDownload {
+  level: string;
+  ollamaModel: string;
 }
 
 export interface ToolStatus {
@@ -87,6 +93,7 @@ export function useAgentSocket(
   const [mcpLoaded, setMcpLoaded] = useState(false);
   const [toolsStatus, setToolsStatus] = useState<ToolStatus[]>([]);
   const [modelUnavailable, setModelUnavailable] = useState<ModelUnavailable | null>(null);
+  const [effortNeedsDownload, setEffortNeedsDownload] = useState<EffortNeedsDownload | null>(null);
   const [resumeToken, setResumeToken] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
@@ -164,7 +171,7 @@ export function useAgentSocket(
         case "session_info": {
           const wasTitled = hadTitleRef.current;
           hadTitleRef.current = Boolean(msg.title);
-          setSessionInfo({ id: msg.id, title: msg.title, model: msg.model, providerKind: msg.providerKind, toolCount: msg.toolCount });
+          setSessionInfo({ id: msg.id, title: msg.title, model: msg.model, providerKind: msg.providerKind, toolCount: msg.toolCount, effort: msg.effort });
           if (msg.title && !wasTitled) onTitledRef.current?.();
           break;
         }
@@ -177,6 +184,9 @@ export function useAgentSocket(
           break;
         case "model_unavailable":
           setModelUnavailable({ model: msg.model, family: msg.family, message: msg.message });
+          break;
+        case "effort_needs_download":
+          setEffortNeedsDownload({ level: msg.level, ollamaModel: msg.ollamaModel });
           break;
         case "history": {
           const items: TimelineItem[] = (msg.messages as { role: "user" | "assistant" | "error"; content: string }[]).map((m) =>
@@ -231,6 +241,7 @@ export function useAgentSocket(
   }, []);
 
   const dismissModelUnavailable = useCallback(() => setModelUnavailable(null), []);
+  const dismissEffortNeedsDownload = useCallback(() => setEffortNeedsDownload(null), []);
 
   const send = useCallback((payload: Record<string, unknown>) => {
     const ws = wsRef.current;
@@ -241,6 +252,7 @@ export function useAgentSocket(
   const mcpToggle = useCallback((name: string, enabled: boolean) => send({ type: enabled ? "mcp_enable" : "mcp_disable", name }), [send]);
   const mcpReload = useCallback(() => send({ type: "mcp_reload" }), [send]);
   const setToolEnabled = useCallback((name: string, enabled: boolean) => send({ type: "set_tool_enabled", name, enabled }), [send]);
+  const setEffort = useCallback((level: string) => send({ type: "set_effort", level }), [send]);
   const requestToolsStatus = useCallback(() => send({ type: "tools_status" }), [send]);
   const compact = useCallback(() => send({ type: "compact" }), [send]);
   const setPlanMode = useCallback((enabled: boolean) => send({ type: "set_plan_mode", enabled }), [send]);
@@ -256,6 +268,7 @@ export function useAgentSocket(
     mcpLoaded,
     toolsStatus,
     modelUnavailable,
+    effortNeedsDownload,
     sendMessage,
     answerPermission,
     interrupt,
@@ -263,11 +276,13 @@ export function useAgentSocket(
     reconnect,
     switchModel,
     dismissModelUnavailable,
+    dismissEffortNeedsDownload,
     mcpConnect,
     mcpToggle,
     mcpReload,
     setToolEnabled,
     requestToolsStatus,
     setPlanMode,
+    setEffort,
   };
 }
