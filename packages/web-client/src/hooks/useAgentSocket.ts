@@ -179,12 +179,11 @@ export function useAgentSocket(
           setModelUnavailable({ model: msg.model, family: msg.family, message: msg.message });
           break;
         case "history": {
-          const items: TimelineItem[] = (msg.messages as { role: "user" | "assistant"; content: string }[]).map((m) => ({
-            kind: m.role,
-            id: uid(),
-            text: m.content,
-            ...(m.role === "assistant" ? { streaming: false } : {}),
-          })) as TimelineItem[];
+          const items: TimelineItem[] = (msg.messages as { role: "user" | "assistant" | "error"; content: string }[]).map((m) =>
+            m.role === "error"
+              ? { kind: "log", id: uid(), variant: "error", text: m.content }
+              : ({ kind: m.role, id: uid(), text: m.content, ...(m.role === "assistant" ? { streaming: false } : {}) } as TimelineItem),
+          );
           // Normally prepended (a resumed session's past turns, arriving
           // before anything else). After /compact (or the web UI's Compact
           // button) the server sends replace: true instead — session.messages

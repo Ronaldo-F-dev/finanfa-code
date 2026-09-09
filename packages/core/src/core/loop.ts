@@ -575,15 +575,14 @@ export async function runTurn(
         return;
       }
       const message = describeError(err);
+      let displayMessage: string;
       if (sendingImageWithoutVisionRoute) {
         consumeImageMessage(session, `not shown — ${active.model} doesn't support image input`);
-        await session.persist();
-        ui.writeSystem(
+        displayMessage =
           `(the model call failed — ${active.model} likely doesn't support image input, and no vision route is ` +
-            'configured for this session; see "Vision routing" in the README, or /config set visionModel. The ' +
-            "image has been dropped from this conversation so it won't keep failing every later turn too. " +
-            `Original error: ${message})`,
-        );
+          'configured for this session; see "Vision routing" in the README, or /config set visionModel. The ' +
+          "image has been dropped from this conversation so it won't keep failing every later turn too. " +
+          `Original error: ${message})`;
       } else if (isLikelyContextLengthError(message)) {
         // compactForProvider already shrinks old tool results, but that's
         // not always enough (a conversation dominated by long assistant/user
@@ -591,11 +590,10 @@ export async function runTurn(
         // the request as too large, say so plainly and point at the actual
         // way out instead of leaving this indistinguishable from any other
         // opaque failure.
-        ui.writeSystem(
+        displayMessage =
           `(the model call failed — this looks like a context-length error: the conversation is too large for ` +
-            `${active.model} even after compaction. Use /clear to start fresh in this session, or /session <id> ` +
-            `to switch to a different one — see /sessions for ids. Original error: ${message})`,
-        );
+          `${active.model} even after compaction. Use /clear to start fresh in this session, or /session <id> ` +
+          `to switch to a different one — see /sessions for ids. Original error: ${message})`;
       } else if (isLikelyToolsUnsupportedError(message)) {
         // This project always sends its full tool list on every call —
         // there's no per-model "text-only" mode short of disabling every
@@ -604,15 +602,23 @@ export async function runTurn(
         // fine-tune with no function-calling training) genuinely can't
         // accept a request with tools attached at all, distinct from a
         // model that just doesn't reliably *use* them.
-        ui.writeSystem(
+        displayMessage =
           `(the model call failed — ${active.model} doesn't support tool/function calling at all, and every call ` +
-            "here includes the full tool list. Pick a model that supports it, or disable every tool for this " +
-            "session (/tools, or the web UI's Tools panel) to use this one for plain text chat with no tool use. " +
-            `Original error: ${message})`,
-        );
+          "here includes the full tool list. Pick a model that supports it, or disable every tool for this " +
+          "session (/tools, or the web UI's Tools panel) to use this one for plain text chat with no tool use. " +
+          `Original error: ${message})`;
       } else {
-        ui.writeSystem(`(the model call failed: ${message})`);
+        displayMessage = `(the model call failed: ${message})`;
       }
+      ui.writeSystem(displayMessage);
+      // Never sent back to the model (that would mean every later call
+      // resends it as if it were part of the actual conversation) — just
+      // recorded so a resumed/reopened session can show the user what
+      // failed, not just the ordinary chat text. See SessionFile's own
+      // doc comment on errorLog for why this needed its own persisted
+      // field rather than reusing session.messages.
+      session.errorLog.push({ text: displayMessage, afterMessageIndex: session.messages.length });
+      await session.persist();
       return;
     } finally {
       session.activeAbortControllers.delete(streamController);

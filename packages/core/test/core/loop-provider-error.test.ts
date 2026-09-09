@@ -1,4 +1,7 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { mkdtemp, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { AgentSession } from "../../src/core/session.js";
 import { runTurn } from "../../src/core/loop.js";
 import { ToolRegistry } from "../../src/tools/registry.js";
@@ -24,6 +27,26 @@ function makeStubUi(): UIAdapter {
 }
 
 describe("runTurn: a provider call that throws ends the turn cleanly instead of propagating", () => {
+  // runTurn's catch block now always calls session.persist() (recording
+  // the failure in session.errorLog — see AgentSession's own doc comment),
+  // not just for the image-branch case that already needed it — without
+  // overriding $HOME, every test here would write a real session file
+  // into this actual machine's ~/.finanfa-code/sessions instead of a
+  // throwaway temp directory.
+  let homeDir: string;
+  let originalHome: string | undefined;
+
+  beforeEach(async () => {
+    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-loop-provider-error-"));
+    originalHome = process.env.HOME;
+    process.env.HOME = homeDir;
+  });
+
+  afterEach(async () => {
+    process.env.HOME = originalHome;
+    await rm(homeDir, { recursive: true, force: true });
+  });
+
   it("surfaces a plain system message for a generic provider failure", async () => {
     class FailingProvider implements LlmProvider {
       async streamTurn(): Promise<StreamTurnResult> {
@@ -267,5 +290,44 @@ describe("runTurn: a provider call that throws ends the turn cleanly instead of 
 
     expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("doesn't support tool/function calling"));
     expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/tools"));
+  });
+
+  it("records the failure in session.errorLog (persisted) — not just shown live and then lost on resume", async () => {
+    class FailingProvider implements LlmProvider {
+      async streamTurn(): Promise<StreamTurnResult> {
+        throw new Error("Internal server error, please retry.");
+      }
+    }
+
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(session, new FailingProvider(), ui, new ToolRegistry(), permissions, "hello");
+
+    expect(session.errorLog).toHaveLength(1);
+    expect(session.errorLog[0]!.text).toContain("Internal server error");
+    // The user message was already appended before the provider call ran —
+    // the failure happened right after it, not before.
+    expect(session.errorLog[0]!.afterMessageIndex).toBe(session.messages.length);
+
+    const resumed = await AgentSession.resume("/tmp", session.id, "sys");
+    expect(resumed.errorLog).toEqual(session.errorLog);
+  });
+
+  it("never appends the failure into session.messages — it must not reach the model on a later turn", async () => {
+    class FailingProvider implements LlmProvider {
+      async streamTurn(): Promise<StreamTurnResult> {
+        throw new Error("Internal server error, please retry.");
+      }
+    }
+
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(session, new FailingProvider(), ui, new ToolRegistry(), permissions, "hello");
+
+    expect(session.messages.some((m) => m.role === "assistant" && m.content.includes("Internal server error"))).toBe(false);
   });
 });

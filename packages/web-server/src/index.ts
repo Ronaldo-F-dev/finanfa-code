@@ -690,15 +690,26 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     // Replay past turns for a resumed session — tool activity itself isn't
     // replayed (it isn't stored as display-ready text), only the user/
     // assistant exchange, same as reopening a ChatGPT/Claude.ai thread.
-    if (requestedSessionId && session.messages.length > 0) {
-      ws.send(
-        JSON.stringify({
-          type: "history",
-          messages: session.messages
-            .filter((m) => m.role === "user" || m.role === "assistant")
-            .map((m) => ({ role: m.role, content: m.content })),
-        }),
-      );
+    // Real, reported gap: a failed turn's error message only ever reached
+    // the client as a one-off "error" WS event, never part of `messages`
+    // (appending it there would resend it to the model on every later
+    // call) — so it was silently gone the moment the connection closed,
+    // not just the ordinary chat text. session.errorLog (see
+    // AgentSession's own doc comment) records each one against the
+    // message-array position it happened at, so it can be spliced back
+    // into the replay at the right spot instead of all bunched together.
+    if (requestedSessionId && (session.messages.length > 0 || session.errorLog.length > 0)) {
+      const replay: { role: "user" | "assistant" | "error"; content: string }[] = [];
+      let errorIdx = 0;
+      for (let i = 0; i <= session.messages.length; i++) {
+        while (errorIdx < session.errorLog.length && session.errorLog[errorIdx]!.afterMessageIndex === i) {
+          replay.push({ role: "error", content: session.errorLog[errorIdx]!.text });
+          errorIdx++;
+        }
+        const m = session.messages[i];
+        if (m && (m.role === "user" || m.role === "assistant")) replay.push({ role: m.role, content: m.content });
+      }
+      ws.send(JSON.stringify({ type: "history", messages: replay }));
       // Unlike the rest of tool activity, a generated audio/image file (see
       // ToolResult.media) IS meant to stay visible across a reload — it's
       // persisted on the tool-result message specifically for this. Sent

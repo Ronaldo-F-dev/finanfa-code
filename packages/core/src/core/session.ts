@@ -35,6 +35,19 @@ export interface SessionFile {
   providerKind?: string;
   /** Only set for an openai-compatible provider pointed at a specific endpoint (a detected local runtime, or the one configured default) — undefined for Anthropic. */
   providerBaseUrl?: string;
+  /**
+   * A failed-turn message (see runTurn's catch block in loop.ts) never
+   * became part of `messages` — it's UI-only, deliberately never sent back
+   * to the model (appending it there would mean every later call resends
+   * it as if it were part of the actual conversation). Without a place of
+   * its own to persist, it was gone the moment the connection closed —
+   * real, reported UX gap: reopening/resuming a session dropped every
+   * error the model had hit during it, not just the ordinary chat text.
+   * `afterMessageIndex` records where in `messages` it happened (that
+   * array's length at the time), so a resume can replay it back in the
+   * right position rather than all bunched at the start or end.
+   */
+  errorLog?: { text: string; afterMessageIndex: number }[];
 }
 
 // Computed lazily (not memoized as a module constant) so it reflects the
@@ -111,6 +124,8 @@ export class AgentSession {
    * file change made since.
    */
   checkpoints: { messageIndex: number; historySize: number; preview: string }[] = [];
+  /** See SessionFile's own doc comment. Persisted (unlike checkpoints/history above) — the whole point is surviving a resume. */
+  errorLog: { text: string; afterMessageIndex: number }[] = [];
 
   constructor(opts: { id?: string; cwd: string; model: string; systemPrompt: string }) {
     this.id = opts.id ?? randomUUID();
@@ -135,6 +150,7 @@ export class AgentSession {
     session.goal = data.goal;
     session.providerKind = data.providerKind;
     session.providerBaseUrl = data.providerBaseUrl;
+    session.errorLog = data.errorLog ?? [];
     return session;
   }
 
@@ -202,6 +218,7 @@ export class AgentSession {
         goal: this.goal,
         providerKind: this.providerKind,
         providerBaseUrl: this.providerBaseUrl,
+        errorLog: this.errorLog,
       };
       await writeFile(tmp, JSON.stringify(data, null, 2), "utf-8");
       await rename(tmp, file);
