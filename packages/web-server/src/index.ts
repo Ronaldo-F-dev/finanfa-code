@@ -765,6 +765,17 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           }
         } else if (msg.type === "set_model" && typeof msg.model === "string" && msg.model) {
           const family: ProviderFamily = msg.family === "openai-compatible" ? "openai-compatible" : "anthropic";
+          // Real, reported bug: switching FROM a local model (a specific
+          // baseUrl override, e.g. Ollama) back TO a normal same-family
+          // model (e.g. the configured default openai-compatible provider)
+          // left `provider` pointed at the OLD local baseUrl — the family
+          // hadn't changed ("openai-compatible" both times), so the
+          // family-mismatch rebuild below never fired, and only
+          // session.model was updated. The next call then sent the new
+          // model's name to the old local server, which had never heard of
+          // it (404). Tracked here so switching away from a baseUrl
+          // override always forces a rebuild, even within the same family.
+          const hadBaseUrlOverride = Boolean(session.providerBaseUrl);
           if (typeof msg.baseUrl === "string" && msg.baseUrl) {
             // A detected local model (Ollama/LM Studio/...) — always rebuilt
             // directly against its own baseUrl, unconditionally, rather than
@@ -775,7 +786,7 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
             // No API key — every local runtime here is unauthenticated.
             provider = new OpenAiCompatibleProvider({ baseUrl: msg.baseUrl, apiKey: undefined });
             providerKind = "openai-compatible";
-          } else if (family !== providerKind) {
+          } else if (family !== providerKind || hadBaseUrlOverride) {
             const availability = await familyAvailability(config);
             if (!availability[family]) {
               ws.send(
