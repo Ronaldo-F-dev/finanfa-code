@@ -845,6 +845,28 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     // starts — no message can ever observe another's half-applied state.
     let messageQueue: Promise<void> = Promise.resolve();
     ws.on("message", (raw: Buffer) => {
+      // Real reported bug: interrupt must preempt an in-flight turn, not
+      // wait behind it in the queue below — queuing every message (added
+      // just above to fix a real race between set_effort/set_model and a
+      // user_message landing mid-switch) accidentally broke Stop entirely.
+      // An interrupt sent while a turn was running only ever ran once that
+      // turn had already finished on its own (queued behind its
+      // still-awaiting handleMessage), by which point activeAbortControllers
+      // was already empty — a complete no-op, indistinguishable from Stop
+      // doing nothing at all. interrupt is the one message safe to run
+      // immediately, out of order: it only ever aborts whatever's currently
+      // active and never touches state a later queued message could
+      // observe half-applied.
+      try {
+        const peek = JSON.parse(raw.toString()) as { type?: string };
+        if (peek.type === "interrupt") {
+          for (const controller of session.activeAbortControllers) controller.abort();
+          return;
+        }
+      } catch {
+        // Malformed JSON — falls through to the queue below, which already
+        // reports this the same way it always has.
+      }
       messageQueue = messageQueue.then(handleMessage).catch((err) => {
         console.error(`Unhandled error handling a WS message for session ${session.id}:`, err);
       });
@@ -906,8 +928,6 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
           }
         } else if (msg.type === "permission_response" && typeof msg.requestId === "number" && typeof msg.answer === "string") {
           resolvePending(msg.requestId, msg.answer);
-        } else if (msg.type === "interrupt") {
-          for (const controller of session.activeAbortControllers) controller.abort();
         } else if (msg.type === "compact") {
           if (turnInFlight) {
             adapter.writeError("A turn is already in progress — wait for it to finish (or interrupt) before compacting.");
