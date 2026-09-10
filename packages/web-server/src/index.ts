@@ -3,7 +3,7 @@ import path from "node:path";
 import express from "express";
 import { WebSocketServer, type WebSocket } from "ws";
 import { AgentSession } from "@finanfa/core/src/core/session.js";
-import { runTurn, maybeGenerateTitle, compactSession } from "@finanfa/core/src/core/loop.js";
+import { runTurn, maybeGenerateTitle, compactSession, isLoopGuardStopMessage } from "@finanfa/core/src/core/loop.js";
 import { ToolRegistry } from "@finanfa/core/src/tools/registry.js";
 import { registerBuiltins, registerStatefulBuiltins } from "@finanfa/core/src/tools/builtin/index.js";
 import { PermissionManager } from "@finanfa/core/src/permissions/manager.js";
@@ -64,6 +64,15 @@ import {
 // before Projects did (kept working unchanged for anyone not using Projects
 // at all). Every other project is a real directory under
 // projects.ts's PROJECTS_ROOT, picked per-connection/per-request below.
+// Same behavior as the CLI's --prompt mode (cli.ts): a genuinely large task
+// can legitimately hit runTurn's own step-limit guard well before finishing.
+// Interactively there's a human who could just type "continue" themselves,
+// but making them notice the cutoff and do that by hand for a task like
+// "build me a complete app" is exactly the friction --max-turns removed on
+// the CLI side — this gives the web UI the same automatic recovery, each
+// auto-continue still announced via writeSystem so it's never silent.
+const WEB_MAX_AUTO_CONTINUE_TURNS = 5;
+
 const DEFAULT_CWD = process.env.FINANFA_WEB_CWD ?? process.cwd();
 const PORT = Number(process.env.PORT ?? 4600);
 
@@ -866,7 +875,17 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
                 "cross-check facts, fetch pages for real detail rather than trusting a snippet) before answering — don't answer " +
                 `from memory alone if search tools can verify it. Take as many search/fetch steps as genuinely useful.\n\n${msg.text}`
               : msg.text;
-            await runTurn(session, provider, adapter, tools, permissions, text, undefined, images);
+            let nextText: string = text;
+            let nextImages = images;
+            for (let turn = 1; turn <= WEB_MAX_AUTO_CONTINUE_TURNS; turn++) {
+              await runTurn(session, provider, adapter, tools, permissions, nextText, undefined, nextImages);
+              const last = session.messages.at(-1);
+              const stoppedByGuard = last?.role === "assistant" && typeof last.content === "string" && isLoopGuardStopMessage(last.content);
+              if (!stoppedByGuard || turn === WEB_MAX_AUTO_CONTINUE_TURNS) break;
+              adapter.writeSystem(`(auto-continuing: cut off by the step-limit guard — turn ${turn + 1}/${WEB_MAX_AUTO_CONTINUE_TURNS})`);
+              nextText = "continue";
+              nextImages = undefined;
+            }
             // Cleared here, not in the outer finally below — assistant_end
             // has already reached the client by this point (runTurn itself
             // sent it), so from the user's perspective the turn is over.
