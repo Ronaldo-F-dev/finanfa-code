@@ -81,6 +81,44 @@ describe("runTurn: a tool call missing its schema's required fields is rejected 
   });
 
   it(
+    "a call marked __toolCallParseError (malformed JSON, not truncation) surfaces the real parse error and " +
+      "escaping guidance — real reported bug: write_file kept retrying an identical empty {} across 3 separate " +
+      "turns because the generic 'missing required fields' message never explained the JSON was malformed",
+    async () => {
+      const tools = new ToolRegistry();
+      tools.register({
+        name: "write_file",
+        description: "",
+        riskLevel: "ask",
+        inputSchema: { type: "object", properties: { path: { type: "string" }, content: { type: "string" } }, required: ["path", "content"] },
+        handler: async () => ({ content: "wrote", isError: false }),
+      });
+
+      const ui = makeStubUi();
+      const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+      const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+      await runTurn(
+        session,
+        new (oneToolCallThenDone("write_file", { __toolCallParseError: "Unexpected token c in JSON at position 42" }))(),
+        ui,
+        tools,
+        permissions,
+        "write a file",
+      );
+
+      const toolMessage = session.messages.find((m) => m.role === "tool");
+      const toolResult = (toolMessage as { results: Array<{ isError: boolean; content: string }> }).results[0];
+      expect(toolResult.isError).toBe(true);
+      expect(toolResult.content).toContain("Unexpected token c in JSON at position 42");
+      expect(toolResult.content).toContain("escap");
+      // Not the generic message — a call this specific must not also match
+      // the fallback "missing required fields" path.
+      expect(toolResult.content).not.toContain("Missing required field(s)");
+    },
+  );
+
+  it(
     "a call marked __toolCallTruncated (finish_reason: length in the provider) gets an actionable " +
       "'split into smaller calls' message instead of the generic missing-field one",
     async () => {

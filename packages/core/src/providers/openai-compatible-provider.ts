@@ -294,26 +294,40 @@ async function attemptStreamChatCompletion(
     let input: unknown = {};
     try {
       input = call.arguments.length > 0 ? JSON.parse(call.arguments) : {};
-    } catch {
+    } catch (err) {
       // A truncated/malformed arguments fragment used to silently become
       // `{}` — e.g. an edit_file call missing its path, with no error
       // surfaced anywhere, so the model would see a confusing tool failure
       // (or worse, act on wrongly-empty input) with no hint why. Surfacing
       // it here at least makes it visible instead of a silent substitution.
       console.error(`Warning: malformed tool-call arguments for "${call.name}", treating as {}: ${call.arguments}`);
-      // Real reported pattern: a model repeatedly generating one huge
-      // single tool call (e.g. an entire file's contents as one bash
-      // heredoc argument) whose JSON never gets a chance to close because
-      // the response hit its own max-output-token limit first — the SAME
-      // failure then repeats near-identically across retries until the
-      // loop guard gives up, with no indication anywhere of WHY it kept
-      // failing. `finishReason === "length"` is the one place this is
-      // knowable; carried into a marker field (harmless to a tool's own
-      // required-fields check — see loop.ts's findMissingRequiredFields)
-      // so the tool_result the model sees can name the real cause instead
-      // of a generic "missing field", giving it an actual way to recover
-      // (split the write into smaller calls) instead of blindly retrying.
-      input = finishReason === "length" ? { __toolCallTruncated: true } : {};
+      if (finishReason === "length") {
+        // Real reported pattern: a model repeatedly generating one huge
+        // single tool call (e.g. an entire file's contents as one bash
+        // heredoc argument) whose JSON never gets a chance to close because
+        // the response hit its own max-output-token limit first — the SAME
+        // failure then repeats near-identically across retries until the
+        // loop guard gives up. Carried into a marker field (harmless to a
+        // tool's own required-fields check — see loop.ts's
+        // findMissingRequiredFields) so the tool_result the model sees can
+        // name the real cause and actually recover (split into smaller
+        // calls) instead of blindly retrying.
+        input = { __toolCallTruncated: true };
+      } else {
+        // Real reported pattern, distinct from the length case above: a
+        // model producing a write_file call with a large/complex `content`
+        // string whose own JSON escaping was wrong (an unescaped quote or
+        // control character) — genuinely malformed JSON, not truncation.
+        // The generic "missing required fields" message that used to be
+        // the ONLY feedback here is technically accurate (the fields really
+        // are absent from the {} fallback) but doesn't tell the model WHY —
+        // observed for real: the model retried the identical broken call 3
+        // times per turn, across 3 separate turns, never once fixing it,
+        // because nothing ever told it the actual JSON syntax error. This
+        // carries that real parser error through so loop.ts can surface it
+        // instead.
+        input = { __toolCallParseError: err instanceof Error ? err.message : String(err) };
+      }
     }
     toolCalls.push({ id: call.id, name: call.name, input });
   }

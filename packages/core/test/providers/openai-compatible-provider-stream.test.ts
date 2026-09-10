@@ -417,32 +417,38 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
     expect(result.assistantMessage.toolCalls).toEqual([{ id: "call_1", name: "read_file", input: { path: "a.txt" } }]);
   });
 
-  it("warns and substitutes {} for malformed tool-call arguments, instead of silently guessing", async () => {
-    const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const events = [
-        JSON.stringify({
-          choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "edit_file", arguments: "{not valid json" } }] } }],
-        }),
-        JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }),
-      ];
-      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sseResponse(events)));
+  it(
+    "warns and substitutes a __toolCallParseError marker (carrying the real JSON error) for malformed tool-call " +
+      "arguments, instead of silently guessing an empty {}",
+    async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const events = [
+          JSON.stringify({
+            choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "edit_file", arguments: "{not valid json" } }] } }],
+          }),
+          JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }),
+        ];
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sseResponse(events)));
 
-      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
-      const result = await provider.streamTurn({
-        model: "m",
-        systemPrompt: "s",
-        messages: [],
-        tools: [],
-        onTextDelta: () => {},
-      });
+        const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+        const result = await provider.streamTurn({
+          model: "m",
+          systemPrompt: "s",
+          messages: [],
+          tools: [],
+          onTextDelta: () => {},
+        });
 
-      expect(result.assistantMessage.toolCalls).toEqual([{ id: "call_1", name: "edit_file", input: {} }]);
-      expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("edit_file"));
-    } finally {
-      errorSpy.mockRestore();
-    }
-  });
+        expect(result.assistantMessage.toolCalls).toEqual([
+          { id: "call_1", name: "edit_file", input: { __toolCallParseError: expect.any(String) } },
+        ]);
+        expect(errorSpy).toHaveBeenCalledWith(expect.stringContaining("edit_file"));
+      } finally {
+        errorSpy.mockRestore();
+      }
+    },
+  );
 
   it(
     "marks malformed tool-call arguments as truncated when finish_reason is 'length', instead of a plain {} — " +

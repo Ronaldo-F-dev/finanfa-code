@@ -129,6 +129,32 @@ async function runOneToolCall(
     };
   }
 
+  // See openai-compatible-provider.ts's malformed-arguments fallback: this
+  // marker means the arguments genuinely failed to parse as JSON (not a
+  // token-limit truncation — see __toolCallTruncated above) — usually a
+  // large/complex string argument (a write_file call's `content`) with a
+  // real escaping mistake (an unescaped quote or control character). Real
+  // reported bug: without the actual parse error surfaced, the model saw
+  // only the generic "missing required fields" message below, which reads
+  // as "you forgot the fields" rather than "your JSON was malformed" — it
+  // retried the identical broken call 3 times per turn, across 3 separate
+  // turns, never correcting it, because nothing ever told it what was
+  // actually wrong with the JSON it generated.
+  if (call.input && typeof call.input === "object" && typeof (call.input as Record<string, unknown>).__toolCallParseError === "string") {
+    const parseError = (call.input as Record<string, unknown>).__toolCallParseError as string;
+    return {
+      result: {
+        toolCallId: call.id,
+        isError: true,
+        content:
+          `This "${tool.name}" call's arguments were not valid JSON (${parseError}). This usually means a string ` +
+          "argument wasn't properly escaped — unescaped double quotes, backslashes, or literal newlines inside a " +
+          "JSON string value need escaping (\\\", \\\\, \\n). Regenerate the call with correctly escaped JSON, not " +
+          "the same arguments again.",
+      },
+    };
+  }
+
   const missingFields = findMissingRequiredFields(tool, call.input);
   if (missingFields.length > 0) {
     return {
