@@ -12,7 +12,7 @@ import type {
   ToolContext,
   ToolDefinition,
 } from "./types.js";
-import { compactForProvider } from "./context.js";
+import { compactForProvider, CHARS_PER_TOKEN_ESTIMATE } from "./context.js";
 import { mcpToolServerName } from "../mcp/client-manager.js";
 import { withSpan } from "../observability/tracing.js";
 
@@ -300,6 +300,28 @@ export interface VisionRoute {
 const MAX_ITERATIONS = 150;
 const REPEAT_LIMIT = 3;
 
+// Real reported bug: a long tool-heavy turn (lots of verbose bash/ls/cat
+// output, on a "full" tool budget sending all ~130 tool schemas every call)
+// grew to 202,917 real input tokens with no compaction ever triggering —
+// compactForProvider's own 60k-token budget (context.ts) only ever counts
+// session.messages, never the system prompt or the tool list actually sent
+// alongside it, so the biggest fixed cost of a "full" tool budget was
+// invisible to it. The provider eventually returned a silent empty
+// completion (no error, no tool call, no text — handled gracefully by the
+// existing "empty response" message, but with real work lost). This adds a
+// pre-call estimate covering everything actually sent (system prompt + tool
+// schemas + messages) and auto-compacts via compactSession — the same
+// LLM-summarization compaction /compact already does manually — before
+// a request this large ever goes out, instead of only ever finding out
+// after the fact via an empty or failed response.
+const AUTO_COMPACT_TOKEN_THRESHOLD = 100_000;
+
+/** Rough token estimate for everything an actual provider call sends — the same char-per-token trust level compactForProvider already uses, but covering the system prompt and tool schemas too, not just messages. */
+function estimateRequestTokens(systemPrompt: string, messages: NeutralMessage[], tools: ToolDefinition[]): number {
+  const chars = systemPrompt.length + JSON.stringify(compactForProvider(messages)).length + JSON.stringify(tools).length;
+  return Math.ceil(chars / CHARS_PER_TOKEN_ESTIMATE);
+}
+
 function toolCallBatchSignature(toolCalls: NeutralToolCall[]): string {
   return JSON.stringify(toolCalls.map((c) => ({ name: c.name, input: c.input })));
 }
@@ -527,7 +549,12 @@ export async function compactSession(session: AgentSession, provider: LlmProvide
       onTextDelta: () => {},
     });
 
-    const summary = result.assistantMessage.content.trim();
+    // Defensive, same reasoning as runTurn's own empty-response check: a
+    // malformed provider response with content undefined instead of "" must
+    // not crash a compaction that — now that it can trigger automatically
+    // mid-turn (see AUTO_COMPACT_TOKEN_THRESHOLD above), not just via the
+    // manual /compact command — is exercised far more often than before.
+    const summary = (result.assistantMessage.content ?? "").trim();
     if (summary.length === 0) return undefined;
 
     session.messages = [
@@ -601,6 +628,14 @@ export async function runTurn(
     const wasShowingImage = nextCallNeedsVision;
     nextCallNeedsVision = false;
 
+    const activeTools = toolsForProvider(tools, session);
+    const estimatedTokens = estimateRequestTokens(systemPromptWithDate(session), session.messages, activeTools);
+    if (estimatedTokens > AUTO_COMPACT_TOKEN_THRESHOLD) {
+      ui.writeSystem(`(context is very large — ~${estimatedTokens.toLocaleString()} tokens — compacting automatically before continuing)`);
+      const compacted = await compactSession(session, provider);
+      if (compacted) ui.writeSystem(`Compacted ${compacted.messagesBefore} earlier messages into a summary to stay within context.`);
+    }
+
     ui.setBusy(true, "thinking");
     // Same mechanism as runOneToolCall's controller below — registered on
     // the session so an interrupt (Ctrl+C, the web UI's Stop) can cancel
@@ -617,7 +652,7 @@ export async function runTurn(
           model: active.model,
           systemPrompt: systemPromptWithDate(session),
           messages: compactForProvider(session.messages),
-          tools: toolsForProvider(tools, session),
+          tools: activeTools,
           onTextDelta: (text) => ui.writeAssistantDelta(text),
           signal: streamController.signal,
           maxTokens: session.maxTokens,

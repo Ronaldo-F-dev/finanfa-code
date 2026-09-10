@@ -3,7 +3,10 @@ import type { NeutralMessage } from "./types.js";
 // Character-per-token is a rough estimate (no tokenizer dependency) — good
 // enough for a budget check, same trust level as the provider's own usage
 // reporting for backends that don't return real token counts.
-const CHARS_PER_TOKEN_ESTIMATE = 4;
+// Exported for loop.ts's own pre-call size estimate (system prompt + tool
+// schemas + messages) — same rough trust level, kept as one constant so the
+// two estimates can't silently drift apart.
+export const CHARS_PER_TOKEN_ESTIMATE = 4;
 const DEFAULT_TOKEN_BUDGET = 60_000;
 const KEEP_RECENT_TOOL_MESSAGES = 2;
 const MIN_RESULT_LENGTH_TO_COMPACT = 500;

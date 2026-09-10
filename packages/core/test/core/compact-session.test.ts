@@ -19,6 +19,16 @@ class FixedSummaryProvider implements LlmProvider {
   }
 }
 
+class MalformedContentProvider implements LlmProvider {
+  async streamTurn(): Promise<StreamTurnResult> {
+    return {
+      assistantMessage: { role: "assistant", content: undefined as unknown as string },
+      usage: { inputTokens: 1, outputTokens: 1 },
+      stopReason: "end_turn",
+    };
+  }
+}
+
 class ThrowingProvider implements LlmProvider {
   async streamTurn(): Promise<StreamTurnResult> {
     throw new Error("network error");
@@ -97,6 +107,24 @@ describe("compactSession", () => {
       expect(result).toBeUndefined();
       expect(session.messages).toHaveLength(2);
       expect(session.messages[0]).toEqual({ role: "user", content: "hi" });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("leaves the original conversation untouched when the provider's content is undefined, not just empty/thrown", async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "finanfa-compact-"));
+    try {
+      const session = new AgentSession({ cwd: dir, model: "m", systemPrompt: "sys" });
+      session.messages = [
+        { role: "user", content: "hi" },
+        { role: "assistant", content: "hello" },
+      ];
+
+      const result = await compactSession(session, new MalformedContentProvider());
+
+      expect(result).toBeUndefined();
+      expect(session.messages).toHaveLength(2);
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
