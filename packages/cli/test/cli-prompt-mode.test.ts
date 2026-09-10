@@ -1,10 +1,12 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { mkdtemp, rm, mkdir, writeFile, readdir, readFile } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile, readdir, readFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { main } from "../src/cli.js";
+
+const ENV_KEYS_TO_CLEAR = ["FINANFA_PROVIDER", "FINANFA_BASE_URL", "FINANFA_MODEL", "FINANFA_API_KEY", "FINANFA_API_KEYS", "ANTHROPIC_API_KEY"] as const;
 
 // Real end-to-end test of the --prompt/--cwd single-shot mode
 // (schedule_task's payload path): a real local HTTP server plays the
@@ -60,7 +62,6 @@ describe("CLI --prompt/--cwd single-shot mode (real local SSE server, real main(
     // paid endpoint instead of the fake local server (confirmed: this
     // happened on the first real run of this test, before this override
     // was added).
-    const ENV_KEYS_TO_CLEAR = ["FINANFA_PROVIDER", "FINANFA_BASE_URL", "FINANFA_MODEL", "FINANFA_API_KEY", "FINANFA_API_KEYS", "ANTHROPIC_API_KEY"] as const;
     const originalEnv = Object.fromEntries(ENV_KEYS_TO_CLEAR.map((k) => [k, process.env[k]]));
     for (const k of ENV_KEYS_TO_CLEAR) delete process.env[k];
 
@@ -108,4 +109,116 @@ describe("CLI --prompt/--cwd single-shot mode (real local SSE server, real main(
       await rm(homeDir, { recursive: true, force: true });
     }
   }, 20_000);
+
+  it(
+    "creates a --cwd directory that doesn't exist yet, instead of leaving the model to discover a raw " +
+      "filesystem error and guess at other locations — real reported bug",
+    async () => {
+      // The scratch base itself exists (mkdtemp), but the actual project
+      // directory --cwd points to deliberately does not — this is the exact
+      // gap the fix closes: a fresh "build me an app" request's target
+      // directory legitimately doesn't exist before the run starts.
+      const scratchBase = await mkdtemp(path.join(tmpdir(), "finanfa-cwd-mkdir-"));
+      const projectDir = path.join(scratchBase, "does-not-exist-yet", "my-app");
+      const homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-cwd-mkdir-home-"));
+      const originalHome = process.env.HOME;
+      process.env.HOME = homeDir;
+      receivedRequests = [];
+
+      const originalEnv = Object.fromEntries(ENV_KEYS_TO_CLEAR.map((k) => [k, process.env[k]]));
+      process.env.FINANFA_PROVIDER = "openai-compatible";
+      process.env.FINANFA_BASE_URL = baseUrl;
+      process.env.FINANFA_MODEL = "fake-model";
+      process.env.FINANFA_API_KEY = "test-key";
+
+      try {
+        await Promise.race([
+          main(["node", "finanfa", "--prompt", "say hi", "--cwd", projectDir, "--non-interactive", "--ui", "readline"]),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("main() did not return")), 10_000)),
+        ]);
+
+        const dirStat = await stat(projectDir);
+        expect(dirStat.isDirectory()).toBe(true);
+        expect(receivedRequests.length).toBeGreaterThan(0);
+      } finally {
+        process.env.HOME = originalHome;
+        for (const k of ENV_KEYS_TO_CLEAR) {
+          if (originalEnv[k] === undefined) delete process.env[k];
+          else process.env[k] = originalEnv[k];
+        }
+        await rm(scratchBase, { recursive: true, force: true });
+        await rm(homeDir, { recursive: true, force: true });
+      }
+    },
+    20_000,
+  );
+
+  it(
+    "auto-continues past a step-limit-guard cutoff in --prompt mode, up to --max-turns, sending \"continue\" " +
+      "automatically — real reported gap: a large task stopped for good with no human to type continue",
+    async () => {
+      const projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-auto-continue-"));
+      const homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-auto-continue-home-"));
+      const originalHome = process.env.HOME;
+      process.env.HOME = homeDir;
+      receivedRequests = [];
+      let turnCount = 0;
+
+      // Overrides the shared beforeAll server's handler for this test only —
+      // simulates the guard cutting off every turn (its own real message
+      // starts with the same "(stopped" prefix isLoopGuardStopMessage
+      // checks) so every one of --max-turns 3's turns gets auto-continued,
+      // then exactly 3 real requests plus one maybeGenerateTitle call.
+      server.removeAllListeners("request");
+      server.on("request", (req, res) => {
+        let body = "";
+        req.on("data", (chunk) => (body += chunk));
+        req.on("end", () => {
+          receivedRequests.push(body);
+          turnCount++;
+          res.writeHead(200, { "content-type": "text/event-stream" });
+          const content = turnCount <= 3 ? "(stopped after 150 steps without finishing — try breaking it up)" : "a real title";
+          const events = [
+            JSON.stringify({ choices: [{ delta: { content }, finish_reason: "stop" }], usage: { prompt_tokens: 5, completion_tokens: 3 } }),
+          ];
+          for (const e of events) res.write(`data: ${e}\n\n`);
+          res.write("data: [DONE]\n\n");
+          res.end();
+        });
+      });
+
+      const originalEnv = Object.fromEntries(ENV_KEYS_TO_CLEAR.map((k) => [k, process.env[k]]));
+      for (const k of ENV_KEYS_TO_CLEAR) delete process.env[k];
+
+      try {
+        await mkdir(path.join(projectDir, ".finanfa-code"), { recursive: true });
+        await writeFile(
+          path.join(projectDir, ".finanfa-code", "config.json"),
+          JSON.stringify({ provider: "openai-compatible", baseUrl, model: "fake-model", apiKey: "test-key" }),
+        );
+
+        await Promise.race([
+          main(["node", "finanfa", "--prompt", "build a big app", "--cwd", projectDir, "--max-turns", "3", "--non-interactive", "--ui", "readline"]),
+          new Promise((_, reject) => setTimeout(() => reject(new Error("main() did not return")), 10_000)),
+        ]);
+
+        // 3 turns (each cut off by the fake guard message), stops there
+        // since turn === maxTurns — plus 1 maybeGenerateTitle call.
+        expect(receivedRequests).toHaveLength(4);
+        const turn2Messages = JSON.parse(receivedRequests[1]!).messages;
+        expect(turn2Messages).toEqual(expect.arrayContaining([expect.objectContaining({ role: "user", content: "continue" })]));
+        const turn3Messages = JSON.parse(receivedRequests[2]!).messages;
+        expect(turn3Messages).toEqual(expect.arrayContaining([expect.objectContaining({ role: "user", content: "continue" })]));
+      } finally {
+        process.env.HOME = originalHome;
+        for (const k of ENV_KEYS_TO_CLEAR) {
+          if (originalEnv[k] === undefined) delete process.env[k];
+          else process.env[k] = originalEnv[k];
+        }
+        await rm(projectDir, { recursive: true, force: true });
+        await rm(homeDir, { recursive: true, force: true });
+      }
+    },
+    20_000,
+  );
 });

@@ -39,7 +39,7 @@ function registerCountingTool(tools: ToolRegistry) {
 }
 
 describe("runTurn: loop guards", () => {
-  it("stops after MAX_ITERATIONS (50) even if the model never emits a final answer", async () => {
+  it("stops after MAX_ITERATIONS (150) even if the model never emits a final answer", async () => {
     const tools = new ToolRegistry();
     let n = 0;
     tools.register({
@@ -73,9 +73,9 @@ describe("runTurn: loop guards", () => {
 
     await runTurn(session, new NeverEndingProvider(), ui, tools, permissions, "go forever");
 
-    expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("stopped after 50 steps"));
-    // 50 iterations run the model, but the 51st is refused before calling it again.
-    expect(n).toBe(50);
+    expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("stopped after 150 steps"));
+    // 150 iterations run the model, but the 151st is refused before calling it again.
+    expect(n).toBe(150);
 
     // Not just shown in the terminal — recorded into history too, or the
     // model has no way to know on the next turn that this ended via the
@@ -83,7 +83,7 @@ describe("runTurn: loop guards", () => {
     // asked "did you finish?" right after a cutoff, the model confidently
     // said yes).
     const last = session.messages.at(-1);
-    expect(last).toEqual({ role: "assistant", content: expect.stringContaining("stopped after 50 steps") });
+    expect(last).toEqual({ role: "assistant", content: expect.stringContaining("stopped after 150 steps") });
   });
 
   it("stops after the same tool call batch repeats 3 times, without executing the 3rd repeat", async () => {

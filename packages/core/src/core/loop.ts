@@ -33,6 +33,17 @@ function systemPromptWithDate(session: AgentSession): string {
     "guessing or assuming your training cutoff is current. When a web_search query is time-sensitive (asking " +
     `who currently holds a role, the latest version of something, recent events), derive the year from ${today} ` +
     "rather than a remembered or habitual one — a wrong year in the query can silently return stale results.";
+  // Real reported bug: nothing ever told the model its own project root, so
+  // when asked to create a new project it guessed at absolute paths (the
+  // real repo's own directory, a random spot under the user's home) instead
+  // of just writing into the directory it's actually confined to — each
+  // wrong guess burned a step second-guessing the sandbox instead of doing
+  // real work. cwd was already used internally everywhere (path-guard,
+  // session bucketing) but never surfaced in the text the model reads.
+  prompt +=
+    `\n\nYour project root for this session is ${session.cwd} — write and read files relative to it (or with ` +
+    "this absolute path), don't guess at a different location. Tool calls that try to write outside it (or " +
+    "outside your home directory) are rejected by a sandbox, not a hint to try somewhere else at random.";
   // Set via /goal, cleared via /goal clear — re-read fresh every call
   // (like the date above) since it can change mid-session, unlike the
   // static session.systemPrompt baked in at startup.
@@ -277,7 +288,16 @@ export interface VisionRoute {
 // Backstops for a model that ignores the system prompt's own "stop after ~3
 // attempts" guidance (common with smaller/free models) — nothing else in the
 // loop enforces either limit.
-const MAX_ITERATIONS = 50;
+//
+// Real reported case: a genuinely large, legitimate task (a complete Flutter
+// e-commerce app — models, controllers, theme, several full screens) hit the
+// original 50-step cap well before finishing, with no errors or repeats
+// along the way — just real, steady progress cut short. 50 was carried over
+// from when this guard was first added as a stuck-loop backstop, not tuned
+// against how many steps a big-but-legitimate build actually needs. Raised
+// to 150 for more headroom; still finite, and the CLI's own --prompt mode
+// now auto-continues past this (see cli.ts) for tasks that need even more.
+const MAX_ITERATIONS = 150;
 const REPEAT_LIMIT = 3;
 
 function toolCallBatchSignature(toolCalls: NeutralToolCall[]): string {

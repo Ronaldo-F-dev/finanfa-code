@@ -1,8 +1,9 @@
 import { createRequire } from "node:module";
+import { mkdir } from "node:fs/promises";
 import path from "node:path";
 import { Command } from "commander";
 import { AgentSession } from "@finanfa/core/src/core/session.js";
-import { runTurn, maybeGenerateTitle, type VisionRoute } from "@finanfa/core/src/core/loop.js";
+import { runTurn, maybeGenerateTitle, isLoopGuardStopMessage, type VisionRoute } from "@finanfa/core/src/core/loop.js";
 import type { UIAdapter } from "@finanfa/core/src/ui/adapter.js";
 import { createReadlineAdapter } from "./ui/readline-adapter.js";
 import { createInkAdapter } from "./ui/ink/ink-adapter.js";
@@ -54,6 +55,8 @@ export interface CliOptions {
   ui: "ink" | "readline";
   /** Run this one prompt non-interactively and exit instead of starting the REPL — for scripts/cron (see schedule_task). */
   prompt?: string;
+  /** With --prompt: max total runTurn calls (the first plus this many auto-continues) if the step-limit guard cuts a turn off. String because commander doesn't coerce option values on its own; unset in tests that don't go through the real CLI option parser default. */
+  maxTurns?: string;
   /** Project directory to operate in; defaults to process.cwd(). Needed for --prompt invocations, since a cron job's cwd is the user's home directory, not the project. */
   cwd?: string;
 }
@@ -157,11 +160,29 @@ export async function main(argv: string[]): Promise<void> {
     .option("--non-interactive", "never prompt; auto-deny anything not pre-allowed by config")
     .option("--ui <mode>", "terminal UI: ink or readline", "ink")
     .option("-p, --prompt <text>", "run this one prompt non-interactively and exit, instead of starting the REPL (for scripts/cron)")
+    .option(
+      "--max-turns <n>",
+      "with --prompt: automatically send \"continue\" up to this many extra times if a turn is cut off by the " +
+        "step-limit guard (a large task genuinely needing more room, not just a stuck loop) — 1 disables auto-continue",
+      "5",
+    )
     .option("--cwd <path>", "project directory to operate in (defaults to the current directory)")
     .parse(argv);
 
   const opts = program.opts<CliOptions>();
   const cwd = opts.cwd ? path.resolve(opts.cwd) : process.cwd();
+  // Real reported bug: an explicit --cwd pointing at a directory that
+  // doesn't exist yet (a fresh scratch project, the common case for a new
+  // "build me an app" request) was never created — the model then had to
+  // discover this itself by trying to write there and hitting a raw
+  // sandbox/filesystem error, with no clear signal of what actually went
+  // wrong, and (not knowing its own cwd either — see loop.ts's system
+  // prompt) went on to guess at other, wrong locations instead of just
+  // retrying the one it was actually given. The web server's own project
+  // creation (web-server/src/projects.ts) already does exactly this
+  // (mkdir before ever handing the directory to a session) — the CLI's
+  // --cwd never had the same guarantee.
+  if (opts.cwd) await mkdir(cwd, { recursive: true });
   // A scripted/cron --prompt invocation has no TTY to speak of; Ink needs a
   // real terminal and would otherwise throw trying to manage raw-mode
   // input on a pipe. createUi already falls back for a non-TTY stdin, but
@@ -250,8 +271,28 @@ export async function main(argv: string[]): Promise<void> {
     // Single-shot mode (scripts/cron via schedule_task): run exactly one
     // turn with the given prompt, persist, and exit — no REPL, no banner/
     // system-status chatter, since there's no human here to read it.
+    //
+    // Real reported gap: a genuinely large task (e.g. "build me a complete
+    // app") reliably hits runTurn's own MAX_ITERATIONS step-limit guard well
+    // before finishing — expected for a single turn, not a bug — but this
+    // mode has no human to type "continue" the way an interactive REPL user
+    // would to keep going. Left as one shot, the whole task just silently
+    // stopped partway with no automatic way to push further. Auto-sending
+    // "continue" mirrors exactly what a human would do here, bounded by
+    // --max-turns so a genuinely stuck loop (the repetition-guard's own
+    // "(stopped" message, which shares the same prefix) can't run forever.
+    const maxTurns = Math.max(1, Number.parseInt(opts.maxTurns ?? "5", 10) || 1);
     try {
-      await runTurn(deps.session, provider, ui, tools, permissions, opts.prompt, visionRoute);
+      let prompt: string = opts.prompt;
+      for (let turn = 1; turn <= maxTurns; turn++) {
+        await runTurn(deps.session, provider, ui, tools, permissions, prompt, visionRoute);
+        const last = deps.session.messages.at(-1);
+        const stoppedByGuard =
+          last?.role === "assistant" && typeof last.content === "string" && isLoopGuardStopMessage(last.content);
+        if (!stoppedByGuard || turn === maxTurns) break;
+        ui.writeSystem(`(auto-continuing: turn ${turn} was cut off by the step-limit guard — turn ${turn + 1}/${maxTurns})`);
+        prompt = "continue";
+      }
       await maybeGenerateTitle(deps.session, provider);
     } catch (err) {
       ui.writeError(err instanceof Error ? err.message : String(err));
