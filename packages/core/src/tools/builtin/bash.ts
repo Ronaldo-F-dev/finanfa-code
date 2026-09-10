@@ -10,9 +10,16 @@ interface BashInput {
 
 const DEFAULT_TIMEOUT_MS = 120_000;
 
-/** First whitespace-separated token of the command, used as the permission risk key. */
-function commandPrefix(command: string): string {
-  return command.trim().split(/\s+/, 1)[0] ?? command;
+/**
+ * First whitespace-separated token of the command, used as the permission risk key.
+ * `command` can be undefined here: when a provider's tool-call arguments fail to
+ * parse (truncated/malformed JSON), the caller falls back to `input = {}`, and this
+ * runs before any of that is validated — a bare `command.trim()` crashed raw on that
+ * path (reported: "Cannot read properties of undefined (reading 'trim')").
+ */
+function commandPrefix(command: string | undefined): string {
+  const first = (command ?? "").trim().split(/\s+/, 1)[0];
+  return first || "(no command — malformed arguments)";
 }
 
 /**
@@ -56,7 +63,7 @@ export function createBashTool(sandboxConfig?: SandboxConfig): ToolDefinition<Ba
       required: ["command"],
     },
     riskKey: (input) => commandPrefix(input.command),
-    describeCall: (input) => input.command,
+    describeCall: (input) => input.command ?? "(no command — malformed arguments)",
     async handler(input, ctx) {
       const cwd = input.cwd ? `${ctx.cwd}/${input.cwd}` : ctx.cwd;
       const timeoutMs = input.timeout_ms ?? DEFAULT_TIMEOUT_MS;

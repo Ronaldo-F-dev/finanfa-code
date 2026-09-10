@@ -252,4 +252,31 @@ describe("PermissionManager", () => {
     expect(ui.askUser).not.toHaveBeenCalled();
     expect(ui.writeError).toHaveBeenCalledWith(expect.stringContaining("old_string not found in file.txt"));
   });
+
+  it(
+    "a throwing riskKey() denies instead of crashing — real reported crash: bash's riskKey ran " +
+      "`command.trim()` on malformed tool-call arguments falling back to input = {}",
+    async () => {
+      // riskKey() runs on every check() call, even below the "ask" prompt
+      // path (session-allowlist / rule matching both need it first) — so
+      // unlike describeCall()/preview() this must be safe even when the
+      // tool ends up auto-allowed or auto-denied without ever reaching a
+      // prompt.
+      const ui = makeUi("y");
+      const throwingRiskKeyTool: ToolDefinition = {
+        ...safeTool,
+        name: "bash",
+        riskLevel: "dangerous",
+        riskKey: () => {
+          throw new TypeError("Cannot read properties of undefined (reading 'trim')");
+        },
+      };
+      const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+      const decision = await manager.check(throwingRiskKeyTool, {}, ctx);
+      expect(decision).toBe("allow");
+      expect(ui.writeError).toHaveBeenCalledWith(
+        expect.stringContaining("Cannot read properties of undefined (reading 'trim')"),
+      );
+    },
+  );
 });

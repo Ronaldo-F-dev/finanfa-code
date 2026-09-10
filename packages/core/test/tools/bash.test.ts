@@ -94,6 +94,25 @@ describe("bash tool", () => {
       expect(result.content).not.toContain("v=\n");
     });
   });
+
+  describe("riskKey / describeCall with malformed input", () => {
+    // Real reported crash: when a provider's tool-call arguments fail to
+    // parse (truncated/malformed JSON), the caller falls back to
+    // `input = {}` — so `command` is undefined here, not just missing at
+    // the type level. `riskKey`/`describeCall` run before the handler (and
+    // before any schema validation), so a bare `command.trim()` crashed raw
+    // with "Cannot read properties of undefined (reading 'trim')" instead
+    // of letting the permission flow deny the call gracefully.
+    it("riskKey does not throw when command is undefined", () => {
+      expect(() => bashTool.riskKey?.({} as never)).not.toThrow();
+      expect(bashTool.riskKey?.({} as never)).toBe("(no command — malformed arguments)");
+    });
+
+    it("describeCall does not throw when command is undefined", () => {
+      expect(() => bashTool.describeCall?.({} as never)).not.toThrow();
+      expect(bashTool.describeCall?.({} as never)).toBe("(no command — malformed arguments)");
+    });
+  });
 });
 
 describe("bash tool — OS-level sandbox (real bubblewrap, workspace-write mode)", () => {

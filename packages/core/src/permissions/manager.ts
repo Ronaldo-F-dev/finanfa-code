@@ -33,8 +33,24 @@ export class PermissionManager {
     this.hooksConfig = opts.hooksConfig;
   }
 
+  /**
+   * A tool's own `riskKey` is arbitrary caller-supplied code — not guaranteed
+   * not to throw on a malformed `input` (e.g. bash's used to do
+   * `input.command.trim()`, which crashed raw when a provider's tool-call
+   * arguments failed to parse and the caller fell back to `input = {}`).
+   * Caught here for the same reason describeCall()/preview() are caught
+   * below: this runs before that guarded block, on every check() call, not
+   * just the "ask" path.
+   */
   private riskKey(tool: ToolDefinition, input: unknown): string {
-    return tool.riskKey ? tool.riskKey(input) : tool.name;
+    if (!tool.riskKey) return tool.name;
+    try {
+      return tool.riskKey(input);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      this.ui.writeError(`Could not compute a risk key for "${tool.name}": ${message}`);
+      return tool.name;
+    }
   }
 
   private matchRule(tool: ToolDefinition, key: string): PermissionDecision | undefined {
