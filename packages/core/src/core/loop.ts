@@ -625,67 +625,94 @@ export async function runTurn(
       session.activeAbortControllers.delete(streamController);
     }
 
-    ui.setBusy(false);
-    ui.endAssistantMessage();
-    session.messages.push(result.assistantMessage);
-    session.recordUsage(result.usage.inputTokens, result.usage.outputTokens);
-    if (wasShowingImage) consumeImageMessage(session, "already shown to the model above");
+    // Real, reported crash: everything from here to the end of this loop
+    // iteration (pushing the assistant message, running its tool calls,
+    // persisting) used to have NO try/catch of its own — only the
+    // streamTurn call above (already exited via its own catch/return by
+    // this point) was protected. Any unexpected bug here — a malformed
+    // provider response, a tool's own uncaught edge case slipping past
+    // runOneToolCall's handling — escaped all the way to the web server's
+    // generic top-level handler as a raw, scary "Unexpected error: Cannot
+    // read properties of undefined (reading 'trim')"-style message instead
+    // of the same graceful, persisted "(the model call failed...)" pattern
+    // every other failure mode in this function already gets. Wrapping it
+    // closes that whole class of crash, not just one specific instance of it.
+    try {
+      ui.setBusy(false);
+      ui.endAssistantMessage();
+      session.messages.push(result.assistantMessage);
+      session.recordUsage(result.usage.inputTokens, result.usage.outputTokens);
+      if (wasShowingImage) consumeImageMessage(session, "already shown to the model above");
 
-    ui.setStatus({
-      tokens: session.usage.inputTokens + session.usage.outputTokens,
-      costUsd: session.costUsd,
-      model: session.model,
-      planMode: session.planMode,
-    });
-    await session.persist();
-
-    const toolCalls = result.assistantMessage.toolCalls;
-    if (result.stopReason !== "tool_use" || !toolCalls?.length) {
-      if (result.assistantMessage.content.trim() === "") {
-        ui.writeSystem("(the model returned an empty response — try rephrasing, or check /cost for context size)");
-      }
-      return;
-    }
-
-    const repeatCheck = guard.checkRepetition(toolCalls);
-    if (repeatCheck?.kind === "stop") {
-      ui.writeSystem(repeatCheck.message);
-      // The assistant message with these tool_calls is already in history
-      // (pushed above) but the calls themselves were never run — leaving
-      // them unresolved would mean every tool_use block has no matching
-      // tool_result, which providers like Anthropic reject outright on the
-      // next request, breaking the session from here on. Stub results keep
-      // the transcript structurally valid; the follow-up assistant note
-      // (same reasoning as the iteration-limit case above) lets the model
-      // know on the next turn that this ended via the guard, not naturally.
-      session.messages.push({
-        role: "tool",
-        results: toolCalls.map((call) => ({ toolCallId: call.id, content: "(skipped — repetition guard triggered)", isError: true })),
+      ui.setStatus({
+        tokens: session.usage.inputTokens + session.usage.outputTokens,
+        costUsd: session.costUsd,
+        model: session.model,
+        planMode: session.planMode,
       });
-      session.messages.push({ role: "assistant", content: repeatCheck.message });
+      await session.persist();
+
+      const toolCalls = result.assistantMessage.toolCalls;
+      if (result.stopReason !== "tool_use" || !toolCalls?.length) {
+        // Defensive: every provider's own accumulator starts as "" and this
+        // has never been observed to be anything but a string in this
+        // project's own providers — but a value this function trusted
+        // blindly here is exactly what caused the crash this whole
+        // try/catch exists to catch, so it isn't trusted blindly either.
+        if ((result.assistantMessage.content ?? "").trim() === "") {
+          ui.writeSystem("(the model returned an empty response — try rephrasing, or check /cost for context size)");
+        }
+        return;
+      }
+
+      const repeatCheck = guard.checkRepetition(toolCalls);
+      if (repeatCheck?.kind === "stop") {
+        ui.writeSystem(repeatCheck.message);
+        // The assistant message with these tool_calls is already in history
+        // (pushed above) but the calls themselves were never run — leaving
+        // them unresolved would mean every tool_use block has no matching
+        // tool_result, which providers like Anthropic reject outright on the
+        // next request, breaking the session from here on. Stub results keep
+        // the transcript structurally valid; the follow-up assistant note
+        // (same reasoning as the iteration-limit case above) lets the model
+        // know on the next turn that this ended via the guard, not naturally.
+        session.messages.push({
+          role: "tool",
+          results: toolCalls.map((call) => ({ toolCallId: call.id, content: "(skipped — repetition guard triggered)", isError: true })),
+        });
+        session.messages.push({ role: "assistant", content: repeatCheck.message });
+        await session.persist();
+        return;
+      }
+
+      const { results, images } = await runToolCallBatch(toolCalls, session, ui, tools, permissions);
+
+      if (repeatCheck?.kind === "nudge" && results.length > 0) {
+        // Appended to the last real tool result rather than pushed as its own
+        // message — every tool_use block needs a matching tool_result (same
+        // protocol constraint as the "stop" branch above), so there's no valid
+        // toolCallId to hang a standalone nudge off of. Piggybacking on a real
+        // result keeps the transcript valid and still puts the reminder
+        // directly in the model's next-turn context.
+        const last = results[results.length - 1];
+        results[results.length - 1] = { ...last, content: `${last.content}\n\n${repeatCheck.message}` };
+        ui.writeSystem(repeatCheck.message);
+      }
+
+      session.messages.push({ role: "tool", results });
+      if (images.length > 0) {
+        nextCallNeedsVision = true;
+        session.messages.push({ role: "user", content: "(image result from the tool call above)", images });
+      }
+      await session.persist();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      const displayMessage = `(an unexpected internal error interrupted this turn: ${message})`;
+      ui.setBusy(false);
+      ui.writeSystem(displayMessage);
+      session.errorLog.push({ text: displayMessage, afterMessageIndex: session.messages.length });
       await session.persist();
       return;
     }
-
-    const { results, images } = await runToolCallBatch(toolCalls, session, ui, tools, permissions);
-
-    if (repeatCheck?.kind === "nudge" && results.length > 0) {
-      // Appended to the last real tool result rather than pushed as its own
-      // message — every tool_use block needs a matching tool_result (same
-      // protocol constraint as the "stop" branch above), so there's no valid
-      // toolCallId to hang a standalone nudge off of. Piggybacking on a real
-      // result keeps the transcript valid and still puts the reminder
-      // directly in the model's next-turn context.
-      const last = results[results.length - 1];
-      results[results.length - 1] = { ...last, content: `${last.content}\n\n${repeatCheck.message}` };
-      ui.writeSystem(repeatCheck.message);
-    }
-
-    session.messages.push({ role: "tool", results });
-    if (images.length > 0) {
-      nextCallNeedsVision = true;
-      session.messages.push({ role: "user", content: "(image result from the tool call above)", images });
-    }
-    await session.persist();
   }
 }

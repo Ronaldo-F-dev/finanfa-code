@@ -315,6 +315,81 @@ describe("runTurn: a provider call that throws ends the turn cleanly instead of 
     expect(resumed.errorLog).toEqual(session.errorLog);
   });
 
+  it(
+    "real, reported crash: a malformed provider response (content undefined instead of a string) ends the " +
+      "turn gracefully instead of an unhandled 'Cannot read properties of undefined' escaping to the caller",
+    async () => {
+      // Real, reported bug: this exact raw crash reached the user in
+      // production ("Unexpected error: Cannot read properties of undefined
+      // (reading 'trim')") right after a real bash tool call succeeded —
+      // every one of this project's own providers always initializes
+      // content as "" and this project couldn't pin down which exact
+      // real-world response shape produced undefined here, but the actual
+      // fix doesn't need to know: nothing in this zone (pushing the
+      // assistant message, checking for an empty response, running tool
+      // calls) had a try/catch of its own before, unlike the streamTurn
+      // call itself just above it — any bug here, known or not, escaped
+      // raw. A provider whose response is malformed in exactly this way is
+      // the most direct real repro available.
+      class MalformedContentProvider implements LlmProvider {
+        async streamTurn(): Promise<StreamTurnResult> {
+          return {
+            assistantMessage: { role: "assistant", content: undefined as unknown as string },
+            usage: { inputTokens: 1, outputTokens: 1 },
+            stopReason: "end_turn",
+          };
+        }
+      }
+
+      const ui = makeStubUi();
+      const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+      const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+      await expect(
+        runTurn(session, new MalformedContentProvider(), ui, new ToolRegistry(), permissions, "hello"),
+      ).resolves.toBeUndefined();
+
+      // The defensive `?? ""` means this specific case resolves via the
+      // ordinary "empty response" message rather than the catch-all — both
+      // are graceful; this pins down which one so a future change to either
+      // path has a real test noticing it, not just "didn't throw".
+      expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("empty response"));
+    },
+  );
+
+  it(
+    "an unexpected error anywhere in the post-response processing (not just a malformed provider value) " +
+      "is caught, logged, and persisted — not left to escape uncaught",
+    async () => {
+      // Distinct from the previous test: this exercises the try/catch
+      // itself (the general defense-in-depth fix), not the specific `?? ""`
+      // guard — a genuinely unrelated failure (here, the UI adapter's own
+      // endAssistantMessage throwing) in this zone must be just as
+      // recoverable as a malformed provider value is.
+      class OkProvider implements LlmProvider {
+        async streamTurn(): Promise<StreamTurnResult> {
+          return {
+            assistantMessage: { role: "assistant", content: "all good" },
+            usage: { inputTokens: 1, outputTokens: 1 },
+            stopReason: "end_turn",
+          };
+        }
+      }
+
+      const ui = makeStubUi();
+      (ui.endAssistantMessage as ReturnType<typeof vi.fn>).mockImplementation(() => {
+        throw new Error("boom from the UI layer");
+      });
+      const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+      const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+      await expect(runTurn(session, new OkProvider(), ui, new ToolRegistry(), permissions, "hello")).resolves.toBeUndefined();
+
+      expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("boom from the UI layer"));
+      expect(session.errorLog.some((e) => e.text.includes("boom from the UI layer"))).toBe(true);
+    },
+  );
+
   it("never appends the failure into session.messages — it must not reach the model on a later turn", async () => {
     class FailingProvider implements LlmProvider {
       async streamTurn(): Promise<StreamTurnResult> {
