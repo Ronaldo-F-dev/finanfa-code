@@ -14,10 +14,9 @@ import { ToolsPanel } from "./components/ToolsPanel";
 import { ProjectsListView } from "./components/ProjectsListView";
 import { ProjectDetailView, type StartChatOptions } from "./components/ProjectDetailView";
 import { useLanguage } from "./i18n/LanguageContext";
+import { readViewFromUrl, readActiveProjectIdFromUrl, readActiveSessionIdFromUrl, buildUrlSearch, type View } from "./urlState";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
-
-type View = { kind: "chat" } | { kind: "projects" } | { kind: "project"; id: string };
 
 function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -30,7 +29,7 @@ function readFileAsBase64(file: File): Promise<string> {
 
 export default function App() {
   const { t } = useLanguage();
-  const [view, setView] = useState<View>({ kind: "chat" });
+  const [view, setView] = useState<View>(() => readViewFromUrl(window.location.search));
   const [models, setModels] = useState<ModelOption[]>([]);
   // connectModel only ever feeds the WebSocket's connection query string —
   // it changes exactly when we WANT a reconnect (initial default arriving,
@@ -43,11 +42,11 @@ export default function App() {
   // the code.
   const [connectModel, setConnectModel] = useState<string>("");
   const [model, setModel] = useState<string>("");
-  const [activeSessionId, setActiveSessionId] = useState<string | undefined>(undefined);
+  const [activeSessionId, setActiveSessionId] = useState<string | undefined>(() => readActiveSessionIdFromUrl(window.location.search));
   // undefined = the "default" workspace (the folder the server was started
   // against) — the only workspace that existed before Projects, kept as the
   // implicit default rather than requiring everyone to create one.
-  const [activeProjectId, setActiveProjectId] = useState<string | undefined>(undefined);
+  const [activeProjectId, setActiveProjectId] = useState<string | undefined>(() => readActiveProjectIdFromUrl(window.location.search));
   const [projectName, setProjectName] = useState<string | undefined>(undefined);
   const [input, setInput] = useState("");
   const [pendingImages, setPendingImages] = useState<Attachment[]>([]);
@@ -171,6 +170,20 @@ export default function App() {
     if (sessionInfo?.model && sessionInfo.model !== model) setModel(sessionInfo.model);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionInfo?.model]);
+
+  // Keeps the URL mirroring the current view/project/session (see
+  // readViewFromUrl and friends above) — replaceState, not pushState, so
+  // every message exchanged doesn't spam the browser's back/forward history,
+  // only the current entry is kept up to date for a refresh or a copied
+  // link to land on. sessionInfo?.id (not activeSessionId alone) so a
+  // brand-new chat's real id — assigned by the server after its first
+  // exchange — gets captured here too, same source Sidebar's own active-
+  // session highlighting already uses (see the prop below).
+  useEffect(() => {
+    const qs = buildUrlSearch(view, activeProjectId, sessionInfo?.id ?? activeSessionId);
+    const url = qs ? `${window.location.pathname}?${qs}` : window.location.pathname;
+    if (url !== `${window.location.pathname}${window.location.search}`) window.history.replaceState(null, "", url);
+  }, [view, activeProjectId, activeSessionId, sessionInfo?.id]);
 
   // Fires the message a project's own "start chat" composer queued, once the
   // freshly (re)connected socket is actually ready to receive it. Real,
