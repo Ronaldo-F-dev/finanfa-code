@@ -80,6 +80,41 @@ describe("runTurn: a tool call missing its schema's required fields is rejected 
     expect(toolResult.content).not.toContain("command not found");
   });
 
+  it(
+    "a call marked __toolCallTruncated (finish_reason: length in the provider) gets an actionable " +
+      "'split into smaller calls' message instead of the generic missing-field one",
+    async () => {
+      // See openai-compatible-provider.ts: when a malformed tool-call's
+      // arguments failed to parse AND the response's finish_reason was
+      // "length", the real cause is known (the model's own output hit its
+      // token limit mid-argument — e.g. one huge file written in a single
+      // bash heredoc) rather than a generic parse failure. The model needs
+      // a different, more useful hint here: split the work up, not just
+      // "send valid arguments" (which it already thought it was doing).
+      const tools = new ToolRegistry();
+      tools.register(createBashTool({ mode: "off" }));
+
+      const ui = makeStubUi();
+      const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+      const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+      await runTurn(
+        session,
+        new (oneToolCallThenDone("bash", { __toolCallTruncated: true }))(),
+        ui,
+        tools,
+        permissions,
+        "do something",
+      );
+
+      const toolMessage = session.messages.find((m) => m.role === "tool");
+      const toolResult = (toolMessage as { results: Array<{ isError: boolean; content: string }> }).results[0];
+      expect(toolResult.isError).toBe(true);
+      expect(toolResult.content).toContain("max output token limit");
+      expect(toolResult.content).toContain("smaller");
+    },
+  );
+
   it("a tool call with all required fields present still reaches its handler normally", async () => {
     const tools = new ToolRegistry();
     tools.register({

@@ -412,4 +412,36 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
       errorSpy.mockRestore();
     }
   });
+
+  it(
+    "marks malformed tool-call arguments as truncated when finish_reason is 'length', instead of a plain {} — " +
+      "real reported pattern: one huge file-write argument (a bash heredoc) cut off by the max output token limit",
+    async () => {
+      const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+      try {
+        const events = [
+          // Note the argument fragment never closes its JSON string/object —
+          // exactly what a response cut off mid-argument looks like.
+          JSON.stringify({
+            choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "bash", arguments: '{"command": "cat > big.dart << \'EOF\'\\nclass Foo {' } }] } }],
+          }),
+          JSON.stringify({ choices: [{ delta: {}, finish_reason: "length" }] }),
+        ];
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sseResponse(events)));
+
+        const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+        const result = await provider.streamTurn({
+          model: "m",
+          systemPrompt: "s",
+          messages: [],
+          tools: [],
+          onTextDelta: () => {},
+        });
+
+        expect(result.assistantMessage.toolCalls).toEqual([{ id: "call_1", name: "bash", input: { __toolCallTruncated: true } }]);
+      } finally {
+        errorSpy.mockRestore();
+      }
+    },
+  );
 });

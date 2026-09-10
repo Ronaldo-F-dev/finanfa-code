@@ -301,7 +301,19 @@ async function attemptStreamChatCompletion(
       // (or worse, act on wrongly-empty input) with no hint why. Surfacing
       // it here at least makes it visible instead of a silent substitution.
       console.error(`Warning: malformed tool-call arguments for "${call.name}", treating as {}: ${call.arguments}`);
-      input = {};
+      // Real reported pattern: a model repeatedly generating one huge
+      // single tool call (e.g. an entire file's contents as one bash
+      // heredoc argument) whose JSON never gets a chance to close because
+      // the response hit its own max-output-token limit first — the SAME
+      // failure then repeats near-identically across retries until the
+      // loop guard gives up, with no indication anywhere of WHY it kept
+      // failing. `finishReason === "length"` is the one place this is
+      // knowable; carried into a marker field (harmless to a tool's own
+      // required-fields check — see loop.ts's findMissingRequiredFields)
+      // so the tool_result the model sees can name the real cause instead
+      // of a generic "missing field", giving it an actual way to recover
+      // (split the write into smaller calls) instead of blindly retrying.
+      input = finishReason === "length" ? { __toolCallTruncated: true } : {};
     }
     toolCalls.push({ id: call.id, name: call.name, input });
   }

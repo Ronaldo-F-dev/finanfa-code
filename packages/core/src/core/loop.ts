@@ -99,6 +99,25 @@ async function runOneToolCall(
     return { result: { toolCallId: call.id, isError: true, content: `Unknown tool "${call.name}"` } };
   }
 
+  // See openai-compatible-provider.ts's malformed-arguments fallback: this
+  // marker means the real cause is known (the response hit its max output
+  // token limit mid-argument, e.g. one huge file's contents in a single
+  // bash heredoc), not just "arguments failed to parse" in general — worth
+  // telling the model directly so it can actually recover instead of
+  // regenerating the same oversized call and tripping the loop guard again.
+  if (call.input && typeof call.input === "object" && (call.input as Record<string, unknown>).__toolCallTruncated) {
+    return {
+      result: {
+        toolCallId: call.id,
+        isError: true,
+        content:
+          `This "${tool.name}" call's arguments were cut off because the response hit its max output token limit ` +
+          "before the arguments finished — it was too large to complete in one call. Split the work into multiple " +
+          "smaller calls instead (e.g. write a large file in several appended chunks, or make separate calls per file).",
+      },
+    };
+  }
+
   const missingFields = findMissingRequiredFields(tool, call.input);
   if (missingFields.length > 0) {
     return {
