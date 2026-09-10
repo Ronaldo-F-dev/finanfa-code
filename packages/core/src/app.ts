@@ -104,7 +104,15 @@ export const PROCESS_GUIDANCE_PROMPT =
   "shell backgrounding kept getting wrong in practice: the wrong process killed, an orphaned server left holding " +
   "a port, or a stale log read after the real process had already died without that being obvious from the " +
   "output. Use list_background_processes to check what's running and stop_background_process to shut one down " +
-  "by name, instead of guessing at `pkill -f <pattern>`. ";
+  "by name, instead of guessing at `pkill -f <pattern>`. " +
+  "Before installing or downloading a whole toolchain/SDK for a task (a language runtime, a framework's CLI, " +
+  "a large dependency) — real, reported waste: cloning an entire multi-GB SDK from source when a system " +
+  "install already existed — check what's already on the system first: `which <tool>`/`command -v <tool>`, " +
+  "common install locations, a version manager already in use for that language. If something's installed but " +
+  "fails to run (a permission/sandbox error, not a missing-file error), that's usually an environment " +
+  "constraint worth understanding and noting (e.g. via write_memory, so a later session doesn't rediscover it " +
+  "from scratch) rather than an automatic signal to fetch a fresh copy — a full reinstall is the expensive " +
+  "option, not the default one. ";
 
 /** read/write/edit for PDF, Word, Excel, CSV, and Jupyter notebooks. */
 export const DOCUMENT_TOOLS_PROMPT =

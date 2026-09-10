@@ -95,6 +95,18 @@ describe("system prompt: background process tools", () => {
     expect(BASE_SYSTEM_PROMPT).toMatch(/stop_background_process/);
     expect(BASE_SYSTEM_PROMPT).toMatch(/guessing at `pkill -f/);
   });
+
+  // Real reported waste: cloning an entire multi-GB Flutter SDK from source
+  // when a system install already existed (it just failed to run inside the
+  // sandbox for an unrelated, environment-specific reason — a snap-confine/
+  // AppArmor conflict, not a missing/wrong version) — see the
+  // snap-tools-incompatible-with-bash-sandbox memory note this same
+  // investigation produced.
+  it("tells the model to check what's already installed before downloading/cloning a whole toolchain", () => {
+    expect(BASE_SYSTEM_PROMPT).toMatch(/Before installing or downloading a whole toolchain\/SDK/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/check what's already on the system first/i);
+    expect(BASE_SYSTEM_PROMPT).toMatch(/a full reinstall is the expensive.*option, not the default one/i);
+  });
 });
 
 describe("system prompt: document tools", () => {
