@@ -40,7 +40,11 @@ export const httpRequestTool: ToolDefinition<HttpRequestInput> = {
         headers: input.headers,
         body: input.body,
         redirect: "follow",
-        signal: AbortSignal.timeout(input.timeout_ms ?? DEFAULT_TIMEOUT_MS),
+        // Real reported gap: only the timeout was ever wired in — Stop/
+        // interrupt (ctx.signal) had no effect on a slow request until it
+        // hit its own timeout. AbortSignal.any combines both without either
+        // needing to know about the other.
+        signal: AbortSignal.any([AbortSignal.timeout(input.timeout_ms ?? DEFAULT_TIMEOUT_MS), ctx.signal]),
       });
     } catch (err) {
       return { content: err instanceof Error ? err.message : String(err), isError: true };

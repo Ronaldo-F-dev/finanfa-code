@@ -100,6 +100,7 @@ export const lintPythonTool: ToolDefinition<LintPythonInput> = {
       cwd: ctx.cwd,
       sessionId: ctx.sessionId,
       timeoutMs: input.timeout_ms ?? DEFAULT_TIMEOUT_MS,
+      signal: ctx.signal,
       format: "compact",
       isError: (code) => code !== 0 && code !== 1,
     });

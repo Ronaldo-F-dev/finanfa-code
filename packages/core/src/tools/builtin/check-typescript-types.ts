@@ -50,6 +50,7 @@ export const checkTypescriptTypesTool: ToolDefinition<CheckTypescriptTypesInput>
       cwd: ctx.cwd,
       sessionId: ctx.sessionId,
       timeoutMs: input.timeout_ms ?? DEFAULT_TIMEOUT_MS,
+      signal: ctx.signal,
       format: "compact",
       // tsc exits 1 for type errors and 0 when clean (verified directly) —
       // same convention as Pyright/ESLint. tsc also exits 1 for a genuinely

@@ -97,4 +97,23 @@ describe("run_tests tool (real process execution)", () => {
     expect(result.isError).toBe(true);
     expect(result.content).toContain("No test command could be detected");
   });
+
+  it(
+    "real reported bug: Stop/interrupt (ctx.signal) actually kills a long-running test command instead of " +
+      "having no effect until its own timeout",
+    async () => {
+      const controller = new AbortController();
+      const runPromise = runTestsTool.handler(
+        { command: "sleep 60", timeout_ms: 60_000 },
+        { cwd: dir, sessionId: "test", signal: controller.signal },
+      );
+      await new Promise((r) => setTimeout(r, 200));
+      const start = Date.now();
+      controller.abort();
+      const result = await runPromise;
+      expect(Date.now() - start).toBeLessThan(5_000);
+      expect(result.isError).toBe(true);
+    },
+    10_000,
+  );
 });

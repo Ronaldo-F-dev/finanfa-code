@@ -82,6 +82,24 @@ describe("http_request tool (real local HTTP server)", () => {
     expect(result.isError).toBe(true);
   }, 10_000);
 
+  it(
+    "real reported bug: Stop/interrupt (ctx.signal) cancels a slow request well before its own timeout, " +
+      "instead of only ever stopping via the timeout",
+    async () => {
+      const controller = new AbortController();
+      const runPromise = httpRequestTool.handler(
+        { url: `${baseUrl}/slow`, timeout_ms: 30_000 },
+        { cwd: "/tmp", sessionId: "test", signal: controller.signal },
+      );
+      const start = Date.now();
+      setTimeout(() => controller.abort(), 100);
+      const result = await runPromise;
+      expect(Date.now() - start).toBeLessThan(5_000);
+      expect(result.isError).toBe(true);
+    },
+    10_000,
+  );
+
   it("describeCall/riskKey show the method and URL", () => {
     const input = { url: `${baseUrl}/echo`, method: "DELETE" };
     expect(httpRequestTool.describeCall!(input)).toBe(`DELETE ${baseUrl}/echo`);
