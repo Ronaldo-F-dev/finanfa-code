@@ -67,6 +67,15 @@ By default the web server operates on the directory it was started from; point i
 | `--yolo` | Auto-approve every tool call (no prompts) |
 | `--non-interactive` | Never prompt; auto-deny anything not pre-allowed |
 | `--ui <ink\|readline>` | Terminal UI mode |
+| `-p, --prompt <text>` | Run one prompt non-interactively and exit — no REPL. Scripts/cron, or a one-shot "build me X" from a shell (its `--cwd` is created if it doesn't exist yet) |
+| `--cwd <path>` | Project directory to operate in (defaults to the current directory) |
+| `--max-turns <n>` | With `--prompt`: if a turn is cut off by the step-limit guard (a large task, not a stuck loop), automatically send "continue" up to this many additional times before giving up. Default `5`; `1` disables auto-continue |
+
+Non-interactive one-shot example — builds a whole app in one command, auto-continuing past the per-turn step limit as needed:
+
+```bash
+npm run dev -- --yolo --cwd ./my-new-app -p "Build me a complete Flutter e-commerce app with simulated payments"
+```
 
 ## Commands
 
