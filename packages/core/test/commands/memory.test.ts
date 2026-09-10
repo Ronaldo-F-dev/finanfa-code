@@ -26,13 +26,25 @@ function makeUi(): UIAdapter {
 
 describe("/memory command", () => {
   let dir: string;
+  let homeDir: string;
+  let originalHome: string | undefined;
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(tmpdir(), "finanfa-memory-cmd-"));
+    // loadMemories() merges in ~/.finanfa-code/memory (global) alongside the
+    // project-local one — without overriding $HOME, this test depended on
+    // the real machine's global memory dir happening to be empty, which
+    // broke for real the moment anything (a genuine saved memory, e.g. a
+    // durable environment note) existed there.
+    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-memory-cmd-home-"));
+    originalHome = process.env.HOME;
+    process.env.HOME = homeDir;
   });
 
   afterEach(async () => {
+    process.env.HOME = originalHome;
     await rm(dir, { recursive: true, force: true });
+    await rm(homeDir, { recursive: true, force: true });
   });
 
   function baseCtx(args = "") {
