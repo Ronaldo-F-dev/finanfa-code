@@ -41,7 +41,10 @@ export function createPythonReplTool(manager: PythonReplManager): ToolDefinition
         return { content: input.reset ? "Session reset." : "No code given.", isError: !input.reset };
       }
 
-      const result = await manager.run(input.code, input.timeout_ms ?? DEFAULT_TIMEOUT_MS, ctx.cwd, ctx.sessionId);
+      const result = await manager.run(input.code, input.timeout_ms ?? DEFAULT_TIMEOUT_MS, ctx.cwd, ctx.sessionId, ctx.signal);
+      if (result.interrupted) {
+        return { content: "Interrupted by the user — the session was killed and will restart fresh on the next call (state lost).", isError: true };
+      }
       if (result.timedOut) {
         return {
           content: `Timed out after ${input.timeout_ms ?? DEFAULT_TIMEOUT_MS}ms — the session was killed and will restart fresh on the next call (state lost).`,

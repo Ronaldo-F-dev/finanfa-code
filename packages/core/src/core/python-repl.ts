@@ -8,6 +8,8 @@ export interface PythonReplResult {
   result: string | null;
   error: string | null;
   timedOut?: boolean;
+  /** Killed by an explicit abort (Stop/interrupt), not the timeout — same session-loss consequence as a timeout, but a distinct reason so the tool can report it accurately instead of implying a hang. */
+  interrupted?: boolean;
 }
 
 // Reads one JSON object per line from stdin (namespace persists across
@@ -95,19 +97,49 @@ export class PythonReplManager {
     this.pendingLines = [];
   }
 
-  async run(code: string, timeoutMs: number, cwd: string, sessionId: string): Promise<PythonReplResult> {
+  async run(code: string, timeoutMs: number, cwd: string, sessionId: string, signal?: AbortSignal): Promise<PythonReplResult> {
+    // Real reported bug: unlike bash (which threads ctx.signal all the way to
+    // killProcessGroup), this never accepted a signal at all — clicking
+    // Stop/interrupt while python_repl was running (or blocked on genuinely
+    // slow/hanging code) did nothing here; the only "escape" was reloading
+    // the whole page. Mirrors the timeout path below (kill + reset — the
+    // session's state is lost either way, same as a real REPL you had to
+    // force-kill), just with a distinct `interrupted` reason.
+    if (signal?.aborted) {
+      this.reset();
+      return { stdout: "", stderr: "", result: null, error: null, interrupted: true };
+    }
+
     const child = this.ensureStarted();
 
     return new Promise((resolve) => {
+      let onAbort: (() => void) | undefined;
+      const cleanup = () => {
+        clearTimeout(timer);
+        if (onAbort) signal?.removeEventListener("abort", onAbort);
+      };
+
       const timer = setTimeout(() => {
         // The process is presumed stuck (e.g. an infinite loop) — killing it
         // is the only way to make the session usable again; the next call
         // transparently spawns a fresh one (state from before the timeout
         // is lost, same as if a real REPL you were driving had to be killed
         // and restarted).
+        this.rl?.off("line", checkForLine);
+        cleanup();
         this.reset();
         resolve({ stdout: "", stderr: "", result: null, error: null, timedOut: true });
       }, timeoutMs);
+
+      if (signal) {
+        onAbort = () => {
+          this.rl?.off("line", checkForLine);
+          cleanup();
+          this.reset();
+          resolve({ stdout: "", stderr: "", result: null, error: null, interrupted: true });
+        };
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
 
       // Self-removing: consumes exactly one line, then unregisters — without
       // this, every run() call would leave its listener attached forever,
@@ -116,7 +148,7 @@ export class PythonReplManager {
       const checkForLine = () => {
         if (this.pendingLines.length === 0) return;
         this.rl?.off("line", checkForLine);
-        clearTimeout(timer);
+        cleanup();
         const line = this.pendingLines.shift() as string;
         void (async () => {
           try {

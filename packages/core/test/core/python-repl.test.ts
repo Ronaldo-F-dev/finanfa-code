@@ -100,6 +100,47 @@ describe("PythonReplManager (real python3 subprocess)", () => {
   );
 
   it(
+    "real reported bug: Stop/interrupt while python_repl is running a long/hung command actually kills it, " +
+      "instead of doing nothing until reload — the same abort signal bash already respects",
+    async () => {
+      manager = new PythonReplManager();
+      await manager.run("x = 1", 5000, CWD, SESSION_ID);
+
+      const controller = new AbortController();
+      const runPromise = manager.run("while True: pass", 60_000, CWD, SESSION_ID, controller.signal);
+      // Give the child process a moment to actually start before aborting —
+      // this is the real "user clicks Stop mid-execution" scenario, not an
+      // abort that races the subprocess spawn itself.
+      await new Promise((r) => setTimeout(r, 200));
+      controller.abort();
+
+      const result = await runPromise;
+      expect(result.interrupted).toBe(true);
+      expect(result.timedOut).toBeFalsy();
+
+      // Same as a timeout: state is gone, but the session is usable again
+      // immediately on the next call, not stuck.
+      const after = await manager.run("x", 5000, CWD, SESSION_ID);
+      expect(after.error).toContain("NameError");
+    },
+    TIMEOUT,
+  );
+
+  it(
+    "an already-aborted signal is honored immediately, without ever starting the command",
+    async () => {
+      manager = new PythonReplManager();
+      const controller = new AbortController();
+      controller.abort();
+
+      const result = await manager.run("1 + 1", 5000, CWD, SESSION_ID, controller.signal);
+      expect(result.interrupted).toBe(true);
+      expect(result.result).toBeNull();
+    },
+    TIMEOUT,
+  );
+
+  it(
     "handles many sequential calls correctly (regression: a per-call listener that never" +
       " unregistered would misfire on later calls)",
     async () => {

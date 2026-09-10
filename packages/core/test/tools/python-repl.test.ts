@@ -87,4 +87,23 @@ describe("python_repl tool", () => {
     },
     TIMEOUT,
   );
+
+  it(
+    "real reported bug: Stop/interrupt (ctx.signal) actually stops a running python_repl call, reported " +
+      "distinctly from a timeout",
+    async () => {
+      manager = new PythonReplManager();
+      const tool = createPythonReplTool(manager);
+      const controller = new AbortController();
+      const runPromise = tool.handler({ code: "while True: pass", timeout_ms: 60_000 }, { cwd: "/tmp", sessionId: "test", signal: controller.signal });
+      await new Promise((r) => setTimeout(r, 200));
+      controller.abort();
+
+      const result = await runPromise;
+      expect(result.isError).toBe(true);
+      expect(result.content).toContain("Interrupted by the user");
+      expect(result.content).not.toContain("Timed out");
+    },
+    TIMEOUT,
+  );
 });
