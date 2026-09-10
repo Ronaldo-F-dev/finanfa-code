@@ -1,0 +1,48 @@
+{
+  "name": "finanfa-code-vscode",
+  "displayName": "finanfa-code",
+  "description": "AI coding agent for VS Code — the same @finanfa/core engine as the CLI, in a chat sidebar",
+  "version": "0.1.0",
+  "private": true,
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onView:finanfa.chatView"
+  ],
+  "main": "./dist/extension.cjs",
+  "contributes": {
+    "viewsContainers": {
+      "activitybar": [
+        {
+          "id": "finanfa",
+          "title": "finanfa-code",
+          "icon": "media/icon.svg"
+        }
+      ]
+    },
+    "views": {
+      "finanfa": [
+        {
+          "type": "webview",
+          "id": "finanfa.chatView",
+          "name": "Chat"
+        }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "watch": "node esbuild.config.mjs --watch",
+    "package": "vsce package --no-dependencies"
+  },
+  "dependencies": {
+    "@finanfa/core": "*"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.85.0",
+    "@vscode/vsce": "^3.2.1",
+    "esbuild": "^0.24.0"
+  }
+}

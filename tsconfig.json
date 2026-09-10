@@ -24,6 +24,8 @@
     "packages/cli/src",
     "packages/cli/test",
     "packages/web-server/src",
-    "packages/web-server/test"
+    "packages/web-server/test",
+    "packages/vscode-extension/src",
+    "packages/vscode-extension/test"
   ]
 }

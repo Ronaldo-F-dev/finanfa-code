@@ -1,0 +1,11 @@
+{
+  "version": "2.0.0",
+  "tasks": [
+    {
+      "label": "finanfa-code: build vscode-extension",
+      "type": "shell",
+      "command": "npm run build -w finanfa-code-vscode",
+      "problemMatcher": []
+    }
+  ]
+}
