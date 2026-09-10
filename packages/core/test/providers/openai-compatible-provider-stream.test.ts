@@ -73,6 +73,37 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
     ]);
   });
 
+  it(
+    "defaults max_tokens to 8192 when the caller sets none, instead of sending no cap at all — real reported " +
+      "bug: with none sent, the remote server's own (undefined, sometimes small) default silently took over, " +
+      "truncating large tool-call arguments (a big file-write) mid-generation",
+    async () => {
+      const events = [JSON.stringify({ choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] })];
+      const fetchMock = vi.fn().mockResolvedValue(sseResponse(events));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+      await provider.streamTurn({ model: "m", systemPrompt: "s", messages: [], tools: [], onTextDelta: () => {} });
+
+      const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+      const body = JSON.parse(requestInit.body as string);
+      expect(body.max_tokens).toBe(8192);
+    },
+  );
+
+  it("still honors an explicit maxTokens (e.g. from an effort tier) instead of overriding it", async () => {
+    const events = [JSON.stringify({ choices: [{ delta: { content: "ok" }, finish_reason: "stop" }] })];
+    const fetchMock = vi.fn().mockResolvedValue(sseResponse(events));
+    vi.stubGlobal("fetch", fetchMock);
+
+    const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+    await provider.streamTurn({ model: "m", systemPrompt: "s", messages: [], tools: [], onTextDelta: () => {}, maxTokens: 512 });
+
+    const [, requestInit] = fetchMock.mock.calls[0] as [string, RequestInit];
+    const body = JSON.parse(requestInit.body as string);
+    expect(body.max_tokens).toBe(512);
+  });
+
   it("throws a descriptive error on a non-OK response", async () => {
     vi.stubGlobal(
       "fetch",

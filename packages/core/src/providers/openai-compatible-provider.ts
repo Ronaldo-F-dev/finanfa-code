@@ -405,7 +405,20 @@ export class OpenAiCompatibleProvider implements LlmProvider {
             model: params.model,
             messages: toOpenAiMessages(params.systemPrompt, params.messages),
             tools: params.tools.length > 0 ? toOpenAiTools(params.tools) : undefined,
-            max_tokens: params.maxTokens,
+            // Real reported bug: a fresh session with no effort tier picked
+            // (session.maxTokens stays undefined) sent no max_tokens field
+            // at all — JSON.stringify just drops an undefined value — so
+            // whatever conservative default the remote OpenAI-compatible
+            // server itself applies took over silently. Against Poolside,
+            // that was small enough to truncate a single large file-write
+            // tool call mid-argument, over and over, no matter how many
+            // times the earlier truncation fixes helped the model recover.
+            // anthropic-provider.ts already falls back to 8192 the same way
+            // (params.maxTokens ?? 8192) — this had never been given the
+            // same fallback, so the two providers behaved differently for
+            // the exact same "nothing configured" state. 8192 matches both
+            // that and the "high" effort tier's own value.
+            max_tokens: params.maxTokens ?? 8192,
           },
           params.onTextDelta,
           params.signal,
