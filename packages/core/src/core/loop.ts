@@ -68,6 +68,25 @@ interface ToolCallOutcome {
   images?: NeutralImage[];
 }
 
+/**
+ * Real reported bug: when a provider's tool-call arguments fail to parse
+ * (truncated/malformed JSON — typically a huge string argument like a bash
+ * heredoc), the provider layer logs a warning and falls back to `input = {}`
+ * for that call. Nothing between there and the tool's own handler ever
+ * checked `inputSchema.required` against that fallback, so e.g. bash ran
+ * with `command` undefined — producing a literal "undefined: command not
+ * found" shell error, which then repeated identically (same malformed call,
+ * same fallback) until the loop guard gave up entirely. This is a generic,
+ * schema-driven check (not bash-specific) so any tool with a `required`
+ * field is covered.
+ */
+function findMissingRequiredFields(tool: ToolDefinition, input: unknown): string[] {
+  const required = (tool.inputSchema as { required?: unknown }).required;
+  if (!Array.isArray(required)) return [];
+  const record = input && typeof input === "object" ? (input as Record<string, unknown>) : {};
+  return required.filter((field): field is string => typeof field === "string" && (record[field] === undefined || record[field] === null));
+}
+
 async function runOneToolCall(
   call: NeutralToolCall,
   session: AgentSession,
@@ -78,6 +97,17 @@ async function runOneToolCall(
   const tool = tools.get(call.name);
   if (!tool) {
     return { result: { toolCallId: call.id, isError: true, content: `Unknown tool "${call.name}"` } };
+  }
+
+  const missingFields = findMissingRequiredFields(tool, call.input);
+  if (missingFields.length > 0) {
+    return {
+      result: {
+        toolCallId: call.id,
+        isError: true,
+        content: `Missing required field(s) for "${tool.name}": ${missingFields.join(", ")} (the arguments for this call could not be parsed — try again with complete, valid arguments)`,
+      },
+    };
   }
 
   // Plan mode (/plan): only read-only tools and exit_plan_mode itself get
