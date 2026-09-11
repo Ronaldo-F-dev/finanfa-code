@@ -29,6 +29,7 @@ export function App() {
     setEffort,
     pullOllamaModel,
     dismissEffortNeedsDownload,
+    requestApiKeyHelp,
   } = useAgentBridge();
 
   const [input, setInput] = useState("");
@@ -108,6 +109,7 @@ export function App() {
         onSetEffort={setEffort}
         onPullOllamaModel={pullOllamaModel}
         onDismissEffortNeedsDownload={dismissEffortNeedsDownload}
+        onNeedsApiKey={requestApiKeyHelp}
       />
 
       {permissionRequest && <PermissionModal request={permissionRequest} onAnswer={(answer) => answerPermission(permissionRequest.requestId, answer)} />}

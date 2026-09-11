@@ -41,6 +41,7 @@ export function Composer({
   onSetEffort,
   onPullOllamaModel,
   onDismissEffortNeedsDownload,
+  onNeedsApiKey,
 }: {
   input: string;
   setInput: (v: string) => void;
@@ -60,6 +61,7 @@ export function Composer({
   onSetEffort: (level: string) => void;
   onPullOllamaModel: (ollamaModel: string) => void;
   onDismissEffortNeedsDownload: () => void;
+  onNeedsApiKey: (model: string) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -110,7 +112,7 @@ export function Composer({
             >
               📎
             </button>
-            <ModelPicker models={models} model={model} onChange={onSwitchModel} onNeedsKey={() => {}} />
+            <ModelPicker models={models} model={model} onChange={onSwitchModel} onNeedsKey={onNeedsApiKey} />
             <EffortSelector
               currentEffort={currentEffort}
               tiers={effortTiers}

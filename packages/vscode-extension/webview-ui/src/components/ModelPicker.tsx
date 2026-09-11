@@ -18,7 +18,7 @@ export function ModelPicker({
   models: ModelOption[];
   model: string;
   onChange: (model: string, family: string, baseUrl?: string) => void;
-  onNeedsKey: () => void;
+  onNeedsKey: (model: string) => void;
 }) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
@@ -48,13 +48,13 @@ export function ModelPicker({
                 onClick={() => {
                   setOpen(false);
                   if (m.configured) onChange(modelId, m.family, m.baseUrl);
-                  else onNeedsKey();
+                  else onNeedsKey(m.id);
                 }}
               >
                 <div>
                   <div className="model-picker-name">{m.id}</div>
                   {BLURB[m.id] && <div className="model-picker-blurb">{BLURB[m.id]}</div>}
-                  {!m.configured && <div className="model-picker-warn">clé API requise — à définir dans Réglages</div>}
+                  {!m.configured && <div className="model-picker-warn">clé API requise — voir ~/.finanfa-code/config.json</div>}
                 </div>
                 {modelId === model && <span className="model-picker-check">✓</span>}
               </button>

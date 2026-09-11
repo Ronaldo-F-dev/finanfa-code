@@ -222,6 +222,9 @@ export function useAgentBridge() {
   }, []);
   const dismissModelUnavailable = useCallback(() => setModelUnavailable(null), []);
   const dismissEffortNeedsDownload = useCallback(() => setEffortNeedsDownload(null), []);
+  // Intercepted by chat-view-provider.ts directly (a native VS Code
+  // notification, not engine wiring) — see its onDidReceiveMessage.
+  const requestApiKeyHelp = useCallback((model: string) => vscode.postMessage({ type: "needs_api_key", model }), []);
 
   return {
     connected,
@@ -244,5 +247,6 @@ export function useAgentBridge() {
     pullOllamaModel,
     dismissModelUnavailable,
     dismissEffortNeedsDownload,
+    requestApiKeyHelp,
   };
 }

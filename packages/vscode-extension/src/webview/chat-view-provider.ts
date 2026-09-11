@@ -63,6 +63,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     };
 
     webviewView.webview.onDidReceiveMessage((msg: WebviewMessage) => {
+      // needs_api_key intercepted here, not routed to message-handler.ts:
+      // it's a pure "open a native VS Code notification" concern
+      // (vscode.window.showInformationMessage), not engine wiring — there's
+      // no Settings modal in this phase (out of scope), so picking a model
+      // that needs a key used to just silently do nothing.
+      if (msg.type === "needs_api_key") {
+        void vscode.window.showInformationMessage(
+          `Le modèle "${msg.model}" nécessite une clé API. Ajoutez-la dans ~/.finanfa-code/config.json (ou <projet>/.finanfa-code/config.json), champ "apiKey", puis rouvrez ce panneau.`,
+        );
+        return;
+      }
       // Deliberately not awaited/chained in strict FIFO order here — see
       // message-handler.ts's own comment on the "interrupt" branch for why
       // that matters once more message types are wired in.
