@@ -24,6 +24,14 @@ const external = [
   "pdf-parse",
   "pg",
   "playwright-core",
+  // Real, activation-blocking bug found by test/bundle.test.ts: bundling
+  // serialport's native-binding loader (@serialport/bindings-cpp) breaks
+  // its own __dirname-relative prebuilt-binary discovery — the exact same
+  // code works fine unbundled (as it already does in packages/core's own
+  // test suite), so keeping it external (Node's real require resolves the
+  // real, unmodified package at runtime) is the actual fix, not just a
+  // smaller bundle.
+  "serialport",
   "sharp",
   "word-extractor",
 ];
@@ -46,6 +54,14 @@ const options = {
   sourcemap: true,
   logLevel: "info",
   tsconfig: "../../tsconfig.json",
+  // Real, activation-blocking bug this works around: @finanfa/core has a
+  // couple of module-top-level `createRequire(import.meta.url)` calls
+  // (query-database.ts, repo-map/parser.ts) — `import.meta.url` is empty
+  // under esbuild's CJS output format, so createRequire(undefined) would
+  // throw the instant the bundle loads, not just when those specific tools
+  // run. See import-meta-url-shim.js for the full reasoning.
+  inject: ["./import-meta-url-shim.js"],
+  define: { "import.meta.url": "importMetaUrl" },
 };
 
 if (watch) {
