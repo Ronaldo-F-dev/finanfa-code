@@ -10,7 +10,19 @@ import type { CommandInfo, StatusInfo, UIAdapter } from "@finanfa/core/src/ui/ad
  * Keeping this decoupled from the real `vscode` module's types means it's
  * directly unit-testable with a bare function, no VS Code process needed.
  */
-export function createVscodeUiAdapter(post: (msg: Record<string, unknown>) => void): {
+export function createVscodeUiAdapter(
+  post: (msg: Record<string, unknown>) => void,
+  /**
+   * Resolves a local filesystem path (a generated audio/image file) to a
+   * webview-safe URI via `webview.asWebviewUri(vscode.Uri.file(path))` —
+   * supplied by chat-view-provider.ts, which is the only place holding a
+   * real `vscode.Webview` object. There is no HTTP server here to serve
+   * `/api/workspace-file` the way web-server does, so ChatMessage.tsx reads
+   * this pre-resolved URI instead (falling back to the bare path if unset,
+   * e.g. in a unit test with no real webview).
+   */
+  resolveMediaUri?: (path: string) => string | undefined,
+): {
   adapter: UIAdapter;
   resolvePending: (requestId: number, answer: string) => void;
 } {
@@ -42,7 +54,7 @@ export function createVscodeUiAdapter(post: (msg: Record<string, unknown>) => vo
       send("error", { text });
     },
     writeMedia(media) {
-      send("media", media);
+      send("media", { ...media, webviewUri: resolveMediaUri?.(media.path) });
     },
     setStatus(status) {
       currentStatus = status;
