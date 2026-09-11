@@ -233,10 +233,23 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       });
       if (!workspaceId) return;
 
+      // Captured before startNewChat disposes the runner — the failed turn
+      // was already using this model/family, so it's reapplied afterward
+      // instead of silently falling back to the default provider (the same
+      // class of bug the "reconstructs the provider" fix in
+      // session-runner.ts just closed for a *resumed* session — this is
+      // the equivalent for "the workspace id was missing" specifically).
+      const modelId = this.runner?.session.model;
+      const family = this.runner?.session.providerKind;
+
       const current = await readGlobalConfig();
       await saveGlobalConfig({ ...current, anthropicWorkspaceId: workspaceId });
       void vscode.window.showInformationMessage("ID de workspace enregistré. Renvoyez votre message.");
       await this.startNewChat(post);
+      if (modelId && family) {
+        const handle = await this.handlerPromise;
+        await handle?.({ type: "set_model", model: modelId, family });
+      }
     } finally {
       this.workspaceIdPromptInFlight = false;
     }

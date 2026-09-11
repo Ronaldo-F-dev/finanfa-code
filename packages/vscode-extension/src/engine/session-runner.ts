@@ -209,6 +209,31 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
     session = new AgentSession({ cwd, model, systemPrompt });
   }
 
+  // Real reported bug: reconstructs the provider/endpoint this session
+  // actually last talked to, if it ever switched away from the
+  // config-derived default (see switchModel/setEffort below — the only
+  // things that ever set these two fields) — mirrors web-server's own
+  // handleConnection comment. Without this, resuming a session that had
+  // switched to e.g. Claude kept the model NAME ("claude-opus-5") but
+  // silently reverted the provider back to whatever the default is
+  // (Poolside), sending a model name that provider had never heard of —
+  // exactly the 404 reported against inference.poolside.ai.
+  if (session.providerBaseUrl) {
+    provider = new OpenAiCompatibleProvider({ baseUrl: session.providerBaseUrl, apiKey: undefined });
+    providerKind = "openai-compatible";
+  } else if (session.providerKind && session.providerKind !== providerKind) {
+    const family: ProviderFamily = session.providerKind === "openai-compatible" ? "openai-compatible" : "anthropic";
+    const availability = await familyAvailability(config);
+    if (availability[family]) {
+      provider = buildProvider(family, config);
+      providerKind = family;
+    } else {
+      ui.writeError(
+        `This session was last using a ${family} model, but ${family} isn't configured — falling back to the default (${providerKind}). Switch models to restore it.`,
+      );
+    }
+  }
+
   const trusted = await resolveTrust(cwd, ui, false);
   const permissionConfig = await loadPermissionConfig(cwd, trusted);
   const hooksConfig = await loadHooksConfig(cwd, trusted);
