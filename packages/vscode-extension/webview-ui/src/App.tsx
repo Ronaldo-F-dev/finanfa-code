@@ -25,6 +25,7 @@ export function App() {
     sendMessage,
     answerPermission,
     interrupt,
+    newChat,
     switchModel,
     setEffort,
     pullOllamaModel,
@@ -61,6 +62,12 @@ export function App() {
     setPendingImages([]);
   }
 
+  function handleNewChat() {
+    newChat();
+    setInput("");
+    setPendingImages([]);
+  }
+
   const isLocalModel = models.some((m) => Boolean(m.baseUrl) && m.localModelId === sessionInfo?.model);
 
   return (
@@ -73,6 +80,9 @@ export function App() {
       <header className="topbar">
         <div className="brand">{sessionInfo?.title ?? "finanfa-code"}</div>
         <div className="topbar-right">
+          <button type="button" className="btn btn-ghost" onClick={handleNewChat} disabled={!connected} title="Démarrer une nouvelle conversation">
+            + Nouvelle conversation
+          </button>
           <span className={`conn-dot ${connected ? "conn-on" : "conn-off"}`} title={connected ? "Connecté" : "Déconnecté"} />
         </div>
       </header>

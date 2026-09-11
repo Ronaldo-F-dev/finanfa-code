@@ -210,6 +210,7 @@ export function useAgentBridge() {
   }, []);
 
   const interrupt = useCallback(() => vscode.postMessage({ type: "interrupt" }), []);
+  const newChat = useCallback(() => vscode.postMessage({ type: "new_chat" }), []);
   const compact = useCallback(() => vscode.postMessage({ type: "compact" }), []);
   const switchModel = useCallback(
     (newModel: string, family: string, baseUrl?: string) => vscode.postMessage({ type: "set_model", model: newModel, family, baseUrl }),
@@ -241,6 +242,7 @@ export function useAgentBridge() {
     sendMessage,
     answerPermission,
     interrupt,
+    newChat,
     compact,
     switchModel,
     setEffort,

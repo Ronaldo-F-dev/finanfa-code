@@ -69,9 +69,14 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       // no Settings modal in this phase (out of scope), so picking a model
       // that needs a key used to just silently do nothing.
       if (msg.type === "needs_api_key") {
+        const modelName = typeof msg.model === "string" ? msg.model : "?";
         void vscode.window.showInformationMessage(
-          `Le modèle "${msg.model}" nécessite une clé API. Ajoutez-la dans ~/.finanfa-code/config.json (ou <projet>/.finanfa-code/config.json), champ "apiKey", puis rouvrez ce panneau.`,
+          `Le modèle "${modelName}" nécessite une clé API. Ajoutez-la dans ~/.finanfa-code/config.json (ou <projet>/.finanfa-code/config.json), champ "apiKey", puis rouvrez ce panneau.`,
         );
+        return;
+      }
+      if (msg.type === "new_chat") {
+        void this.startNewChat(post);
         return;
       }
       // Deliberately not awaited/chained in strict FIFO order here — see
@@ -93,7 +98,28 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     return this.handlerPromise;
   }
 
-  private async createHandler(post: (msg: Record<string, unknown>) => void): Promise<(msg: WebviewMessage) => Promise<void>> {
+  /**
+   * "Nouvelle conversation" — no multi-session sidebar in this phase (out
+   * of scope), just a way to stop reusing the workspace's one remembered
+   * session going forward. Disposes the current runner (persists it one
+   * last time) and rebuilds a fresh one with forceNew, then clears the
+   * webview's timeline explicitly (its own webview_ready/history reply
+   * would otherwise just prepend an empty array onto the old messages
+   * still sitting in React state).
+   */
+  private async startNewChat(post: (msg: Record<string, unknown>) => void): Promise<void> {
+    await this.runner?.dispose();
+    this.runner = undefined;
+    post({ type: "history", messages: [], replace: true });
+    this.handlerPromise = this.createHandler(post, { forceNew: true });
+    const handle = await this.handlerPromise;
+    await handle({ type: "webview_ready" });
+  }
+
+  private async createHandler(
+    post: (msg: Record<string, unknown>) => void,
+    opts: { forceNew?: boolean } = {},
+  ): Promise<(msg: WebviewMessage) => Promise<void>> {
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
       // No engine to start — every incoming message just gets the same
@@ -106,8 +132,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     );
     // Reprise automatique de la dernière session de ce workspace (voir le
     // plan, §2) — pas de commande à taper, contrairement au --resume/
-    // --continue du CLI.
-    const resumeSessionId = this.context.workspaceState.get<string>(LAST_SESSION_KEY);
+    // --continue du CLI. Skipped entirely for a deliberate "new chat".
+    const resumeSessionId = opts.forceNew ? undefined : this.context.workspaceState.get<string>(LAST_SESSION_KEY);
     this.runner = await createSessionRunner(folder.uri.fsPath, adapter, { resumeSessionId });
     // Deliberately NOT recorded here for a brand-new session (resumeSessionId
     // missing, or resume failed): AgentSession.persist() only happens during
