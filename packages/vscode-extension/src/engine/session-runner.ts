@@ -191,10 +191,17 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
     } catch (err) {
       // Same "warn and fall back to a fresh session" policy as the CLI's
       // resolveSession — a stale/corrupted session id must not prevent the
-      // panel from opening at all.
-      ui.writeError(
-        `Could not resume session "${opts.resumeSessionId}": ${err instanceof Error ? err.message : String(err)}. Starting a new session instead.`,
-      );
+      // panel from opening at all. ENOENT specifically means the id
+      // chat-view-provider.ts remembered was never actually persisted (the
+      // previous panel was closed before its first message ran a single
+      // runTurn — session.persist() only happens during a turn) — an
+      // expected, harmless condition on a fresh workspace, not a real
+      // failure, so it stays a quiet system note rather than a red error.
+      const message = err instanceof Error ? err.message : String(err);
+      const isMissingFile = err instanceof Error && "code" in err && (err as NodeJS.ErrnoException).code === "ENOENT";
+      const note = `Session "${opts.resumeSessionId}" is not available (${message}). Starting a new session instead.`;
+      if (isMissingFile) ui.writeSystem(note);
+      else ui.writeError(note);
       session = new AgentSession({ cwd, model, systemPrompt });
     }
   } else {

@@ -142,7 +142,10 @@ describe("createSessionRunner (real local SSE server, no VS Code involved)", () 
   it("falls back to a fresh session and warns when asked to resume an unknown id", async () => {
     const ui = makeStubUi();
     const runner = await createSessionRunner(projectDir, ui, { resumeSessionId: "does-not-exist" });
-    expect(ui.writeError).toHaveBeenCalledWith(expect.stringContaining("does-not-exist"));
+    // ENOENT (never-persisted/unknown id) is an expected, harmless fallback
+    // — a quiet system note, not a red error (see session-runner.ts).
+    expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("does-not-exist"));
+    expect(ui.writeError).not.toHaveBeenCalled();
     expect(runner.session.id).not.toBe("does-not-exist");
     await runner.dispose();
   });

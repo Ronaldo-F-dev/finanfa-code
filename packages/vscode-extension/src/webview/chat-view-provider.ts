@@ -98,7 +98,22 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     // --continue du CLI.
     const resumeSessionId = this.context.workspaceState.get<string>(LAST_SESSION_KEY);
     this.runner = await createSessionRunner(folder.uri.fsPath, adapter, { resumeSessionId });
-    await this.context.workspaceState.update(LAST_SESSION_KEY, this.runner.session.id);
+    // Deliberately NOT recorded here for a brand-new session (resumeSessionId
+    // missing, or resume failed): AgentSession.persist() only happens during
+    // a real turn (see loop.ts), so a session closed before its first
+    // message never reaches disk — recording its id immediately would leave
+    // workspaceState pointing at a file that doesn't exist yet, producing a
+    // "could not resume" note on every later reopen. Recorded lazily instead,
+    // right after each successful turn, once the session is actually on disk.
+    if (this.runner.session.id === resumeSessionId) {
+      await this.context.workspaceState.update(LAST_SESSION_KEY, this.runner.session.id);
+    } else {
+      const sendMessage = this.runner.sendMessage.bind(this.runner);
+      this.runner.sendMessage = async (text, images) => {
+        await sendMessage(text, images);
+        await this.context.workspaceState.update(LAST_SESSION_KEY, this.runner!.session.id);
+      };
+    }
     return createChatMessageHandler(this.runner, resolvePending, post);
   }
 }
