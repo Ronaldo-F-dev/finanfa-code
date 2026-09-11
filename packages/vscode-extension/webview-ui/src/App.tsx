@@ -4,6 +4,7 @@ import { ChatMessageView } from "./components/ChatMessage";
 import { BusyIndicator } from "./components/BusyIndicator";
 import { PermissionModal } from "./components/PermissionModal";
 import { Composer } from "./components/Composer";
+import { SessionHistory } from "./components/SessionHistory";
 
 /**
  * Root component — the webview equivalent of web-client's App.tsx, minus
@@ -31,6 +32,10 @@ export function App() {
     pullOllamaModel,
     dismissEffortNeedsDownload,
     requestApiKeyHelp,
+    sessions,
+    listSessions,
+    switchSession,
+    deleteSession,
   } = useAgentBridge();
 
   const [input, setInput] = useState("");
@@ -80,6 +85,7 @@ export function App() {
       <header className="topbar">
         <div className="brand">{sessionInfo?.title ?? "finanfa-code"}</div>
         <div className="topbar-right">
+          <SessionHistory sessions={sessions} activeId={sessionInfo?.id} onRefresh={listSessions} onSwitch={switchSession} onDelete={deleteSession} />
           <button type="button" className="btn btn-ghost" onClick={handleNewChat} disabled={!connected} title="Démarrer une nouvelle conversation">
             + Nouvelle conversation
           </button>

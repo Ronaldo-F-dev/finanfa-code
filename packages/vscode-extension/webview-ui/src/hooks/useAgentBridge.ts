@@ -69,6 +69,12 @@ export interface OllamaPullState {
   error: string | null;
 }
 
+export interface SessionSummary {
+  id: string;
+  mtime: string;
+  title?: string;
+}
+
 let nextId = 1;
 const uid = () => String(nextId++);
 
@@ -104,6 +110,7 @@ export function useAgentBridge() {
   const [modelUnavailable, setModelUnavailable] = useState<ModelUnavailable | null>(null);
   const [effortNeedsDownload, setEffortNeedsDownload] = useState<EffortNeedsDownload | null>(null);
   const [ollamaPull, setOllamaPull] = useState<OllamaPullState | null>(null);
+  const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const streamingIdRef = useRef<string | null>(null);
 
   useEffect(() => {
@@ -160,6 +167,9 @@ export function useAgentBridge() {
           break;
         case "effort_tiers":
           setEffortTiers(msg.tiers);
+          break;
+        case "sessions":
+          setSessions(msg.sessions);
           break;
         case "model_unavailable":
           setModelUnavailable({ model: msg.model, family: msg.family, message: msg.message });
@@ -226,6 +236,9 @@ export function useAgentBridge() {
   // Intercepted by chat-view-provider.ts directly (a native VS Code
   // notification, not engine wiring) — see its onDidReceiveMessage.
   const requestApiKeyHelp = useCallback((model: string) => vscode.postMessage({ type: "needs_api_key", model }), []);
+  const listSessions = useCallback(() => vscode.postMessage({ type: "list_sessions" }), []);
+  const switchSession = useCallback((id: string) => vscode.postMessage({ type: "switch_session", id }), []);
+  const deleteSession = useCallback((id: string) => vscode.postMessage({ type: "delete_session", id }), []);
 
   return {
     connected,
@@ -250,5 +263,9 @@ export function useAgentBridge() {
     dismissModelUnavailable,
     dismissEffortNeedsDownload,
     requestApiKeyHelp,
+    sessions,
+    listSessions,
+    switchSession,
+    deleteSession,
   };
 }
