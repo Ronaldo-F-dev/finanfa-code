@@ -1,10 +1,22 @@
+import { readFile } from "node:fs/promises";
 import * as vscode from "vscode";
+import { globalConfigPath, saveGlobalConfig, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
+import { AgentSession } from "@finanfa/core/src/core/session.js";
 import { createSessionRunner, type SessionRunner } from "../engine/session-runner.js";
 import { createVscodeUiAdapter } from "../engine/vscode-ui-adapter.js";
 import { createChatMessageHandler, type WebviewMessage } from "../engine/message-handler.js";
 import { getNonce } from "./nonce.js";
 
 const LAST_SESSION_KEY = "finanfa.lastSessionId";
+
+/** Only the global file (~/.finanfa-code/config.json) — loadConfig() merges in the project one too, which we must not accidentally duplicate into the global file. */
+async function readGlobalConfig(): Promise<FinanfaConfig> {
+  try {
+    return JSON.parse(await readFile(globalConfigPath(), "utf-8")) as FinanfaConfig;
+  } catch {
+    return {};
+  }
+}
 
 /**
  * HTML shell for the real React app — replaces html.ts's earlier
@@ -64,19 +76,33 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage((msg: WebviewMessage) => {
       // needs_api_key intercepted here, not routed to message-handler.ts:
-      // it's a pure "open a native VS Code notification" concern
-      // (vscode.window.showInformationMessage), not engine wiring — there's
-      // no Settings modal in this phase (out of scope), so picking a model
-      // that needs a key used to just silently do nothing.
+      // it's a native VS Code input box + writing ~/.finanfa-code/config.json
+      // directly, not engine wiring — there's no Settings modal in this
+      // phase (out of scope), so picking a model that needs a key used to
+      // just silently do nothing, then only show a banner explaining how to
+      // edit the file by hand. Every model this catalog can ever mark
+      // unconfigured is "anthropic" family (see session-runner.ts's
+      // listModels — openai-compatible/local entries are always
+      // configured:true), so a single Anthropic key is always the right ask.
       if (msg.type === "needs_api_key") {
-        const modelName = typeof msg.model === "string" ? msg.model : "?";
-        void vscode.window.showInformationMessage(
-          `Le modèle "${modelName}" nécessite une clé API. Ajoutez-la dans ~/.finanfa-code/config.json (ou <projet>/.finanfa-code/config.json), champ "apiKey", puis rouvrez ce panneau.`,
-        );
+        const modelName = typeof msg.model === "string" ? msg.model : undefined;
+        void this.handleNeedsApiKey(post, modelName);
         return;
       }
       if (msg.type === "new_chat") {
         void this.startNewChat(post);
+        return;
+      }
+      if (msg.type === "list_sessions") {
+        void this.postSessionList(post);
+        return;
+      }
+      if (msg.type === "switch_session" && typeof msg.id === "string") {
+        void this.switchToSession(post, msg.id);
+        return;
+      }
+      if (msg.type === "delete_session" && typeof msg.id === "string") {
+        void this.deleteSession(post, msg.id);
         return;
       }
       // Deliberately not awaited/chained in strict FIFO order here — see
@@ -116,9 +142,65 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     await handle({ type: "webview_ready" });
   }
 
+  /** No sidebar in this phase — a flat, on-demand list is the minimal way to see and reopen past conversations for this workspace. */
+  private async postSessionList(post: (msg: Record<string, unknown>) => void): Promise<void> {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    const sessions = folder ? await AgentSession.list(folder.uri.fsPath) : [];
+    post({ type: "sessions", sessions: sessions.map((s) => ({ id: s.id, mtime: s.mtime.toISOString(), title: s.title })) });
+  }
+
+  private async switchToSession(post: (msg: Record<string, unknown>) => void, id: string): Promise<void> {
+    await this.runner?.dispose();
+    this.runner = undefined;
+    post({ type: "history", messages: [], replace: true });
+    this.handlerPromise = this.createHandler(post, { resumeSessionId: id });
+    const handle = await this.handlerPromise;
+    await handle({ type: "webview_ready" });
+  }
+
+  private async deleteSession(post: (msg: Record<string, unknown>) => void, id: string): Promise<void> {
+    const folder = vscode.workspace.workspaceFolders?.[0];
+    if (!folder) return;
+    const wasActive = this.runner?.session.id === id;
+    await AgentSession.delete(folder.uri.fsPath, id);
+    if (wasActive) await this.startNewChat(post);
+    await this.postSessionList(post);
+  }
+
+  /**
+   * Real popup (not just a banner explaining where to edit a file by hand):
+   * asks for the key, saves it to ~/.finanfa-code/config.json, then starts a
+   * fresh chat so the new SessionRunner reloads config from disk (the
+   * running one already captured its own config snapshot at creation time —
+   * see session-runner.ts's `config` closure — so it would never notice a
+   * key written after the fact) and immediately switches it to the model
+   * the user originally picked, so "paste the key" is the only step left to
+   * the user; everything after that is automatic.
+   */
+  private async handleNeedsApiKey(post: (msg: Record<string, unknown>) => void, modelId?: string): Promise<void> {
+    const key = await vscode.window.showInputBox({
+      title: modelId ? `Clé API Anthropic pour "${modelId}"` : "Clé API Anthropic",
+      prompt: "Collez votre clé API Anthropic (sk-ant-...) — elle sera enregistrée dans ~/.finanfa-code/config.json",
+      password: true,
+      ignoreFocusOut: true,
+      placeHolder: "sk-ant-...",
+    });
+    if (!key) return; // cancelled — leave everything as it was, no banner needed
+
+    const current = await readGlobalConfig();
+    await saveGlobalConfig({ ...current, anthropicApiKey: key });
+    void vscode.window.showInformationMessage(`Clé enregistrée. Démarrage d'une nouvelle conversation avec "${modelId}"...`);
+
+    await this.startNewChat(post);
+    if (modelId) {
+      const handle = await this.handlerPromise;
+      await handle?.({ type: "set_model", model: modelId, family: "anthropic" });
+    }
+  }
+
   private async createHandler(
     post: (msg: Record<string, unknown>) => void,
-    opts: { forceNew?: boolean } = {},
+    opts: { forceNew?: boolean; resumeSessionId?: string } = {},
   ): Promise<(msg: WebviewMessage) => Promise<void>> {
     const folder = vscode.workspace.workspaceFolders?.[0];
     if (!folder) {
@@ -132,8 +214,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     );
     // Reprise automatique de la dernière session de ce workspace (voir le
     // plan, §2) — pas de commande à taper, contrairement au --resume/
-    // --continue du CLI. Skipped entirely for a deliberate "new chat".
-    const resumeSessionId = opts.forceNew ? undefined : this.context.workspaceState.get<string>(LAST_SESSION_KEY);
+    // --continue du CLI. Skipped for a deliberate "new chat"; overridden by
+    // an explicit id when switching to a specific past session (history).
+    const resumeSessionId = opts.resumeSessionId ?? (opts.forceNew ? undefined : this.context.workspaceState.get<string>(LAST_SESSION_KEY));
     this.runner = await createSessionRunner(folder.uri.fsPath, adapter, { resumeSessionId });
     // Deliberately NOT recorded here for a brand-new session (resumeSessionId
     // missing, or resume failed): AgentSession.persist() only happens during
