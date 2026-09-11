@@ -1,3 +1,4 @@
+import "./dom-shims.js";
 import * as vscode from "vscode";
 import { ChatViewProvider } from "./webview/chat-view-provider.js";
 
