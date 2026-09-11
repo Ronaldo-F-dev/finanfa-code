@@ -2,12 +2,44 @@ import * as vscode from "vscode";
 import { createSessionRunner, type SessionRunner } from "../engine/session-runner.js";
 import { createVscodeUiAdapter } from "../engine/vscode-ui-adapter.js";
 import { createChatMessageHandler, type WebviewMessage } from "../engine/message-handler.js";
-import { renderChatHtml } from "./html.js";
+import { getNonce } from "./nonce.js";
 
 const LAST_SESSION_KEY = "finanfa.lastSessionId";
 
+/**
+ * HTML shell for the real React app — replaces html.ts's earlier
+ * dependency-free inline-script placeholder (steps 3+4 of the plan) now
+ * that the full webview-ui bundle exists. Every resource is loaded through
+ * `webview.asWebviewUri` (a bare file:// path fails silently under CSP,
+ * visible only in the webview's own devtools) and the single <script> tag
+ * carries the nonce, per the CSP below.
+ */
+function renderChatHtml(webview: vscode.Webview, extensionUri: vscode.Uri): string {
+  const nonce = getNonce();
+  const scriptUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "dist", "webview", "index.js"));
+  const styleUri = webview.asWebviewUri(vscode.Uri.joinPath(extensionUri, "dist", "webview", "index.css"));
+  return `<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'unsafe-inline'; script-src 'nonce-${nonce}'; img-src ${webview.cspSource} data:; media-src ${webview.cspSource} data:;" />
+  <link href="${styleUri}" rel="stylesheet" />
+  <title>finanfa-code</title>
+</head>
+<body>
+  <div id="root"></div>
+  <script nonce="${nonce}" type="module" src="${scriptUri}"></script>
+</body>
+</html>`;
+}
+
 export class ChatViewProvider implements vscode.WebviewViewProvider {
   private runner?: SessionRunner;
+  // Held so createHandler() (called asynchronously via ensureReady) can
+  // resolve a local media path to a webview-safe URI — only this object
+  // exposes asWebviewUri, and resolveWebviewView's own local `webviewView`
+  // parameter isn't otherwise reachable from that later call.
+  private webviewView?: vscode.WebviewView;
   // Single-flight: without this, two messages arriving before the first
   // await inside ensureReady() resolves would each start their own
   // createSessionRunner() call, racing to create two AgentSessions on the
@@ -22,8 +54,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
+    this.webviewView = webviewView;
     webviewView.webview.options = { enableScripts: true, localResourceRoots: [this.extensionUri] };
-    webviewView.webview.html = renderChatHtml(webviewView.webview);
+    webviewView.webview.html = renderChatHtml(webviewView.webview, this.extensionUri);
 
     const post = (msg: Record<string, unknown>): void => {
       void webviewView.webview.postMessage(msg);
@@ -40,6 +73,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       void this.runner?.dispose();
       this.runner = undefined;
       this.handlerPromise = undefined;
+      this.webviewView = undefined;
     });
   }
 
@@ -56,7 +90,9 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       return async () => post({ type: "error", text: "Open a folder to start a finanfa-code session." });
     }
 
-    const { adapter, resolvePending } = createVscodeUiAdapter(post);
+    const { adapter, resolvePending } = createVscodeUiAdapter(post, (path) =>
+      this.webviewView?.webview.asWebviewUri(vscode.Uri.file(path)).toString(),
+    );
     // Reprise automatique de la dernière session de ce workspace (voir le
     // plan, §2) — pas de commande à taper, contrairement au --resume/
     // --continue du CLI.
