@@ -59,6 +59,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   // but this guards it for when the full composer (step 5+) can fire a
   // user_message right after.
   private handlerPromise?: Promise<(msg: WebviewMessage) => Promise<void>>;
+  // Guards against two workspace-id popups stacking if more than one error
+  // message matches in quick succession (e.g. a retried turn failing the
+  // same way before the first popup is dismissed).
+  private workspaceIdPromptInFlight = false;
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -71,6 +75,16 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.html = renderChatHtml(webviewView.webview, this.extensionUri);
 
     const post = (msg: Record<string, unknown>): void => {
+      // Real reported error: an org-admin-scoped Anthropic API key (as
+      // opposed to one already scoped to a single workspace) is rejected
+      // with this exact 400 unless every request carries an
+      // anthropic-workspace-id header (see AnthropicProvider's constructor
+      // comment) — caught here, at the one place every runTurn error
+      // already flows through, rather than teaching the provider itself
+      // about VS Code popups.
+      if (msg.type === "error" && typeof msg.text === "string" && msg.text.includes("anthropic-workspace-id")) {
+        void this.promptForWorkspaceId(post);
+      }
       void webviewView.webview.postMessage(msg);
     };
 
@@ -195,6 +209,36 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     if (modelId) {
       const handle = await this.handlerPromise;
       await handle?.({ type: "set_model", model: modelId, family: "anthropic" });
+    }
+  }
+
+  /**
+   * Fires when a turn's error text names the specific 400 an org-admin-
+   * scoped Anthropic key gets rejected with (see the `post` wrapper above
+   * and AnthropicProvider's constructor comment) — same "real popup, agent
+   * saves the rest" pattern as handleNeedsApiKey, just triggered by a live
+   * failure instead of picking an unconfigured model.
+   */
+  private async promptForWorkspaceId(post: (msg: Record<string, unknown>) => void): Promise<void> {
+    if (this.workspaceIdPromptInFlight) return;
+    this.workspaceIdPromptInFlight = true;
+    try {
+      const workspaceId = await vscode.window.showInputBox({
+        title: "ID de workspace Anthropic requis",
+        prompt:
+          "Cette clé API Anthropic est liée à l'organisation entière, pas à un workspace précis. " +
+          "Collez l'ID du workspace à utiliser (console.anthropic.com → Settings → Workspaces).",
+        ignoreFocusOut: true,
+        placeHolder: "wrkspc_...",
+      });
+      if (!workspaceId) return;
+
+      const current = await readGlobalConfig();
+      await saveGlobalConfig({ ...current, anthropicWorkspaceId: workspaceId });
+      void vscode.window.showInformationMessage("ID de workspace enregistré. Renvoyez votre message.");
+      await this.startNewChat(post);
+    } finally {
+      this.workspaceIdPromptInFlight = false;
     }
   }
 
