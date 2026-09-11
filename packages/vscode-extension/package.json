@@ -33,7 +33,7 @@
     }
   },
   "scripts": {
-    "build": "node esbuild.config.mjs",
+    "build": "npm run build --workspace=@finanfa/vscode-webview-ui && node esbuild.config.mjs",
     "watch": "node esbuild.config.mjs --watch",
     "package": "vsce package --no-dependencies"
   },
