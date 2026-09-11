@@ -44,6 +44,12 @@ export function createChatMessageHandler(
       case "webview_ready": {
         sendSessionInfo();
         post({ type: "history", messages: buildHistoryReplay(runner.session) });
+        // Replaces web-client's fetch("/api/models")/fetch("/api/effort-tiers")
+        // — no HTTP API in the extension, so both are pushed once up front
+        // instead (see the plan's §1 on model_list being new vocabulary).
+        const [models, tiers] = await Promise.all([runner.listModels(), runner.listEffortTiers()]);
+        post({ type: "model_list", models: models.models });
+        post({ type: "effort_tiers", tiers });
         break;
       }
       case "user_message": {
@@ -59,6 +65,57 @@ export function createChatMessageHandler(
           post({ type: "error", text: `Unexpected error: ${err instanceof Error ? err.message : String(err)}` });
         } finally {
           turnInFlight = false;
+        }
+        break;
+      }
+      case "set_model": {
+        if (typeof msg.model !== "string" || !msg.model || typeof msg.family !== "string") break;
+        // Same guard as user_message, extended to cover set_model/set_effort:
+        // both do real awaited work (probing Ollama, rebuilding a provider)
+        // before touching session.model/providerKind — a user_message
+        // racing in during that window would otherwise capture a stale
+        // provider for its turn, the exact bug fixed on the web side (see
+        // web-server's own comment on this same race).
+        if (turnInFlight) {
+          post({ type: "error", text: "A turn is already in progress — wait for it to finish before switching models." });
+          break;
+        }
+        turnInFlight = true;
+        try {
+          const result = await runner.switchModel(msg.model, msg.family, typeof msg.baseUrl === "string" ? msg.baseUrl : undefined);
+          if (result.ok) sendSessionInfo();
+          else post({ type: "model_unavailable", model: result.model, family: result.family, message: result.message });
+        } finally {
+          turnInFlight = false;
+        }
+        break;
+      }
+      case "set_effort": {
+        if (typeof msg.level !== "string") break;
+        if (turnInFlight) {
+          post({ type: "error", text: "A turn is already in progress — wait for it to finish before changing effort." });
+          break;
+        }
+        turnInFlight = true;
+        try {
+          const result = await runner.setEffort(msg.level);
+          if (result.ok) sendSessionInfo();
+          else if (result.kind === "effort_needs_download") post({ type: "effort_needs_download", level: result.level, ollamaModel: result.ollamaModel });
+          else if (result.kind === "model_unavailable") post({ type: "model_unavailable", model: result.model, family: result.family, message: result.message });
+          else post({ type: "error", text: result.message });
+        } finally {
+          turnInFlight = false;
+        }
+        break;
+      }
+      case "pull_ollama_model": {
+        if (typeof msg.name !== "string" || !msg.name) break;
+        const name = msg.name;
+        try {
+          await runner.pullOllamaModel(name, (completed, total) => post({ type: "ollama_pull_progress", name, completed, total }));
+          post({ type: "ollama_pull_done", name });
+        } catch (err) {
+          post({ type: "ollama_pull_error", name, message: err instanceof Error ? err.message : String(err) });
         }
         break;
       }
