@@ -63,7 +63,12 @@ export function App() {
   const isLocalModel = models.some((m) => Boolean(m.baseUrl) && m.localModelId === sessionInfo?.model);
 
   return (
-    <div className="app-shell">
+    // ".app" (not ".app-shell", which is a flex ROW meant to sit a sidebar
+    // next to it in web-client) is the flex-COLUMN, height:100vh container
+    // that stacks topbar/timeline/composer vertically — there is no
+    // sidebar in this webview, so app-shell's row layout would otherwise
+    // lay these three out side by side instead of stacked.
+    <div className="app">
       <header className="topbar">
         <div className="brand">{sessionInfo?.title ?? "finanfa-code"}</div>
         <div className="topbar-right">
