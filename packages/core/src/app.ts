@@ -259,8 +259,9 @@ export function selectProvider(config: FinanfaConfig): { provider: LlmProvider; 
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY ?? config.anthropicApiKey ?? config.apiKey;
+  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID ?? config.anthropicWorkspaceId;
   return {
-    provider: new AnthropicProvider(apiKey),
+    provider: new AnthropicProvider(apiKey, workspaceId),
     defaultModel: config.model ?? DEFAULT_ANTHROPIC_MODEL,
     kind: "anthropic",
   };
@@ -292,7 +293,8 @@ export function selectVisionProvider(config: FinanfaConfig): { provider: LlmProv
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY ?? config.visionApiKey;
-  return { provider: new AnthropicProvider(apiKey), model };
+  const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID ?? config.anthropicWorkspaceId;
+  return { provider: new AnthropicProvider(apiKey, workspaceId), model };
 }
 
 /**

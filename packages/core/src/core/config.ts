@@ -29,6 +29,8 @@ export interface FinanfaConfig {
    * without first reconfiguring the whole active provider.
    */
   anthropicApiKey?: string;
+  /** Only needed for an org-admin-scoped Anthropic API key (not scoped to a single workspace) — see AnthropicProvider's constructor comment. Can be left unset for a normal, already-workspace-scoped key. */
+  anthropicWorkspaceId?: string;
   /**
    * A second, vision-capable model used only for the follow-up turn right
    * after a tool (browser_screenshot, view_image) returns an image — the

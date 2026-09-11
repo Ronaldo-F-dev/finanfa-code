@@ -111,8 +111,18 @@ export function fromAnthropicMessage(
 export class AnthropicProvider implements LlmProvider {
   private readonly client: Anthropic;
 
-  constructor(apiKey?: string) {
-    this.client = new Anthropic(apiKey ? { apiKey } : undefined);
+  /**
+   * workspaceId: some Anthropic API keys (org-admin-scoped, not scoped to a
+   * single workspace) are rejected outright with a 400 unless every request
+   * carries an `anthropic-workspace-id` header naming which workspace to
+   * bill/run against — the SDK has no first-class option for this, so it's
+   * passed as a plain default header instead.
+   */
+  constructor(apiKey?: string, workspaceId?: string) {
+    this.client = new Anthropic({
+      ...(apiKey ? { apiKey } : {}),
+      ...(workspaceId ? { defaultHeaders: { "anthropic-workspace-id": workspaceId } } : {}),
+    });
   }
 
   async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {

@@ -103,7 +103,8 @@ function buildProvider(family: ProviderFamily, config: FinanfaConfig): LlmProvid
   const savedFamily: ProviderFamily = config.provider === "openai-compatible" ? "openai-compatible" : "anthropic";
   if (family === "anthropic") {
     const apiKey = process.env.ANTHROPIC_API_KEY ?? config.anthropicApiKey ?? (savedFamily === "anthropic" ? config.apiKey : undefined);
-    return new AnthropicProvider(apiKey);
+    const workspaceId = process.env.ANTHROPIC_WORKSPACE_ID ?? config.anthropicWorkspaceId;
+    return new AnthropicProvider(apiKey, workspaceId);
   }
   const baseUrl = process.env.FINANFA_BASE_URL ?? (savedFamily === "openai-compatible" ? config.baseUrl : undefined);
   if (!baseUrl) throw new Error("openai-compatible requires a base URL — checked by the caller via familyAvailability first.");
