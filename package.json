@@ -4,7 +4,8 @@
   "private": true,
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "packages/vscode-extension/webview-ui"
   ],
   "scripts": {
     "dev": "npm run dev -w finanfa-code",
@@ -12,7 +13,7 @@
     "dev:web-server": "npm run dev -w @finanfa/web-server",
     "dev:web-client": "npm run dev -w @finanfa/web-client",
     "build:web-client": "npm run build -w @finanfa/web-client",
-    "typecheck": "tsc --noEmit && tsc --noEmit -p packages/web-client/tsconfig.json",
+    "typecheck": "tsc --noEmit && tsc --noEmit -p packages/web-client/tsconfig.json && tsc --noEmit -p packages/vscode-extension/webview-ui/tsconfig.json",
     "test": "vitest run",
     "test:watch": "vitest"
   },

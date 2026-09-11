@@ -1,0 +1,14 @@
+<!doctype html>
+<!--
+  Vite build entry only — never served as-is. The real HTML shell (CSP nonce,
+  asWebviewUri-resolved script/style tags) is generated at runtime by
+  ../src/webview/chat-view-provider.ts, which loads dist/webview/index.js and
+  index.css directly. This file just gives `vite build` something to trace
+  the module graph from.
+-->
+<html>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
