@@ -52,7 +52,12 @@ export function SessionHistory({
         Historique
       </button>
       {open && (
-        <div className="model-picker-menu" style={{ minWidth: 280 }}>
+        /* .model-picker-menu is written for a composer trigger (opens upward,
+           bottom: calc(100% + 8px)) — this button lives in the topbar
+           instead, at the very top of the panel, so opening upward rendered
+           the menu entirely off-screen (looked like clicking did nothing).
+           Override to open downward here. */
+        <div className="model-picker-menu" style={{ minWidth: 280, bottom: "auto", top: "calc(100% + 8px)" }}>
           {sessions.length === 0 && <div className="sidebar-empty">Aucune conversation enregistrée pour ce dossier.</div>}
           {sessions.map((s) => (
             <div key={s.id} className={`sidebar-item ${s.id === activeId ? "sidebar-item-active" : ""}`}>
