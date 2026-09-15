@@ -14,6 +14,7 @@
     "dev:web-client": "npm run dev -w @finanfa/web-client",
     "build:web-client": "npm run build -w @finanfa/web-client",
     "typecheck": "tsc --noEmit && tsc --noEmit -p packages/web-client/tsconfig.json && tsc --noEmit -p packages/vscode-extension/webview-ui/tsconfig.json",
+    "lint": "oxlint packages",
     "test": "vitest run",
     "test:watch": "vitest"
   },
@@ -29,6 +30,7 @@
     "aedes": "^1.1.2",
     "ink-testing-library": "^4.0.0",
     "mailparser": "^3.9.23",
+    "oxlint": "^1.83.0",
     "smtp-server": "^3.19.9",
     "tsup": "^8.3.5",
     "tsx": "^4.19.2",
