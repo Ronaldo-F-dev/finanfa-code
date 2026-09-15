@@ -45,6 +45,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y bubblewrap tesseract-ocr poppler-utils avrdude socat
+          # Ubuntu 24.04's AppArmor policy blocks unprivileged user namespaces by
+          # default, which bwrap needs; without this bash.test.ts's sandbox silently
+          # fails to sandbox instead of erroring.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0 || true
       - name: Install Chromium for browser-driven tests
         run: npx playwright-core install --with-deps chromium
       - name: Install uv (provides uvx, used to run ruff)
