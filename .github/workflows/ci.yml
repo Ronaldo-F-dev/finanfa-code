@@ -47,4 +47,8 @@ jobs:
           sudo apt-get install -y bubblewrap tesseract-ocr poppler-utils avrdude socat
       - name: Install Chromium for browser-driven tests
         run: npx playwright-core install --with-deps chromium
+      - name: Install uv (provides uvx, used to run ruff)
+        run: |
+          curl -LsSf https://astral.sh/uv/install.sh | sh
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
       - run: npm test
