@@ -283,7 +283,7 @@ async function runToolCallBatch(
   tools: ToolRegistry,
   permissions: PermissionManager,
 ): Promise<ToolBatchOutcome> {
-  const outcomes = new Array<ToolCallOutcome>(toolCalls.length);
+  const outcomes = Array.from<ToolCallOutcome>({ length: toolCalls.length });
   const parallelIndices: number[] = [];
 
   for (const [i, call] of toolCalls.entries()) {
