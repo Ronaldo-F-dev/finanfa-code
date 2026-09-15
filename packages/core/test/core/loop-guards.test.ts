@@ -179,7 +179,7 @@ describe("runTurn: loop guards", () => {
     let n = 0;
 
     class VaryingProvider implements LlmProvider {
-      async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {
+      async streamTurn(_params: StreamTurnParams): Promise<StreamTurnResult> {
         n++;
         if (n > 5) {
           return { assistantMessage: { role: "assistant", content: "done" }, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: "end_turn" };
