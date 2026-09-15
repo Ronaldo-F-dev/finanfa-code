@@ -15,7 +15,6 @@ describe("security_scan_idor tool (real local HTTP server)", () => {
     // ID's content regardless of session, and even with no session at all).
     server = http.createServer((req, res) => {
       const match = /^\/api\/orders\/(\d+)$/.exec(req.url ?? "");
-      const cookie = req.headers.cookie;
       if (match && req.url?.startsWith("/api/orders/")) {
         if (req.url.includes("/api/orders/") && (req.headers["x-mode"] === "vulnerable" || true)) {
           const id = match[1];
