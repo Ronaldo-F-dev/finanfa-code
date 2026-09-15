@@ -1,6 +1,6 @@
 import { describe, expect, it, beforeAll } from "vitest";
 import { execFileSync } from "node:child_process";
-import { mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, mkdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
