@@ -37,6 +37,10 @@ jobs:
           node-version: "22"
           cache: npm
       - run: npm ci
+      - name: Configure git identity for real-git-repo tests
+        run: |
+          git config --global user.email "ci@example.com"
+          git config --global user.name "CI"
       - name: Install system tools used by real end-to-end tests
         run: |
           sudo apt-get update
