@@ -86,6 +86,6 @@ export class BackgroundProcessManager {
 
   /** Stops everything currently tracked. Not called automatically on shutdown — see the class doc. */
   stopAll(): void {
-    for (const name of [...this.processes.keys()]) this.stop(name);
+    for (const name of this.processes.keys()) this.stop(name);
   }
 }
