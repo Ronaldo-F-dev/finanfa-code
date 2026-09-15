@@ -103,7 +103,7 @@ describe("web-server: auto-continues past the step-limit guard, mirroring the CL
       // real signal the whole auto-continue chain has finished, since the
       // final answer itself streams as assistant_delta events, not a
       // "system" one.
-      await waitFor(events, (e) => events.filter((x) => x.type === "assistant_end").length >= 3);
+      await waitFor(events, () => events.filter((x) => x.type === "assistant_end").length >= 3);
 
       // 3 real runTurn calls (2 cutoffs + 1 finish) plus 1 maybeGenerateTitle
       // call after the loop, same as the CLI's own --prompt test expects.
