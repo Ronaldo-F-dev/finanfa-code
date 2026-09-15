@@ -1,6 +1,6 @@
 import type { ToolDefinition } from "../../../core/types.js";
 import { scoreFromVector, severityFromScore } from "./cvss.js";
-import { formatScanOutput, type Finding, type PassedControl, type ScanOutput } from "./types.js";
+import { formatScanOutput, type Finding, type ScanOutput } from "./types.js";
 
 // Direct port of cyberlens's cache_poisoning.py — deliberately heuristic,
 // not a confirmed exploit. Actually proving cache poisoning means
