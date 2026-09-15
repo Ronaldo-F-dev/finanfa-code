@@ -45,7 +45,7 @@ describe("AzureOpenAiProvider.streamTurn (real local server, real OpenAI-compati
     expect(lastRequest?.url).toBe("/openai/deployments/my-gpt4o-deployment/chat/completions?api-version=2024-10-21");
     expect(lastRequest?.headers["api-key"]).toBe("azure-key-123");
     expect(lastRequest?.headers.authorization).toBeUndefined();
-    expect((lastRequest?.body as { messages: unknown[] }).messages).toEqual([
+    expect((lastRequest?.body as { messages: unknown[] } | undefined)?.messages).toEqual([
       { role: "system", content: "be helpful" },
       { role: "user", content: "say hi" },
     ]);
