@@ -72,7 +72,7 @@ async function scanCrlfInjection(targetUrl: string): Promise<ScanOutput> {
     throw new Error(`"${targetUrl}" is not a valid URL.`);
   }
 
-  const candidates = [...new Set([...target.searchParams.keys()])].slice(0, MAX_CANDIDATES);
+  const candidates = [...new Set(target.searchParams.keys())].slice(0, MAX_CANDIDATES);
 
   for (const paramName of candidates) {
     const found = await testParam(target, paramName);
