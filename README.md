@@ -1,6 +1,6 @@
 # finanfa-code
 
-A from-scratch AI coding agent, in TypeScript, with a terminal UI (Ink) and a browser UI. Pluggable LLM backend: Anthropic, Azure OpenAI, Gemini, Cohere, Amazon Bedrock, Google Vertex AI, or anything speaking the OpenAI chat-completions wire format (Ollama, OpenRouter, Poolside, LM Studio, vLLM, ...).
+A from-scratch AI coding agent, in TypeScript, with a terminal UI (Ink) and a browser UI. Pluggable LLM backend: Anthropic, Azure OpenAI, Gemini, Cohere, GitHub Copilot, Amazon Bedrock, Google Vertex AI, or anything speaking the OpenAI chat-completions wire format (Ollama, OpenRouter, Poolside, LM Studio, vLLM, ...).
 
 Requires Node.js **22.5.0+**.
 
@@ -52,6 +52,34 @@ export FINANFA_API_KEY=...
 export FINANFA_MODEL=command-r-plus-08-2024   # optional — this is the default
 npm run dev
 ```
+
+### GitHub Copilot
+
+Requires a GitHub account with Copilot access. Authentication is GitHub's OAuth **device flow** (the same mechanism `gh auth login` uses) — a one-time setup, not a config value you can just paste in from somewhere:
+
+1. Request a device code:
+   ```bash
+   curl -s -X POST https://github.com/login/device/code \
+     -H "content-type: application/json" -H "accept: application/json" \
+     -d '{"client_id":"01ab8ac9400c4e429b23","scope":"read:user"}'
+   ```
+   This returns `device_code`, `user_code`, and `verification_uri`.
+2. Open `verification_uri` in a browser and enter the `user_code` shown.
+3. Poll for the access token (repeat every `interval` seconds from step 1's response until it stops returning `authorization_pending`):
+   ```bash
+   curl -s -X POST https://github.com/login/oauth/access_token \
+     -H "content-type: application/json" -H "accept: application/json" \
+     -d '{"client_id":"01ab8ac9400c4e429b23","device_code":"<device_code from step 1>","grant_type":"urn:ietf:params:oauth:grant-type:device_code"}'
+   ```
+   Once authorized, this returns `{"access_token": "gho_..."}`.
+4. Save it:
+   ```bash
+   export FINANFA_PROVIDER=github-copilot
+   export FINANFA_GITHUB_COPILOT_TOKEN=gho_...   # or /config set githubCopilotToken <token>
+   npm run dev
+   ```
+
+This GitHub token is exchanged for a short-lived Copilot API token automatically on every turn — it's never sent to `api.githubcopilot.com` directly.
 
 ### Amazon Bedrock (Claude via AWS)
 
