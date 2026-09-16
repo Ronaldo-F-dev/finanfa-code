@@ -56,6 +56,14 @@ describe("PermissionManager", () => {
     expect(decision).toBe("deny");
   });
 
+  it("passes the caller's toolCallId through to askUser, for an adapter that needs to correlate the ask with the real tool_call", async () => {
+    const ui = makeUi("y");
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+
+    await manager.check(bashLikeTool, { command: "git status" }, ctx, "call-42");
+    expect(ui.askUser).toHaveBeenCalledWith(expect.any(String), "confirm", "call-42");
+  });
+
   it("remembers 'always' for the same risk key only", async () => {
     const ui = makeUi("a");
     const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });

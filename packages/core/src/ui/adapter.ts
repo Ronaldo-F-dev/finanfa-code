@@ -52,8 +52,17 @@ export interface UIAdapter {
   setCommands(commands: CommandInfo[]): void;
   /** Shows/hides a loading indicator (e.g. while waiting on the model or a slow tool), with an optional label. */
   setBusy(busy: boolean, label?: string): void;
-  /** `kind: "confirm"` is used for permission prompts; `"input"` for normal chat input. */
-  askUser(prompt: string, kind?: "input" | "confirm"): Promise<string>;
+  /**
+   * `kind: "confirm"` is used for permission prompts; `"input"` for normal
+   * chat input. `toolCallId` is only set for a "confirm" ask backed by a
+   * real pending tool call (see PermissionManager.check) — the model's own
+   * tool_use id for it, so an adapter that needs to correlate a permission
+   * request with the tool_call it's about (the ACP bridge's
+   * session/request_permission, whose own toolCallId field an ACP client
+   * uses to match it to the tool_call notification that follows) can use
+   * the real id instead of a synthetic placeholder.
+   */
+  askUser(prompt: string, kind?: "input" | "confirm", toolCallId?: string): Promise<string>;
   /** A tool produced a file the human should be able to play/view inline (e.g. text_to_speech's MP3) — optional, since a terminal can't render it; the CLI adapters just skip this and rely on the tool's own printed output. */
   writeMedia?(media: { kind: "audio" | "image"; path: string; mimeType: string }): void;
   close(): void;

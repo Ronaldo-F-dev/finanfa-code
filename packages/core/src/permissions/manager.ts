@@ -116,7 +116,8 @@ export class PermissionManager {
     return undefined;
   }
 
-  async check(tool: ToolDefinition, input: unknown, ctx: ToolContext): Promise<PermissionDecision> {
+  /** `toolCallId` is the model's own tool_use id for this call, if the caller has minted one yet (see loop.ts) — passed through to askUser so an adapter like the ACP bridge can correlate its permission request with the real tool_call, not a synthetic placeholder. */
+  async check(tool: ToolDefinition, input: unknown, ctx: ToolContext, toolCallId?: string): Promise<PermissionDecision> {
     const hookDecision = await this.checkPreToolUseHooks(tool, input, ctx);
     if (hookDecision) return hookDecision;
 
@@ -153,14 +154,14 @@ export class PermissionManager {
       this.ui.writeError(`Could not prepare "${tool.name}" for confirmation: ${message}`);
       return "deny";
     }
-    const answer = await this.promptUser(tool.name, summary, preview);
+    const answer = await this.promptUser(tool.name, summary, preview, toolCallId);
 
     if (answer === "always") this.sessionAllowlist.add(key);
     if (answer === "always-tool") this.sessionAllowlist.add(tool.name);
     return answer === "deny" ? "deny" : "allow";
   }
 
-  private async promptUser(toolName: string, summary: string, preview?: string): Promise<AskAnswer> {
+  private async promptUser(toolName: string, summary: string, preview?: string, toolCallId?: string): Promise<AskAnswer> {
     const previewBlock = preview ? `\n${preview}\n` : "";
     // Spelled out explicitly which tool "always" scopes to — "[t]ool always
     // allowed" alone reads to some users as "any tool", when it only ever
@@ -175,7 +176,7 @@ export class PermissionManager {
     // tool, a mistyped keystroke could silently execute the command. Fails
     // closed instead: re-prompt until a recognized answer comes back.
     for (;;) {
-      const raw = (await this.ui.askUser(prompt, "confirm")).trim().toLowerCase();
+      const raw = (await this.ui.askUser(prompt, "confirm", toolCallId)).trim().toLowerCase();
       switch (raw) {
         case "a":
         case "always":
