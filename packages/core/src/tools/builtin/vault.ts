@@ -10,9 +10,8 @@ import { runSubprocess } from "../../util/process.js";
 // Only registered when `vault` is actually installed (see
 // builtin/index.ts).
 //
-// riskLevel "dangerous" — see onepassword.ts's own comment on why a
-// secret read is never session-allowlistable the way a repeated "ask"
-// tool call can become.
+// riskLevel "dangerous" — see onepassword.ts's own comment on what that
+// actually enforces today (identically to "ask") vs. what it signals.
 export interface ReadVaultSecretToolOptions {
   /** Overridable so tests can point this at a fake stand-in script instead of the real `vault` binary. */
   binary?: string;

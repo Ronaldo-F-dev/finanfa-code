@@ -6,14 +6,15 @@ import { runSubprocess } from "../../util/process.js";
 // separately-maintained tool" approach as mydevops.ts/git.ts. Only
 // registered when `op` is actually installed (see builtin/index.ts).
 //
-// riskLevel "dangerous", never session-allowlistable the way a repeated
-// "ask" tool call can become: a secret value read here becomes real,
-// visible model context and gets persisted into the session transcript
-// like any other tool result — there's no way to use a secret in a later
-// tool call (e.g. an API request) without it passing through the model
-// this way, but that's exactly why each read should stay a deliberate,
-// individually-confirmed action rather than something that quietly stops
-// prompting after the first approval.
+// riskLevel "dangerous": in PermissionManager as it stands today this
+// enforces identically to "ask" (same default decision, same session
+// "always"/"always this tool" allowlisting, same --yolo bypass) — the
+// distinction is UI presentation only (a red vs. yellow icon). Marked
+// "dangerous" anyway as the more honest signal of intent for whichever
+// UI/config surface does start treating the two differently, since a
+// secret value read here becomes real, visible model context and gets
+// persisted into the session transcript like any other tool result,
+// every time it runs.
 export interface Read1PasswordSecretToolOptions {
   /** Overridable so tests can point this at a fake stand-in script instead of the real `op` binary. */
   binary?: string;
