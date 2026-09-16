@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
-import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
+import { createHash } from "node:crypto";
 import path from "node:path";
 import { AgentSession } from "../../src/core/session.js";
 
@@ -47,6 +48,30 @@ describe("AgentSession.persist", () => {
 
     const resumed = await AgentSession.resume("/some/project", session.id, "s");
     expect(resumed.messages).toEqual(session.messages);
+  });
+
+  it("redacts a configured secret env var's value out of messages/errorLog before writing to disk", async () => {
+    const originalKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "sk-ant-real-secret-0123456789";
+    try {
+      const session = new AgentSession({ cwd: "/some/project", model: "m", systemPrompt: "s" });
+      session.messages = [
+        { role: "tool", results: [{ toolCallId: "1", content: "your key is sk-ant-real-secret-0123456789", isError: false }] },
+      ];
+      session.errorLog = [{ text: "auth failed with key sk-ant-real-secret-0123456789", afterMessageIndex: 0 }];
+
+      await session.persist();
+
+      const projectHash = createHash("sha256").update("/some/project").digest("hex").slice(0, 12);
+      const raw = await readFile(path.join(homeDir, ".finanfa-code", "sessions", projectHash, `${session.id}.json`), "utf-8");
+      expect(raw).not.toContain("sk-ant-real-secret-0123456789");
+
+      const resumed = await AgentSession.resume("/some/project", session.id, "s");
+      expect(JSON.stringify(resumed.messages)).not.toContain("sk-ant-real-secret-0123456789");
+      expect(resumed.errorLog?.[0].text).not.toContain("sk-ant-real-secret-0123456789");
+    } finally {
+      process.env.ANTHROPIC_API_KEY = originalKey;
+    }
   });
 
   it("persists providerKind/providerBaseUrl and restores them on resume — the real fix for a resumed session reconstructing the wrong provider for its model", async () => {

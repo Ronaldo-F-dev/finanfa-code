@@ -7,6 +7,7 @@ import { estimateCostUsd } from "./pricing.js";
 import { EditHistory } from "./edit-history.js";
 import { TodoStore } from "./todo-store.js";
 import { FileFreshnessTracker } from "./file-freshness.js";
+import { collectEnvSecretValues, redactSecrets } from "./redact.js";
 
 export interface SessionFile {
   id: string;
@@ -204,6 +205,25 @@ export class AgentSession {
     return estimateCostUsd(this.model, this.usage.inputTokens, this.usage.outputTokens);
   }
 
+  // Scrubs secret-shaped/denylisted values (see redact.ts) out of every text
+  // field that a tool's raw output or an error message could have leaked
+  // one into, before the session ever touches disk — resume/search-index
+  // both re-read this same file (see resume() and session-search-index.ts),
+  // so this one choke point covers both.
+  private redactSessionFile(data: SessionFile): SessionFile {
+    const denylist = collectEnvSecretValues();
+    return {
+      ...data,
+      messages: data.messages.map((message) => {
+        if (message.role === "tool") {
+          return { ...message, results: message.results.map((result) => ({ ...result, content: redactSecrets(result.content, denylist) })) };
+        }
+        return { ...message, content: redactSecrets(message.content, denylist) };
+      }),
+      errorLog: data.errorLog?.map((entry) => ({ ...entry, text: redactSecrets(entry.text, denylist) })),
+    };
+  }
+
   // Called after every turn (see loop.ts/cli.ts) so a crash mid-conversation
   // loses as little as possible — but a disk-full or permission error here
   // used to propagate up and crash the turn outright, which is worse than
@@ -231,7 +251,7 @@ export class AgentSession {
         maxTokens: this.maxTokens,
         effort: this.effort,
       };
-      await writeFile(tmp, JSON.stringify(data, null, 2), "utf-8");
+      await writeFile(tmp, JSON.stringify(this.redactSessionFile(data), null, 2), "utf-8");
       await rename(tmp, file);
     } catch (err) {
       console.error(`Warning: failed to save session state: ${err instanceof Error ? err.message : String(err)}`);
