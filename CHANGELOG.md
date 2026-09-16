@@ -48,6 +48,9 @@ first tagged release.
   other entry point. Verified against the official ACP SDK's own client.
   `ToolCallAnnouncement` gained a `toolCallId` field and `UIAdapter` a new
   optional `writeToolResult` hook to support it.
+- `read_1password_secret`/`read_vault_secret` builtin tools, wrapping the
+  user's own already-authenticated `op`/`vault` CLIs (only registered
+  when installed).
 
 ### Fixed
 

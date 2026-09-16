@@ -206,6 +206,7 @@ Not every model can see images. If your primary model can't, route just the turn
 - **Delegation**: `task` (sub-agents, optionally a named `agentType`), `todo_write`
 - **IoT/embedded**: `serial_*`, `run_esptool`/`run_avrdude`, `mqtt_publish`/`mqtt_subscribe`, `coap_request`, `gpio_*`, `run_arduino_cli`/`run_platformio`
 - **DevOps**: `run_docker`, `run_kubectl`, `run_mydevops` (when installed)
+- **Secrets**: `read_1password_secret` (via the `op` CLI), `read_vault_secret` (via the `vault` CLI) — both only registered when the underlying CLI is installed, `riskLevel: "dangerous"`
 - **Security scanning**: prompt injection/jailbreak/system-prompt-leak/PII-leakage/excessive-agency self-red-team, plus SSRF/XSS/SQLi/XXE/SSTI/IDOR/CSRF/JWT/LDAP-injection/subdomain-takeover/recon/email-security/and more against a target URL
 - **Session**: `recall_past_sessions` (full-text search over past sessions, plus an optional semantic mode — needs `OPENAI_API_KEY`), `write_memory`
 
