@@ -1,21 +1,43 @@
 import type { Express, Request } from "express";
 import { verifySlackSignature } from "@finanfa/core/src/channels/slack-signature.js";
-import { parseSlackPayload } from "@finanfa/core/src/channels/slack-event.js";
+import { parseSlackPayload, type SlackImageAttachment } from "@finanfa/core/src/channels/slack-event.js";
 import { runHeadlessTurn } from "@finanfa/core/src/channels/headless-turn.js";
-import { postSlackMessage, slackConfigFromEnv } from "@finanfa/core/src/tools/builtin/send-slack-message.js";
+import { postSlackMessage, slackConfigFromEnv, type SlackConfig } from "@finanfa/core/src/tools/builtin/send-slack-message.js";
+import { fetchSlackFile } from "@finanfa/core/src/channels/slack-file.js";
+import type { NeutralImage } from "@finanfa/core/src/core/types.js";
 
 /** Populated by the `verify` callback on the app-wide express.json() in index.ts — the signature covers these exact raw bytes, not a re-serialized req.body. */
 export interface RequestWithRawBody extends Request {
   rawBody?: Buffer;
 }
 
-async function handleSlackMessage(cwd: string, sessionId: string, channel: string, threadKey: string, text: string): Promise<void> {
+/** Downloads every image attachment (best-effort — one failed download shouldn't drop the rest, or the message's own text). */
+async function downloadSlackImages(slackConfig: SlackConfig | undefined, images: SlackImageAttachment[] | undefined): Promise<NeutralImage[]> {
+  if (!images?.length || !slackConfig) return [];
+  const results: NeutralImage[] = [];
+  for (const image of images) {
+    const file = await fetchSlackFile(slackConfig, image.url);
+    if (file.ok) results.push({ mimeType: image.mimeType, base64: file.base64 });
+    else console.error(`Slack channel: failed to download an image attachment: ${file.error}`);
+  }
+  return results;
+}
+
+async function handleSlackMessage(
+  cwd: string,
+  sessionId: string,
+  channel: string,
+  threadKey: string,
+  text: string,
+  images?: SlackImageAttachment[],
+): Promise<void> {
   const slackConfig = slackConfigFromEnv();
   // Overridable only for tests against a real local fake Slack API — real
   // deployments always want the real https://slack.com/api default.
   const apiBaseUrl = process.env.SLACK_API_BASE_URL;
   try {
-    const { replyText } = await runHeadlessTurn(cwd, sessionId, text);
+    const downloadedImages = await downloadSlackImages(slackConfig, images);
+    const { replyText } = await runHeadlessTurn(cwd, sessionId, text, downloadedImages.length > 0 ? downloadedImages : undefined);
     if (!replyText.trim()) return;
     if (!slackConfig) {
       console.error(`Slack channel: got a reply but SLACK_BOT_TOKEN isn't set, so it can't be posted back: ${replyText}`);
@@ -82,7 +104,7 @@ export function registerSlackChannelRoutes(app: Express, cwd: string): void {
     // once ack'd, never reprocessed.
     if (req.header("X-Slack-Retry-Num")) return;
 
-    const { channel, threadKey, text } = parsed.event;
-    void handleSlackMessage(cwd, `slack:${channel}:${threadKey}`, channel, threadKey, text);
+    const { channel, threadKey, text, images } = parsed.event;
+    void handleSlackMessage(cwd, `slack:${channel}:${threadKey}`, channel, threadKey, text, images);
   });
 }

@@ -58,16 +58,19 @@ describe("web-server Slack inbound channel (real subprocess, real signed HTTP re
   let llmServer: http.Server;
   let llmBaseUrl: string;
   let replyText: string;
+  let llmRequestBodies: { messages: { role: string; content: unknown }[] }[];
 
   let slackApiServer: http.Server;
   let slackApiBaseUrl: string;
   let postedMessages: { channel: string; text: string; thread_ts?: string }[];
+  let lastFileDownloadAuthHeader: string | undefined;
 
   beforeAll(async () => {
     llmServer = http.createServer((req, res) => {
       let raw = "";
       req.on("data", (c) => (raw += c));
       req.on("end", () => {
+        llmRequestBodies.push(JSON.parse(raw));
         res.writeHead(200, { "content-type": "text/event-stream" });
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: replyText }, finish_reason: "stop" }], usage: { prompt_tokens: 3, completion_tokens: 2 } })}\n\n`);
         res.write("data: [DONE]\n\n");
@@ -78,6 +81,12 @@ describe("web-server Slack inbound channel (real subprocess, real signed HTTP re
     llmBaseUrl = `http://127.0.0.1:${(llmServer.address() as AddressInfo).port}`;
 
     slackApiServer = http.createServer((req, res) => {
+      if (req.url === "/files/f1.png") {
+        lastFileDownloadAuthHeader = req.headers.authorization;
+        res.writeHead(200, { "content-type": "image/png" });
+        res.end(Buffer.from("fake png bytes"));
+        return;
+      }
       let raw = "";
       req.on("data", (c) => (raw += c));
       req.on("end", () => {
@@ -140,6 +149,7 @@ describe("web-server Slack inbound channel (real subprocess, real signed HTTP re
     "runs a real turn for an inbound message and posts the reply back to the right thread",
     async () => {
       postedMessages = [];
+      llmRequestBodies = [];
       replyText = "hello from the agent";
 
       const { status } = await postSignedSlackEvent(port, {
@@ -150,6 +160,34 @@ describe("web-server Slack inbound channel (real subprocess, real signed HTTP re
 
       await waitFor(() => postedMessages.length > 0, 20_000);
       expect(postedMessages[0]).toEqual({ channel: "C123", text: "hello from the agent", thread_ts: "1700000000.000001" });
+    },
+    30_000,
+  );
+
+  it(
+    "downloads a real image attachment (with the bot token) and forwards it to the model",
+    async () => {
+      postedMessages = [];
+      llmRequestBodies = [];
+      replyText = "reply about the image";
+
+      const { status } = await postSignedSlackEvent(port, {
+        type: "event_callback",
+        event: {
+          type: "message",
+          subtype: "file_share",
+          channel: "C123",
+          ts: "1700000020.000001",
+          text: "what's in this?",
+          files: [{ mimetype: "image/png", url_private: `${slackApiBaseUrl}/files/f1.png` }],
+        },
+      });
+      expect(status).toBe(200);
+
+      await waitFor(() => postedMessages.length > 0, 20_000);
+      expect(lastFileDownloadAuthHeader).toBe("Bearer xoxb-test-token");
+      const userMessagePart = llmRequestBodies[0]?.messages.find((m) => m.role === "user");
+      expect(JSON.stringify(userMessagePart?.content)).toContain(Buffer.from("fake png bytes").toString("base64"));
     },
     30_000,
   );
