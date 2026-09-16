@@ -65,5 +65,7 @@ export interface UIAdapter {
   askUser(prompt: string, kind?: "input" | "confirm", toolCallId?: string): Promise<string>;
   /** A tool produced a file the human should be able to play/view inline (e.g. text_to_speech's MP3) — optional, since a terminal can't render it; the CLI adapters just skip this and rely on the tool's own printed output. */
   writeMedia?(media: { kind: "audio" | "image"; path: string; mimeType: string }): void;
+  /** Streamed Anthropic extended-thinking text (see StreamTurnParams.thinkingBudgetTokens) — mirrors writeAssistantDelta, kept separate since thinking is reasoning shown alongside the reply, not the reply itself. Optional: silently unused by an adapter (or a session) that never enables thinking. */
+  writeThinkingDelta?(text: string): void;
   close(): void;
 }
