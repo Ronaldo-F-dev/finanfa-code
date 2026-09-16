@@ -1,6 +1,6 @@
 # finanfa-code
 
-A from-scratch AI coding agent, in TypeScript, with a terminal UI (Ink) and a browser UI. Pluggable LLM backend: Anthropic, Azure OpenAI, Gemini, Amazon Bedrock, Google Vertex AI, or anything speaking the OpenAI chat-completions wire format (Ollama, OpenRouter, Poolside, LM Studio, vLLM, ...).
+A from-scratch AI coding agent, in TypeScript, with a terminal UI (Ink) and a browser UI. Pluggable LLM backend: Anthropic, Azure OpenAI, Gemini, Cohere, Amazon Bedrock, Google Vertex AI, or anything speaking the OpenAI chat-completions wire format (Ollama, OpenRouter, Poolside, LM Studio, vLLM, ...).
 
 Requires Node.js **22.5.0+**.
 
@@ -41,6 +41,15 @@ npm run dev
 ```bash
 export FINANFA_PROVIDER=gemini
 export FINANFA_API_KEY=...
+npm run dev
+```
+
+### Cohere
+
+```bash
+export FINANFA_PROVIDER=cohere
+export FINANFA_API_KEY=...
+export FINANFA_MODEL=command-r-plus-08-2024   # optional — this is the default
 npm run dev
 ```
 
