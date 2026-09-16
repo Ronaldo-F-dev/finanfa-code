@@ -108,6 +108,51 @@ export function fromAnthropicMessage(
   return { role: "assistant", content, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
 }
 
+/**
+ * The slice of the Anthropic SDK's client surface every provider that
+ * speaks the Messages API actually uses — deliberately narrow (not the
+ * full `Anthropic` class type) because `AnthropicBedrock`/`AnthropicVertex`
+ * (see amazon-bedrock-provider.ts/google-vertex-provider.ts) are sibling
+ * subclasses of the SDK's `BaseAnthropic`, not of `Anthropic` itself, and
+ * their own `messages` resource type omits members (`batches`,
+ * `countTokens`) neither this function nor the agent loop ever calls.
+ */
+export interface AnthropicMessagesClient {
+  messages: { stream: Anthropic["messages"]["stream"] };
+}
+
+/**
+ * Runs one turn against any client speaking the Anthropic Messages API —
+ * the real `Anthropic` SDK client, or the Bedrock/Vertex variants that
+ * proxy the same request/response shape through a different transport and
+ * auth mechanism (AWS SigV4 / GCP Application Default Credentials instead
+ * of an API key). Shared here so those two providers don't duplicate this
+ * request-building and response-mapping logic.
+ */
+export async function streamAnthropicTurn(client: AnthropicMessagesClient, params: StreamTurnParams): Promise<StreamTurnResult> {
+  const anthropicTools = toAnthropicTools(params.tools);
+
+  const stream = client.messages.stream(
+    {
+      model: params.model,
+      max_tokens: params.maxTokens ?? 8192,
+      system: [{ type: "text", text: params.systemPrompt, cache_control: { type: "ephemeral" } }],
+      messages: toAnthropicMessages(params.messages),
+      tools: anthropicTools.length > 0 ? anthropicTools : undefined,
+    },
+    { signal: params.signal },
+  );
+
+  stream.on("text", (delta) => params.onTextDelta(delta));
+  const message = await stream.finalMessage();
+
+  return {
+    assistantMessage: fromAnthropicMessage(message),
+    usage: { inputTokens: message.usage.input_tokens, outputTokens: message.usage.output_tokens },
+    stopReason: mapStopReason(message.stop_reason),
+  };
+}
+
 export class AnthropicProvider implements LlmProvider {
   private readonly client: Anthropic;
 
@@ -126,26 +171,6 @@ export class AnthropicProvider implements LlmProvider {
   }
 
   async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {
-    const anthropicTools = toAnthropicTools(params.tools);
-
-    const stream = this.client.messages.stream(
-      {
-        model: params.model,
-        max_tokens: params.maxTokens ?? 8192,
-        system: [{ type: "text", text: params.systemPrompt, cache_control: { type: "ephemeral" } }],
-        messages: toAnthropicMessages(params.messages),
-        tools: anthropicTools.length > 0 ? anthropicTools : undefined,
-      },
-      { signal: params.signal },
-    );
-
-    stream.on("text", (delta) => params.onTextDelta(delta));
-    const message = await stream.finalMessage();
-
-    return {
-      assistantMessage: fromAnthropicMessage(message),
-      usage: { inputTokens: message.usage.input_tokens, outputTokens: message.usage.output_tokens },
-      stopReason: mapStopReason(message.stop_reason),
-    };
+    return streamAnthropicTurn(this.client, params);
   }
 }
