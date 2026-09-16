@@ -7,6 +7,7 @@ import { runTurn, maybeGenerateTitle, isLoopGuardStopMessage, type VisionRoute }
 import type { UIAdapter } from "@finanfa/core/src/ui/adapter.js";
 import { createReadlineAdapter } from "./ui/readline-adapter.js";
 import { createInkAdapter } from "./ui/ink/ink-adapter.js";
+import { runAcpAgent } from "./acp.js";
 import { ToolRegistry } from "@finanfa/core/src/tools/registry.js";
 import { registerBuiltins, registerStatefulBuiltins } from "@finanfa/core/src/tools/builtin/index.js";
 import { PermissionManager } from "@finanfa/core/src/permissions/manager.js";
@@ -59,6 +60,8 @@ export interface CliOptions {
   maxTurns?: string;
   /** Project directory to operate in; defaults to process.cwd(). Needed for --prompt invocations, since a cron job's cwd is the user's home directory, not the project. */
   cwd?: string;
+  /** Run as an ACP (Agent Client Protocol) agent over stdio, for an ACP-aware editor like Zed to drive directly — see acp.ts. */
+  acp?: boolean;
 }
 
 export function countConfiguredHooks(hooksConfig: HooksConfig): number {
@@ -167,6 +170,7 @@ export async function main(argv: string[]): Promise<void> {
       "5",
     )
     .option("--cwd <path>", "project directory to operate in (defaults to the current directory)")
+    .option("--acp", "run as an ACP (Agent Client Protocol) agent over stdio, for an editor like Zed to drive directly")
     .parse(argv);
 
   const opts = program.opts<CliOptions>();
@@ -183,6 +187,16 @@ export async function main(argv: string[]): Promise<void> {
   // (mkdir before ever handing the directory to a session) — the CLI's
   // --cwd never had the same guarantee.
   if (opts.cwd) await mkdir(cwd, { recursive: true });
+
+  // Must come before any banner/UI setup below — an ACP client speaks
+  // newline-delimited JSON-RPC over this exact stdin/stdout pair, so
+  // anything else written to stdout (a banner, a prompt) would corrupt
+  // the stream.
+  if (opts.acp) {
+    await runAcpAgent(cwd);
+    return;
+  }
+
   // A scripted/cron --prompt invocation has no TTY to speak of; Ink needs a
   // real terminal and would otherwise throw trying to manage raw-mode
   // input on a pipe. createUi already falls back for a non-TTY stdin, but
