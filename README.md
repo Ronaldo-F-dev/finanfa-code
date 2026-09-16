@@ -247,6 +247,27 @@ curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<y
 
 Message the bot directly, or in a group it's been added to — each chat (or forum topic, in a topics-enabled supergroup) maps to its own persistent session. Same 404-until-configured behavior as Slack above.
 
+### Discord
+
+Discord's webhook model only delivers interactions (slash commands), not plain channel messages, so this registers one command, `/ask`:
+
+```bash
+export DISCORD_PUBLIC_KEY=...        # your app's "Public Key", from the Discord Developer Portal
+export DISCORD_APPLICATION_ID=...    # same page
+export DISCORD_BOT_TOKEN=...         # only needed for the send_discord_message tool, not the channel itself
+npm run dev:web-server
+```
+
+Then, one-time setup in the Discord Developer Portal:
+1. **General Information** → set **Interactions Endpoint URL** to `https://<your-server>/api/channels/discord/interactions` (Discord verifies this itself via a signed PING, same handshake the endpoint answers — it won't save the URL otherwise).
+2. Register the `/ask` command once:
+   ```bash
+   curl -X PUT "https://discord.com/api/v10/applications/<DISCORD_APPLICATION_ID>/commands" \
+     -H "Authorization: Bot <DISCORD_BOT_TOKEN>" -H "content-type: application/json" \
+     -d '[{"name":"ask","description":"Ask the agent something","options":[{"name":"message","description":"Your message","type":3,"required":true}]}]'
+   ```
+3. Invite the bot to a server and run `/ask message:<your question>` in any channel — each channel maps to its own persistent session. Discord shows "thinking..." immediately (a turn takes longer than its 3-second reply window), then edits in the real answer once it's ready.
+
 ## Security
 
 The system prompt permits authorized security testing, defensive security, CTF, and security education, and declines destructive techniques, DoS tooling, mass targeting, supply-chain compromise, or detection evasion — several supported backends (local/free models) have little built-in safety alignment of their own.

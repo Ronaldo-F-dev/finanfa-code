@@ -32,6 +32,10 @@ first tagged release.
 - An inbound Telegram channel: `POST /api/channels/telegram/webhook`,
   secret-token-verified, one persistent session per chat (or per forum
   topic). Also adds a `send_telegram_message` builtin tool.
+- An inbound Discord channel: `POST /api/channels/discord/interactions`,
+  Ed25519-signature-verified, a single `/ask` slash command per channel
+  session, deferred-then-PATCHed since a turn outlasts Discord's 3-second
+  reply window. Also adds a `send_discord_message` builtin tool.
 
 ### Fixed
 
