@@ -96,6 +96,13 @@ first tagged release.
   scope saved under a different name — the memory instructions already
   said to check for this first; this catches it when that step is missed.
 
+- The Slack inbound channel now handles image attachments (a `file_share`
+  message): downloads the real bytes with the bot token and forwards them
+  as an image to the model, through the same configured vision-route
+  fallback every other front-end already uses — previously a `file_share`
+  subtype was unconditionally ignored, silently dropping the whole
+  message, image and caption both.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
