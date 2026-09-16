@@ -1,16 +1,31 @@
 import type { Express } from "express";
 import { verifyDiscordSignature } from "@finanfa/core/src/channels/discord-signature.js";
-import { parseDiscordInteraction } from "@finanfa/core/src/channels/discord-event.js";
+import { parseDiscordInteraction, type DiscordImageAttachment } from "@finanfa/core/src/channels/discord-event.js";
 import { runHeadlessTurn } from "@finanfa/core/src/channels/headless-turn.js";
 import { patchDiscordInteractionResponse } from "@finanfa/core/src/tools/builtin/send-discord-message.js";
+import { fetchDiscordFile } from "@finanfa/core/src/channels/discord-file.js";
+import type { NeutralImage } from "@finanfa/core/src/core/types.js";
 import type { RequestWithRawBody } from "./channels-slack.js";
 
-async function handleDiscordCommand(cwd: string, applicationId: string, interactionToken: string, channelId: string, text: string): Promise<void> {
+async function handleDiscordCommand(
+  cwd: string,
+  applicationId: string,
+  interactionToken: string,
+  channelId: string,
+  text: string,
+  image?: DiscordImageAttachment,
+): Promise<void> {
   // Overridable only for tests against a real local fake Discord API —
   // real deployments always want the real https://discord.com/api/v10 default.
   const apiBaseUrl = process.env.DISCORD_API_BASE_URL;
   try {
-    const { replyText } = await runHeadlessTurn(cwd, `discord:${channelId}`, text);
+    let images: NeutralImage[] | undefined;
+    if (image) {
+      const file = await fetchDiscordFile(image.url);
+      if (file.ok) images = [{ mimeType: image.mimeType, base64: file.base64 }];
+      else console.error(`Discord channel: failed to download an image attachment: ${file.error}`);
+    }
+    const { replyText } = await runHeadlessTurn(cwd, `discord:${channelId}`, text, images);
     const result = await patchDiscordInteractionResponse(applicationId, interactionToken, replyText || "(no reply)", apiBaseUrl);
     if (!result.ok) console.error(`Discord channel: failed to patch deferred response for channel ${channelId}: ${result.error}`);
   } catch (err) {
@@ -74,6 +89,6 @@ export function registerDiscordChannelRoutes(app: Express, cwd: string): void {
     // far longer than the 3 seconds an immediate (type 4) reply allows.
     res.json({ type: 5 });
 
-    void handleDiscordCommand(cwd, applicationId, parsed.event.interactionToken, parsed.event.channelId, parsed.event.text);
+    void handleDiscordCommand(cwd, applicationId, parsed.event.interactionToken, parsed.event.channelId, parsed.event.text, parsed.event.image);
   });
 }

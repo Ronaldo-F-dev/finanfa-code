@@ -56,6 +56,7 @@ describe("web-server Discord inbound channel (real subprocess, real Ed25519-sign
   let llmServer: http.Server;
   let llmBaseUrl: string;
   let replyText: string;
+  let llmRequestBodies: { messages: { role: string; content: unknown }[] }[];
 
   let discordApiServer: http.Server;
   let discordApiBaseUrl: string;
@@ -66,6 +67,7 @@ describe("web-server Discord inbound channel (real subprocess, real Ed25519-sign
       let raw = "";
       req.on("data", (c) => (raw += c));
       req.on("end", () => {
+        llmRequestBodies.push(JSON.parse(raw));
         res.writeHead(200, { "content-type": "text/event-stream" });
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: replyText }, finish_reason: "stop" }], usage: { prompt_tokens: 3, completion_tokens: 2 } })}\n\n`);
         res.write("data: [DONE]\n\n");
@@ -76,6 +78,11 @@ describe("web-server Discord inbound channel (real subprocess, real Ed25519-sign
     llmBaseUrl = `http://127.0.0.1:${(llmServer.address() as AddressInfo).port}`;
 
     discordApiServer = http.createServer((req, res) => {
+      if (req.url === "/cdn/pic.png") {
+        res.writeHead(200, { "content-type": "image/png" });
+        res.end(Buffer.from("fake png bytes"));
+        return;
+      }
       let raw = "";
       req.on("data", (c) => (raw += c));
       req.on("end", () => {
@@ -132,6 +139,7 @@ describe("web-server Discord inbound channel (real subprocess, real Ed25519-sign
     "defers a /ask command, then PATCHes the real reply once the turn finishes",
     async () => {
       patchRequests = [];
+      llmRequestBodies = [];
       replyText = "hello from the agent";
 
       const { status, body } = await postDiscordInteraction(port, {
@@ -149,6 +157,39 @@ describe("web-server Discord inbound channel (real subprocess, real Ed25519-sign
         method: "PATCH",
         body: { content: "hello from the agent" },
       });
+    },
+    30_000,
+  );
+
+  it(
+    "downloads a real image attachment option and forwards it to the model",
+    async () => {
+      patchRequests = [];
+      llmRequestBodies = [];
+      replyText = "reply about the image";
+
+      const { status } = await postDiscordInteraction(port, {
+        type: 2,
+        channel_id: "555",
+        token: "interaction-token-img",
+        data: {
+          name: "ask",
+          options: [
+            { name: "message", type: 3, value: "what's this?" },
+            { name: "image", type: 11, value: "att1" },
+          ],
+          resolved: { attachments: { att1: { url: `${discordApiBaseUrl}/cdn/pic.png`, content_type: "image/png" } } },
+        },
+      });
+      expect(status).toBe(200);
+
+      await waitFor(() => patchRequests.length > 0, 20_000);
+      // Same channelId/session as the earlier test in this file, so the
+      // request now carries that turn's history too — check the *last*
+      // request's *last* user message, not the first of either.
+      const lastRequest = llmRequestBodies.at(-1);
+      const userMessagePart = [...(lastRequest?.messages ?? [])].reverse().find((m) => m.role === "user");
+      expect(JSON.stringify(userMessagePart?.content)).toContain(Buffer.from("fake png bytes").toString("base64"));
     },
     30_000,
   );
