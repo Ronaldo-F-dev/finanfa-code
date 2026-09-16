@@ -4,6 +4,8 @@ import { parseTelegramUpdate } from "@finanfa/core/src/channels/telegram-event.j
 import { runHeadlessTurn } from "@finanfa/core/src/channels/headless-turn.js";
 import { postTelegramMessage, telegramConfigFromEnv } from "@finanfa/core/src/tools/builtin/send-telegram-message.js";
 import { UpdateDedupTracker } from "@finanfa/core/src/channels/update-dedup.js";
+import { fetchTelegramFile } from "@finanfa/core/src/channels/telegram-file.js";
+import { transcribeAudioBytes, transcribeAudioConfigFromEnv } from "@finanfa/core/src/tools/builtin/transcribe-audio.js";
 
 async function handleTelegramMessage(
   cwd: string,
@@ -40,6 +42,51 @@ async function handleTelegramMessage(
 }
 
 /**
+ * A voice note has no text — download its audio via the Bot API, transcribe
+ * it (needs its own OPENAI_API_KEY, independent of the chat provider, same
+ * as the transcribe_audio tool), then run the turn on the transcript
+ * exactly as if it had been typed. Replies with a real error instead of
+ * silently dropping the message when either prerequisite is missing.
+ */
+async function handleTelegramVoiceMessage(
+  cwd: string,
+  sessionId: string,
+  chatId: string,
+  messageId: number,
+  messageThreadId: number | undefined,
+  fileId: string,
+): Promise<void> {
+  const telegramConfig = telegramConfigFromEnv();
+  const apiBaseUrl = process.env.TELEGRAM_API_BASE_URL;
+  if (!telegramConfig) {
+    console.error(`Telegram channel: got a voice note but TELEGRAM_BOT_TOKEN isn't set, can't download it.`);
+    return;
+  }
+
+  const reply = (text: string) => postTelegramMessage(telegramConfig, { chatId, text, replyToMessageId: messageId, messageThreadId }, apiBaseUrl).catch(() => {});
+
+  const transcribeConfig = transcribeAudioConfigFromEnv();
+  if (!transcribeConfig) {
+    await reply("Voice messages aren't supported yet — set OPENAI_API_KEY to enable transcription.");
+    return;
+  }
+
+  const file = await fetchTelegramFile(telegramConfig, fileId, apiBaseUrl);
+  if (!file.ok) {
+    await reply(`Couldn't download that voice note: ${file.error}`);
+    return;
+  }
+
+  const transcript = await transcribeAudioBytes(transcribeConfig, file.bytes, "voice.oga", file.mimeType, process.env.OPENAI_API_BASE_URL);
+  if (!transcript.ok) {
+    await reply(`Couldn't transcribe that voice note: ${transcript.error}`);
+    return;
+  }
+
+  await handleTelegramMessage(cwd, sessionId, chatId, messageId, messageThreadId, transcript.text);
+}
+
+/**
  * Wires up POST /api/channels/telegram/webhook — Telegram's Bot API
  * webhook. `cwd` is the workspace every inbound Telegram message runs
  * against (the server's own default workspace, same as channels-slack.ts
@@ -66,11 +113,15 @@ export function registerTelegramChannelRoutes(app: Express, cwd: string): void {
     // handle a real message asynchronously (a full agent turn can take
     // far longer than Telegram's own delivery timeout).
     res.status(200).end();
-    if (parsed.kind !== "message") return;
+    if (parsed.kind === "ignored") return;
     if (!dedup.markSeen(parsed.event.updateId)) return; // a redelivery of an update already handled — don't run a second turn or post a duplicate reply
 
-    const { chatId, messageThreadId, messageId, text } = parsed.event;
+    const { chatId, messageThreadId, messageId } = parsed.event;
     const sessionId = `telegram:${chatId}:${messageThreadId ?? "main"}`;
-    void handleTelegramMessage(cwd, sessionId, chatId, messageId, messageThreadId, text);
+    if (parsed.kind === "voice") {
+      void handleTelegramVoiceMessage(cwd, sessionId, chatId, messageId, messageThreadId, parsed.event.fileId);
+      return;
+    }
+    void handleTelegramMessage(cwd, sessionId, chatId, messageId, messageThreadId, parsed.event.text);
   });
 }

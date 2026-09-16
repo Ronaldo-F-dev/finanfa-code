@@ -53,6 +53,11 @@ describe("web-server Telegram inbound channel (real subprocess, real fake LLM + 
   let telegramApiBaseUrl: string;
   let sentMessages: { url: string; body: { chat_id: string; text: string; reply_to_message_id?: number } }[];
 
+  let openaiServer: http.Server;
+  let openaiBaseUrl: string;
+  let transcriptText: string;
+  let openaiRequestBodies: Buffer[];
+
   beforeAll(async () => {
     llmServer = http.createServer((req, res) => {
       let raw = "";
@@ -68,6 +73,16 @@ describe("web-server Telegram inbound channel (real subprocess, real fake LLM + 
     llmBaseUrl = `http://127.0.0.1:${(llmServer.address() as AddressInfo).port}`;
 
     telegramApiServer = http.createServer((req, res) => {
+      if (req.url?.startsWith("/bot123:test-bot-token/getFile")) {
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true, result: { file_path: "voice/file_1.oga" } }));
+        return;
+      }
+      if (req.url === "/file/bot123:test-bot-token/voice/file_1.oga") {
+        res.writeHead(200, { "content-type": "audio/ogg" });
+        res.end(Buffer.from("fake ogg opus voice bytes"));
+        return;
+      }
       let raw = "";
       req.on("data", (c) => (raw += c));
       req.on("end", () => {
@@ -78,6 +93,18 @@ describe("web-server Telegram inbound channel (real subprocess, real fake LLM + 
     });
     await new Promise<void>((resolve) => telegramApiServer.listen(0, "127.0.0.1", resolve));
     telegramApiBaseUrl = `http://127.0.0.1:${(telegramApiServer.address() as AddressInfo).port}`;
+
+    openaiServer = http.createServer((req, res) => {
+      const chunks: Buffer[] = [];
+      req.on("data", (c: Buffer) => chunks.push(c));
+      req.on("end", () => {
+        openaiRequestBodies.push(Buffer.concat(chunks));
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ text: transcriptText }));
+      });
+    });
+    await new Promise<void>((resolve) => openaiServer.listen(0, "127.0.0.1", resolve));
+    openaiBaseUrl = `http://127.0.0.1:${(openaiServer.address() as AddressInfo).port}`;
 
     projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-telegram-project-"));
     homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-telegram-home-"));
@@ -91,6 +118,8 @@ describe("web-server Telegram inbound channel (real subprocess, real fake LLM + 
     process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
     process.env.TELEGRAM_BOT_TOKEN = "123:test-bot-token";
     process.env.TELEGRAM_API_BASE_URL = telegramApiBaseUrl;
+    process.env.OPENAI_API_KEY = "sk-test-key";
+    process.env.OPENAI_API_BASE_URL = openaiBaseUrl;
 
     ({ child, port } = await spawnWebServer(projectDir, homeDir, 4990));
   }, 30_000);
@@ -99,9 +128,10 @@ describe("web-server Telegram inbound channel (real subprocess, real fake LLM + 
     killWebServer(child);
     llmServer.close();
     telegramApiServer.close();
+    openaiServer.close();
     await rm(projectDir, { recursive: true, force: true });
     await rm(homeDir, { recursive: true, force: true });
-    for (const k of ["TELEGRAM_WEBHOOK_SECRET", "TELEGRAM_BOT_TOKEN", "TELEGRAM_API_BASE_URL"]) delete process.env[k];
+    for (const k of ["TELEGRAM_WEBHOOK_SECRET", "TELEGRAM_BOT_TOKEN", "TELEGRAM_API_BASE_URL", "OPENAI_API_KEY", "OPENAI_API_BASE_URL"]) delete process.env[k];
   });
 
   it("rejects a request with an invalid/missing secret token", async () => {
@@ -141,6 +171,27 @@ describe("web-server Telegram inbound channel (real subprocess, real fake LLM + 
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(sentMessages).toHaveLength(0);
   });
+
+  it(
+    "downloads and transcribes a real inbound voice note, then runs a turn on the transcript",
+    async () => {
+      sentMessages = [];
+      openaiRequestBodies = [];
+      transcriptText = "what is the capital of France";
+      replyText = "reply to the transcribed voice note";
+
+      const { status } = await postTelegramUpdate(port, {
+        update_id: 3,
+        message: { message_id: 9, from: { id: 1, is_bot: false }, chat: { id: 555, type: "private" }, voice: { file_id: "AABBCC", file_unique_id: "x", duration: 2 } },
+      });
+      expect(status).toBe(200);
+
+      await waitFor(() => sentMessages.length > 0, 20_000);
+      expect(openaiRequestBodies[0]?.includes("fake ogg opus voice bytes")).toBe(true);
+      expect(sentMessages[0]!.body).toMatchObject({ chat_id: "555", text: "reply to the transcribed voice note", reply_to_message_id: 9 });
+    },
+    30_000,
+  );
 
   it("ignores a non-message update (e.g. an edited_message) — no reply sent", async () => {
     sentMessages = [];
