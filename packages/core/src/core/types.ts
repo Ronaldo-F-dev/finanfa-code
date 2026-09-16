@@ -127,6 +127,18 @@ export interface StreamTurnParams {
   thinkingBudgetTokens?: number;
   /** Streamed thinking-content deltas, mirroring onTextDelta — optional, since only extended thinking (and only some providers) ever calls it. */
   onThinkingDelta?: (text: string) => void;
+  /**
+   * Fires the moment a tool call's *name* is known, well before its
+   * arguments finish streaming (and long before the rest of the turn
+   * does) — a long turn that ends in one or more tool calls previously
+   * looked frozen behind a generic "thinking..." spinner for its entire
+   * duration, since the UI only ever learned about a tool call from
+   * `assistantMessage.toolCalls` after `streamTurn` resolved. Best-effort:
+   * a provider whose wire format never streams a tool call incrementally
+   * (Gemini's function-call parts arrive whole) simply never calls it —
+   * the tool still runs correctly, this is purely an earlier UI signal.
+   */
+  onToolCallStart?: (call: { name: string }) => void;
 }
 
 export interface StreamTurnResult {

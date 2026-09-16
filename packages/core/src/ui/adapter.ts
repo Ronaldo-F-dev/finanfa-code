@@ -67,5 +67,15 @@ export interface UIAdapter {
   writeMedia?(media: { kind: "audio" | "image"; path: string; mimeType: string }): void;
   /** Streamed Anthropic extended-thinking text (see StreamTurnParams.thinkingBudgetTokens) — mirrors writeAssistantDelta, kept separate since thinking is reasoning shown alongside the reply, not the reply itself. Optional: silently unused by an adapter (or a session) that never enables thinking. */
   writeThinkingDelta?(text: string): void;
+  /**
+   * A tool call's name is known mid-stream, before its arguments finish
+   * streaming or the turn itself completes (see StreamTurnParams.
+   * onToolCallStart) — purely an early UI signal ("the model is now
+   * calling X"), distinct from writeToolCall (which fires only once the
+   * whole turn resolves and the real call.id/permission decision are
+   * available). Optional; an adapter that skips it just shows nothing
+   * until writeToolCall, same as before this existed.
+   */
+  writeToolCallStarting?(info: { name: string }): void;
   close(): void;
 }
