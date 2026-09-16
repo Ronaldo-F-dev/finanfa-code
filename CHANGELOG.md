@@ -73,6 +73,13 @@ first tagged release.
   client can now actually correlate a `session/request_permission` with
   the `tool_call`/`tool_call_update` pair it's about.
 
+- `recall_past_sessions` now wraps its results the same way `web_fetch`/
+  `web_search` already do — a recalled excerpt is a past session's own
+  user-typed text (a pasted web page, an email, arbitrary file contents),
+  so it carries the same prompt-injection risk as any other external
+  content re-entering the model's context, doubly so across projects
+  (`scope: "all"`).
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
