@@ -12,6 +12,7 @@
     "build": "tsup"
   },
   "dependencies": {
+    "@agentclientprotocol/sdk": "^1.4.0",
     "@finanfa/core": "*",
     "commander": "^12.1.0",
     "gradient-string": "^3.0.0",
