@@ -99,11 +99,16 @@ describe("web-server: auto-continues past the step-limit guard, mirroring the CL
 
       ws.send(JSON.stringify({ type: "user_message", text: "build a big app" }));
       // 3 runTurn calls happen internally (2 guard cutoffs + 1 real finish),
-      // each ending in its own assistant_end — waiting for the 3rd is the
-      // real signal the whole auto-continue chain has finished, since the
-      // final answer itself streams as assistant_delta events, not a
-      // "system" one.
+      // each ending in its own assistant_end — but that 3rd assistant_end
+      // fires before the 4th (and last) real request, maybeGenerateTitle's
+      // own separate LLM call, has necessarily reached the fake server —
+      // asserting requestCount right after it was a real, if rare, race
+      // (a request in flight would show up as 3, not yet 4). The server
+      // only sends a second session_info (with the now-set title) once
+      // maybeGenerateTitle's request actually completes, so waiting for
+      // that instead is the real, non-racy signal the whole chain is done.
       await waitFor(events, () => events.filter((x) => x.type === "assistant_end").length >= 3);
+      await waitFor(events, (e) => e.type === "session_info" && typeof e.title === "string" && e.title.length > 0);
 
       // 3 real runTurn calls (2 cutoffs + 1 finish) plus 1 maybeGenerateTitle
       // call after the loop, same as the CLI's own --prompt test expects.
