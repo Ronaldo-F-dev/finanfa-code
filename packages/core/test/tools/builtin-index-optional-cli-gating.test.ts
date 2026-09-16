@@ -51,4 +51,11 @@ describe("registerBuiltins: optional external-CLI tools are only registered when
     expect(registry.get("run_docker")).toBeDefined();
     expect(registry.get("run_kubectl")).toBeDefined();
   });
+
+  it("registers read_1password_secret/read_vault_secret only if isCommandAvailable agrees they should — consistent either way", () => {
+    const registry = new ToolRegistry();
+    registerBuiltins(registry);
+    expect(registry.get("read_1password_secret") !== undefined).toBe(isCommandAvailable("op"));
+    expect(registry.get("read_vault_secret") !== undefined).toBe(isCommandAvailable("vault"));
+  });
 });
