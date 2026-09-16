@@ -80,6 +80,11 @@ first tagged release.
   content re-entering the model's context, doubly so across projects
   (`scope: "all"`).
 
+- The Telegram inbound channel now dedups on Telegram's own `update_id`
+  (bounded in-memory tracker) — a webhook redelivery (a slow turn missing
+  Telegram's own delivery timeout, a restart replaying queued updates) no
+  longer runs a second full agent turn or posts a duplicate reply.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
