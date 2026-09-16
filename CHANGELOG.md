@@ -54,6 +54,13 @@ first tagged release.
 
 ### Changed
 
+- Session transcripts are now scrubbed of secret-shaped/denylisted values
+  (this project's own configured provider API keys, channel signing
+  secrets/bot tokens, and generic secret patterns like AWS/Stripe/GitHub
+  keys) before `persist()` writes them to disk — a tool's raw output (a
+  1Password/Vault secret read, an error message echoing a bad token) no
+  longer lands verbatim in a session file, its resume path, or the FTS5/
+  embeddings search index (both re-read the same persisted file).
 - Outbound Slack/Telegram/Discord message sends now retry on a network
   failure, a 429 (honoring the platform's own rate-limit wait), or a
   5xx, instead of failing permanently on the first transient error —
