@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { loadConfig, saveGlobalConfig, globalConfigPath } from "../../src/core/config.js";
+import { loadConfig, saveGlobalConfig, globalConfigPath, thinkingBudgetTokensFromConfig } from "../../src/core/config.js";
 
 describe("core/config", () => {
   let homeDir: string;
@@ -75,5 +75,21 @@ describe("core/config", () => {
     } finally {
       errorSpy.mockRestore();
     }
+  });
+});
+
+describe("thinkingBudgetTokensFromConfig", () => {
+  it("returns undefined when unset", () => {
+    expect(thinkingBudgetTokensFromConfig({})).toBeUndefined();
+  });
+
+  it("parses a plain numeric string", () => {
+    expect(thinkingBudgetTokensFromConfig({ thinkingBudgetTokens: "4096" })).toBe(4096);
+  });
+
+  it("returns undefined for a non-numeric or non-positive value, instead of NaN/0", () => {
+    expect(thinkingBudgetTokensFromConfig({ thinkingBudgetTokens: "not a number" })).toBeUndefined();
+    expect(thinkingBudgetTokensFromConfig({ thinkingBudgetTokens: "0" })).toBeUndefined();
+    expect(thinkingBudgetTokensFromConfig({ thinkingBudgetTokens: "-5" })).toBeUndefined();
   });
 });

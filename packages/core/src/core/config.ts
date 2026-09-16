@@ -68,6 +68,13 @@ export interface FinanfaConfig {
   sandbox?: SandboxConfig;
 }
 
+/** Parses config.thinkingBudgetTokens (a plain string, like every other /config-set value) into the number session.thinkingBudgetTokens actually wants — undefined for unset/non-positive/non-numeric, never NaN or 0, so callers can assign it straight through without their own validation. */
+export function thinkingBudgetTokensFromConfig(config: FinanfaConfig): number | undefined {
+  if (!config.thinkingBudgetTokens) return undefined;
+  const parsed = Number(config.thinkingBudgetTokens);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
 // Computed lazily (not memoized as a module constant) so it reflects the
 // current $HOME/os.homedir() at call time rather than whatever it was when
 // this module first loaded — matters for tests that override $HOME.
