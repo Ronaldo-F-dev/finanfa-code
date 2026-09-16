@@ -1,4 +1,5 @@
 import type { ToolDefinition } from "../../core/types.js";
+import { fetchWithRetry } from "../../channels/retry-fetch.js";
 
 // A real connector tool, same shape as send-slack-message.ts — posts to
 // Telegram via the real Bot API (sendMessage). The bot token lives in the
@@ -22,6 +23,7 @@ interface TelegramApiResponse {
   ok: boolean;
   description?: string;
   result?: { message_id: number };
+  parameters?: { retry_after?: number };
 }
 
 export type PostTelegramMessageResult = { ok: true; messageId?: number } | { ok: false; error: string };
@@ -37,29 +39,46 @@ export async function postTelegramMessage(
   apiBaseUrl = "https://api.telegram.org",
 ): Promise<PostTelegramMessageResult> {
   let response: Response;
+  let bodyText: string;
   try {
-    response = await fetch(`${apiBaseUrl}/bot${config.botToken}/sendMessage`, {
-      method: "POST",
-      headers: { "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({
-        chat_id: input.chatId,
-        text: input.text,
-        reply_to_message_id: input.replyToMessageId,
-        message_thread_id: input.messageThreadId,
-      }),
-    });
+    // Telegram reports its rate-limit wait inside the JSON error body
+    // (parameters.retry_after, in seconds), not a header — read there
+    // instead of guessing at a generic backoff delay.
+    ({ response, bodyText } = await fetchWithRetry(
+      `${apiBaseUrl}/bot${config.botToken}/sendMessage`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json; charset=utf-8" },
+        body: JSON.stringify({
+          chat_id: input.chatId,
+          text: input.text,
+          reply_to_message_id: input.replyToMessageId,
+          message_thread_id: input.messageThreadId,
+        }),
+      },
+      { retryAfterMs: (_response, body) => parseRetryAfterMs(body) },
+    ));
   } catch (err) {
     return { ok: false, error: `Failed to reach Telegram: ${err instanceof Error ? err.message : String(err)}` };
   }
 
   let data: TelegramApiResponse;
   try {
-    data = (await response.json()) as TelegramApiResponse;
+    data = JSON.parse(bodyText) as TelegramApiResponse;
   } catch {
     return { ok: false, error: `Telegram returned an unparseable response (HTTP ${response.status}).` };
   }
 
   return data.ok ? { ok: true, messageId: data.result?.message_id } : { ok: false, error: data.description ?? "unknown error" };
+}
+
+function parseRetryAfterMs(bodyText: string): number | undefined {
+  try {
+    const seconds = (JSON.parse(bodyText) as TelegramApiResponse).parameters?.retry_after;
+    return typeof seconds === "number" && seconds > 0 ? seconds * 1000 : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export function createSendTelegramMessageTool(config: TelegramConfig | undefined, apiBaseUrl = "https://api.telegram.org"): ToolDefinition<SendTelegramMessageInput> {

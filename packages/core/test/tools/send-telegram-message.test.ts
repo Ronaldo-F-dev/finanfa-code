@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { createSendTelegramMessageTool, telegramConfigFromEnv } from "../../src/tools/builtin/send-telegram-message.js";
+import { createSendTelegramMessageTool, telegramConfigFromEnv, postTelegramMessage } from "../../src/tools/builtin/send-telegram-message.js";
 
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
 
@@ -63,6 +63,41 @@ describe("send_telegram_message tool (real local HTTP server speaking Telegram's
 
   it("has 'ask' risk level", () => {
     expect(createSendTelegramMessageTool({ botToken: "x" }, apiBaseUrl).riskLevel).toBe("ask");
+  });
+});
+
+describe("postTelegramMessage retry behavior (real local HTTP server)", () => {
+  let server: http.Server;
+  let apiBaseUrl: string;
+  let requestCount: number;
+
+  beforeAll(async () => {
+    server = http.createServer((req, res) => {
+      req.on("data", () => {});
+      req.on("end", () => {
+        requestCount++;
+        if (requestCount === 1) {
+          res.writeHead(429, { "content-type": "application/json" });
+          res.end(JSON.stringify({ ok: false, error_code: 429, description: "Too Many Requests: retry after 0", parameters: { retry_after: 0 } }));
+          return;
+        }
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true, result: { message_id: 1 } }));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    apiBaseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
+  it("retries a real 429 (honoring parameters.retry_after) and succeeds on the next attempt", async () => {
+    requestCount = 0;
+    const result = await postTelegramMessage({ botToken: "123:test" }, { chatId: "1", text: "hi" }, apiBaseUrl);
+    expect(result).toEqual({ ok: true, messageId: 1 });
+    expect(requestCount).toBe(2);
   });
 });
 
