@@ -120,6 +120,7 @@ Serves the same web app on `http://localhost:4600`. `./workspace` on the host is
 | `-p, --prompt <text>` | Run one prompt non-interactively and exit — no REPL. Scripts/cron, or a one-shot "build me X" from a shell (its `--cwd` is created if it doesn't exist yet) |
 | `--cwd <path>` | Project directory to operate in (defaults to the current directory) |
 | `--max-turns <n>` | With `--prompt`: if a turn is cut off by the step-limit guard (a large task, not a stuck loop), automatically send "continue" up to this many additional times before giving up. Default `5`; `1` disables auto-continue |
+| `--acp` | Run as an [Agent Client Protocol](https://agentclientprotocol.com/) agent over stdio, for an ACP-aware editor (e.g. Zed) to drive directly — see [Editor integration (ACP)](#editor-integration-acp) |
 
 Non-interactive one-shot example — builds a whole app in one command, auto-continuing past the per-turn step limit as needed:
 
@@ -268,6 +269,30 @@ Then, one-time setup in the Discord Developer Portal:
      -d '[{"name":"ask","description":"Ask the agent something","options":[{"name":"message","description":"Your message","type":3,"required":true}]}]'
    ```
 3. Invite the bot to a server and run `/ask message:<your question>` in any channel — each channel maps to its own persistent session. Discord shows "thinking..." immediately (a turn takes longer than its 3-second reply window), then edits in the real answer once it's ready.
+
+## Editor integration (ACP)
+
+`finanfa --acp` runs as an [Agent Client Protocol](https://agentclientprotocol.com/) agent over stdio — the same tools/permissions/hooks as every other entry point, driven directly from an ACP-aware editor instead of a terminal or browser.
+
+### Zed
+
+Add a custom agent server in Zed's settings (`~/.config/zed/settings.json`, or via the Settings UI):
+
+```json
+{
+  "agent_servers": {
+    "finanfa-code": {
+      "type": "custom",
+      "command": "finanfa",
+      "args": ["--acp"]
+    }
+  }
+}
+```
+
+Open Zed's Agent panel and select "finanfa-code" to start a thread. Each Zed thread gets its own session; the working directory Zed reports for that thread is used as-is.
+
+Scope of this first pass: the core lifecycle (init, session, prompt streaming, tool calls, permission requests, cancel) is real and tested — richer ACP surfaces (session modes, per-session MCP servers, `loadSession` replay, client filesystem/terminal methods) aren't implemented yet.
 
 ## Security
 

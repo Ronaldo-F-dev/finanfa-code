@@ -42,6 +42,12 @@ first tagged release.
   existing full-text search — finds a conceptually related past session
   with no shared keywords. Content-hash-keyed embeddings cache in the
   same SQLite database as the FTS5 index; needs `OPENAI_API_KEY`.
+- `finanfa --acp`: a real [Agent Client Protocol](https://agentclientprotocol.com/)
+  agent over stdio, so an ACP-aware editor (Zed) can drive this project's
+  agent loop directly — same tools/permissions/hooks/trust gate as every
+  other entry point. Verified against the official ACP SDK's own client.
+  `ToolCallAnnouncement` gained a `toolCallId` field and `UIAdapter` a new
+  optional `writeToolResult` hook to support it.
 
 ### Fixed
 
