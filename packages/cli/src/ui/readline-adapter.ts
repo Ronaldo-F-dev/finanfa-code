@@ -141,6 +141,20 @@ export function createReadlineAdapter(): UIAdapter {
       draw(); // show a frame immediately instead of waiting for the first interval tick
       spinnerTimer = setInterval(draw, SPINNER_INTERVAL_MS);
     },
+    writeToolCallStarting(info: { name: string }): void {
+      // Only meaningful while the "thinking" spinner from setBusy(true, ...)
+      // is already up — updates its label so a long turn that's about to
+      // call a tool doesn't sit behind a generic spinner for its whole
+      // duration; a no-op once the spinner's been cleared (writeToolCall
+      // already fired, or the turn already ended).
+      if (!spinnerTimer) return;
+      clearSpinner();
+      const draw = (): void => {
+        stdout.write(`\r\x1b[1;36m${SPINNER_FRAMES[spinnerFrame++ % SPINNER_FRAMES.length]} calling ${info.name}...\x1b[0m`);
+      };
+      draw();
+      spinnerTimer = setInterval(draw, SPINNER_INTERVAL_MS);
+    },
     async askUser(prompt: string): Promise<string> {
       flushAssistantBuffer();
       clearSpinner();

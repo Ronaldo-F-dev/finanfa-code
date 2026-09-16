@@ -82,6 +82,28 @@ describe("readline UIAdapter busy indicator", () => {
     expect(writeSpy).not.toHaveBeenCalled();
   });
 
+  it("writeToolCallStarting updates the spinner label while it's already running", () => {
+    const ui = createReadlineAdapter();
+    ui.setBusy(true, "thinking");
+    writeSpy.mockClear();
+
+    ui.writeToolCallStarting?.({ name: "write_file" });
+
+    const written = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
+    expect(written).toContain("calling write_file...");
+  });
+
+  it("writeToolCallStarting is a no-op once the spinner has already been cleared", () => {
+    const ui = createReadlineAdapter();
+    ui.setBusy(true, "thinking");
+    ui.setBusy(false);
+    writeSpy.mockClear();
+
+    ui.writeToolCallStarting?.({ name: "write_file" });
+
+    expect(writeSpy).not.toHaveBeenCalled();
+  });
+
   it("pauses readline as soon as the interface is created (idle by default)", () => {
     pauseMock.mockClear();
     createReadlineAdapter();
