@@ -244,7 +244,9 @@ export async function main(argv: string[]): Promise<void> {
 
   const commands = new CommandRegistry();
   registerBuiltinCommands(commands);
-  const plugins = await loadPlugins(cwd, tools, commands);
+  // Plugins are arbitrary imported JS, not inert config like hooks —
+  // gated on the same folder-trust decision as settings.json/hooks above.
+  const plugins = trusted ? await loadPlugins(cwd, tools, commands) : [];
   // Custom commands are listed for autocomplete alongside builtins, but
   // never override one of the same name — a builtin's fixed, code-defined
   // behavior (like /cost or /clear) always wins over a same-named project

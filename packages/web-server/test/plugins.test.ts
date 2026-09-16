@@ -86,7 +86,7 @@ describe("web-server plugin loading (real subprocess, real WebSocket)", () => {
     await rm(homeDir, { recursive: true, force: true });
   });
 
-  it("registers a project's plugin tools, reflected in session_info's toolCount", async () => {
+  it("registers a project's plugin tools, reflected in session_info's toolCount, once the folder is trusted", async () => {
     const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
     const events: WsEvent[] = [];
     ws.on("message", (data) => events.push(JSON.parse(data.toString())));
@@ -94,6 +94,13 @@ describe("web-server plugin loading (real subprocess, real WebSocket)", () => {
       ws.on("open", resolve);
       ws.on("error", reject);
     });
+
+    // A plugins directory is one of the things the folder-trust gate
+    // covers (see core/trust-gate.ts) — same as an untrusted
+    // .finanfa-code/settings.json, the plugin must not load before the
+    // user actually agrees to trust this folder.
+    const trustAsk = await waitFor(events, (e) => e.type === "ask" && e.kind === "confirm");
+    ws.send(JSON.stringify({ type: "permission_response", requestId: trustAsk.requestId, answer: "y" }));
 
     const info = await waitFor(events, (e) => e.type === "session_info");
     expect(info.toolCount).toBe(baselineToolCount + 1);

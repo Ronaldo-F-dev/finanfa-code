@@ -40,11 +40,20 @@ describe("core/trust-gate (real filesystem, real project directories)", () => {
     await rm(projectDir, { recursive: true, force: true });
   });
 
-  it("never prompts when the project has no .finanfa-code/settings.json", async () => {
+  it("never prompts when the project has no .finanfa-code/settings.json or plugins directory", async () => {
     const ui = makeUi("y");
     const trusted = await resolveTrust(projectDir, ui);
     expect(trusted).toBe(true);
     expect(ui.askUser).not.toHaveBeenCalled();
+  });
+
+  it("prompts when the project has a plugins directory, even with no settings.json", async () => {
+    await mkdir(path.join(projectDir, ".finanfa-code", "plugins", "greet"), { recursive: true });
+
+    const ui = makeUi("n");
+    const trusted = await resolveTrust(projectDir, ui);
+    expect(trusted).toBe(false);
+    expect(ui.askUser).toHaveBeenCalledTimes(1);
   });
 
   it("prompts and trusts (persisting it) when the user answers yes", async () => {
