@@ -119,6 +119,19 @@ first tagged release.
   `writeThinkingDelta` hook. Undefined/unset budget is unchanged behavior
   — every existing session is unaffected until explicitly configured.
 
+- A new `cohere` LLM provider — Cohere's Chat API v2, real streaming
+  (text and tool-call deltas), system prompt, and tool definitions, via
+  the official `cohere-ai` SDK. See the README's Setup section.
+- `list_available_models` builtin tool: lists the real models an
+  `amazon-bedrock` account can call (`ListFoundationModels` +
+  `ListInferenceProfiles`), so picking a model id doesn't require
+  digging through the AWS console first. Every other provider here
+  (Anthropic, Cohere, Gemini, Azure OpenAI, an OpenAI-compatible
+  endpoint, and Google Vertex AI — confirmed against `@google-cloud/
+  aiplatform`'s own `ModelGardenServiceClient`, which has no listing
+  method for a publisher's models) has no equivalent live discovery API
+  to query, and the tool says so plainly rather than guessing.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
