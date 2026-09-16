@@ -95,6 +95,15 @@ describe("/config command", () => {
     expect(await loadConfig(projectDir)).toEqual({ model: "claude-opus-5", visionModel: "claude-sonnet-5" });
   });
 
+  it("/config set thinkingBudgetTokens persists it as a plain (unmasked) value", async () => {
+    await commands.get("config")!(baseCtx("set thinkingBudgetTokens 4096"));
+
+    expect(await loadConfig(projectDir)).toEqual({ thinkingBudgetTokens: "4096" });
+    const showCtx = baseCtx("show");
+    await commands.get("config")!(showCtx);
+    expect(showCtx.ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("thinkingBudgetTokens: 4096"));
+  });
+
   it("masks the visionApiKey value the same way as apiKey", async () => {
     await commands.get("config")!(baseCtx("set visionApiKey sk-ant-1234567890abcdef"));
 
