@@ -1,4 +1,5 @@
-import { describe, expect, it, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { GoogleAuth } from "google-auth-library";
 import { selectProvider } from "../src/app.js";
 import { GoogleVertexProvider } from "../src/providers/google-vertex-provider.js";
 
@@ -9,10 +10,17 @@ const ENV_KEYS = ["FINANFA_PROVIDER", "FINANFA_MODEL", "FINANFA_VERTEX_REGION", 
 describe("selectProvider: provider 'google-vertex'", () => {
   beforeEach(() => {
     for (const k of ENV_KEYS) delete process.env[k];
+    // AnthropicVertex's constructor eagerly calls this._auth.getClient() —
+    // real Application Default Credentials resolution, which rejects (as
+    // an *unhandled* rejection, since the SDK never awaits it until an
+    // actual request) on any machine/CI runner with no GCP credentials
+    // configured. Stubbed so construction alone never touches the network.
+    vi.spyOn(GoogleAuth.prototype, "getClient").mockResolvedValue({} as never);
   });
 
   afterEach(() => {
     for (const k of ENV_KEYS) delete process.env[k];
+    vi.restoreAllMocks();
   });
 
   it("selects a real GoogleVertexProvider instance, using the Vertex model id as defaultModel", () => {

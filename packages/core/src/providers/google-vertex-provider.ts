@@ -1,4 +1,5 @@
 import { AnthropicVertex } from "@anthropic-ai/vertex-sdk";
+import type { AuthClient } from "google-auth-library";
 import type { LlmProvider, StreamTurnParams, StreamTurnResult } from "../core/types.js";
 import { streamAnthropicTurn } from "./anthropic-provider.js";
 
@@ -16,13 +17,20 @@ export interface GoogleVertexProviderOptions {
    * credentials themselves carry (e.g. a service account's own project).
    */
   projectId?: string;
+  /**
+   * Bypasses Application Default Credentials with an already-authenticated
+   * client — for tests (avoids a real, eager ADC network lookup the SDK
+   * kicks off in its constructor) or an advanced auth setup (e.g.
+   * impersonation). Leave unset for the normal ADC path.
+   */
+  authClient?: AuthClient;
 }
 
 export class GoogleVertexProvider implements LlmProvider {
   private readonly client: AnthropicVertex;
 
   constructor(opts: GoogleVertexProviderOptions = {}) {
-    this.client = new AnthropicVertex({ region: opts.region, projectId: opts.projectId });
+    this.client = new AnthropicVertex({ region: opts.region, projectId: opts.projectId, authClient: opts.authClient });
   }
 
   async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {
