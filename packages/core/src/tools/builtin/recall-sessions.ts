@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "../../core/types.js";
 import { searchSessionIndex, searchSessionIndexBySimilarity, type SessionSearchHit } from "../../core/session-search-index.js";
 import type { EmbeddingsConfig } from "../../core/embeddings.js";
+import { wrapUntrustedContent } from "../../core/untrusted-content.js";
 
 // Cross-session recall, inspired by Hermes Agent's own "searches its own
 // past conversations" feature: this project already persists every
@@ -72,6 +73,18 @@ function formatResults(sessions: GroupedSession[], scope: "project" | "all"): st
   return lines.join("\n").trimEnd();
 }
 
+// A recalled excerpt is a past *user's* own message text, verbatim — the
+// same injection risk as a fetched web page (see untrusted-content.ts):
+// anything ever pasted or typed into an earlier session (a copied web
+// page, an email, a file's contents) resurfaces here as this tool's
+// output and would otherwise read as a fresh instruction. Doubly so for
+// scope "all", which can recall text from a session belonging to an
+// entirely different project than the one currently running.
+function wrapRecalledContent(sessions: GroupedSession[], scope: "project" | "all"): string {
+  const formatted = formatResults(sessions, scope);
+  return sessions.length === 0 ? formatted : wrapUntrustedContent("recall_past_sessions", formatted);
+}
+
 interface RecallSessionsInput {
   query: string;
   scope?: "project" | "all";
@@ -122,12 +135,12 @@ export function createRecallSessionsTool(embeddingsConfig: EmbeddingsConfig | un
           embeddingsApiBaseUrl,
         );
         const sessions = groupBySession(hits, terms, maxResults);
-        return { content: formatResults(sessions, scope), isError: false };
+        return { content: wrapRecalledContent(sessions, scope), isError: false };
       }
 
       const hits = await searchSessionIndex(input.query, scope === "project" ? ctx.cwd : undefined, maxResults);
       const sessions = groupBySession(hits, terms, maxResults);
-      return { content: formatResults(sessions, scope), isError: false };
+      return { content: wrapRecalledContent(sessions, scope), isError: false };
     },
   };
 }
