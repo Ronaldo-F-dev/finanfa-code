@@ -48,6 +48,8 @@ import { PRICING } from "@finanfa/core/src/core/pricing.js";
 import { createWebUiAdapter } from "./web-ui-adapter.js";
 import { resolveAllowedPath } from "@finanfa/core/src/tools/builtin/path-guard.js";
 import { initTracing } from "@finanfa/core/src/observability/tracing.js";
+import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
+import { CommandRegistry } from "@finanfa/core/src/commands/registry.js";
 import { mkdir, writeFile, readdir, readFile, rm, stat } from "node:fs/promises";
 import JSZip from "jszip";
 import {
@@ -644,6 +646,11 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
 
     const tools = new ToolRegistry();
     registerBuiltins(tools, { sandbox: config.sandbox });
+    // The web UI has no slash-command surface yet, so a plugin's
+    // registerCommands (if any) is a no-op here — only registerTools takes
+    // effect, same as it would with any other tool-provider.
+    const plugins = await loadPlugins(CWD, tools, new CommandRegistry());
+    if (plugins.length > 0) console.log(`[${CWD}] Plugins: ${plugins.join(", ")}`);
 
     const skills = await loadSkills(CWD);
     if (skills.length > 0) tools.register(createReadSkillTool(skills));
