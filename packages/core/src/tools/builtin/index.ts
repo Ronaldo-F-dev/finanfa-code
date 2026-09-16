@@ -28,6 +28,7 @@ import { createSchedulerTools } from "./scheduler.js";
 import { createSendEmailTool, emailConfigFromEnv } from "./send-email.js";
 import { createSendSlackMessageTool, slackConfigFromEnv } from "./send-slack-message.js";
 import { createSendTelegramMessageTool, telegramConfigFromEnv } from "./send-telegram-message.js";
+import { createSendDiscordMessageTool, discordConfigFromEnv } from "./send-discord-message.js";
 import { mqttPublishTool, mqttSubscribeTool } from "./mqtt.js";
 import { coapRequestTool } from "./coap.js";
 import { createGpioTools } from "./gpio.js";
@@ -147,6 +148,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(createSendEmailTool(emailConfigFromEnv()));
   registry.register(createSendSlackMessageTool(slackConfigFromEnv()));
   registry.register(createSendTelegramMessageTool(telegramConfigFromEnv()));
+  registry.register(createSendDiscordMessageTool(discordConfigFromEnv()));
   registry.register(grepTool);
   registry.register(createBashTool(opts?.sandbox));
   registry.register(webSearchTool);
