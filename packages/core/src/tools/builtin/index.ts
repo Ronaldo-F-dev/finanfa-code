@@ -33,6 +33,7 @@ import { createSendSlackMessageTool, slackConfigFromEnv } from "./send-slack-mes
 import { createSendTelegramMessageTool, telegramConfigFromEnv } from "./send-telegram-message.js";
 import { createSendDiscordMessageTool, discordConfigFromEnv } from "./send-discord-message.js";
 import { createTranscribeAudioTool, transcribeAudioConfigFromEnv } from "./transcribe-audio.js";
+import { listAvailableModelsTool } from "./list-available-models.js";
 import { mqttPublishTool, mqttSubscribeTool } from "./mqtt.js";
 import { coapRequestTool } from "./coap.js";
 import { createGpioTools } from "./gpio.js";
@@ -156,6 +157,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(createSendTelegramMessageTool(telegramConfigFromEnv()));
   registry.register(createSendDiscordMessageTool(discordConfigFromEnv()));
   registry.register(createTranscribeAudioTool(transcribeAudioConfigFromEnv()));
+  registry.register(listAvailableModelsTool);
   registry.register(grepTool);
   registry.register(createBashTool(opts?.sandbox));
   registry.register(webSearchTool);
