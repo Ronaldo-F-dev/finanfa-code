@@ -128,6 +128,20 @@ describe("web-server Telegram inbound channel (real subprocess, real fake LLM + 
     30_000,
   );
 
+  it("ignores a redelivery of the same update_id — no second turn, no duplicate reply", async () => {
+    sentMessages = [];
+    replyText = "second reply that should never be sent";
+
+    const { status } = await postTelegramUpdate(port, {
+      update_id: 1, // same update_id already handled by the earlier test in this file
+      message: { message_id: 7, from: { id: 1, is_bot: false }, chat: { id: 555, type: "private" }, text: "hi there" },
+    });
+    expect(status).toBe(200);
+
+    await new Promise((resolve) => setTimeout(resolve, 300));
+    expect(sentMessages).toHaveLength(0);
+  });
+
   it("ignores a non-message update (e.g. an edited_message) — no reply sent", async () => {
     sentMessages = [];
     const { status } = await postTelegramUpdate(port, {

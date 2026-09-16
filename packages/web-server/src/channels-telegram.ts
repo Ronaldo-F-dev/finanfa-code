@@ -3,6 +3,7 @@ import { verifyTelegramSecret } from "@finanfa/core/src/channels/telegram-secret
 import { parseTelegramUpdate } from "@finanfa/core/src/channels/telegram-event.js";
 import { runHeadlessTurn } from "@finanfa/core/src/channels/headless-turn.js";
 import { postTelegramMessage, telegramConfigFromEnv } from "@finanfa/core/src/tools/builtin/send-telegram-message.js";
+import { UpdateDedupTracker } from "@finanfa/core/src/channels/update-dedup.js";
 
 async function handleTelegramMessage(
   cwd: string,
@@ -46,6 +47,8 @@ async function handleTelegramMessage(
  * itself) unless TELEGRAM_WEBHOOK_SECRET is configured.
  */
 export function registerTelegramChannelRoutes(app: Express, cwd: string): void {
+  const dedup = new UpdateDedupTracker();
+
   app.post("/api/channels/telegram/webhook", (req, res) => {
     const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
     if (!secret) {
@@ -64,6 +67,7 @@ export function registerTelegramChannelRoutes(app: Express, cwd: string): void {
     // far longer than Telegram's own delivery timeout).
     res.status(200).end();
     if (parsed.kind !== "message") return;
+    if (!dedup.markSeen(parsed.event.updateId)) return; // a redelivery of an update already handled — don't run a second turn or post a duplicate reply
 
     const { chatId, messageThreadId, messageId, text } = parsed.event;
     const sessionId = `telegram:${chatId}:${messageThreadId ?? "main"}`;
