@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { createSendSlackMessageTool, slackConfigFromEnv } from "../../src/tools/builtin/send-slack-message.js";
+import { createSendSlackMessageTool, slackConfigFromEnv, postSlackMessage } from "../../src/tools/builtin/send-slack-message.js";
 
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
 
@@ -63,6 +63,41 @@ describe("send_slack_message tool (real local HTTP server speaking Slack's chat.
 
   it("has 'ask' risk level", () => {
     expect(createSendSlackMessageTool({ botToken: "x" }, apiBaseUrl).riskLevel).toBe("ask");
+  });
+});
+
+describe("postSlackMessage retry behavior (real local HTTP server)", () => {
+  let server: http.Server;
+  let apiBaseUrl: string;
+  let requestCount: number;
+
+  beforeAll(async () => {
+    server = http.createServer((req, res) => {
+      req.on("data", () => {});
+      req.on("end", () => {
+        requestCount++;
+        if (requestCount === 1) {
+          res.writeHead(429, { "content-type": "application/json", "retry-after": "0" });
+          res.end(JSON.stringify({ ok: false, error: "ratelimited" }));
+          return;
+        }
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true, ts: "1" }));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    apiBaseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
+  it("retries a real 429 (honoring the Retry-After header) and succeeds on the next attempt", async () => {
+    requestCount = 0;
+    const result = await postSlackMessage({ botToken: "xoxb-token" }, { channel: "#general", text: "hi" }, apiBaseUrl);
+    expect(result).toEqual({ ok: true, ts: "1" });
+    expect(requestCount).toBe(2);
   });
 });
 

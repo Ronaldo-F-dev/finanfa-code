@@ -1,4 +1,5 @@
 import type { ToolDefinition } from "../../core/types.js";
+import { fetchWithRetry } from "../../channels/retry-fetch.js";
 
 // A real connector tool, inspired by n8n/OpenHands' third-party
 // integrations — posts to Slack via the real Web API (chat.postMessage),
@@ -43,24 +44,37 @@ export async function postSlackMessage(
   apiBaseUrl = "https://slack.com/api",
 ): Promise<PostSlackMessageResult> {
   let response: Response;
+  let bodyText: string;
   try {
-    response = await fetch(`${apiBaseUrl}/chat.postMessage`, {
-      method: "POST",
-      headers: { Authorization: `Bearer ${config.botToken}`, "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ channel: input.channel, text: input.text, thread_ts: input.threadTs }),
-    });
+    // Slack reports a real HTTP 429 (not just ok:false) with a plain
+    // integer Retry-After header (seconds) when actually rate-limited —
+    // honored here instead of guessing at a generic backoff delay.
+    ({ response, bodyText } = await fetchWithRetry(
+      `${apiBaseUrl}/chat.postMessage`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bearer ${config.botToken}`, "content-type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ channel: input.channel, text: input.text, thread_ts: input.threadTs }),
+      },
+      { retryAfterMs: (response) => parseRetryAfterHeaderMs(response) },
+    ));
   } catch (err) {
     return { ok: false, error: `Failed to reach Slack: ${err instanceof Error ? err.message : String(err)}` };
   }
 
   let data: SlackApiResponse;
   try {
-    data = (await response.json()) as SlackApiResponse;
+    data = JSON.parse(bodyText) as SlackApiResponse;
   } catch {
     return { ok: false, error: `Slack returned an unparseable response (HTTP ${response.status}).` };
   }
 
   return data.ok ? { ok: true, ts: data.ts } : { ok: false, error: data.error ?? "unknown error" };
+}
+
+function parseRetryAfterHeaderMs(response: Response): number | undefined {
+  const seconds = Number(response.headers.get("retry-after"));
+  return Number.isFinite(seconds) && seconds > 0 ? seconds * 1000 : undefined;
 }
 
 export function createSendSlackMessageTool(config: SlackConfig | undefined, apiBaseUrl = "https://slack.com/api"): ToolDefinition<SendSlackMessageInput> {
