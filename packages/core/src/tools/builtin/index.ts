@@ -22,7 +22,8 @@ import { createMydevopsTool } from "./mydevops.js";
 import { createFirmwareFlashTools } from "./firmware-flash.js";
 import { createEmbeddedDevTools } from "./embedded-dev.js";
 import { createContainerTools } from "./containers.js";
-import { recallSessionsTool } from "./recall-sessions.js";
+import { createRecallSessionsTool } from "./recall-sessions.js";
+import { embeddingsConfigFromEnv } from "../../core/embeddings.js";
 import { readTracesTool } from "./read-traces.js";
 import { createSchedulerTools } from "./scheduler.js";
 import { createSendEmailTool, emailConfigFromEnv } from "./send-email.js";
@@ -143,7 +144,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(mqttSubscribeTool);
   registry.register(coapRequestTool);
   for (const tool of createGpioTools(new GpioManager())) registry.register(tool);
-  registry.register(recallSessionsTool);
+  registry.register(createRecallSessionsTool(embeddingsConfigFromEnv()));
   registry.register(readTracesTool);
   for (const tool of createSchedulerTools()) registry.register(tool);
   registry.register(createSendEmailTool(emailConfigFromEnv()));

@@ -1,5 +1,6 @@
 import type { ToolDefinition } from "../../core/types.js";
-import { searchSessionIndex, type SessionSearchHit } from "../../core/session-search-index.js";
+import { searchSessionIndex, searchSessionIndexBySimilarity, type SessionSearchHit } from "../../core/session-search-index.js";
+import type { EmbeddingsConfig } from "../../core/embeddings.js";
 
 // Cross-session recall, inspired by Hermes Agent's own "searches its own
 // past conversations" feature: this project already persists every
@@ -75,33 +76,58 @@ interface RecallSessionsInput {
   query: string;
   scope?: "project" | "all";
   maxResults?: number;
+  /** "keyword" (default): real FTS5 term matching. "semantic": embedding-based similarity — finds a conceptually related match with no shared keywords, at the cost of a real OpenAI embeddings call; only available when OPENAI_API_KEY is configured. */
+  mode?: "keyword" | "semantic";
 }
 
-export const recallSessionsTool: ToolDefinition<RecallSessionsInput> = {
-  name: "recall_past_sessions",
-  description:
-    "Search past conversation sessions (this project's, or across all projects) for keywords, to recall what " +
-    "was discussed or decided earlier without the user having to remember an exact session id. Searches real " +
-    "user/assistant message text from persisted session history via a real full-text index, returning " +
-    "matching sessions with a short excerpt around the match, ranked by relevance. Use /resume <session id> " +
-    "to actually reopen a matched session.",
-  riskLevel: "safe",
-  inputSchema: {
-    type: "object",
-    properties: {
-      query: { type: "string", description: "Keywords to search for (space-separated; matches any of the terms, ranked by relevance)" },
-      scope: { type: "string", enum: ["project", "all"], description: "'project' (default) searches only this project's sessions; 'all' searches every project" },
-      maxResults: { type: "number", description: "Maximum number of sessions to return (default 5)" },
+export function createRecallSessionsTool(embeddingsConfig: EmbeddingsConfig | undefined, embeddingsApiBaseUrl?: string): ToolDefinition<RecallSessionsInput> {
+  return {
+    name: "recall_past_sessions",
+    description:
+      "Search past conversation sessions (this project's, or across all projects) to recall what was discussed " +
+      "or decided earlier without the user having to remember an exact session id. Returns matching sessions " +
+      "with a short excerpt around the match, ranked by relevance. Use /resume <session id> to actually reopen " +
+      'a matched session. mode "keyword" (default) does real full-text term matching. mode "semantic" finds a ' +
+      "conceptually related match even with no shared keywords (e.g. \"login\" finding a message about JWT " +
+      "tokens) via a real OpenAI embeddings call — needs OPENAI_API_KEY configured, and costs a real API call " +
+      "each time, so prefer keyword mode unless it's genuinely come up empty on a query you're confident is in there.",
+    riskLevel: "safe",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Keywords (keyword mode) or a natural-language description (semantic mode) to search for" },
+        scope: { type: "string", enum: ["project", "all"], description: "'project' (default) searches only this project's sessions; 'all' searches every project" },
+        maxResults: { type: "number", description: "Maximum number of sessions to return (default 5)" },
+        mode: { type: "string", enum: ["keyword", "semantic"], description: 'Default "keyword"' },
+      },
+      required: ["query"],
     },
-    required: ["query"],
-  },
-  describeCall: (input) => `recall past sessions matching "${input.query}"${input.scope === "all" ? " (all projects)" : ""}`,
-  async handler(input, ctx) {
-    const scope = input.scope ?? "project";
-    const maxResults = input.maxResults ?? 5;
-    const terms = [...new Set(input.query.toLowerCase().split(/\s+/).filter((t) => t.length > 1))];
-    const hits = await searchSessionIndex(input.query, scope === "project" ? ctx.cwd : undefined, maxResults);
-    const sessions = groupBySession(hits, terms, maxResults);
-    return { content: formatResults(sessions, scope), isError: false };
-  },
-};
+    describeCall: (input) =>
+      `recall past sessions matching "${input.query}"${input.scope === "all" ? " (all projects)" : ""}${input.mode === "semantic" ? " (semantic)" : ""}`,
+    async handler(input, ctx) {
+      const scope = input.scope ?? "project";
+      const maxResults = input.maxResults ?? 5;
+      const mode = input.mode ?? "keyword";
+      const terms = [...new Set(input.query.toLowerCase().split(/\s+/).filter((t) => t.length > 1))];
+
+      if (mode === "semantic") {
+        if (!embeddingsConfig) {
+          return { content: "Semantic recall is not configured — set OPENAI_API_KEY as an environment variable, or use mode \"keyword\" instead.", isError: true };
+        }
+        const hits = await searchSessionIndexBySimilarity(
+          input.query,
+          scope === "project" ? ctx.cwd : undefined,
+          maxResults,
+          embeddingsConfig,
+          embeddingsApiBaseUrl,
+        );
+        const sessions = groupBySession(hits, terms, maxResults);
+        return { content: formatResults(sessions, scope), isError: false };
+      }
+
+      const hits = await searchSessionIndex(input.query, scope === "project" ? ctx.cwd : undefined, maxResults);
+      const sessions = groupBySession(hits, terms, maxResults);
+      return { content: formatResults(sessions, scope), isError: false };
+    },
+  };
+}
