@@ -118,7 +118,10 @@ export class CohereProvider implements LlmProvider {
         }
       } else if (event.type === "tool-call-start") {
         const call = event.delta?.message?.toolCalls;
-        if (call?.id) pendingToolCalls.set(event.index ?? 0, { id: call.id, name: call.function?.name ?? "", argumentsJson: call.function?.arguments ?? "" });
+        if (call?.id) {
+          pendingToolCalls.set(event.index ?? 0, { id: call.id, name: call.function?.name ?? "", argumentsJson: call.function?.arguments ?? "" });
+          if (call.function?.name) params.onToolCallStart?.({ name: call.function.name });
+        }
       } else if (event.type === "tool-call-delta") {
         const existing = pendingToolCalls.get(event.index ?? 0);
         const argsDelta = event.delta?.message?.toolCalls?.function?.arguments;

@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { toCohereMessages, toCohereTools, CohereProvider } from "../../src/providers/cohere-provider.js";
 import type { NeutralMessage, ToolDefinition } from "../../src/core/types.js";
 import http from "node:http";
@@ -104,16 +104,20 @@ describe("CohereProvider.streamTurn (real cohere-ai SDK, real local HTTP server 
 
     try {
       const provider = new CohereProvider("test-key", baseUrl);
+      const onToolCallStart = vi.fn();
       const result = await provider.streamTurn({
         model: "command-a-plus",
         systemPrompt: "s",
         messages: [{ role: "user", content: "read a.txt" }],
         tools: [],
         onTextDelta: () => {},
+        onToolCallStart,
       });
 
       expect(result.assistantMessage.toolCalls).toEqual([{ id: "call_1", name: "read_file", input: { path: "a.txt" } }]);
       expect(result.stopReason).toBe("tool_use");
+      expect(onToolCallStart).toHaveBeenCalledTimes(1);
+      expect(onToolCallStart).toHaveBeenCalledWith({ name: "read_file" });
     } finally {
       server.close();
     }
