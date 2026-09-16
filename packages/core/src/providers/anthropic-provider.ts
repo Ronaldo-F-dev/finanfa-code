@@ -2,6 +2,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import type {
   LlmProvider,
   NeutralMessage,
+  NeutralThinkingBlock,
   NeutralToolCall,
   StopReason,
   StreamTurnParams,
@@ -46,6 +47,17 @@ export function toAnthropicMessages(messages: NeutralMessage[]): Anthropic.Messa
     }
     if (m.role === "assistant") {
       const blocks: Anthropic.ContentBlockParam[] = [];
+      // Thinking blocks (if this turn used extended thinking) must come
+      // first, exactly as Anthropic returned them — required, not just
+      // conventional, to continue the same assistant turn (e.g. the next
+      // request submitting this message's own tool_result).
+      for (const block of m.thinkingBlocks ?? []) {
+        blocks.push(
+          block.type === "thinking"
+            ? { type: "thinking", thinking: block.thinking, signature: block.signature }
+            : { type: "redacted_thinking", data: block.data },
+        );
+      }
       if (m.content.length > 0) blocks.push({ type: "text", text: m.content });
       for (const call of m.toolCalls ?? []) {
         blocks.push({ type: "tool_use", id: call.id, name: call.name, input: call.input as Record<string, unknown> });
@@ -101,11 +113,19 @@ export function fromAnthropicMessage(
 ): Extract<NeutralMessage, { role: "assistant" }> {
   let content = "";
   const toolCalls: NeutralToolCall[] = [];
+  const thinkingBlocks: NeutralThinkingBlock[] = [];
   for (const block of message.content) {
     if (block.type === "text") content += block.text;
     if (block.type === "tool_use") toolCalls.push({ id: block.id, name: block.name, input: block.input });
+    if (block.type === "thinking") thinkingBlocks.push({ type: "thinking", thinking: block.thinking, signature: block.signature });
+    if (block.type === "redacted_thinking") thinkingBlocks.push({ type: "redacted_thinking", data: block.data });
   }
-  return { role: "assistant", content, toolCalls: toolCalls.length > 0 ? toolCalls : undefined };
+  return {
+    role: "assistant",
+    content,
+    toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
+    thinkingBlocks: thinkingBlocks.length > 0 ? thinkingBlocks : undefined,
+  };
 }
 
 /**
@@ -131,19 +151,30 @@ export interface AnthropicMessagesClient {
  */
 export async function streamAnthropicTurn(client: AnthropicMessagesClient, params: StreamTurnParams): Promise<StreamTurnResult> {
   const anthropicTools = toAnthropicTools(params.tools);
+  const maxTokens = params.maxTokens ?? 8192;
+  // budget_tokens must be ≥1024 and strictly less than max_tokens (the API
+  // itself rejects anything else) — silently skip enabling thinking rather
+  // than send a request guaranteed to 400 when a caller's maxTokens is too
+  // small for the budget it also asked for.
+  const thinking =
+    params.thinkingBudgetTokens && params.thinkingBudgetTokens >= 1024 && params.thinkingBudgetTokens < maxTokens
+      ? ({ type: "enabled", budget_tokens: params.thinkingBudgetTokens } as const)
+      : undefined;
 
   const stream = client.messages.stream(
     {
       model: params.model,
-      max_tokens: params.maxTokens ?? 8192,
+      max_tokens: maxTokens,
       system: [{ type: "text", text: params.systemPrompt, cache_control: { type: "ephemeral" } }],
       messages: toAnthropicMessages(params.messages),
       tools: anthropicTools.length > 0 ? anthropicTools : undefined,
+      thinking,
     },
     { signal: params.signal },
   );
 
   stream.on("text", (delta) => params.onTextDelta(delta));
+  if (params.onThinkingDelta) stream.on("thinking", (delta) => params.onThinkingDelta?.(delta));
   const message = await stream.finalMessage();
 
   return {

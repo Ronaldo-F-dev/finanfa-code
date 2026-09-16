@@ -1,7 +1,28 @@
-import { describe, expect, it } from "vitest";
-import { toAnthropicMessages, fromAnthropicMessage } from "../../src/providers/anthropic-provider.js";
-import type { NeutralMessage } from "../../src/core/types.js";
+import { describe, expect, it, vi } from "vitest";
+import { toAnthropicMessages, fromAnthropicMessage, streamAnthropicTurn, type AnthropicMessagesClient } from "../../src/providers/anthropic-provider.js";
+import type { NeutralMessage, StreamTurnParams } from "../../src/core/types.js";
 import type Anthropic from "@anthropic-ai/sdk";
+
+/** A fake AnthropicMessagesClient — narrow enough (see that interface's own comment) to double without touching the real SDK/network. Captures the exact request `client.messages.stream` was called with. */
+function fakeClient(finalMessage: Partial<Anthropic.Message>): { client: AnthropicMessagesClient; lastRequest: () => Record<string, unknown> | undefined } {
+  let lastRequest: Record<string, unknown> | undefined;
+  const client: AnthropicMessagesClient = {
+    messages: {
+      stream: ((request: Record<string, unknown>) => {
+        lastRequest = request;
+        return {
+          on: () => {},
+          finalMessage: () => Promise.resolve({ content: [], usage: { input_tokens: 1, output_tokens: 1 }, stop_reason: "end_turn", ...finalMessage }),
+        };
+      }) as unknown as Anthropic["messages"]["stream"],
+    },
+  };
+  return { client, lastRequest: () => lastRequest };
+}
+
+function baseParams(overrides: Partial<StreamTurnParams> = {}): StreamTurnParams {
+  return { model: "m", systemPrompt: "s", messages: [], tools: [], onTextDelta: () => {}, ...overrides };
+}
 
 describe("anthropic-provider conversions", () => {
   it("converts a user message", () => {
@@ -139,5 +160,93 @@ describe("anthropic-provider conversions", () => {
       content: "done",
       toolCalls: [{ id: "t2", name: "bash", input: { command: "ls" } }],
     });
+  });
+
+  it("captures a real thinking block (with its signature) alongside a tool call", () => {
+    const message = {
+      content: [
+        { type: "thinking", thinking: "let me work this out...", signature: "sig-abc" },
+        { type: "tool_use", id: "t3", name: "bash", input: { command: "ls" } },
+      ],
+    } as unknown as Anthropic.Message;
+
+    expect(fromAnthropicMessage(message)).toEqual({
+      role: "assistant",
+      content: "",
+      toolCalls: [{ id: "t3", name: "bash", input: { command: "ls" } }],
+      thinkingBlocks: [{ type: "thinking", thinking: "let me work this out...", signature: "sig-abc" }],
+    });
+  });
+
+  it("captures an opaque redacted_thinking block unmodified", () => {
+    const message = { content: [{ type: "redacted_thinking", data: "opaque-blob" }, { type: "text", text: "done" }] } as unknown as Anthropic.Message;
+    expect(fromAnthropicMessage(message).thinkingBlocks).toEqual([{ type: "redacted_thinking", data: "opaque-blob" }]);
+  });
+
+  it("replays thinkingBlocks back as the first content block(s), ahead of text/tool_use — required for Anthropic to accept the next request in the same turn", () => {
+    const neutral: NeutralMessage[] = [
+      {
+        role: "assistant",
+        content: "checking",
+        toolCalls: [{ id: "t1", name: "bash", input: { command: "ls" } }],
+        thinkingBlocks: [{ type: "thinking", thinking: "reasoning...", signature: "sig-1" }],
+      },
+    ];
+    expect(toAnthropicMessages(neutral)).toEqual([
+      {
+        role: "assistant",
+        content: [
+          { type: "thinking", thinking: "reasoning...", signature: "sig-1" },
+          { type: "text", text: "checking" },
+          { type: "tool_use", id: "t1", name: "bash", input: { command: "ls" } },
+        ],
+      },
+    ]);
+  });
+});
+
+describe("streamAnthropicTurn — extended thinking", () => {
+  it("enables thinking with the given budget when it's valid (≥1024, below max_tokens)", async () => {
+    const { client, lastRequest } = fakeClient({});
+    await streamAnthropicTurn(client, baseParams({ thinkingBudgetTokens: 2048, maxTokens: 4096 }));
+    expect(lastRequest()?.thinking).toEqual({ type: "enabled", budget_tokens: 2048 });
+  });
+
+  it("does not enable thinking when unset (default — zero behavior change)", async () => {
+    const { client, lastRequest } = fakeClient({});
+    await streamAnthropicTurn(client, baseParams());
+    expect(lastRequest()?.thinking).toBeUndefined();
+  });
+
+  it("does not enable thinking when the budget is below Anthropic's own 1024 minimum", async () => {
+    const { client, lastRequest } = fakeClient({});
+    await streamAnthropicTurn(client, baseParams({ thinkingBudgetTokens: 100, maxTokens: 4096 }));
+    expect(lastRequest()?.thinking).toBeUndefined();
+  });
+
+  it("does not enable thinking when the budget isn't strictly less than max_tokens — would guarantee a 400", async () => {
+    const { client, lastRequest } = fakeClient({});
+    await streamAnthropicTurn(client, baseParams({ thinkingBudgetTokens: 4096, maxTokens: 4096 }));
+    expect(lastRequest()?.thinking).toBeUndefined();
+  });
+
+  it("streams thinking deltas through onThinkingDelta when provided", async () => {
+    const client: AnthropicMessagesClient = {
+      messages: {
+        stream: (() => {
+          const handlers = new Map<string, (delta: string) => void>();
+          return {
+            on: (event: string, cb: (delta: string) => void) => handlers.set(event, cb),
+            finalMessage: async () => {
+              handlers.get("thinking")?.("partial thought");
+              return { content: [], usage: { input_tokens: 1, output_tokens: 1 }, stop_reason: "end_turn" } as unknown as Anthropic.Message;
+            },
+          };
+        }) as unknown as Anthropic["messages"]["stream"],
+      },
+    };
+    const onThinkingDelta = vi.fn();
+    await streamAnthropicTurn(client, baseParams({ thinkingBudgetTokens: 2048, maxTokens: 4096, onThinkingDelta }));
+    expect(onThinkingDelta).toHaveBeenCalledWith("partial thought");
   });
 });
