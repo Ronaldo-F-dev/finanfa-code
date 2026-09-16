@@ -132,6 +132,13 @@ first tagged release.
   method for a publisher's models) has no equivalent live discovery API
   to query, and the tool says so plainly rather than guessing.
 
+- A new `github-copilot` LLM provider — GitHub's OAuth device-authorization
+  flow (see the README's new setup section) obtains a GitHub token, which
+  is exchanged (and cached/refreshed automatically) for a short-lived
+  Copilot API token on every turn; the actual chat completions call reuses
+  OpenAiCompatibleProvider's own request/SSE-streaming primitives, since
+  Copilot's endpoint speaks the same OpenAI-compatible wire format.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
