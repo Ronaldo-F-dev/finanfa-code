@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "../../src/memory/loader.js";
+import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool, findNearDuplicateMemory, type Memory } from "../../src/memory/loader.js";
 
 describe("memory loader", () => {
   let dir: string;
@@ -157,6 +157,48 @@ describe("memory loader", () => {
     const memories = await loadMemories(dir);
     expect(raw).toContain("description:");
     expect(memories[0].description).toBe('a "quoted": value');
+  });
+
+  it("findNearDuplicateMemory matches a similar description in the same scope, ignores a different scope or an exact-slug match", () => {
+    const existing: Memory[] = [
+      { name: "commit-style", description: "user prefers small atomic commits per function", type: "feedback", content: "c", scope: "project" },
+      { name: "commit-style", description: "user prefers small atomic commits per function", type: "feedback", content: "c", scope: "global" },
+    ];
+    expect(
+      findNearDuplicateMemory(existing, { name: "commit-preference", description: "user prefers atomic commits per function, small", type: "feedback", content: "c" })?.name,
+    ).toBe("commit-style");
+    expect(findNearDuplicateMemory(existing, { name: "commit-style", description: "user prefers small atomic commits per function", type: "feedback", content: "c" })).toBeUndefined();
+    expect(findNearDuplicateMemory(existing, { name: "unrelated", description: "user is a senior typescript engineer", type: "user", content: "c" })).toBeUndefined();
+  });
+
+  it("write_memory warns when a near-duplicate note already exists (same scope, different name, similar description)", async () => {
+    await writeMemoryTool.handler(
+      { name: "commit-style", description: "user prefers small atomic commits per function", type: "feedback", content: "split changes" },
+      ctx(),
+    );
+    const result = await writeMemoryTool.handler(
+      { name: "commit-preference", description: "user prefers atomic commits per function, small", type: "feedback", content: "split changes again" },
+      ctx(),
+    );
+    expect(result.isError).toBe(false);
+    expect(result.content).toContain("commit-style");
+    expect(result.content.toLowerCase()).toContain("similar");
+
+    // Both are still written — this is a warning, not a block, since a
+    // heuristic false positive should never silently drop a real save.
+    expect(await loadMemories(dir)).toHaveLength(2);
+  });
+
+  it("write_memory does not warn about an unrelated existing memory", async () => {
+    await writeMemoryTool.handler({ name: "commit-style", description: "user prefers small atomic commits", type: "feedback", content: "c" }, ctx());
+    const result = await writeMemoryTool.handler({ name: "likes-typescript", description: "user is a senior TypeScript engineer", type: "user", content: "c" }, ctx());
+    expect(result.content).not.toContain("similar");
+  });
+
+  it("write_memory does not warn about its own exact-slug overwrite", async () => {
+    await writeMemoryTool.handler({ name: "commit-style", description: "user prefers small atomic commits", type: "feedback", content: "c" }, ctx());
+    const result = await writeMemoryTool.handler({ name: "commit-style", description: "user prefers small atomic commits", type: "feedback", content: "c2" }, ctx());
+    expect(result.content).not.toContain("similar");
   });
 
   it("read_memory tool re-reads from disk, seeing a memory written after tool creation", async () => {

@@ -147,6 +147,37 @@ export async function deleteMemory(cwd: string, name: string, scope: MemoryScope
   await rm(path.join(memoryDir(cwd, scope), `${slug}.md`), { force: true });
 }
 
+/** Jaccard similarity over lowercase word sets — cheap, dependency-free, good enough for a one-line memory description (not meant to catch every paraphrase, just the common case of writing near-identical notes under two different names). */
+function descriptionSimilarity(a: string, b: string): number {
+  const wordsA = new Set(a.toLowerCase().match(/[a-z0-9]+/g) ?? []);
+  const wordsB = new Set(b.toLowerCase().match(/[a-z0-9]+/g) ?? []);
+  if (wordsA.size === 0 || wordsB.size === 0) return 0;
+  let intersection = 0;
+  for (const w of wordsA) if (wordsB.has(w)) intersection++;
+  const union = wordsA.size + wordsB.size - intersection;
+  return union === 0 ? 0 : intersection / union;
+}
+
+const NEAR_DUPLICATE_DESCRIPTION_SIMILARITY = 0.6;
+
+/**
+ * Finds an existing memory in the same scope that's likely the same fact
+ * saved under a different name — the write_memory tool's own instructions
+ * already tell the caller to check for one first, but that's a prompt-level
+ * nudge with nothing to actually catch it slipping through. Only compares
+ * within the same scope (a project note and a same-topic global one aren't
+ * really duplicates — they apply to different things) and skips an exact
+ * slug match (that's an intentional overwrite of the same memory, not a
+ * duplicate).
+ */
+export function findNearDuplicateMemory(existing: Memory[], input: WriteMemoryInput): Memory | undefined {
+  const scope: MemoryScope = input.scope === "global" ? "global" : "project";
+  const slug = slugifyMemoryName(input.name);
+  return existing.find(
+    (m) => m.scope === scope && m.name !== slug && descriptionSimilarity(m.description, input.description) >= NEAR_DUPLICATE_DESCRIPTION_SIMILARITY,
+  );
+}
+
 export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
   name: "write_memory",
   description:
@@ -172,8 +203,12 @@ export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
   describeCall: (input) => `write_memory ${input.name} (${input.type}${input.scope === "global" ? ", global" : ""})`,
   async handler(input, ctx) {
     try {
+      const duplicate = findNearDuplicateMemory(await loadMemories(ctx.cwd), input);
       const { slug, scope } = await writeMemory(ctx.cwd, input);
-      return { content: `Saved ${scope === "global" ? "global " : ""}memory "${slug}".`, isError: false };
+      const duplicateNote = duplicate
+        ? ` Note: this looks similar to the existing memory "${duplicate.name}" (${duplicate.description}) — consider updating/deleting one of them instead of keeping both.`
+        : "";
+      return { content: `Saved ${scope === "global" ? "global " : ""}memory "${slug}".${duplicateNote}`, isError: false };
     } catch (err) {
       return { content: err instanceof Error ? err.message : String(err), isError: true };
     }
