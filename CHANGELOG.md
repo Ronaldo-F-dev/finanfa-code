@@ -52,6 +52,14 @@ first tagged release.
   user's own already-authenticated `op`/`vault` CLIs (only registered
   when installed).
 
+### Changed
+
+- Outbound Slack/Telegram/Discord message sends now retry on a network
+  failure, a 429 (honoring the platform's own rate-limit wait), or a
+  5xx, instead of failing permanently on the first transient error —
+  a confirmed gap relative to every channel plugin in a comparable
+  project we audited against.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
