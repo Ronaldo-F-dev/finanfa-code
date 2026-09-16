@@ -267,9 +267,9 @@ Then, one-time setup in the Discord Developer Portal:
    ```bash
    curl -X PUT "https://discord.com/api/v10/applications/<DISCORD_APPLICATION_ID>/commands" \
      -H "Authorization: Bot <DISCORD_BOT_TOKEN>" -H "content-type: application/json" \
-     -d '[{"name":"ask","description":"Ask the agent something","options":[{"name":"message","description":"Your message","type":3,"required":true}]}]'
+     -d '[{"name":"ask","description":"Ask the agent something","options":[{"name":"message","description":"Your message","type":3,"required":true},{"name":"image","description":"An image to include","type":11,"required":false}]}]'
    ```
-3. Invite the bot to a server and run `/ask message:<your question>` in any channel — each channel maps to its own persistent session. Discord shows "thinking..." immediately (a turn takes longer than its 3-second reply window), then edits in the real answer once it's ready.
+3. Invite the bot to a server and run `/ask message:<your question>` in any channel — each channel maps to its own persistent session. Discord shows "thinking..." immediately (a turn takes longer than its 3-second reply window), then edits in the real answer once it's ready. Attaching an image via the optional `image` option routes the turn through the project's configured vision model, same as a Slack file upload or the CLI/web UI's own image input.
 
 ## Editor integration (ACP)
 
