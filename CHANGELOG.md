@@ -103,6 +103,12 @@ first tagged release.
   subtype was unconditionally ignored, silently dropping the whole
   message, image and caption both.
 
+- The Discord inbound channel (`/ask`) now accepts an optional `image`
+  attachment option, downloaded from Discord's CDN (public, no bot token
+  needed) and forwarded to the model through the same configured
+  vision-route fallback as the Slack/CLI/web/VS Code image paths — see
+  the README's updated command-registration curl for the new option.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
