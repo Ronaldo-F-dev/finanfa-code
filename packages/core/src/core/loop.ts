@@ -686,6 +686,7 @@ export async function runTurn(
           maxTokens: session.maxTokens,
           thinkingBudgetTokens: session.thinkingBudgetTokens,
           onThinkingDelta: (text) => ui.writeThinkingDelta?.(text),
+          onToolCallStart: (call) => ui.writeToolCallStarting?.(call),
         });
         span.setAttribute("llm.input_tokens", r.usage.inputTokens);
         span.setAttribute("llm.output_tokens", r.usage.outputTokens);
