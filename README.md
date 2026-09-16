@@ -118,7 +118,7 @@ Ctrl+C persists the session and closes connections cleanly before exit.
 - `skills/*.md` — frontmatter + body, loaded on demand via `read_skill`.
 - `memory/*.md` — durable notes the agent writes itself via `write_memory` (preferences, decisions, project context).
 - `mcp.json` — `{ "servers": [...] }`, one entry per MCP server (stdio or http/sse).
-- `plugins/<name>/index.js` — exports `registerTools`/`registerCommands`.
+- `plugins/<name>/index.js` — exports `registerTools`/`registerCommands`. See [docs/plugins.md](docs/plugins.md) for the full contract.
 - `finanfa.md` (project root) — free-form project instructions, folded into the system prompt (the `CLAUDE.md`/`AGENTS.md` equivalent).
 - `finanfa-design.md` (project root) — design contract for `create_artifact`, replaces the built-in default when present.
 
