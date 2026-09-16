@@ -17,6 +17,44 @@ describe("parseDiscordInteraction", () => {
     ).toEqual({ kind: "command", event: { channelId: "123", interactionToken: "interaction-token-abc", text: "hello there" } });
   });
 
+  it("extracts an /ask command's optional image attachment option", () => {
+    expect(
+      parseDiscordInteraction({
+        type: 2,
+        channel_id: "123",
+        token: "interaction-token-abc",
+        data: {
+          name: "ask",
+          options: [
+            { name: "message", type: 3, value: "what's this?" },
+            { name: "image", type: 11, value: "att1" },
+          ],
+          resolved: { attachments: { att1: { url: "https://cdn.discordapp.com/attachments/1/2/pic.png", content_type: "image/png" } } },
+        },
+      }),
+    ).toEqual({
+      kind: "command",
+      event: { channelId: "123", interactionToken: "interaction-token-abc", text: "what's this?", image: { url: "https://cdn.discordapp.com/attachments/1/2/pic.png", mimeType: "image/png" } },
+    });
+  });
+
+  it("ignores an attachment option that isn't an image (e.g. a PDF)", () => {
+    const result = parseDiscordInteraction({
+      type: 2,
+      channel_id: "123",
+      token: "t",
+      data: {
+        name: "ask",
+        options: [
+          { name: "message", type: 3, value: "see attached" },
+          { name: "image", type: 11, value: "att1" },
+        ],
+        resolved: { attachments: { att1: { url: "https://cdn.discordapp.com/attachments/1/2/doc.pdf", content_type: "application/pdf" } } },
+      },
+    });
+    expect(result).toEqual({ kind: "command", event: { channelId: "123", interactionToken: "t", text: "see attached" } });
+  });
+
   it("ignores a command that isn't /ask", () => {
     expect(
       parseDiscordInteraction({
