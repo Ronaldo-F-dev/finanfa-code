@@ -36,6 +36,8 @@ first tagged release.
   Ed25519-signature-verified, a single `/ask` slash command per channel
   session, deferred-then-PATCHed since a turn outlasts Discord's 3-second
   reply window. Also adds a `send_discord_message` builtin tool.
+- `transcribe_audio` builtin tool: speech-to-text via OpenAI's Whisper
+  API, the counterpart to the existing `text_to_speech` tool.
 
 ### Fixed
 
