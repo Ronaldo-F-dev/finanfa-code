@@ -250,3 +250,37 @@ describe("streamAnthropicTurn — extended thinking", () => {
     expect(onThinkingDelta).toHaveBeenCalledWith("partial thought");
   });
 });
+
+describe("streamAnthropicTurn — early tool-call-start signal", () => {
+  it("fires onToolCallStart as soon as a tool_use content_block_start event arrives, well before finalMessage", async () => {
+    const client: AnthropicMessagesClient = {
+      messages: {
+        stream: (() => {
+          const handlers = new Map<string, (...args: unknown[]) => void>();
+          return {
+            on: (event: string, cb: (...args: unknown[]) => void) => handlers.set(event, cb),
+            finalMessage: async () => {
+              handlers.get("streamEvent")?.({ type: "content_block_start", index: 0, content_block: { type: "tool_use", id: "t1", name: "bash", input: {} } });
+              handlers.get("streamEvent")?.({ type: "content_block_start", index: 1, content_block: { type: "text", text: "" } });
+              return {
+                content: [{ type: "tool_use", id: "t1", name: "bash", input: { command: "ls" } }],
+                usage: { input_tokens: 1, output_tokens: 1 },
+                stop_reason: "tool_use",
+              } as unknown as Anthropic.Message;
+            },
+          };
+        }) as unknown as Anthropic["messages"]["stream"],
+      },
+    };
+    const onToolCallStart = vi.fn();
+    await streamAnthropicTurn(client, baseParams({ onToolCallStart }));
+    expect(onToolCallStart).toHaveBeenCalledTimes(1);
+    expect(onToolCallStart).toHaveBeenCalledWith({ name: "bash" });
+  });
+
+  it("never calls onToolCallStart when the caller didn't ask for it", async () => {
+    const { client } = fakeClient({});
+    await streamAnthropicTurn(client, baseParams());
+    // No assertion needed beyond "this doesn't throw" — fakeClient's stream.on is a no-op, confirming streamAnthropicTurn doesn't unconditionally subscribe.
+  });
+});

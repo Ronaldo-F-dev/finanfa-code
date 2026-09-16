@@ -175,6 +175,18 @@ export async function streamAnthropicTurn(client: AnthropicMessagesClient, param
 
   stream.on("text", (delta) => params.onTextDelta(delta));
   if (params.onThinkingDelta) stream.on("thinking", (delta) => params.onThinkingDelta?.(delta));
+  // The SDK's own higher-level "contentBlock" event only fires once a
+  // block is fully done (content_block_stop) — too late for an early UI
+  // signal. The raw content_block_start event is the one place a tool
+  // call's name is known well before its arguments (or the rest of the
+  // turn) finish streaming.
+  if (params.onToolCallStart) {
+    stream.on("streamEvent", (event) => {
+      if (event.type === "content_block_start" && event.content_block.type === "tool_use") {
+        params.onToolCallStart?.({ name: event.content_block.name });
+      }
+    });
+  }
   const message = await stream.finalMessage();
 
   return {
