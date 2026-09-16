@@ -204,7 +204,7 @@ async function runOneToolCall(
   };
 
   try {
-    const decision = await permissions.check(tool, call.input, ctx);
+    const decision = await permissions.check(tool, call.input, ctx, call.id);
     if (decision === "deny") {
       return { result: { toolCallId: call.id, isError: true, content: "User declined to run this tool." } };
     }
