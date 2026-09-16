@@ -7,6 +7,8 @@ import { AnthropicProvider } from "./providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible-provider.js";
 import { GeminiProvider } from "./providers/gemini-provider.js";
 import { AzureOpenAiProvider } from "./providers/azure-openai-provider.js";
+import { AmazonBedrockProvider } from "./providers/amazon-bedrock-provider.js";
+import { GoogleVertexProvider } from "./providers/google-vertex-provider.js";
 import type { FinanfaConfig } from "./core/config.js";
 import { McpClientManager, NeedsAuthorizationError } from "./mcp/client-manager.js";
 import { loadMcpServers } from "./mcp/config.js";
@@ -256,6 +258,34 @@ export function selectProvider(config: FinanfaConfig): { provider: LlmProvider; 
       throw new Error("provider gemini requires an API key — set FINANFA_API_KEY, or /config set apiKey <key>.");
     }
     return { provider: new GeminiProvider({ apiKey }), defaultModel: model, kind };
+  }
+
+  if (kind === "amazon-bedrock") {
+    const model = process.env.FINANFA_MODEL ?? config.model;
+    const region = process.env.FINANFA_AWS_REGION ?? config.awsRegion;
+    if (!model) {
+      throw new Error(
+        "provider amazon-bedrock requires a model — set FINANFA_MODEL, or /config set model <bedrock-model-id>. " +
+          "AWS credentials/region come from the standard AWS environment (AWS_ACCESS_KEY_ID/AWS_SECRET_ACCESS_KEY/" +
+          "AWS_REGION, or ~/.aws/credentials) unless overridden with FINANFA_AWS_REGION or /config set awsRegion.",
+      );
+    }
+    return { provider: new AmazonBedrockProvider({ region }), defaultModel: model, kind };
+  }
+
+  if (kind === "google-vertex") {
+    const model = process.env.FINANFA_MODEL ?? config.model;
+    const region = process.env.FINANFA_VERTEX_REGION ?? config.vertexRegion;
+    const projectId = process.env.FINANFA_VERTEX_PROJECT_ID ?? config.vertexProjectId;
+    if (!model || !region || !projectId) {
+      throw new Error(
+        "provider google-vertex requires a model, region, and GCP project id — set FINANFA_MODEL/" +
+          "FINANFA_VERTEX_REGION/FINANFA_VERTEX_PROJECT_ID, or /config set model/vertexRegion/vertexProjectId. " +
+          "Auth uses standard Google Application Default Credentials (GOOGLE_APPLICATION_CREDENTIALS, or " +
+          "`gcloud auth application-default login`).",
+      );
+    }
+    return { provider: new GoogleVertexProvider({ region, projectId }), defaultModel: model, kind };
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY ?? config.anthropicApiKey ?? config.apiKey;

@@ -4,7 +4,7 @@ import os from "node:os";
 import type { SandboxConfig } from "../util/sandbox.js";
 
 export interface FinanfaConfig {
-  provider?: "anthropic" | "openai-compatible" | "gemini" | "azure-openai";
+  provider?: "anthropic" | "openai-compatible" | "gemini" | "azure-openai" | "amazon-bedrock" | "google-vertex";
   /** For openai-compatible: the server's base URL. For azure-openai: the resource endpoint, e.g. "https://my-resource.openai.azure.com" (no trailing path) — same "where do I connect" role, reused rather than adding a second near-identical field. */
   baseUrl?: string;
   apiKey?: string;
@@ -31,6 +31,12 @@ export interface FinanfaConfig {
   anthropicApiKey?: string;
   /** Only needed for an org-admin-scoped Anthropic API key (not scoped to a single workspace) — see AnthropicProvider's constructor comment. Can be left unset for a normal, already-workspace-scoped key. */
   anthropicWorkspaceId?: string;
+  /** amazon-bedrock only — defaults to the AWS_REGION env var, then "us-east-1". Credentials come from the standard AWS credential chain, not from config. */
+  awsRegion?: string;
+  /** google-vertex only — defaults to the CLOUD_ML_REGION env var; no further fallback. */
+  vertexRegion?: string;
+  /** google-vertex only — the GCP project to bill/run against. Credentials come from Google Application Default Credentials, not from config. */
+  vertexProjectId?: string;
   /**
    * A second, vision-capable model used only for the follow-up turn right
    * after a tool (browser_screenshot, view_image) returns an image — the
