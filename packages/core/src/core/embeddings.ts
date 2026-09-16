@@ -28,7 +28,7 @@ interface EmbeddingsErrorResponse {
 
 /** Embeds one or more texts in as few real API calls as possible, returning vectors in the same order as `texts`. Throws with the real API error message on failure — callers decide how to surface that. */
 export async function embedTexts(config: EmbeddingsConfig, texts: string[], apiBaseUrl = "https://api.openai.com/v1"): Promise<number[][]> {
-  const results: number[][] = new Array(texts.length);
+  const results: number[][] = Array.from({ length: texts.length });
 
   for (let start = 0; start < texts.length; start += MAX_BATCH_SIZE) {
     const batch = texts.slice(start, start + MAX_BATCH_SIZE);
