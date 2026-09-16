@@ -54,6 +54,49 @@ describe("parseSlackPayload", () => {
     ).toEqual({ kind: "ignored" });
   });
 
+  it("extracts an image attachment from a file_share message", () => {
+    expect(
+      parseSlackPayload({
+        type: "event_callback",
+        event: {
+          type: "message",
+          subtype: "file_share",
+          channel: "C123",
+          ts: "1700000000.000001",
+          text: "what's this?",
+          files: [{ mimetype: "image/png", url_private: "https://files.slack.com/f1.png" }],
+        },
+      }),
+    ).toEqual({
+      kind: "message",
+      event: { channel: "C123", threadKey: "1700000000.000001", text: "what's this?", user: undefined, images: [{ url: "https://files.slack.com/f1.png", mimeType: "image/png" }] },
+    });
+  });
+
+  it("ignores a file_share attachment that isn't an image (e.g. a PDF) but still runs the turn on its text", () => {
+    const result = parseSlackPayload({
+      type: "event_callback",
+      event: {
+        type: "message",
+        subtype: "file_share",
+        channel: "C123",
+        ts: "1700000000.000001",
+        text: "see attached",
+        files: [{ mimetype: "application/pdf", url_private: "https://files.slack.com/f1.pdf" }],
+      },
+    });
+    expect(result).toEqual({ kind: "message", event: { channel: "C123", threadKey: "1700000000.000001", text: "see attached", user: undefined } });
+  });
+
+  it("still ignores a non-file_share subtype (edit/delete/join)", () => {
+    expect(
+      parseSlackPayload({
+        type: "event_callback",
+        event: { type: "message", channel: "C123", ts: "1700000000.000001", text: "edited", subtype: "message_changed", files: [{ mimetype: "image/png", url_private: "x" }] },
+      }),
+    ).toEqual({ kind: "ignored" });
+  });
+
   it("ignores an unrelated event type", () => {
     expect(parseSlackPayload({ type: "event_callback", event: { type: "reaction_added" } })).toEqual({ kind: "ignored" });
   });
