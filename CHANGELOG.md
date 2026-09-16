@@ -38,6 +38,10 @@ first tagged release.
   reply window. Also adds a `send_discord_message` builtin tool.
 - `transcribe_audio` builtin tool: speech-to-text via OpenAI's Whisper
   API, the counterpart to the existing `text_to_speech` tool.
+- A semantic ("vector") mode for `recall_past_sessions`, alongside the
+  existing full-text search — finds a conceptually related past session
+  with no shared keywords. Content-hash-keyed embeddings cache in the
+  same SQLite database as the FTS5 index; needs `OPENAI_API_KEY`.
 
 ### Fixed
 

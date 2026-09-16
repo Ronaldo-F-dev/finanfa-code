@@ -206,7 +206,7 @@ Not every model can see images. If your primary model can't, route just the turn
 - **IoT/embedded**: `serial_*`, `run_esptool`/`run_avrdude`, `mqtt_publish`/`mqtt_subscribe`, `coap_request`, `gpio_*`, `run_arduino_cli`/`run_platformio`
 - **DevOps**: `run_docker`, `run_kubectl`, `run_mydevops` (when installed)
 - **Security scanning**: prompt injection/jailbreak/system-prompt-leak/PII-leakage/excessive-agency self-red-team, plus SSRF/XSS/SQLi/XXE/SSTI/IDOR/CSRF/JWT/LDAP-injection/subdomain-takeover/recon/email-security/and more against a target URL
-- **Session**: `recall_past_sessions` (full-text search over past sessions), `write_memory`
+- **Session**: `recall_past_sessions` (full-text search over past sessions, plus an optional semantic mode — needs `OPENAI_API_KEY`), `write_memory`
 
 Notes:
 - `web_search`/`web_fetch`/`browser_*` results are wrapped as untrusted content — treated as data, not instructions, to reduce prompt-injection risk.
