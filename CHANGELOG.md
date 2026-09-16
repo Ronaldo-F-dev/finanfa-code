@@ -22,6 +22,10 @@ first tagged release.
 - `CONTRIBUTING.md`, `SECURITY.md`, `LICENSE` (MIT).
 - The web server now loads a project's `.finanfa-code/plugins/`, same as
   the CLI already did.
+- Two new LLM providers, both reusing the Claude Messages API request/
+  response handling: `amazon-bedrock` (AWS SigV4 auth via the standard
+  AWS credential chain) and `google-vertex` (Google Application Default
+  Credentials). See the README's Setup section.
 
 ### Fixed
 

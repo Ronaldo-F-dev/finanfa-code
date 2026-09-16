@@ -1,6 +1,6 @@
 # finanfa-code
 
-A from-scratch AI coding agent, in TypeScript, with a terminal UI (Ink) and a browser UI. Pluggable LLM backend: Anthropic, or anything speaking the OpenAI chat-completions wire format (Ollama, OpenRouter, Poolside, LM Studio, vLLM, ...).
+A from-scratch AI coding agent, in TypeScript, with a terminal UI (Ink) and a browser UI. Pluggable LLM backend: Anthropic, Azure OpenAI, Gemini, Amazon Bedrock, Google Vertex AI, or anything speaking the OpenAI chat-completions wire format (Ollama, OpenRouter, Poolside, LM Studio, vLLM, ...).
 
 Requires Node.js **22.5.0+**.
 
@@ -25,6 +25,47 @@ npm run dev
 ```
 
 Prefer a model with reliable tool-calling support — a model that writes tool calls as plain text instead of a structured response won't actually be able to use any tool. `/cost` reports `$0/0 tokens` for backends that don't return usage in streamed responses; that's expected.
+
+### Azure OpenAI
+
+```bash
+export FINANFA_PROVIDER=azure-openai
+export FINANFA_BASE_URL=https://my-resource.openai.azure.com   # no trailing path
+export FINANFA_MODEL=my-gpt4o-deployment                        # the Azure *deployment* name, not a model name
+export FINANFA_API_KEY=...
+npm run dev
+```
+
+### Gemini
+
+```bash
+export FINANFA_PROVIDER=gemini
+export FINANFA_API_KEY=...
+npm run dev
+```
+
+### Amazon Bedrock (Claude via AWS)
+
+```bash
+export FINANFA_PROVIDER=amazon-bedrock
+export FINANFA_MODEL=anthropic.claude-sonnet-5-20250929-v1:0   # a Bedrock model ID or cross-region inference profile ARN
+export AWS_REGION=us-west-2                                      # or FINANFA_AWS_REGION / /config set awsRegion
+npm run dev
+```
+
+AWS credentials come from the standard AWS credential chain (`AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY`/`AWS_SESSION_TOKEN`, `~/.aws/credentials`, an instance/task role, ...) — the same way `aws` CLI commands already authenticate on this machine. Nothing extra to configure unless that chain isn't what should be used here.
+
+### Google Vertex AI (Claude via GCP)
+
+```bash
+export FINANFA_PROVIDER=google-vertex
+export FINANFA_MODEL=claude-sonnet-5@20250929   # a Vertex publisher model ID
+export FINANFA_VERTEX_REGION=us-central1
+export FINANFA_VERTEX_PROJECT_ID=my-gcp-project
+npm run dev
+```
+
+Auth is Google Application Default Credentials (`GOOGLE_APPLICATION_CREDENTIALS` pointing at a service account key, or `gcloud auth application-default login`).
 
 ### Persistent config
 
