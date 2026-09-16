@@ -26,6 +26,9 @@ first tagged release.
   response handling: `amazon-bedrock` (AWS SigV4 auth via the standard
   AWS credential chain) and `google-vertex` (Google Application Default
   Credentials). See the README's Setup section.
+- An inbound Slack channel: `POST /api/channels/slack/events` on the web
+  server, signature-verified, one persistent session per thread. See the
+  README's new Channels section.
 
 ### Fixed
 

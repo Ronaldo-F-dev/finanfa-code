@@ -212,6 +212,25 @@ Notes:
 - `read_file`/`write_file`/`edit_file` work within the project root or the user's home directory; nothing outside either is reachable through these tools (not a hard security boundary — `bash` has none).
 - `generate_2d`/`generate_3d` are honest stubs: no free image/3D-generation backend currently works reliably, so they report that instead of silently failing.
 
+## Channels
+
+Besides the terminal, browser, and VS Code UIs, the web server can be reached from outside as a chat bot — an inbound message runs one real agent turn (same tools/permissions as everywhere else) and gets a reply posted back.
+
+### Slack
+
+```bash
+export SLACK_SIGNING_SECRET=...   # from your Slack app's "Basic Information" page
+export SLACK_BOT_TOKEN=xoxb-...   # from "OAuth & Permissions", needs the chat:write scope
+npm run dev:web-server
+```
+
+Then, in your Slack app's settings:
+1. **Event Subscriptions** → enable, Request URL = `https://<your-server>/api/channels/slack/events` (Slack verifies this URL itself via the same handshake the endpoint answers).
+2. Subscribe to the `message.channels` and/or `app_mention` bot events.
+3. Invite the bot to a channel and message it (or @-mention it) — each thread maps to its own persistent session, so the agent keeps context across replies in that thread.
+
+The endpoint 404s until `SLACK_SIGNING_SECRET` is set — there's no unauthenticated middle state. Every inbound message currently runs against the server's own default workspace (`FINANFA_WEB_CWD`/cwd), not a per-channel project.
+
 ## Security
 
 The system prompt permits authorized security testing, defensive security, CTF, and security education, and declines destructive techniques, DoS tooling, mass targeting, supply-chain compromise, or detection evasion — several supported backends (local/free models) have little built-in safety alignment of their own.
