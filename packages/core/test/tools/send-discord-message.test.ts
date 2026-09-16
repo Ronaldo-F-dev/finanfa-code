@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { createSendDiscordMessageTool, discordConfigFromEnv, patchDiscordInteractionResponse } from "../../src/tools/builtin/send-discord-message.js";
+import { createSendDiscordMessageTool, discordConfigFromEnv, patchDiscordInteractionResponse, postDiscordMessage } from "../../src/tools/builtin/send-discord-message.js";
 
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
 
@@ -97,6 +97,41 @@ describe("patchDiscordInteractionResponse (real local HTTP server)", () => {
     expect(lastRequest?.url).toBe("/webhooks/app123/interaction-token-abc/messages/@original");
     expect(lastRequest?.headers.authorization).toBeUndefined();
     expect(JSON.parse(lastRequest!.body)).toEqual({ content: "final reply" });
+  });
+});
+
+describe("postDiscordMessage retry behavior (real local HTTP server)", () => {
+  let server: http.Server;
+  let apiBaseUrl: string;
+  let requestCount: number;
+
+  beforeAll(async () => {
+    server = http.createServer((req, res) => {
+      req.on("data", () => {});
+      req.on("end", () => {
+        requestCount++;
+        if (requestCount === 1) {
+          res.writeHead(429, { "content-type": "application/json" });
+          res.end(JSON.stringify({ message: "You are being rate limited.", retry_after: 0.01, global: false }));
+          return;
+        }
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ id: "999" }));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    apiBaseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
+  it("retries a real 429 (honoring the JSON body's retry_after) and succeeds on the next attempt", async () => {
+    requestCount = 0;
+    const result = await postDiscordMessage({ botToken: "x" }, { channelId: "1", text: "hi" }, apiBaseUrl);
+    expect(result).toEqual({ ok: true, messageId: "999" });
+    expect(requestCount).toBe(2);
   });
 });
 

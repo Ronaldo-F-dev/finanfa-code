@@ -1,4 +1,5 @@
 import type { ToolDefinition } from "../../core/types.js";
+import { fetchWithRetry } from "../../channels/retry-fetch.js";
 
 // A real connector tool, same shape as send-slack-message.ts/
 // send-telegram-message.ts — posts to a Discord channel via the real REST
@@ -21,6 +22,17 @@ interface SendDiscordMessageInput {
 interface DiscordApiErrorResponse {
   message?: string;
   code?: number;
+  /** Discord's rate-limit wait, in (fractional) seconds — present in the JSON body of a 429, not a header. */
+  retry_after?: number;
+}
+
+function parseDiscordRetryAfterMs(_response: Response, bodyText: string): number | undefined {
+  try {
+    const seconds = (JSON.parse(bodyText) as DiscordApiErrorResponse).retry_after;
+    return typeof seconds === "number" && seconds > 0 ? seconds * 1000 : undefined;
+  } catch {
+    return undefined;
+  }
 }
 
 export type PostDiscordMessageResult = { ok: true; messageId?: string } | { ok: false; error: string };
@@ -37,12 +49,17 @@ export async function postDiscordMessage(
   apiBaseUrl = "https://discord.com/api/v10",
 ): Promise<PostDiscordMessageResult> {
   let response: Response;
+  let bodyText: string;
   try {
-    response = await fetch(`${apiBaseUrl}/channels/${input.channelId}/messages`, {
-      method: "POST",
-      headers: { Authorization: `Bot ${config.botToken}`, "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ content: input.text }),
-    });
+    ({ response, bodyText } = await fetchWithRetry(
+      `${apiBaseUrl}/channels/${input.channelId}/messages`,
+      {
+        method: "POST",
+        headers: { Authorization: `Bot ${config.botToken}`, "content-type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ content: input.text }),
+      },
+      { retryAfterMs: parseDiscordRetryAfterMs },
+    ));
   } catch (err) {
     return { ok: false, error: `Failed to reach Discord: ${err instanceof Error ? err.message : String(err)}` };
   }
@@ -50,14 +67,14 @@ export async function postDiscordMessage(
   if (!response.ok) {
     let data: DiscordApiErrorResponse = {};
     try {
-      data = (await response.json()) as DiscordApiErrorResponse;
+      data = JSON.parse(bodyText) as DiscordApiErrorResponse;
     } catch {
       // Non-JSON error body — fall through with the plain status text below.
     }
     return { ok: false, error: data.message ?? `Discord returned HTTP ${response.status}.` };
   }
 
-  const data = (await response.json()) as { id?: string };
+  const data = JSON.parse(bodyText) as { id?: string };
   return { ok: true, messageId: data.id };
 }
 
@@ -76,12 +93,17 @@ export async function patchDiscordInteractionResponse(
   apiBaseUrl = "https://discord.com/api/v10",
 ): Promise<PostDiscordMessageResult> {
   let response: Response;
+  let bodyText: string;
   try {
-    response = await fetch(`${apiBaseUrl}/webhooks/${applicationId}/${interactionToken}/messages/@original`, {
-      method: "PATCH",
-      headers: { "content-type": "application/json; charset=utf-8" },
-      body: JSON.stringify({ content: text }),
-    });
+    ({ response, bodyText } = await fetchWithRetry(
+      `${apiBaseUrl}/webhooks/${applicationId}/${interactionToken}/messages/@original`,
+      {
+        method: "PATCH",
+        headers: { "content-type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ content: text }),
+      },
+      { retryAfterMs: parseDiscordRetryAfterMs },
+    ));
   } catch (err) {
     return { ok: false, error: `Failed to reach Discord: ${err instanceof Error ? err.message : String(err)}` };
   }
@@ -89,7 +111,7 @@ export async function patchDiscordInteractionResponse(
   if (!response.ok) {
     let data: DiscordApiErrorResponse = {};
     try {
-      data = (await response.json()) as DiscordApiErrorResponse;
+      data = JSON.parse(bodyText) as DiscordApiErrorResponse;
     } catch {
       // Non-JSON error body — fall through with the plain status text below.
     }
