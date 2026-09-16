@@ -29,7 +29,7 @@ import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/cor
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import type { LlmProvider } from "@finanfa/core/src/core/types.js";
-import { loadConfig } from "@finanfa/core/src/core/config.js";
+import { loadConfig, thinkingBudgetTokensFromConfig } from "@finanfa/core/src/core/config.js";
 import { initTracing, shutdownTracing } from "@finanfa/core/src/observability/tracing.js";
 import {
   BASE_SYSTEM_PROMPT,
@@ -230,6 +230,11 @@ export async function main(argv: string[]): Promise<void> {
     BASE_SYSTEM_PROMPT + formatSkillIndex(skills) + formatMemoryIndex(memories) + formatProjectInstructions(projectInstructions);
 
   const session = await resolveSession(cwd, opts, model, systemPrompt, ui);
+  // Only fills in the configured budget when a session doesn't already
+  // carry its own explicit value — a resumed session that itself already
+  // recorded one (from whatever config was active when it started) keeps
+  // it, same "resumed state wins" precedent as maxTokens/effort.
+  if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
 
   const trusted = await resolveTrust(cwd, ui, opts.nonInteractive);
   const permissionConfig = await loadPermissionConfig(cwd, trusted);

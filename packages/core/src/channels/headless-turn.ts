@@ -14,7 +14,7 @@ import { loadSubagentTypes } from "../agents/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "../core/project-instructions.js";
 import { loadDesignContract } from "../core/design-contract.js";
 import { BrowserManager } from "../browser/manager.js";
-import { loadConfig } from "../core/config.js";
+import { loadConfig, thinkingBudgetTokensFromConfig } from "../core/config.js";
 import { BASE_SYSTEM_PROMPT, selectProvider, selectVisionProvider } from "../app.js";
 import type { UIAdapter } from "../ui/adapter.js";
 import type { NeutralImage } from "../core/types.js";
@@ -108,6 +108,7 @@ export async function runHeadlessTurn(cwd: string, sessionId: string, userText: 
   } catch {
     session = new AgentSession({ id: sessionId, cwd, model: defaultModel, systemPrompt });
   }
+  if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
 
   const browser = new BrowserManager();
   try {

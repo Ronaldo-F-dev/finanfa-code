@@ -27,7 +27,7 @@ import {
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
-import { loadConfig, saveGlobalConfig, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
+import { loadConfig, saveGlobalConfig, thinkingBudgetTokensFromConfig, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
 import { CONFIG_KEYS, SECRET_KEYS, maskSecret } from "@finanfa/core/src/commands/builtin.js";
 import { BASE_SYSTEM_PROMPT, selectProvider, connectMcpServers, parseApiKeys } from "@finanfa/core/src/app.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
@@ -692,6 +692,7 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     } else {
       session = new AgentSession({ cwd: CWD, model: requestedModel ?? defaultModel, systemPrompt });
     }
+    if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
     const model = session.model;
 
     // Reconstructs the provider/endpoint this session actually last talked

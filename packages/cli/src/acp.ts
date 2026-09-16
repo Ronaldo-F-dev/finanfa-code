@@ -16,7 +16,7 @@ import { loadSubagentTypes } from "@finanfa/core/src/agents/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
-import { loadConfig } from "@finanfa/core/src/core/config.js";
+import { loadConfig, thinkingBudgetTokensFromConfig } from "@finanfa/core/src/core/config.js";
 import { BASE_SYSTEM_PROMPT, selectProvider } from "@finanfa/core/src/app.js";
 import type { LlmProvider } from "@finanfa/core/src/core/types.js";
 import type { UIAdapter, ToolCallAnnouncement, ToolResultAnnouncement } from "@finanfa/core/src/ui/adapter.js";
@@ -161,6 +161,7 @@ async function createAcpSession(cwd: string, cx: { notify: typeof acp.AgentSideC
     BASE_SYSTEM_PROMPT + formatSkillIndex(skills) + formatMemoryIndex(memories) + formatProjectInstructions(projectInstructions);
 
   const session = new AgentSession({ cwd, model: defaultModel, systemPrompt });
+  session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
   const ui = createAcpUiAdapter(session.id, cx);
 
   // Same folder-trust gate every other entry point applies (CLI, web
