@@ -139,6 +139,15 @@ first tagged release.
   OpenAiCompatibleProvider's own request/SSE-streaming primitives, since
   Copilot's endpoint speaks the same OpenAI-compatible wire format.
 
+- A tool call's name is now surfaced (`StreamTurnParams.onToolCallStart`,
+  `UIAdapter.writeToolCallStarting`) the moment it's known mid-stream —
+  Anthropic (direct/Bedrock/Vertex, via `content_block_start`), OpenAI-
+  compatible, GitHub Copilot, and Cohere all fire it — instead of only
+  after the whole turn finishes and `assistantMessage.toolCalls` becomes
+  available. The CLI's spinner now updates to "calling &lt;tool&gt;..."
+  live, rather than sitting behind a generic "thinking..." for a long
+  tool-calling turn's entire duration.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
