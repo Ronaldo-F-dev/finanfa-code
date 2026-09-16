@@ -1,0 +1,19 @@
+services:
+  web-server:
+    build: .
+    ports:
+      - "4600:4600"
+    environment:
+      - PORT=4600
+      - FINANFA_WEB_CWD=/workspace
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - FINANFA_PROVIDER=${FINANFA_PROVIDER:-}
+      - FINANFA_BASE_URL=${FINANFA_BASE_URL:-}
+      - FINANFA_MODEL=${FINANFA_MODEL:-}
+      - FINANFA_API_KEY=${FINANFA_API_KEY:-}
+    volumes:
+      - ./workspace:/workspace
+      - finanfa-config:/root/.finanfa-code
+
+volumes:
+  finanfa-config:

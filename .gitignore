@@ -3,3 +3,4 @@ dist/
 *.tmp
 .env
 .finanfa-code/
+/workspace/
