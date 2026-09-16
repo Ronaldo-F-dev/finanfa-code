@@ -30,6 +30,39 @@ interface SlackApiResponse {
   ts?: string;
 }
 
+export type PostSlackMessageResult = { ok: true; ts?: string } | { ok: false; error: string };
+
+/**
+ * The raw chat.postMessage call, shared by this tool and the inbound
+ * Slack channel webhook (see @finanfa/web-server's channels/slack.ts) so
+ * neither duplicates Slack's auth header/error-shape handling.
+ */
+export async function postSlackMessage(
+  config: SlackConfig,
+  input: { channel: string; text: string; threadTs?: string },
+  apiBaseUrl = "https://slack.com/api",
+): Promise<PostSlackMessageResult> {
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl}/chat.postMessage`, {
+      method: "POST",
+      headers: { Authorization: `Bearer ${config.botToken}`, "content-type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ channel: input.channel, text: input.text, thread_ts: input.threadTs }),
+    });
+  } catch (err) {
+    return { ok: false, error: `Failed to reach Slack: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  let data: SlackApiResponse;
+  try {
+    data = (await response.json()) as SlackApiResponse;
+  } catch {
+    return { ok: false, error: `Slack returned an unparseable response (HTTP ${response.status}).` };
+  }
+
+  return data.ok ? { ok: true, ts: data.ts } : { ok: false, error: data.error ?? "unknown error" };
+}
+
 export function createSendSlackMessageTool(config: SlackConfig | undefined, apiBaseUrl = "https://slack.com/api"): ToolDefinition<SendSlackMessageInput> {
   return {
     name: "send_slack_message",
@@ -53,28 +86,11 @@ export function createSendSlackMessageTool(config: SlackConfig | undefined, apiB
       if (!config) {
         return { content: "Slack is not configured — set SLACK_BOT_TOKEN as an environment variable to enable send_slack_message.", isError: true };
       }
-      let response: Response;
-      try {
-        response = await fetch(`${apiBaseUrl}/chat.postMessage`, {
-          method: "POST",
-          headers: { Authorization: `Bearer ${config.botToken}`, "content-type": "application/json; charset=utf-8" },
-          body: JSON.stringify({ channel: input.channel, text: input.text }),
-        });
-      } catch (err) {
-        return { content: `Failed to reach Slack: ${err instanceof Error ? err.message : String(err)}`, isError: true };
+      const result = await postSlackMessage(config, input, apiBaseUrl);
+      if (!result.ok) {
+        return { content: result.error, isError: true };
       }
-
-      let data: SlackApiResponse;
-      try {
-        data = (await response.json()) as SlackApiResponse;
-      } catch {
-        return { content: `Slack returned an unparseable response (HTTP ${response.status}).`, isError: true };
-      }
-
-      if (!data.ok) {
-        return { content: `Slack rejected the message: ${data.error ?? "unknown error"}.`, isError: true };
-      }
-      return { content: `Message posted to ${input.channel}${data.ts ? ` (ts: ${data.ts})` : ""}.`, isError: false };
+      return { content: `Message posted to ${input.channel}${result.ts ? ` (ts: ${result.ts})` : ""}.`, isError: false };
     },
   };
 }
