@@ -188,6 +188,7 @@ async function attemptStreamChatCompletion(
   onTextDelta: (text: string) => void,
   signal?: AbortSignal,
   retryOn429 = true,
+  onToolCallStart?: (call: { name: string }) => void,
 ): Promise<ChatCompletionResult> {
   const response = await fetchInitialResponse(url, headers, body, signal, retryOn429);
 
@@ -281,7 +282,10 @@ async function attemptStreamChatCompletion(
       for (const tc of delta.tool_calls ?? []) {
         const existing = pendingCalls.get(tc.index) ?? { arguments: "" };
         if (tc.id) existing.id = tc.id;
-        if (tc.function?.name) existing.name = tc.function.name;
+        if (tc.function?.name && !existing.name) {
+          existing.name = tc.function.name;
+          onToolCallStart?.({ name: tc.function.name });
+        }
         if (tc.function?.arguments) existing.arguments += tc.function.arguments;
         pendingCalls.set(tc.index, existing);
       }
@@ -343,9 +347,10 @@ export async function streamChatCompletion(
   onTextDelta: (text: string) => void,
   signal?: AbortSignal,
   retryOn429 = true,
+  onToolCallStart?: (call: { name: string }) => void,
 ): Promise<ChatCompletionResult> {
   try {
-    return await retryWithBackoff(() => attemptStreamChatCompletion(url, headers, body, onTextDelta, signal, retryOn429), {
+    return await retryWithBackoff(() => attemptStreamChatCompletion(url, headers, body, onTextDelta, signal, retryOn429, onToolCallStart), {
       attempts: 3,
       baseDelayMs: 500,
       // A deliberate interrupt must never be retried, regardless of error
@@ -437,6 +442,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
           params.onTextDelta,
           params.signal,
           this.keys.length <= 1,
+          params.onToolCallStart,
         );
 
         return {

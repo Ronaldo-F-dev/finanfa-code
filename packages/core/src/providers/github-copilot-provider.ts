@@ -81,6 +81,8 @@ export class GithubCopilotProvider implements LlmProvider {
       },
       params.onTextDelta,
       params.signal,
+      true,
+      params.onToolCallStart,
     );
 
     return {

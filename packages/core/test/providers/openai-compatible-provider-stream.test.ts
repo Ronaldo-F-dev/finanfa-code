@@ -73,6 +73,22 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
     ]);
   });
 
+  it("fires onToolCallStart exactly once per call, the moment its name is first seen — not on every later arguments-delta chunk for the same call", async () => {
+    const events = [
+      JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "read_file", arguments: "" } }] } }] }),
+      JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"path":"a.txt"}' } }] } }] }),
+      JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }),
+    ];
+    vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sseResponse(events)));
+
+    const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+    const onToolCallStart = vi.fn();
+    await provider.streamTurn({ model: "m", systemPrompt: "sys", messages: [], tools: [], onTextDelta: () => {}, onToolCallStart });
+
+    expect(onToolCallStart).toHaveBeenCalledTimes(1);
+    expect(onToolCallStart).toHaveBeenCalledWith({ name: "read_file" });
+  });
+
   it(
     "defaults max_tokens to 8192 when the caller sets none, instead of sending no cap at all — real reported " +
       "bug: with none sent, the remote server's own (undefined, sometimes small) default silently took over, " +
