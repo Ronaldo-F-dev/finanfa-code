@@ -4,7 +4,7 @@ import os from "node:os";
 import type { SandboxConfig } from "../util/sandbox.js";
 
 export interface FinanfaConfig {
-  provider?: "anthropic" | "openai-compatible" | "gemini" | "azure-openai" | "amazon-bedrock" | "google-vertex";
+  provider?: "anthropic" | "openai-compatible" | "gemini" | "azure-openai" | "amazon-bedrock" | "google-vertex" | "cohere";
   /** For openai-compatible: the server's base URL. For azure-openai: the resource endpoint, e.g. "https://my-resource.openai.azure.com" (no trailing path) — same "where do I connect" role, reused rather than adding a second near-identical field. */
   baseUrl?: string;
   apiKey?: string;

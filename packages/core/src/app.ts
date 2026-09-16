@@ -9,6 +9,7 @@ import { GeminiProvider } from "./providers/gemini-provider.js";
 import { AzureOpenAiProvider } from "./providers/azure-openai-provider.js";
 import { AmazonBedrockProvider } from "./providers/amazon-bedrock-provider.js";
 import { GoogleVertexProvider } from "./providers/google-vertex-provider.js";
+import { CohereProvider } from "./providers/cohere-provider.js";
 import type { FinanfaConfig } from "./core/config.js";
 import { McpClientManager, NeedsAuthorizationError } from "./mcp/client-manager.js";
 import { loadMcpServers } from "./mcp/config.js";
@@ -198,6 +199,7 @@ export const BASE_SYSTEM_PROMPT =
 
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
+const DEFAULT_COHERE_MODEL = "command-r-plus-08-2024";
 
 /** FINANFA_API_KEYS is comma- or newline-separated (a community pasting several keys at once) — undefined if unset, so it doesn't shadow config.apiKeys with an empty array. */
 export function parseApiKeys(raw: string | undefined): string[] | undefined {
@@ -271,6 +273,16 @@ export function selectProvider(config: FinanfaConfig): { provider: LlmProvider; 
       );
     }
     return { provider: new AmazonBedrockProvider({ region }), defaultModel: model, kind };
+  }
+
+  if (kind === "cohere") {
+    const apiKey = process.env.FINANFA_API_KEY ?? config.apiKey;
+    const model = process.env.FINANFA_MODEL ?? config.model ?? DEFAULT_COHERE_MODEL;
+    const baseUrl = process.env.FINANFA_BASE_URL ?? config.baseUrl;
+    if (!apiKey) {
+      throw new Error("provider cohere requires an API key — set FINANFA_API_KEY, or /config set apiKey <key>.");
+    }
+    return { provider: new CohereProvider(apiKey, baseUrl), defaultModel: model, kind };
   }
 
   if (kind === "google-vertex") {
