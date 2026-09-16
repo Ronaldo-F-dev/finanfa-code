@@ -29,6 +29,9 @@ first tagged release.
 - An inbound Slack channel: `POST /api/channels/slack/events` on the web
   server, signature-verified, one persistent session per thread. See the
   README's new Channels section.
+- An inbound Telegram channel: `POST /api/channels/telegram/webhook`,
+  secret-token-verified, one persistent session per chat (or per forum
+  topic). Also adds a `send_telegram_message` builtin tool.
 
 ### Fixed
 

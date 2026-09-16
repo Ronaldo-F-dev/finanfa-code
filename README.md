@@ -231,6 +231,22 @@ Then, in your Slack app's settings:
 
 The endpoint 404s until `SLACK_SIGNING_SECRET` is set — there's no unauthenticated middle state. Every inbound message currently runs against the server's own default workspace (`FINANFA_WEB_CWD`/cwd), not a per-channel project.
 
+### Telegram
+
+```bash
+export TELEGRAM_BOT_TOKEN=123456:...       # from @BotFather
+export TELEGRAM_WEBHOOK_SECRET=...         # any string you pick
+npm run dev:web-server
+```
+
+Then register the webhook once (replace the two placeholders):
+
+```bash
+curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<your-server>/api/channels/telegram/webhook&secret_token=<TELEGRAM_WEBHOOK_SECRET>"
+```
+
+Message the bot directly, or in a group it's been added to — each chat (or forum topic, in a topics-enabled supergroup) maps to its own persistent session. Same 404-until-configured behavior as Slack above.
+
 ## Security
 
 The system prompt permits authorized security testing, defensive security, CTF, and security education, and declines destructive techniques, DoS tooling, mass targeting, supply-chain compromise, or detection evasion — several supported backends (local/free models) have little built-in safety alignment of their own.
