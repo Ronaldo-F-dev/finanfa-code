@@ -4,7 +4,7 @@ import os from "node:os";
 import type { SandboxConfig } from "../util/sandbox.js";
 
 export interface FinanfaConfig {
-  provider?: "anthropic" | "openai-compatible" | "gemini" | "azure-openai" | "amazon-bedrock" | "google-vertex" | "cohere";
+  provider?: "anthropic" | "openai-compatible" | "gemini" | "azure-openai" | "amazon-bedrock" | "google-vertex" | "cohere" | "github-copilot";
   /** For openai-compatible: the server's base URL. For azure-openai: the resource endpoint, e.g. "https://my-resource.openai.azure.com" (no trailing path) — same "where do I connect" role, reused rather than adding a second near-identical field. */
   baseUrl?: string;
   apiKey?: string;
@@ -37,6 +37,8 @@ export interface FinanfaConfig {
   vertexRegion?: string;
   /** google-vertex only — the GCP project to bill/run against. Credentials come from Google Application Default Credentials, not from config. */
   vertexProjectId?: string;
+  /** github-copilot only — a GitHub OAuth token with Copilot access, obtained via the device-authorization flow (see github-copilot-auth.ts and the README's GitHub Copilot setup section). Exchanged for a short-lived Copilot API token on every turn; never sent to api.githubcopilot.com directly. */
+  githubCopilotToken?: string;
   /**
    * A second, vision-capable model used only for the follow-up turn right
    * after a tool (browser_screenshot, view_image) returns an image — the

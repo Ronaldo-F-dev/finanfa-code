@@ -422,6 +422,7 @@ export const CONFIG_KEYS = [
   "awsRegion",
   "vertexRegion",
   "vertexProjectId",
+  "githubCopilotToken",
   "visionProvider",
   "visionModel",
   "visionBaseUrl",
@@ -429,7 +430,7 @@ export const CONFIG_KEYS = [
   "thinkingBudgetTokens",
 ] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
-export const SECRET_KEYS: readonly ConfigKey[] = ["apiKey", "anthropicApiKey", "visionApiKey"];
+export const SECRET_KEYS: readonly ConfigKey[] = ["apiKey", "anthropicApiKey", "visionApiKey", "githubCopilotToken"];
 
 function isConfigKey(key: string): key is ConfigKey {
   return (CONFIG_KEYS as readonly string[]).includes(key);

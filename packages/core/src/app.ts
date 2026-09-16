@@ -10,6 +10,7 @@ import { AzureOpenAiProvider } from "./providers/azure-openai-provider.js";
 import { AmazonBedrockProvider } from "./providers/amazon-bedrock-provider.js";
 import { GoogleVertexProvider } from "./providers/google-vertex-provider.js";
 import { CohereProvider } from "./providers/cohere-provider.js";
+import { GithubCopilotProvider } from "./providers/github-copilot-provider.js";
 import type { FinanfaConfig } from "./core/config.js";
 import { McpClientManager, NeedsAuthorizationError } from "./mcp/client-manager.js";
 import { loadMcpServers } from "./mcp/config.js";
@@ -200,6 +201,7 @@ export const BASE_SYSTEM_PROMPT =
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
 const DEFAULT_COHERE_MODEL = "command-r-plus-08-2024";
+const DEFAULT_GITHUB_COPILOT_MODEL = "gpt-4o";
 
 /** FINANFA_API_KEYS is comma- or newline-separated (a community pasting several keys at once) — undefined if unset, so it doesn't shadow config.apiKeys with an empty array. */
 export function parseApiKeys(raw: string | undefined): string[] | undefined {
@@ -273,6 +275,19 @@ export function selectProvider(config: FinanfaConfig): { provider: LlmProvider; 
       );
     }
     return { provider: new AmazonBedrockProvider({ region }), defaultModel: model, kind };
+  }
+
+  if (kind === "github-copilot") {
+    const githubToken = process.env.FINANFA_GITHUB_COPILOT_TOKEN ?? config.githubCopilotToken;
+    const model = process.env.FINANFA_MODEL ?? config.model ?? DEFAULT_GITHUB_COPILOT_MODEL;
+    if (!githubToken) {
+      throw new Error(
+        "provider github-copilot requires a GitHub token with Copilot access — set FINANFA_GITHUB_COPILOT_TOKEN, " +
+          "or /config set githubCopilotToken <token>. See the README's GitHub Copilot setup section for how to " +
+          "obtain one via the device-authorization flow.",
+      );
+    }
+    return { provider: new GithubCopilotProvider({ githubToken }), defaultModel: model, kind };
   }
 
   if (kind === "cohere") {
