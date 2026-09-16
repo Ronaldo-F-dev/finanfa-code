@@ -67,6 +67,12 @@ first tagged release.
   a confirmed gap relative to every channel plugin in a comparable
   project we audited against.
 
+- `finanfa --acp`'s permission requests now carry the real tool_use id
+  (the same one the `tool_call` notification for that call uses), instead
+  of a synthetic `permission-<timestamp>` id unrelated to it — an ACP
+  client can now actually correlate a `session/request_permission` with
+  the `tool_call`/`tool_call_update` pair it's about.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
