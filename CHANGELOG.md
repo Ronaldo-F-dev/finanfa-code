@@ -91,6 +91,11 @@ first tagged release.
   runs the turn on the transcript exactly as if it had been typed —
   previously a voice note had no `text` field and was silently ignored.
 
+- `write_memory` now warns (without blocking the save) when a new note's
+  description looks like a near-duplicate of an existing one in the same
+  scope saved under a different name — the memory instructions already
+  said to check for this first; this catches it when that step is missed.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
