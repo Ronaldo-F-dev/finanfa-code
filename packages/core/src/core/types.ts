@@ -79,6 +79,20 @@ export interface NeutralToolCall {
   input: unknown;
 }
 
+/**
+ * Anthropic extended-thinking content, carried through opaquely — no other
+ * provider produces or reads these, but Anthropic (direct, Bedrock, or
+ * Vertex — all three funnel through streamAnthropicTurn) requires its own
+ * thinking block(s) to be replayed back verbatim, in original order,
+ * ahead of any text/tool_use content, on the very next request that
+ * continues this same assistant turn (e.g. submitting a tool_result).
+ * Dropping or reordering them makes that next call a 400. `signature`
+ * cryptographically ties a real "thinking" block to the request that
+ * produced it; a "redacted_thinking" block's `data` is opaque (flagged
+ * content Anthropic itself withheld) and is never meant to be human-readable.
+ */
+export type NeutralThinkingBlock = { type: "thinking"; thinking: string; signature: string } | { type: "redacted_thinking"; data: string };
+
 export interface NeutralToolResult {
   toolCallId: string;
   content: string;
@@ -94,7 +108,7 @@ export interface NeutralImage {
 
 export type NeutralMessage =
   | { role: "user"; content: string; images?: NeutralImage[] }
-  | { role: "assistant"; content: string; toolCalls?: NeutralToolCall[] }
+  | { role: "assistant"; content: string; toolCalls?: NeutralToolCall[]; thinkingBlocks?: NeutralThinkingBlock[] }
   | { role: "tool"; results: NeutralToolResult[] };
 
 export type StopReason = "tool_use" | "end_turn" | "other";
@@ -109,6 +123,10 @@ export interface StreamTurnParams {
   signal?: AbortSignal;
   /** Overrides the provider's default max_tokens — used by the effort-tier picker to cap output on small/local models where a large response is itself part of what exhausts a tiny context window. Falls back to each provider's own default when unset. */
   maxTokens?: number;
+  /** Enables Anthropic extended thinking with this token budget (undefined disables it — the default, zero behavior change). Ignored by every provider except streamAnthropicTurn (direct/Bedrock/Vertex); see NeutralThinkingBlock for why the resulting content has to round-trip through session history unmodified. */
+  thinkingBudgetTokens?: number;
+  /** Streamed thinking-content deltas, mirroring onTextDelta — optional, since only extended thinking (and only some providers) ever calls it. */
+  onThinkingDelta?: (text: string) => void;
 }
 
 export interface StreamTurnResult {
