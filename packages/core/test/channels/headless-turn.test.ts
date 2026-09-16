@@ -27,6 +27,7 @@ describe("runHeadlessTurn (real local HTTP server, real project directory, real 
   let server: http.Server;
   let baseUrl: string;
   let lastRequestBody: { messages: { role: string; content: unknown }[] } | undefined;
+  let requestBodies: { messages: { role: string; content: unknown }[] }[];
   let replyText: string;
 
   beforeAll(async () => {
@@ -34,7 +35,9 @@ describe("runHeadlessTurn (real local HTTP server, real project directory, real 
       let raw = "";
       req.on("data", (c) => (raw += c));
       req.on("end", () => {
-        lastRequestBody = JSON.parse(raw);
+        const body = JSON.parse(raw) as { messages: { role: string; content: unknown }[] };
+        lastRequestBody = body;
+        requestBodies.push(body);
         res.writeHead(200, { "content-type": "text/event-stream" });
         res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: replyText }, finish_reason: "stop" }], usage: { prompt_tokens: 5, completion_tokens: 2 } })}\n\n`);
         res.write("data: [DONE]\n\n");
@@ -59,6 +62,7 @@ describe("runHeadlessTurn (real local HTTP server, real project directory, real 
     process.env.FINANFA_BASE_URL = baseUrl;
     process.env.FINANFA_MODEL = "test-model";
     replyText = "Hello from the fake model.";
+    requestBodies = [];
   });
 
   afterEach(async () => {
@@ -72,6 +76,19 @@ describe("runHeadlessTurn (real local HTTP server, real project directory, real 
     const result = await runHeadlessTurn(projectDir, "slack-C123-1700000000.000001", "hi there");
     expect(result.replyText).toBe("Hello from the fake model.");
     expect(lastRequestBody?.messages.some((m) => m.role === "user" && m.content === "hi there")).toBe(true);
+  });
+
+  it("forwards an image through to the provider request, for an inbound channel attachment", async () => {
+    const sessionId = "slack-C123-1700000000.000002";
+    await runHeadlessTurn(projectDir, sessionId, "what's in this picture?", [{ mimeType: "image/png", base64: "ZmFrZS1wbmctYnl0ZXM=" }]);
+
+    // The image is deliberately stripped from the *persisted* message right
+    // after this one call (see consumeImageMessage in loop.ts — it's not
+    // resent every later turn), so the real signal that it was actually
+    // used is the request the fake model server received, not the saved
+    // session file.
+    const userMessagePart = requestBodies[0]?.messages.find((m) => m.role === "user");
+    expect(JSON.stringify(userMessagePart?.content)).toContain("ZmFrZS1wbmctYnl0ZXM=");
   });
 
   it("persists the session under a stable id, so a second message in the same thread carries context forward", async () => {

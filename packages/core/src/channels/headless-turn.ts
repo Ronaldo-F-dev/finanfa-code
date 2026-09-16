@@ -15,8 +15,9 @@ import { loadProjectInstructions, formatProjectInstructions } from "../core/proj
 import { loadDesignContract } from "../core/design-contract.js";
 import { BrowserManager } from "../browser/manager.js";
 import { loadConfig } from "../core/config.js";
-import { BASE_SYSTEM_PROMPT, selectProvider } from "../app.js";
+import { BASE_SYSTEM_PROMPT, selectProvider, selectVisionProvider } from "../app.js";
 import type { UIAdapter } from "../ui/adapter.js";
+import type { NeutralImage } from "../core/types.js";
 
 /**
  * Buffers the assistant's reply instead of rendering it anywhere — an
@@ -64,8 +65,15 @@ export interface HeadlessTurnResult {
  * slack.ts's channel+thread keying) — resumed if it already exists,
  * created fresh otherwise, so context carries across messages in the same
  * thread the same way a terminal session persists across turns.
+ *
+ * `images` mirrors the CLI/web/VS Code entry points' own image handling
+ * (an inbound channel attachment — see channels-slack.ts — decoded to the
+ * same NeutralImage shape): routed through the project's configured
+ * vision fallback provider (selectVisionProvider), same as every other
+ * front-end, so a primary model with no vision support still works for a
+ * channel message that includes one.
  */
-export async function runHeadlessTurn(cwd: string, sessionId: string, userText: string): Promise<HeadlessTurnResult> {
+export async function runHeadlessTurn(cwd: string, sessionId: string, userText: string, images?: NeutralImage[]): Promise<HeadlessTurnResult> {
   const ui = createBufferingUiAdapter();
   const config = await loadConfig(cwd);
   const { provider, defaultModel } = selectProvider(config);
@@ -116,7 +124,7 @@ export async function runHeadlessTurn(cwd: string, sessionId: string, userText: 
       agentTypes,
     });
 
-    await runTurn(session, provider, ui, tools, permissions, userText);
+    await runTurn(session, provider, ui, tools, permissions, userText, selectVisionProvider(config), images);
     await maybeGenerateTitle(session, provider);
     await session.persist();
   } finally {
