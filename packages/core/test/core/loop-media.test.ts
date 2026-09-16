@@ -7,7 +7,7 @@ import { DEFAULT_PERMISSION_CONFIG } from "../../src/permissions/config.js";
 import type { LlmProvider, StreamTurnResult } from "../../src/core/types.js";
 import type { UIAdapter } from "../../src/ui/adapter.js";
 
-function makeStubUi(): UIAdapter & { writeMedia: ReturnType<typeof vi.fn> } {
+function makeStubUi(): UIAdapter & { writeMedia: ReturnType<typeof vi.fn<NonNullable<UIAdapter["writeMedia"]>>> } {
   return {
     writeAssistantDelta: vi.fn(),
     endAssistantMessage: vi.fn(),
@@ -19,7 +19,7 @@ function makeStubUi(): UIAdapter & { writeMedia: ReturnType<typeof vi.fn> } {
     setCommands: vi.fn(),
     setBusy: vi.fn(),
     askUser: vi.fn().mockResolvedValue(""),
-    writeMedia: vi.fn(),
+    writeMedia: vi.fn<NonNullable<UIAdapter["writeMedia"]>>(),
     close: vi.fn(),
   };
 }
