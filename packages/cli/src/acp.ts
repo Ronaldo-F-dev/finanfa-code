@@ -65,7 +65,7 @@ function toolKindFor(toolName: string): acp.ToolKind {
   return hit ? hit[1] : "other";
 }
 
-/** Extracts a tool name from PermissionManager's plain natural-language prompt string (`wants to run "X": ...`) — the cleanest option available, since askUser only ever receives that formatted string, not the originating ToolDefinition/call id. See requestPermissionFor's own comment for why this means the permission-request and the tool_call/tool_call_update trio it's paired with don't share one toolCallId in this first pass. */
+/** Extracts a tool name from PermissionManager's plain natural-language prompt string (`wants to run "X": ...`) — the cleanest option available for display purposes (title/kind), since askUser's real correlation with the tool_call/tool_call_update trio comes from its toolCallId param instead (see askUser below), not from re-deriving the ToolDefinition here. */
 function toolNameFromPrompt(prompt: string): string {
   return /wants to run "([^"]+)"/.exec(prompt)?.[1] ?? "tool";
 }
@@ -115,16 +115,19 @@ function createAcpUiAdapter(sessionId: string, cx: { notify: typeof acp.AgentSid
     getStatus: () => undefined,
     setCommands() {},
     setBusy() {},
-    async askUser(prompt: string, kind?: "input" | "confirm") {
+    async askUser(prompt: string, kind?: "input" | "confirm", toolCallId?: string) {
       if (kind !== "confirm") return ""; // ACP prompts arrive as full turns, not mid-turn plain-text asks
-      // See toolNameFromPrompt's and requestPermissionFor's own comments —
-      // this synthetic id is unrelated to the real call.id the *next*
-      // writeToolCall for this same tool announces a moment later, since
-      // permission is checked before that announcement happens.
+      // toolCallId is the real call.id PermissionManager.check received from
+      // the agent loop (see loop.ts) — the same id the writeToolCall a
+      // moment later will announce for this exact call, so an ACP client
+      // can correlate this permission request with that tool_call. Only
+      // falls back to a synthetic id for an ask with no backing tool call
+      // at all (there is currently none on this path, but askUser's own
+      // signature allows it).
       const toolName = toolNameFromPrompt(prompt);
       const response = await cx.request(acp.methods.client.session.requestPermission, {
         sessionId,
-        toolCall: { toolCallId: `permission-${Date.now()}`, title: prompt, kind: toolKindFor(toolName) },
+        toolCall: { toolCallId: toolCallId ?? `permission-${Date.now()}`, title: prompt, kind: toolKindFor(toolName) },
         options: [
           { kind: "allow_once", name: "Allow", optionId: "y" },
           { kind: "reject_once", name: "Deny", optionId: "n" },

@@ -19,7 +19,11 @@ import * as acp from "@agentclientprotocol/sdk";
 
 const cliDir = path.dirname(path.dirname(fileURLToPath(import.meta.url)));
 
-async function withAcpAgent<T>(projectDir: string, run: (ctx: acp.ClientContext) => Promise<T>): Promise<T> {
+async function withAcpAgent<T>(
+  projectDir: string,
+  run: (ctx: acp.ClientContext) => Promise<T>,
+  onRequestPermission?: (toolCallId: string) => void,
+): Promise<T> {
   const agentProcess: ChildProcessWithoutNullStreams = spawn("npx", ["tsx", "bin/finanfa.ts", "--acp", "--cwd", projectDir], {
     cwd: cliDir,
     stdio: ["pipe", "pipe", "pipe"],
@@ -33,7 +37,10 @@ async function withAcpAgent<T>(projectDir: string, run: (ctx: acp.ClientContext)
 
     return await acp
       .client({ name: "test-client" })
-      .onRequest(acp.methods.client.session.requestPermission, (ctx) => Promise.resolve({ outcome: { outcome: "selected", optionId: ctx.params.options[0]!.optionId } }))
+      .onRequest(acp.methods.client.session.requestPermission, (ctx) => {
+        onRequestPermission?.(ctx.params.toolCall.toolCallId);
+        return Promise.resolve({ outcome: { outcome: "selected", optionId: ctx.params.options[0]!.optionId } });
+      })
       .onRequest(acp.methods.client.fs.writeTextFile, () => Promise.resolve({}))
       .onRequest(acp.methods.client.fs.readTextFile, () => Promise.resolve({ content: "" }))
       .connectWith(stream, run);
@@ -126,24 +133,37 @@ describe("finanfa --acp (real subprocess, real ACP client from the official SDK,
         JSON.stringify({ choices: [{ delta: { content: "done" }, finish_reason: "stop" }], usage: { prompt_tokens: 1, completion_tokens: 1 } }),
       ];
       requestCount = 0;
+      let permissionRequestToolCallId: string | undefined;
 
-      const result = await withAcpAgent(projectDir, async (ctx) => {
-        await ctx.request(acp.methods.agent.initialize, { protocolVersion: acp.PROTOCOL_VERSION, clientCapabilities: {} });
-        return ctx.buildSession(projectDir).withSession(async (session) => {
-          session.prompt("run echo hi");
+      const result = await withAcpAgent(
+        projectDir,
+        async (ctx) => {
+          await ctx.request(acp.methods.agent.initialize, { protocolVersion: acp.PROTOCOL_VERSION, clientCapabilities: {} });
+          return ctx.buildSession(projectDir).withSession(async (session) => {
+            session.prompt("run echo hi");
 
-          const toolCallIds = new Set<string>();
-          const toolCallStatuses: string[] = [];
-          for (;;) {
-            const message = await session.nextUpdate();
-            if (message.kind === "stop") return { stopReason: message.response.stopReason, toolCallIds: [...toolCallIds], toolCallStatuses };
-            const update = message.notification.update;
-            if (update.sessionUpdate === "tool_call") toolCallIds.add(update.toolCallId);
-            if (update.sessionUpdate === "tool_call_update") toolCallStatuses.push(update.status ?? "");
-          }
-        });
-      });
+            const toolCallIds = new Set<string>();
+            const toolCallStatuses: string[] = [];
+            for (;;) {
+              const message = await session.nextUpdate();
+              if (message.kind === "stop") return { stopReason: message.response.stopReason, toolCallIds: [...toolCallIds], toolCallStatuses };
+              const update = message.notification.update;
+              if (update.sessionUpdate === "tool_call") toolCallIds.add(update.toolCallId);
+              if (update.sessionUpdate === "tool_call_update") toolCallStatuses.push(update.status ?? "");
+            }
+          });
+        },
+        (toolCallId) => {
+          permissionRequestToolCallId = toolCallId;
+        },
+      );
 
+      // The permission request's toolCallId must be the model's own real
+      // tool_use id ("call1"), not a synthetic placeholder unrelated to it —
+      // that's what lets an ACP client match this ask to the tool_call
+      // notification for the same call.
+      expect(permissionRequestToolCallId).toBe("call1");
+      expect(result.toolCallIds).toContain("call1");
       expect(result.stopReason).toBe("end_turn");
       expect(result.toolCallIds).toEqual(["call1"]);
       expect(result.toolCallStatuses).toContain("completed");
