@@ -49,6 +49,15 @@ export interface FinanfaConfig {
   visionApiKey?: string;
   visionModel?: string;
   /**
+   * Enables Anthropic extended thinking (direct/Bedrock/Vertex — see
+   * streamAnthropicTurn) with this token budget. A plain string like every
+   * other /config-set value, parsed to a number where it's actually used
+   * (session construction) — unset (the default) means no behavior
+   * change, same as every other optional field here. Ignored entirely by
+   * every non-Anthropic-family provider.
+   */
+  thinkingBudgetTokens?: string;
+  /**
    * OS-level sandbox for the `bash` tool (bubblewrap on Linux — see
    * util/sandbox.ts). Unset/`{mode: "off"}`/bwrap unavailable all mean
    * unsandboxed (this project's original behavior). `{mode:
