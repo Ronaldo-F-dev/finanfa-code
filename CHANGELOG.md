@@ -109,6 +109,16 @@ first tagged release.
   vision-route fallback as the Slack/CLI/web/VS Code image paths — see
   the README's updated command-registration curl for the new option.
 
+- Anthropic extended thinking (direct API, Bedrock, and Vertex — all
+  three funnel through `streamAnthropicTurn`): opt-in via
+  `/config set thinkingBudgetTokens <n>`. Thinking/redacted_thinking
+  blocks round-trip through session history exactly as Anthropic requires
+  (ahead of any text/tool_use, unmodified) so a tool-calling turn that
+  used thinking doesn't break on its very next request. Streamed thinking
+  text is available to a UI adapter via the new optional
+  `writeThinkingDelta` hook. Undefined/unset budget is unchanged behavior
+  — every existing session is unaffected until explicitly configured.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
