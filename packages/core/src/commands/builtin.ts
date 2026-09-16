@@ -419,6 +419,9 @@ export const CONFIG_KEYS = [
   // on show) since every other key here is a plain string.
   "apiKeys",
   "anthropicApiKey",
+  "awsRegion",
+  "vertexRegion",
+  "vertexProjectId",
   "visionProvider",
   "visionModel",
   "visionBaseUrl",
