@@ -85,6 +85,12 @@ first tagged release.
   Telegram's own delivery timeout, a restart replaying queued updates) no
   longer runs a second full agent turn or posts a duplicate reply.
 
+- The Telegram inbound channel now handles voice notes: downloads the real
+  audio via the Bot API, transcribes it (the same OpenAI Whisper backend
+  as the `transcribe_audio` tool, needing its own `OPENAI_API_KEY`), and
+  runs the turn on the transcript exactly as if it had been typed —
+  previously a voice note had no `text` field and was silently ignored.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
