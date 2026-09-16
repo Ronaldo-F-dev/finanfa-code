@@ -1,4 +1,6 @@
 export interface TelegramMessageEvent {
+  /** Telegram's own update id — unique and increasing per bot, redelivered unchanged on a retry (see update-dedup.ts). */
+  updateId: number;
   chatId: string;
   /** Set only in a forum-mode supergroup's topic thread — otherwise every message in that chat shares one session, keyed by chatId alone. */
   messageThreadId?: number;
@@ -30,10 +32,12 @@ export function parseTelegramUpdate(body: unknown): ParsedTelegramUpdate {
   const chat = message.chat as Record<string, unknown> | undefined;
   if (typeof chat?.id !== "number" && typeof chat?.id !== "string") return { kind: "ignored" };
   if (typeof message.text !== "string" || typeof message.message_id !== "number") return { kind: "ignored" };
+  if (typeof update.update_id !== "number") return { kind: "ignored" };
 
   return {
     kind: "message",
     event: {
+      updateId: update.update_id,
       chatId: String(chat.id),
       messageThreadId: typeof message.message_thread_id === "number" ? message.message_thread_id : undefined,
       messageId: message.message_id,
