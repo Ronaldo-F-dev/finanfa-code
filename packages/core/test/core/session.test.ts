@@ -87,6 +87,16 @@ describe("AgentSession.persist", () => {
     expect(resumed.providerBaseUrl).toBe("http://localhost:11434/v1");
   });
 
+  it("persists thinkingBudgetTokens and restores it on resume", async () => {
+    const session = new AgentSession({ cwd: "/some/project", model: "claude-sonnet-5", systemPrompt: "s" });
+    session.thinkingBudgetTokens = 4096;
+
+    await session.persist();
+
+    const resumed = await AgentSession.resume("/some/project", session.id, "s");
+    expect(resumed.thinkingBudgetTokens).toBe(4096);
+  });
+
   it("leaves providerKind/providerBaseUrl undefined on resume for a session that never switched providers", async () => {
     const session = new AgentSession({ cwd: "/some/project", model: "claude-sonnet-5", systemPrompt: "s" });
     await session.persist();

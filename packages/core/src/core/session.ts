@@ -53,6 +53,8 @@ export interface SessionFile {
   maxTokens?: number;
   /** The effort tier ("low"/"medium"/"high") this session is currently on, if any — kept alongside maxTokens/model/providerBaseUrl purely so a resumed session's UI can show which tier is active without re-deriving it from the model name. */
   effort?: string;
+  /** See AgentSession.thinkingBudgetTokens's own doc comment. */
+  thinkingBudgetTokens?: number;
 }
 
 // Computed lazily (not memoized as a module constant) so it reflects the
@@ -134,6 +136,8 @@ export class AgentSession {
   /** See SessionFile's own doc comment — set by the effort-tier picker, read back on resume. */
   maxTokens?: number;
   effort?: string;
+  /** Set from config.thinkingBudgetTokens at construction (see each entry point) — read back on resume, same lifecycle as maxTokens/effort. Undefined disables Anthropic extended thinking entirely. */
+  thinkingBudgetTokens?: number;
 
   constructor(opts: { id?: string; cwd: string; model: string; systemPrompt: string }) {
     this.id = opts.id ?? randomUUID();
@@ -161,6 +165,7 @@ export class AgentSession {
     session.errorLog = data.errorLog ?? [];
     session.maxTokens = data.maxTokens;
     session.effort = data.effort;
+    session.thinkingBudgetTokens = data.thinkingBudgetTokens;
     return session;
   }
 
@@ -250,6 +255,7 @@ export class AgentSession {
         errorLog: this.errorLog,
         maxTokens: this.maxTokens,
         effort: this.effort,
+        thinkingBudgetTokens: this.thinkingBudgetTokens,
       };
       await writeFile(tmp, JSON.stringify(this.redactSessionFile(data), null, 2), "utf-8");
       await rename(tmp, file);
