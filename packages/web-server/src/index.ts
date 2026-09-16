@@ -60,6 +60,7 @@ import {
   resolveProjectDir,
   projectExists,
 } from "./projects.js";
+import { registerSlackChannelRoutes } from "./channels-slack.js";
 
 // The workspace the "default" project points at — the same "cwd" concept as
 // running the CLI from that directory, and the only workspace that existed
@@ -79,7 +80,20 @@ const DEFAULT_CWD = process.env.FINANFA_WEB_CWD ?? process.cwd();
 const PORT = Number(process.env.PORT ?? 4600);
 
 const app = express();
-app.use(express.json({ limit: "25mb" })); // images arrive as base64 JSON — comfortably over a typical photo's encoded size
+app.use(
+  express.json({
+    limit: "25mb", // images arrive as base64 JSON — comfortably over a typical photo's encoded size
+    // Stashes the exact raw bytes alongside the parsed body — channels-slack.ts's
+    // signature verification covers these exact bytes, not a re-serialized
+    // JSON.parse/stringify round trip (which can reorder keys/whitespace and
+    // invalidate an otherwise-genuine signature).
+    verify: (req, _res, buf) => {
+      (req as express.Request & { rawBody?: Buffer }).rawBody = buf;
+    },
+  }),
+);
+
+registerSlackChannelRoutes(app, DEFAULT_CWD);
 
 /** Resolves a `?project=` query param to a real, validated directory — 404s (via the thrown error's message) rather than silently falling back, so a stale/deleted project id in the URL surfaces clearly instead of quietly operating on the wrong workspace. */
 async function resolveCwd(projectId: string | undefined): Promise<string> {
