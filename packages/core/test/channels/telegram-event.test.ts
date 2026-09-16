@@ -41,6 +41,18 @@ describe("parseTelegramUpdate", () => {
     expect(parseTelegramUpdate({ update_id: 1, callback_query: { id: "abc" } })).toEqual({ kind: "ignored" });
   });
 
+  it("extracts a voice note message by its file_id, for later download + transcription", () => {
+    const result = parseTelegramUpdate({
+      update_id: 1,
+      message: { message_id: 42, chat: { id: 12345, type: "private" }, voice: { file_id: "AABBCC", file_unique_id: "x", duration: 3, mime_type: "audio/ogg" } },
+    });
+    expect(result).toEqual({ kind: "voice", event: { updateId: 1, chatId: "12345", messageThreadId: undefined, messageId: 42, fileId: "AABBCC" } });
+  });
+
+  it("ignores a message with neither text nor a voice note (e.g. a sticker)", () => {
+    expect(parseTelegramUpdate({ update_id: 1, message: { message_id: 42, chat: { id: 12345 }, sticker: { file_id: "x" } } })).toEqual({ kind: "ignored" });
+  });
+
   it("ignores an update with no update_id — needed for redelivery dedup, so a malformed/missing one can't silently skip that check", () => {
     expect(
       parseTelegramUpdate({
