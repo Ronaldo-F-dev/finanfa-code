@@ -61,7 +61,7 @@ describe("runTurn: announces a tool call via writeToolCall when the adapter supp
 
     await runTurn(session, new (oneToolCallThenDone("bash"))(), ui, tools, permissions, "delete it");
 
-    expect(writeToolCall).toHaveBeenCalledWith({ toolName: "bash", description: "rm -rf /tmp/x", riskLevel: "dangerous" } satisfies ToolCallAnnouncement);
+    expect(writeToolCall).toHaveBeenCalledWith({ toolCallId: "c1", toolName: "bash", description: "rm -rf /tmp/x", riskLevel: "dangerous" } satisfies ToolCallAnnouncement);
     expect(ui.writeSystem).not.toHaveBeenCalledWith(expect.stringContaining("→"));
   });
 

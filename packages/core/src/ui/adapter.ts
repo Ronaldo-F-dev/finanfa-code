@@ -1,9 +1,18 @@
 import type { ToolRiskLevel } from "../core/types.js";
 
 export interface ToolCallAnnouncement {
+  /** The model's own tool_use id for this call — stable for the call's whole lifetime, so an adapter that needs to correlate this announcement with its later ToolResultAnnouncement (e.g. the ACP bridge's tool_call/tool_call_update pair) can, even across concurrent "safe" tool calls. */
+  toolCallId: string;
   toolName: string;
   description: string;
   riskLevel: ToolRiskLevel;
+}
+
+export interface ToolResultAnnouncement {
+  toolCallId: string;
+  toolName: string;
+  isError: boolean;
+  content: string;
 }
 
 export interface StatusInfo {
@@ -35,6 +44,8 @@ export interface UIAdapter {
    * unchanged.
    */
   writeToolCall?(info: ToolCallAnnouncement): void;
+  /** A tool call finished (or threw) — optional, for an adapter (like the ACP bridge) that needs structured completion data beyond writeSystem/writeError's plain-text echo. Falls back silently for every existing adapter. */
+  writeToolResult?(info: ToolResultAnnouncement): void;
   setStatus(status: StatusInfo): void;
   getStatus(): StatusInfo | undefined;
   /** Registers the available slash commands, used to drive autocomplete/suggestions. */

@@ -210,7 +210,7 @@ async function runOneToolCall(
     }
 
     const callDescription = tool.describeCall ? tool.describeCall(call.input) : "";
-    if (ui.writeToolCall) ui.writeToolCall({ toolName: tool.name, description: callDescription, riskLevel: tool.riskLevel });
+    if (ui.writeToolCall) ui.writeToolCall({ toolCallId: call.id, toolName: tool.name, description: callDescription, riskLevel: tool.riskLevel });
     else ui.writeSystem(`→ ${tool.name}: ${callDescription}`);
     ui.setBusy(true, tool.name);
     try {
@@ -227,6 +227,7 @@ async function runOneToolCall(
       // to paraphrase it, so a failure it glossed over had no direct
       // visibility short of asking it to repeat itself or re-running by hand.
       echoToolOutput(ui, result.content, result.isError);
+      ui.writeToolResult?.({ toolCallId: call.id, toolName: tool.name, isError: result.isError, content: result.content });
       if (!result.isError && result.media) ui.writeMedia?.(result.media);
       await permissions.runPostToolUseHook(tool, call.input, { isError: result.isError, content: result.content }, ctx);
       return {
@@ -239,6 +240,7 @@ async function runOneToolCall(
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       echoToolOutput(ui, message, true);
+      ui.writeToolResult?.({ toolCallId: call.id, toolName: tool.name, isError: true, content: message });
       return {
         result: { toolCallId: call.id, isError: true, content: message },
       };

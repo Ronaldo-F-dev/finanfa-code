@@ -163,7 +163,7 @@ describe("readline UIAdapter writeToolCall", () => {
 
   it("writes the tool name and description", () => {
     const ui = createReadlineAdapter();
-    ui.writeToolCall!({ toolName: "bash", description: "rm -rf /tmp/x", riskLevel: "dangerous" });
+    ui.writeToolCall!({ toolCallId: "t1", toolName: "bash", description: "rm -rf /tmp/x", riskLevel: "dangerous" });
 
     const written = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
     expect(written).toContain("bash");
@@ -173,11 +173,11 @@ describe("readline UIAdapter writeToolCall", () => {
   it("uses a different color per risk level", () => {
     const ui = createReadlineAdapter();
 
-    ui.writeToolCall!({ toolName: "read_file", description: "a.txt", riskLevel: "safe" });
+    ui.writeToolCall!({ toolCallId: "t1", toolName: "read_file", description: "a.txt", riskLevel: "safe" });
     const safeWritten = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
     writeSpy.mockClear();
 
-    ui.writeToolCall!({ toolName: "bash", description: "rm x", riskLevel: "dangerous" });
+    ui.writeToolCall!({ toolCallId: "t1", toolName: "bash", description: "rm x", riskLevel: "dangerous" });
     const dangerousWritten = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
 
     expect(safeWritten).toContain("\x1b[36m"); // cyan
@@ -187,7 +187,7 @@ describe("readline UIAdapter writeToolCall", () => {
 
   it("omits the description part cleanly when there is none", () => {
     const ui = createReadlineAdapter();
-    ui.writeToolCall!({ toolName: "noop", description: "", riskLevel: "safe" });
+    ui.writeToolCall!({ toolCallId: "t1", toolName: "noop", description: "", riskLevel: "safe" });
 
     const written = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
     expect(written).toContain("noop");
