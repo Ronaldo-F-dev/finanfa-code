@@ -245,6 +245,15 @@ first tagged release.
   (needs `TRELLO_API_KEY`/`TRELLO_API_TOKEN`) — creates a card on a given
   list. Another of the same productivity-integration gaps.
 
+- `get_spotify_now_playing`/`control_spotify_playback` builtin tools: a
+  real Spotify Web API connector (needs `SPOTIFY_CLIENT_ID`/
+  `SPOTIFY_CLIENT_SECRET`/`SPOTIFY_REFRESH_TOKEN` — a one-time OAuth
+  authorization, unlike Notion's/Trello's static tokens, since Spotify
+  access tokens expire hourly) — reports the currently playing track, or
+  controls play/pause/skip on the active device. The last of the
+  productivity integrations (Notion/Trello/Spotify) named as a gap
+  relative to a comparable project we audited against.
+
 - `delete_memory` builtin tool (a memory note could previously only be
   written/overwritten by the agent, never removed by it — only a human
   via the web UI's Memory panel had a delete path) and
