@@ -40,6 +40,7 @@ import { createReadNotionPageTool, createWriteNotionPageTool, notionConfigFromEn
 import { createCreateTrelloCardTool, trelloConfigFromEnv } from "./trello.js";
 import { createRunAppleScriptTool } from "./applescript.js";
 import { createGetSpotifyNowPlayingTool, createControlSpotifyPlaybackTool, spotifyConfigFromEnv } from "./spotify.js";
+import { createGetSmartHomeStateTool, createControlSmartHomeDeviceTool, homeAssistantConfigFromEnv } from "./home-assistant.js";
 import { viewVideoFramesTool } from "./view-video-frames.js";
 import { createTranscribeAudioTool, transcribeAudioConfigFromEnv } from "./transcribe-audio.js";
 import { listAvailableModelsTool } from "./list-available-models.js";
@@ -182,6 +183,9 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   const spotifyConfig = spotifyConfigFromEnv();
   registry.register(createGetSpotifyNowPlayingTool(spotifyConfig));
   registry.register(createControlSpotifyPlaybackTool(spotifyConfig));
+  const homeAssistantConfig = homeAssistantConfigFromEnv();
+  registry.register(createGetSmartHomeStateTool(homeAssistantConfig));
+  registry.register(createControlSmartHomeDeviceTool(homeAssistantConfig));
   if (isCommandAvailable("ffmpeg") && isCommandAvailable("ffprobe")) registry.register(viewVideoFramesTool);
   registry.register(createTranscribeAudioTool(transcribeAudioConfigFromEnv()));
   registry.register(listAvailableModelsTool);
