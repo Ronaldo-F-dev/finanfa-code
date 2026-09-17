@@ -169,12 +169,12 @@ export function createTmuxKillSessionTool(options: TmuxToolOptions = {}): ToolDe
   };
 }
 
-export function createTmuxTools(options: TmuxToolOptions = {}): ToolDefinition<never>[] {
+export function createTmuxTools(options: TmuxToolOptions = {}): ToolDefinition[] {
   return [
     createTmuxListSessionsTool(options),
     createTmuxNewSessionTool(options),
     createTmuxSendKeysTool(options),
     createTmuxCapturePaneTool(options),
     createTmuxKillSessionTool(options),
-  ] as ToolDefinition<never>[];
+  ];
 }

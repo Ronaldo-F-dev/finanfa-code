@@ -34,6 +34,7 @@ import { createSendTelegramMessageTool, telegramConfigFromEnv } from "./send-tel
 import { createSendDiscordMessageTool, discordConfigFromEnv } from "./send-discord-message.js";
 import { createTranscribeAudioTool, transcribeAudioConfigFromEnv } from "./transcribe-audio.js";
 import { listAvailableModelsTool } from "./list-available-models.js";
+import { createTmuxTools } from "./tmux.js";
 import { mqttPublishTool, mqttSubscribeTool } from "./mqtt.js";
 import { coapRequestTool } from "./coap.js";
 import { createGpioTools } from "./gpio.js";
@@ -158,6 +159,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(createSendDiscordMessageTool(discordConfigFromEnv()));
   registry.register(createTranscribeAudioTool(transcribeAudioConfigFromEnv()));
   registry.register(listAvailableModelsTool);
+  if (isCommandAvailable("tmux")) for (const tool of createTmuxTools()) registry.register(tool);
   registry.register(grepTool);
   registry.register(createBashTool(opts?.sandbox));
   registry.register(webSearchTool);
