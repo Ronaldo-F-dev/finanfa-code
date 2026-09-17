@@ -226,6 +226,14 @@ first tagged release.
 
 ### Fixed
 
+- Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)
+  now spawns the real server with `PORT=0` and reads back the actual
+  OS-assigned port from its startup log, instead of guessing one in a
+  caller-supplied range — several ranges overlapped, and running test
+  files in parallel could collide on the same port, failing with a
+  "bad port"/connection-refused error unrelated to the code under test.
+
+
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
   by upgrading to v5.
 - A moderate prototype-pollution/DoS advisory in `qs` (via
