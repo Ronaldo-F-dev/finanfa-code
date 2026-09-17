@@ -155,6 +155,44 @@ describe("AgentSession.persist", () => {
     const resumed = await AgentSession.resume("/some/project", session.id, "s");
     expect(resumed.todos.list()).toEqual([]);
   });
+
+  it("persists ownerUser (set by the web server's Gateway auth) and restores it on resume", async () => {
+    const session = new AgentSession({ cwd: "/some/project", model: "m", systemPrompt: "s" });
+    session.ownerUser = "alice";
+    await session.persist();
+
+    const resumed = await AgentSession.resume("/some/project", session.id, "s");
+    expect(resumed.ownerUser).toBe("alice");
+  });
+
+  it("leaves ownerUser undefined on resume for a session created with no authenticated user", async () => {
+    const session = new AgentSession({ cwd: "/some/project", model: "m", systemPrompt: "s" });
+    await session.persist();
+
+    const resumed = await AgentSession.resume("/some/project", session.id, "s");
+    expect(resumed.ownerUser).toBeUndefined();
+  });
+
+  it("AgentSession.ownerOf reads a session's owner without a full resume", async () => {
+    const session = new AgentSession({ cwd: "/some/project", model: "m", systemPrompt: "s" });
+    session.ownerUser = "bob";
+    await session.persist();
+
+    expect(await AgentSession.ownerOf("/some/project", session.id)).toBe("bob");
+    expect(await AgentSession.ownerOf("/some/project", "nonexistent-id")).toBeUndefined();
+  });
+
+  it("AgentSession.list includes each session's ownerUser", async () => {
+    const owned = new AgentSession({ cwd: "/some/project", model: "m", systemPrompt: "s" });
+    owned.ownerUser = "alice";
+    await owned.persist();
+    const unowned = new AgentSession({ cwd: "/some/project", model: "m", systemPrompt: "s" });
+    await unowned.persist();
+
+    const listed = await AgentSession.list("/some/project");
+    expect(listed.find((s) => s.id === owned.id)?.ownerUser).toBe("alice");
+    expect(listed.find((s) => s.id === unowned.id)?.ownerUser).toBeUndefined();
+  });
 });
 
 describe("AgentSession.list", () => {

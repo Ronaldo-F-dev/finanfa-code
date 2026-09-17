@@ -57,6 +57,8 @@ export interface SessionFile {
   thinkingBudgetTokens?: number;
   /** The current todo_write checklist (see TodoStore) — persisted so a resumed session's board isn't always empty until the next todo_write call; restored into a fresh TodoStore on resume(). */
   todos?: TodoItem[];
+  /** Which authenticated web-server user created this session (see web-server/src/auth.ts) — undefined for the CLI/VS Code/ACP entry points, which have no such concept, and for any session created before this field existed. Used to isolate one user's sessions from another's; never enforced by AgentSession itself, only by the web server's own request handlers. */
+  ownerUser?: string;
 }
 
 // Computed lazily (not memoized as a module constant) so it reflects the
@@ -140,6 +142,8 @@ export class AgentSession {
   effort?: string;
   /** Set from config.thinkingBudgetTokens at construction (see each entry point) — read back on resume, same lifecycle as maxTokens/effort. Undefined disables Anthropic extended thinking entirely. */
   thinkingBudgetTokens?: number;
+  /** See SessionFile's own doc comment. Set by the web server right after construction/resume when auth is configured; read back on resume. */
+  ownerUser?: string;
 
   constructor(opts: { id?: string; cwd: string; model: string; systemPrompt: string }) {
     this.id = opts.id ?? randomUUID();
@@ -169,11 +173,12 @@ export class AgentSession {
     session.effort = data.effort;
     session.thinkingBudgetTokens = data.thinkingBudgetTokens;
     if (data.todos) session.todos.set(data.todos);
+    session.ownerUser = data.ownerUser;
     return session;
   }
 
-  /** Lists sessions for `cwd`, most recently modified first. title is undefined for a session with no completed exchange yet, or an unreadable/corrupted file. */
-  static async list(cwd: string): Promise<{ id: string; mtime: Date; title?: string }[]> {
+  /** Lists sessions for `cwd`, most recently modified first. title is undefined for a session with no completed exchange yet, or an unreadable/corrupted file. ownerUser is undefined for a session created with no authenticated web-server user (see SessionFile's own doc comment) — every CLI/VS Code/ACP session, and any session predating this field. */
+  static async list(cwd: string): Promise<{ id: string; mtime: Date; title?: string; ownerUser?: string }[]> {
     const dir = sessionDir(cwd);
     try {
       const entries = await readdir(dir);
@@ -183,10 +188,10 @@ export class AgentSession {
           .map(async (entry) => {
             const filePath = path.join(dir, entry);
             const st = await stat(filePath);
-            const title = await readFile(filePath, "utf-8")
-              .then((raw) => (JSON.parse(raw) as SessionFile).title)
+            const parsed = await readFile(filePath, "utf-8")
+              .then((raw) => JSON.parse(raw) as SessionFile)
               .catch(() => undefined);
-            return { id: entry.replace(/\.json$/, ""), mtime: st.mtime, title };
+            return { id: entry.replace(/\.json$/, ""), mtime: st.mtime, title: parsed?.title, ownerUser: parsed?.ownerUser };
           }),
       );
       return withMtime.sort((a, b) => b.mtime.getTime() - a.mtime.getTime());
@@ -202,6 +207,16 @@ export class AgentSession {
 
   static async delete(cwd: string, sessionId: string): Promise<void> {
     await rm(path.join(sessionDir(cwd), `${sessionId}.json`), { force: true });
+  }
+
+  /** A lightweight ownership check — reads just enough to answer "who owns this session?" without the full resume() (systemPrompt, redaction, etc.). Undefined for a nonexistent/unreadable session file, same as a session with no owner recorded. */
+  static async ownerOf(cwd: string, sessionId: string): Promise<string | undefined> {
+    try {
+      const raw = await readFile(path.join(sessionDir(cwd), `${sessionId}.json`), "utf-8");
+      return (JSON.parse(raw) as SessionFile).ownerUser;
+    } catch {
+      return undefined;
+    }
   }
 
   recordUsage(inputTokens: number, outputTokens: number): void {
@@ -261,6 +276,7 @@ export class AgentSession {
         effort: this.effort,
         thinkingBudgetTokens: this.thinkingBudgetTokens,
         todos: this.todos.list(),
+        ownerUser: this.ownerUser,
       };
       await writeFile(tmp, JSON.stringify(this.redactSessionFile(data), null, 2), "utf-8");
       await rename(tmp, file);
