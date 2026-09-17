@@ -265,6 +265,18 @@ first tagged release.
   has no long-running service to run one in, so consolidation here is
   explicitly triggered and acted on by the agent, not automatic.
 
+- A new inbound Voice channel (Twilio Programmable Voice):
+  `POST /api/channels/voice/webhook` (a new call) and
+  `POST /api/channels/voice/gather` (the caller's spoken reply), both
+  signature-verified. Closes the real-time voice/telephony gap relative
+  to a comparable project we audited against — with an honest limit
+  Twilio's own synchronous webhook forces: a turn is raced against an 8s
+  deadline, and past it the caller is told plainly instead of left on
+  hold, with a best-effort SMS follow-up once the turn actually finishes
+  (when SMS is also configured for the same number). Each call gets its
+  own session (keyed by CallSid), not a persistent per-sender thread like
+  SMS/WhatsApp.
+
 - The web UI now renders the current `todo_write` checklist as a real
   visual task board (a "Tasks" panel in the sidebar, three columns: to
   do/in progress/done) instead of only ever a plain-text log line —
