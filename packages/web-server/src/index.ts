@@ -69,6 +69,7 @@ import { registerDiscordChannelRoutes } from "./channels-discord.js";
 import { registerWhatsappChannelRoutes } from "./channels-whatsapp.js";
 import { registerSmsChannelRoutes } from "./channels-sms.js";
 import { registerVoiceChannelRoutes } from "./channels-voice.js";
+import { parseWebUsers, authenticateBearerToken, authenticateQueryToken } from "./auth.js";
 
 // The workspace the "default" project points at — the same "cwd" concept as
 // running the CLI from that directory, and the only workspace that existed
@@ -86,6 +87,8 @@ const WEB_MAX_AUTO_CONTINUE_TURNS = 5;
 
 const DEFAULT_CWD = process.env.FINANFA_WEB_CWD ?? process.cwd();
 const PORT = Number(process.env.PORT ?? 4600);
+/** Undefined means auth is off — every request/connection is treated as an unauthenticated single shared user, exactly as before this feature existed. See auth.ts. */
+const WEB_USERS = parseWebUsers();
 
 const app = express();
 app.use(
@@ -180,6 +183,24 @@ function buildProvider(family: ProviderFamily, config: FinanfaConfig): LlmProvid
   const apiKey = process.env.FINANFA_API_KEY ?? (savedFamily === "openai-compatible" ? config.apiKey : undefined);
   const apiKeys = parseApiKeys(process.env.FINANFA_API_KEYS) ?? (savedFamily === "openai-compatible" ? config.apiKeys : undefined);
   return new OpenAiCompatibleProvider({ baseUrl, apiKey, apiKeys });
+}
+
+// Gateway auth gate — every /api/* route registered from here on requires
+// a valid token when FINANFA_WEB_USERS is configured (channel webhooks
+// above have their own signature verification instead, and are never
+// meant to carry one of these tokens, so they're registered before this
+// middleware and never reach it). A no-op when WEB_USERS is undefined.
+if (WEB_USERS) {
+  const users = WEB_USERS;
+  app.use("/api", (req, res, next) => {
+    const user = authenticateBearerToken(users, req.header("authorization"));
+    if (!user) {
+      res.status(401).json({ error: "Missing or invalid Authorization: Bearer <token>." });
+      return;
+    }
+    req.user = user;
+    next();
+  });
 }
 
 app.get("/api/models", async (req, res) => {
@@ -368,11 +389,23 @@ app.post("/api/upload", async (req, res) => {
 app.get("/api/sessions", async (req, res) => {
   const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
   const sessions = await AgentSession.list(cwd);
-  res.json({ sessions: sessions.map((s) => ({ id: s.id, title: s.title, mtime: s.mtime })) });
+  // Auth off (req.user undefined): every session is listed, same as before
+  // this feature existed. Auth on: only this user's own sessions, plus any
+  // legacy/ownerless one (predates this field, or was created by a CLI/VS
+  // Code/ACP session sharing the same project) — never another user's.
+  const visible = WEB_USERS ? sessions.filter((s) => !s.ownerUser || s.ownerUser === req.user) : sessions;
+  res.json({ sessions: visible.map((s) => ({ id: s.id, title: s.title, mtime: s.mtime })) });
 });
 
 app.delete("/api/sessions/:id", async (req, res) => {
   const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
+  if (WEB_USERS) {
+    const owner = await AgentSession.ownerOf(cwd, req.params.id);
+    if (owner && owner !== req.user) {
+      res.status(403).json({ error: "This session belongs to a different user." });
+      return;
+    }
+  }
   await AgentSession.delete(cwd, req.params.id);
   res.json({ ok: true });
 });
@@ -627,10 +660,21 @@ const httpServer = createServer(app);
 const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
 wss.on("connection", (ws: WebSocket, req) => {
-  void handleConnection(ws, req.url ?? "");
+  const url = req.url ?? "";
+  if (WEB_USERS) {
+    const token = new URL(url, "http://localhost").searchParams.get("token");
+    const user = authenticateQueryToken(WEB_USERS, token);
+    if (!user) {
+      ws.close(4001, "Missing or invalid ?token=");
+      return;
+    }
+    void handleConnection(ws, url, user);
+    return;
+  }
+  void handleConnection(ws, url, undefined);
 });
 
-async function handleConnection(ws: WebSocket, url: string): Promise<void> {
+async function handleConnection(ws: WebSocket, url: string, user: string | undefined): Promise<void> {
   const { adapter, resolvePending } = createWebUiAdapter(ws);
 
   // Registered immediately — not just as part of the big ws.on("message")
@@ -701,6 +745,16 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     if (requestedSessionId) {
       try {
         session = await AgentSession.resume(CWD, requestedSessionId, systemPrompt);
+        // Auth on, session already has a different owner: refuse the resume
+        // outright rather than silently handing one user's conversation
+        // history to another. A session with no owner recorded yet (predates
+        // this field, or was created by a non-web entry point sharing this
+        // project) is treated as unclaimed — resuming it adopts it below.
+        if (WEB_USERS && session.ownerUser && session.ownerUser !== user) {
+          adapter.writeError(`Session "${requestedSessionId}" belongs to a different user.`);
+          ws.close(4003, "Session belongs to a different user");
+          return;
+        }
       } catch (err) {
         adapter.writeError(
           `Could not resume session "${requestedSessionId}": ${err instanceof Error ? err.message : String(err)}. Starting a new session instead.`,
@@ -710,6 +764,7 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     } else {
       session = new AgentSession({ cwd: CWD, model: requestedModel ?? defaultModel, systemPrompt });
     }
+    if (WEB_USERS) session.ownerUser = user;
     if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
     const model = session.model;
 
