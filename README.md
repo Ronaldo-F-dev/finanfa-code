@@ -264,6 +264,7 @@ Not every model can see images. If your primary model can't, route just the turn
 - **Delegation**: `task` (sub-agents, optionally a named `agentType`), `todo_write` (shown live in the web UI as a real Kanban-style board — see the sidebar's Tasks panel — not just a plain-text checklist)
 - **IoT/embedded**: `serial_*`, `run_esptool`/`run_avrdude`, `mqtt_publish`/`mqtt_subscribe`, `coap_request`, `gpio_*`, `run_arduino_cli`/`run_platformio`
 - **DevOps**: `run_docker`, `run_kubectl`, `run_mydevops` (when installed)
+- **Remote execution**: `run_remote_command` (when `ssh` is installed) — runs a command on a separate machine over the user's own already-configured SSH (host aliases/keys/agent from their real `~/.ssh/config`), `riskLevel: "dangerous"`, permission scoped per host
 - **macOS UI automation**: `run_applescript` (macOS only) — drives other applications (Finder, Mail, Music, System Events for cross-app UI scripting) via a real AppleScript, the same mechanism a native macOS automation script would use
 - **Agent delegation**: `delegate_to_claude_code`/`delegate_to_codex` (when the `claude`/`codex` CLI is installed) — hands a task to a completely separate coding-agent CLI (its own model/tools/context), a generic argv passthrough rather than a fixed prompt-only shape, `riskLevel: "dangerous"`
 - **Secrets**: `read_1password_secret` (via the `op` CLI), `read_vault_secret` (via the `vault` CLI) — both only registered when the underlying CLI is installed, `riskLevel: "dangerous"`
