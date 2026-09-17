@@ -428,6 +428,7 @@ export const CONFIG_KEYS = [
   "visionBaseUrl",
   "visionApiKey",
   "thinkingBudgetTokens",
+  "toolSearch",
 ] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
 export const SECRET_KEYS: readonly ConfigKey[] = ["apiKey", "anthropicApiKey", "visionApiKey", "githubCopilotToken"];
@@ -462,6 +463,10 @@ async function handleConfig(ctx: CommandContext): Promise<CommandOutcome> {
     const value = parts.slice(2).join(" ");
     if (!key || !isConfigKey(key) || !value) {
       ctx.ui.writeError(`Usage: /config set <${CONFIG_KEYS.join("|")}> <value> (apiKeys: comma-separated)`);
+      return "continue";
+    }
+    if (key === "toolSearch" && value !== "auto" && value !== "true" && value !== "false") {
+      ctx.ui.writeError("Usage: /config set toolSearch <auto|true|false>");
       return "continue";
     }
     const current = await loadConfig(ctx.cwd);

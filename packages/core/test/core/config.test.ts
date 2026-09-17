@@ -101,11 +101,11 @@ describe("resolveToolSearchEnabled", () => {
   });
 
   it("an explicit true always wins, even against a non-local provider", () => {
-    expect(resolveToolSearchEnabled({ toolSearch: true }, false)).toBe(true);
+    expect(resolveToolSearchEnabled({ toolSearch: "true" }, false)).toBe(true);
   });
 
   it("an explicit false always wins, even against a local provider", () => {
-    expect(resolveToolSearchEnabled({ toolSearch: false }, true)).toBe(false);
+    expect(resolveToolSearchEnabled({ toolSearch: "false" }, true)).toBe(false);
   });
 
   it("the string 'auto' behaves the same as unset", () => {

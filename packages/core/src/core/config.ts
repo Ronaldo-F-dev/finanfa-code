@@ -72,10 +72,14 @@ export interface FinanfaConfig {
    * "auto" (default, unset also means this): Tool Search (see
    * tool-search.ts) turns on automatically when the resolved provider
    * looks local (see isLocalProviderConfig in app.ts), off otherwise.
-   * true/false force it on/off regardless of provider — an explicit
-   * choice always wins over the automatic one.
+   * "true"/"false" force it on/off regardless of provider — an explicit
+   * choice always wins over the automatic one. A plain string, like
+   * every other /config-set value (see thinkingBudgetTokens above) —
+   * not a real boolean, so this stays a normal string-valued field for
+   * the generic config plumbing (the web UI's /api/config, /config
+   * show/set) that every other key here already assumes.
    */
-  toolSearch?: "auto" | boolean;
+  toolSearch?: "auto" | "true" | "false";
 }
 
 /** Parses config.thinkingBudgetTokens (a plain string, like every other /config-set value) into the number session.thinkingBudgetTokens actually wants — undefined for unset/non-positive/non-numeric, never NaN or 0, so callers can assign it straight through without their own validation. */
@@ -85,9 +89,10 @@ export function thinkingBudgetTokensFromConfig(config: FinanfaConfig): number | 
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-/** Resolves config.toolSearch against whether the provider actually looks local (isLocalProviderConfig in app.ts) into the plain boolean session.toolSearchEnabled wants — an explicit true/false always wins; "auto"/unset falls back to the local-provider heuristic. */
+/** Resolves config.toolSearch against whether the provider actually looks local (isLocalProviderConfig in app.ts) into the plain boolean session.toolSearchEnabled wants — an explicit "true"/"false" always wins; "auto"/unset falls back to the local-provider heuristic. */
 export function resolveToolSearchEnabled(config: FinanfaConfig, isLocalProvider: boolean): boolean {
-  if (typeof config.toolSearch === "boolean") return config.toolSearch;
+  if (config.toolSearch === "true") return true;
+  if (config.toolSearch === "false") return false;
   return isLocalProvider;
 }
 
