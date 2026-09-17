@@ -200,7 +200,7 @@ Ctrl+C persists the session and closes connections cleanly before exit.
 
 ## Project-local configuration (`.finanfa-code/`)
 
-- `settings.json` — permission rules, plus an optional `hooks` field (`PreToolUse`/`PostToolUse`/`UserPromptSubmit` shell hooks, same convention as Claude Code). A project is untrusted by default the first time you open it — you're asked once whether to trust its `settings.json`; declining ignores its rules/hooks for that run.
+- `settings.json` — permission rules (`{ "rules": [{ "tool": "bash", "keyPrefix": "git", "cwdPrefix": "packages/web-client", "decision": "allow" }], "defaultForRiskLevel": {...} }` — `tool: "*"` matches every tool, `keyPrefix`/`cwdPrefix` are each optional and both must match when both are given; `cwdPrefix` scopes a rule to part of a monorepo, e.g. auto-allowing `bash` inside one already-reviewed directory without loosening it everywhere else), plus an optional `hooks` field (`PreToolUse`/`PostToolUse`/`UserPromptSubmit` shell hooks, same convention as Claude Code). A project is untrusted by default the first time you open it — you're asked once whether to trust its `settings.json`; declining ignores its rules/hooks for that run.
 - `commands/*.md` — custom `/name` slash commands (frontmatter `name`/`description` + a prompt-template body; `$ARGUMENTS` is replaced with the args).
 - `agents/*.md` — named subagent types for the `task` tool (its own system prompt, optionally a restricted `tools` whitelist), selected via `task`'s `agentType` input.
 - `skills/*.md` — frontmatter + body, loaded on demand via `read_skill`.
