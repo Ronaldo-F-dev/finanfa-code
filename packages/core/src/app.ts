@@ -214,6 +214,19 @@ export function parseApiKeys(raw: string | undefined): string[] | undefined {
 }
 
 /**
+ * Real, reported case: even OpenAiCompatibleProvider's own generous default
+ * stream-idle timeout wasn't enough for a small local model composing a
+ * large tool call (an entire file as a write_file argument) with no
+ * intermediate bytes on an especially slow box — an escape hatch for a
+ * setup slower than that default, without needing a code change.
+ */
+export function parseStreamIdleTimeoutMs(raw: string | undefined): number | undefined {
+  if (!raw) return undefined;
+  const ms = Number(raw);
+  return Number.isFinite(ms) && ms > 0 ? ms : undefined;
+}
+
+/**
  * Picks the LLM backend. Priority per setting: environment variable > config
  * file (project-local .finanfa-code/config.json, then global
  * ~/.finanfa-code/config.json, see /config) > built-in default.
@@ -231,13 +244,14 @@ export function selectProvider(config: FinanfaConfig): { provider: LlmProvider; 
     const model = process.env.FINANFA_MODEL ?? config.model;
     const apiKey = process.env.FINANFA_API_KEY ?? config.apiKey;
     const apiKeys = parseApiKeys(process.env.FINANFA_API_KEYS) ?? config.apiKeys;
+    const streamIdleTimeoutMs = parseStreamIdleTimeoutMs(process.env.FINANFA_STREAM_IDLE_TIMEOUT_MS);
     if (!baseUrl || !model) {
       throw new Error(
         "provider openai-compatible requires a base URL and model — set FINANFA_BASE_URL/FINANFA_MODEL, " +
           "or /config set baseUrl <url> and /config set model <model>.",
       );
     }
-    return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey, apiKeys }), defaultModel: model, kind };
+    return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey, apiKeys, streamIdleTimeoutMs }), defaultModel: model, kind };
   }
 
   if (kind === "azure-openai") {
@@ -367,13 +381,14 @@ export function selectVisionProvider(config: FinanfaConfig): { provider: LlmProv
   if (kind === "openai-compatible") {
     const baseUrl = process.env.FINANFA_VISION_BASE_URL ?? config.visionBaseUrl;
     const apiKey = process.env.FINANFA_VISION_API_KEY ?? config.visionApiKey;
+    const streamIdleTimeoutMs = parseStreamIdleTimeoutMs(process.env.FINANFA_STREAM_IDLE_TIMEOUT_MS);
     if (!baseUrl) {
       throw new Error(
         "visionProvider openai-compatible requires a base URL — set FINANFA_VISION_BASE_URL, " +
           "or /config set visionBaseUrl <url>.",
       );
     }
-    return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey }), model };
+    return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey, streamIdleTimeoutMs }), model };
   }
 
   const apiKey = process.env.ANTHROPIC_API_KEY ?? config.visionApiKey;

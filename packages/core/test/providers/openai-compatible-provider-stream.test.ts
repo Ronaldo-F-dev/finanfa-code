@@ -306,6 +306,42 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
     }
   });
 
+  it(
+    "real, reported case: a stall message includes the actual configured idle timeout, not a hardcoded " +
+      "number — proves streamIdleTimeoutMs (FINANFA_STREAM_IDLE_TIMEOUT_MS) is honored, not silently ignored",
+    async () => {
+      vi.useFakeTimers();
+      try {
+        const body = new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(
+              new TextEncoder().encode(`data: ${JSON.stringify({ choices: [{ delta: { content: "partial" } }] })}\n\n`),
+            );
+            // never enqueue again or close — a local model composing a
+            // large tool call with no intermediate bytes for a long stretch.
+          },
+        });
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body, { status: 200 })));
+
+        // Deliberately shorter than the real default so the test doesn't
+        // need to fast-forward through the full (now 5-minute) default.
+        const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1", streamIdleTimeoutMs: 7_000 });
+        const promise = provider.streamTurn({
+          model: "m",
+          systemPrompt: "s",
+          messages: [],
+          tools: [],
+          onTextDelta: () => {},
+        });
+        const assertion = expect(promise).rejects.toThrow(/No data received for 7000ms/);
+        await vi.runAllTimersAsync();
+        await assertion;
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
   it("retries a mid-stream stall that happens before any text reached the user, and succeeds on the next attempt", async () => {
     vi.useFakeTimers();
     try {

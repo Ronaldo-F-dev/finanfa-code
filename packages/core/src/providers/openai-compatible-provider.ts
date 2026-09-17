@@ -133,7 +133,19 @@ class StreamNotYetVisibleError extends Error {
 // never notices the difference; only a local cold start or a genuinely
 // stuck server does.
 const REQUEST_TIMEOUT_MS = 300_000;
-const STREAM_IDLE_TIMEOUT_MS = 120_000;
+// Real, reported case: a small local model (MLX/llama.cpp-backed) composing
+// a large tool call — an entire HTML/CSS file as a write_file argument —
+// sent no bytes at all for over two minutes while still genuinely working
+// (some local servers don't stream individual tokens while assembling a
+// tool call, unlike plain text deltas), tripping this timeout and losing
+// the whole turn's progress. 120s was tuned for "the connection actually
+// stalled", not "a slow box is still legitimately generating a big
+// response" — raised to match REQUEST_TIMEOUT_MS's own reasoning above:
+// a real remote API's response never goes this long silent, so this only
+// ever bites a genuinely stuck local server, not a slow-but-alive one.
+// Still overridable (FINANFA_STREAM_IDLE_TIMEOUT_MS) for a setup slower
+// than even this.
+const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000;
 
 async function fetchInitialResponse(
   url: string,
@@ -190,6 +202,7 @@ async function attemptStreamChatCompletion(
   signal?: AbortSignal,
   retryOn429 = true,
   onToolCallStart?: (call: { name: string }) => void,
+  idleTimeoutMs: number = DEFAULT_STREAM_IDLE_TIMEOUT_MS,
 ): Promise<ChatCompletionResult> {
   const response = await fetchInitialResponse(url, headers, body, signal, retryOn429);
 
@@ -219,8 +232,8 @@ async function attemptStreamChatCompletion(
     let idleTimer: ReturnType<typeof setTimeout>;
     const idleTimeout = new Promise<never>((_, reject) => {
       idleTimer = setTimeout(
-        () => reject(new Error(`No data received for ${STREAM_IDLE_TIMEOUT_MS}ms — the connection appears to have stalled.`)),
-        STREAM_IDLE_TIMEOUT_MS,
+        () => reject(new Error(`No data received for ${idleTimeoutMs}ms — the connection appears to have stalled.`)),
+        idleTimeoutMs,
       );
     });
     // Races the read against both the idle timeout and a user interrupt —
@@ -371,16 +384,20 @@ export async function streamChatCompletion(
   signal?: AbortSignal,
   retryOn429 = true,
   onToolCallStart?: (call: { name: string }) => void,
+  idleTimeoutMs: number = DEFAULT_STREAM_IDLE_TIMEOUT_MS,
 ): Promise<ChatCompletionResult> {
   try {
-    return await retryWithBackoff(() => attemptStreamChatCompletion(url, headers, body, onTextDelta, signal, retryOn429, onToolCallStart), {
-      attempts: 3,
-      baseDelayMs: 500,
-      // A deliberate interrupt must never be retried, regardless of error
-      // shape — checked first so it can't accidentally match the
-      // StreamNotYetVisibleError case below on its way out.
-      shouldRetry: (err) => !signal?.aborted && err instanceof StreamNotYetVisibleError,
-    });
+    return await retryWithBackoff(
+      () => attemptStreamChatCompletion(url, headers, body, onTextDelta, signal, retryOn429, onToolCallStart, idleTimeoutMs),
+      {
+        attempts: 3,
+        baseDelayMs: 500,
+        // A deliberate interrupt must never be retried, regardless of error
+        // shape — checked first so it can't accidentally match the
+        // StreamNotYetVisibleError case below on its way out.
+        shouldRetry: (err) => !signal?.aborted && err instanceof StreamNotYetVisibleError,
+      },
+    );
   } catch (err) {
     // Unwrap so callers see the real underlying error (idle timeout, socket
     // reset), not our internal retry-eligibility marker.
@@ -403,6 +420,12 @@ export interface OpenAiCompatibleProviderOptions {
    * switching keys wouldn't fix anyway since they share the same endpoint.
    */
   apiKeys?: string[];
+  /**
+   * Overrides DEFAULT_STREAM_IDLE_TIMEOUT_MS — for a local server even
+   * slower than that generous default to compose a large tool call with no
+   * intermediate bytes. Set from FINANFA_STREAM_IDLE_TIMEOUT_MS in app.ts.
+   */
+  streamIdleTimeoutMs?: number;
 }
 
 // Statuses that mean "this credential specifically is the problem"
@@ -475,6 +498,7 @@ export class OpenAiCompatibleProvider implements LlmProvider {
           params.signal,
           this.keys.length <= 1,
           params.onToolCallStart,
+          this.opts.streamIdleTimeoutMs,
         );
 
         return {

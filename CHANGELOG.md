@@ -10,6 +10,13 @@ first tagged release.
 
 ### Added
 
+- The OpenAI-compatible provider's stream-idle timeout (previously a fixed
+  120s) is now 300s by default and overridable via
+  `FINANFA_STREAM_IDLE_TIMEOUT_MS` — a real reported case: a small local
+  model composing a large tool call (an entire HTML/CSS file as a
+  `write_file` argument) sent no bytes at all for over two minutes while
+  still genuinely working, tripping the old timeout and losing the whole
+  turn.
 - The Ink UI's busy spinner ("thinking...", "running bash...") now shows
   elapsed seconds — a real reported confusion: a slow local model produced
   no visible output for several minutes, indistinguishable from a hung
