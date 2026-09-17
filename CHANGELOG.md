@@ -184,6 +184,13 @@ first tagged release.
   applies so the model knows to actually recover instead of silently
   running with cut-off data.
 
+- `ask_user` builtin tool: lets the model pause mid-turn and ask a direct
+  question when it genuinely needs information only the user can provide
+  (a real choice, a value it can't infer), then keep working with the
+  answer in the same tool-calling loop — previously the only option was
+  ending the whole turn on a text question and waiting for the next
+  message.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
