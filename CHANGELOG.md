@@ -211,6 +211,10 @@ first tagged release.
   attention in one whole-project `finanfa.md`. Folded into the system
   prompt at every entry point, each labeled with its own globs.
 
+- `fly.toml` and `render.yaml` — ready-to-use Fly.io/Render.com deployment
+  configs for the web server, both building the existing Dockerfile with
+  no changes needed to it. See the README's new Fly.io/Render.com section.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
