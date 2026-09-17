@@ -257,6 +257,7 @@ Not every model can see images. If your primary model can't, route just the turn
 - **Video**: `view_video_frames` (when `ffmpeg`/`ffprobe` are installed) — samples a handful of evenly-spaced still frames from a video file for the model to look at (not full video understanding: no motion/timing/audio)
 - **Voice & messaging**: `text_to_speech` (free, Google Translate backend), `transcribe_audio` (Whisper, needs `OPENAI_API_KEY`), `send_slack_message`/`send_telegram_message`/`send_discord_message`/`send_whatsapp_message`/`send_sms_message`, `send_email` — see [Channels](#channels) for the inbound side of Slack/Telegram/Discord/WhatsApp/SMS
 - **Productivity**: `read_notion_page`/`write_notion_page` (real Notion API, needs `NOTION_API_KEY`), `create_trello_card` (real Trello API, needs `TRELLO_API_KEY`/`TRELLO_API_TOKEN`), `get_spotify_now_playing`/`control_spotify_playback` (real Spotify Web API, needs `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET`/`SPOTIFY_REFRESH_TOKEN`)
+- **Smart home**: `get_smart_home_state`/`control_smart_home_device` (real Home Assistant REST API, needs `HOME_ASSISTANT_BASE_URL`/`HOME_ASSISTANT_TOKEN`) — Home Assistant's own REST API covers thousands of real device integrations behind one interface
 - **Code quality**: `check_python_types` (Pyright), `check_typescript_types` (tsc), `lint_javascript` (ESLint), `lint_python` (ruff)
 - **Data**: `query_database` (SQLite/Postgres/MySQL), `python_repl` (persistent interpreter)
 - **UI generation**: `create_artifact` (React + Tailwind, live preview)
