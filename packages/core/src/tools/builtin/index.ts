@@ -42,6 +42,7 @@ import { createRunAppleScriptTool } from "./applescript.js";
 import { createGetSpotifyNowPlayingTool, createControlSpotifyPlaybackTool, spotifyConfigFromEnv } from "./spotify.js";
 import { createGetSmartHomeStateTool, createControlSmartHomeDeviceTool, homeAssistantConfigFromEnv } from "./home-assistant.js";
 import { createRunRemoteCommandTool } from "./remote-exec.js";
+import { createRegisterRemoteHostTool, createRemoveRemoteHostTool, createListRemoteHostsTool, createCheckRemoteHostHealthTool } from "./remote-hosts-tools.js";
 import { exportBundleTool, installBundleTool, listBundleSnapshotsTool, rollbackBundleTool } from "./claw-bundle-tools.js";
 import { createFleetCellTool, listFleetCellsTool, stopFleetCellTool, removeFleetCellTool, createFleetNetworkTool, removeFleetNetworkTool } from "./fleet-tools.js";
 import { viewVideoFramesTool } from "./view-video-frames.js";
@@ -198,7 +199,13 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   const homeAssistantConfig = homeAssistantConfigFromEnv();
   registry.register(createGetSmartHomeStateTool(homeAssistantConfig));
   registry.register(createControlSmartHomeDeviceTool(homeAssistantConfig));
-  if (isCommandAvailable("ssh")) registry.register(createRunRemoteCommandTool());
+  if (isCommandAvailable("ssh")) {
+    registry.register(createRunRemoteCommandTool());
+    registry.register(createRegisterRemoteHostTool());
+    registry.register(createRemoveRemoteHostTool());
+    registry.register(createListRemoteHostsTool());
+    registry.register(createCheckRemoteHostHealthTool());
+  }
   registry.register(exportBundleTool);
   registry.register(installBundleTool);
   registry.register(listBundleSnapshotsTool);
