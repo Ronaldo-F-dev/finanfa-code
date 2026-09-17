@@ -1,7 +1,10 @@
-import { describe, expect, it, afterEach, beforeAll } from "vitest";
+import { describe, expect, it, afterEach, beforeAll, afterAll } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { createFleetCell, listFleetCells, stopFleetCell, removeFleetCell } from "../../src/core/fleet.js";
+import { mkdtemp, writeFile, chmod, rm, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
+import { createFleetCell, listFleetCells, stopFleetCell, removeFleetCell, createFleetNetwork, removeFleetNetwork } from "../../src/core/fleet.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -86,5 +89,155 @@ describe("Fleet (real docker containers)", () => {
   it("removeFleetCell on a cell that doesn't exist is a real, idempotent no-op success (this docker version's own `rm -f` semantics), not an error", async () => {
     const removed = await removeFleetCell("nonexistent-cell-name");
     expect(removed).toEqual({ ok: true });
+  });
+
+  it("applies real resource limits, a restart policy, and a real health check — status reports (healthy)/(unhealthy)", async () => {
+    const healthyName = uniqueCellName();
+    const created = await createFleetCell({
+      name: healthyName,
+      image: "alpine:latest",
+      hostPort: uniquePort(),
+      command: ["sleep", "60"],
+      memoryLimit: "64m",
+      cpus: "0.5",
+      restartPolicy: "on-failure:3",
+      healthCheck: { command: ["true"], intervalSeconds: 1, timeoutSeconds: 2, retries: 1 },
+    });
+    expect(created.ok).toBe(true);
+
+    // Real health checks take a moment to run at least once.
+    await new Promise((r) => setTimeout(r, 2500));
+    const cells = await listFleetCells();
+    const cell = cells.find((c) => c.name === healthyName);
+    expect(cell?.healthy).toBe(true);
+    expect(cell?.status).toContain("(healthy)");
+  }, 20_000);
+
+  it("reports unhealthy for a real failing health check", async () => {
+    const name = uniqueCellName();
+    await createFleetCell({
+      name,
+      image: "alpine:latest",
+      hostPort: uniquePort(),
+      command: ["sleep", "60"],
+      healthCheck: { command: ["false"], intervalSeconds: 1, timeoutSeconds: 2, retries: 1 },
+    });
+
+    await new Promise((r) => setTimeout(r, 2500));
+    const cells = await listFleetCells();
+    expect(cells.find((c) => c.name === name)?.healthy).toBe(false);
+  }, 20_000);
+
+  it("leaves healthy undefined for a cell with no health check configured at all", async () => {
+    const name = uniqueCellName();
+    await createFleetCell({ name, image: "alpine:latest", hostPort: uniquePort(), command: ["sleep", "60"] });
+    const cells = await listFleetCells();
+    expect(cells.find((c) => c.name === name)?.healthy).toBeUndefined();
+  }, 20_000);
+});
+
+describe("Fleet networks (real docker networks)", () => {
+  const TEST_NETWORK_NAMES: string[] = [];
+  function uniqueNetworkName(): string {
+    const name = `test-net-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    TEST_NETWORK_NAMES.push(name);
+    return name;
+  }
+
+  afterEach(async () => {
+    while (TEST_NETWORK_NAMES.length > 0) {
+      const name = TEST_NETWORK_NAMES.pop()!;
+      await removeFleetNetwork(name).catch(() => {});
+    }
+    while (TEST_CELL_NAMES.length > 0) {
+      const name = TEST_CELL_NAMES.pop()!;
+      await removeFleetCell(name).catch(() => {});
+    }
+  });
+
+  it("creates a real network, a cell can join it, and it can be removed", async () => {
+    const networkName = uniqueNetworkName();
+    const created = await createFleetNetwork(networkName);
+    expect(created).toEqual({ ok: true });
+
+    const cellName = uniqueCellName();
+    const cellResult = await createFleetCell({ name: cellName, image: "alpine:latest", hostPort: uniquePort(), command: ["sleep", "30"], network: networkName });
+    expect(cellResult.ok).toBe(true);
+
+    await removeFleetCell(cellName);
+    const removed = await removeFleetNetwork(networkName);
+    expect(removed).toEqual({ ok: true });
+  }, 20_000);
+
+  it("reports a real docker error for a duplicate network name", async () => {
+    const networkName = uniqueNetworkName();
+    const first = await createFleetNetwork(networkName);
+    expect(first).toEqual({ ok: true });
+    const duplicate = await createFleetNetwork(networkName);
+    expect(duplicate.ok).toBe(false);
+  });
+
+  it("removeFleetNetwork reports a real error for a network that doesn't exist", async () => {
+    const removed = await removeFleetNetwork("nonexistent-network-name");
+    expect(removed.ok).toBe(false);
+  });
+});
+
+describe("Fleet multi-host plumbing (real subprocess, fake docker binary capturing its own env)", () => {
+  let dir: string;
+  let fakeDockerPath: string;
+  let capturedEnvPath: string;
+  let originalPath: string | undefined;
+
+  beforeAll(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "finanfa-fleet-fakedocker-"));
+    fakeDockerPath = path.join(dir, "docker");
+    capturedEnvPath = path.join(dir, "captured-env.json");
+    // A real, standalone script standing in for the real docker binary —
+    // this sandbox has no second real machine to target over SSH, so the
+    // DOCKER_HOST plumbing (the one thing createFleetCell/listFleetCells
+    // actually control when a `host` is given — everything else is real
+    // docker's own remote-daemon support, not this module's to reimplement)
+    // is verified by capturing the real environment a real subprocess
+    // actually received, the same "fake stand-in binary" pattern used for
+    // ssh/mydevops/claude/codex elsewhere in this project.
+    await writeFile(
+      fakeDockerPath,
+      `#!/usr/bin/env node\nrequire("node:fs").writeFileSync(${JSON.stringify(capturedEnvPath)}, JSON.stringify({DOCKER_HOST: process.env.DOCKER_HOST ?? null, args: process.argv.slice(2)}));\nconsole.log("fake-container-id");\n`,
+    );
+    await chmod(fakeDockerPath, 0o755);
+    originalPath = process.env.PATH;
+    process.env.PATH = `${dir}${path.delimiter}${originalPath}`;
+  });
+
+  afterAll(async () => {
+    // Restores the real PATH so any LATER test file in this same worker
+    // still finds the real docker binary, not this fake one.
+    process.env.PATH = originalPath;
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("createFleetCell sets DOCKER_HOST in the real subprocess env when host is given", async () => {
+    await createFleetCell({ name: "x", image: "img", hostPort: 1234, host: "ssh://user@remote-machine" });
+    const captured = JSON.parse(await readFile(capturedEnvPath, "utf-8"));
+    expect(captured.DOCKER_HOST).toBe("ssh://user@remote-machine");
+  });
+
+  it("createFleetCell leaves DOCKER_HOST unset (inherits the ambient environment) when no host is given", async () => {
+    delete process.env.DOCKER_HOST;
+    await createFleetCell({ name: "x", image: "img", hostPort: 1234 });
+    const captured = JSON.parse(await readFile(capturedEnvPath, "utf-8"));
+    expect(captured.DOCKER_HOST).toBeNull();
+  });
+
+  it("listFleetCells/stopFleetCell/removeFleetCell all pass host through the same way", async () => {
+    await listFleetCells({ host: "ssh://a" });
+    expect(JSON.parse(await readFile(capturedEnvPath, "utf-8")).DOCKER_HOST).toBe("ssh://a");
+
+    await stopFleetCell("x", { host: "ssh://b" });
+    expect(JSON.parse(await readFile(capturedEnvPath, "utf-8")).DOCKER_HOST).toBe("ssh://b");
+
+    await removeFleetCell("x", { host: "ssh://c" });
+    expect(JSON.parse(await readFile(capturedEnvPath, "utf-8")).DOCKER_HOST).toBe("ssh://c");
   });
 });
