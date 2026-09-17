@@ -15,7 +15,7 @@ Requires **Node.js 22.5.0+**.
 
 ## Sponsors
 
-**phpnitro**
+**[phpnitro](https://github.com/phpnitro)**
 
 ## Table of contents
 
