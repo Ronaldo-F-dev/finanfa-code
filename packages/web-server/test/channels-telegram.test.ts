@@ -121,7 +121,7 @@ describe("web-server Telegram inbound channel (real subprocess, real fake LLM + 
     process.env.OPENAI_API_KEY = "sk-test-key";
     process.env.OPENAI_API_BASE_URL = openaiBaseUrl;
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4990));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {
@@ -215,7 +215,7 @@ describe("web-server Telegram inbound channel — not configured", () => {
     projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-telegram-unconfigured-project-"));
     homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-telegram-unconfigured-home-"));
     for (const k of ["TELEGRAM_WEBHOOK_SECRET", "TELEGRAM_BOT_TOKEN", "TELEGRAM_API_BASE_URL"]) delete process.env[k];
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4995));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {

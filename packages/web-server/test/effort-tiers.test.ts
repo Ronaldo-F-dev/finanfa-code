@@ -63,7 +63,7 @@ describe("web-server set_effort (real subprocess, real Ollama server when presen
     // (Ollama) tiers, which never touch the default-provider path.
     await writeFile(path.join(projectDir, ".finanfa-code", "config.json"), JSON.stringify({}));
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4650));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {

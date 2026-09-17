@@ -114,7 +114,7 @@ describe("web-server WhatsApp inbound channel (real subprocess, real HMAC-signed
     process.env.WHATSAPP_PHONE_NUMBER_ID = "123456";
     process.env.WHATSAPP_API_BASE_URL = whatsappApiBaseUrl;
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 5010));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {
@@ -193,7 +193,7 @@ describe("web-server WhatsApp inbound channel — not configured", () => {
     projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-whatsapp-unconfigured-project-"));
     homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-whatsapp-unconfigured-home-"));
     for (const k of ["WHATSAPP_APP_SECRET", "WHATSAPP_VERIFY_TOKEN", "WHATSAPP_ACCESS_TOKEN", "WHATSAPP_PHONE_NUMBER_ID", "WHATSAPP_API_BASE_URL"]) delete process.env[k];
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 5015));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {

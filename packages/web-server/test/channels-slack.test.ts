@@ -115,7 +115,7 @@ describe("web-server Slack inbound channel (real subprocess, real signed HTTP re
     process.env.SLACK_BOT_TOKEN = "xoxb-test-token";
     process.env.SLACK_API_BASE_URL = slackApiBaseUrl;
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4980));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {
@@ -216,7 +216,7 @@ describe("web-server Slack inbound channel — not configured", () => {
     for (const k of ["SLACK_SIGNING_SECRET", "SLACK_BOT_TOKEN", "SLACK_API_BASE_URL", "FINANFA_PROVIDER", "FINANFA_BASE_URL", "FINANFA_MODEL"]) {
       delete process.env[k];
     }
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4985));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {

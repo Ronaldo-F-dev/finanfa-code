@@ -75,7 +75,7 @@ describe("web-server: auto-continues past the step-limit guard, mirroring the CL
       JSON.stringify({ provider: "openai-compatible", baseUrl, model: "fake-model", apiKey: "test-key" }),
     );
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4980));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 20_000);
 
   afterAll(async () => {

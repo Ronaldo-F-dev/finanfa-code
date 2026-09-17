@@ -78,7 +78,7 @@ describe("web-server: interrupt actually aborts an in-flight turn instead of wai
       JSON.stringify({ provider: "openai-compatible", baseUrl, model: "fake-model", apiKey: "test-key" }),
     );
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4990));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 20_000);
 
   afterAll(async () => {

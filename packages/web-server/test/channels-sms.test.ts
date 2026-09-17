@@ -100,7 +100,7 @@ describe("web-server SMS inbound channel (real subprocess, real Twilio-signed re
     process.env.TWILIO_FROM_NUMBER = "+15559876543";
     process.env.TWILIO_API_BASE_URL = twilioApiBaseUrl;
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 5020));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
     webhookUrl = `http://127.0.0.1:${port}/api/channels/sms/webhook`;
   }, 30_000);
 
@@ -159,7 +159,7 @@ describe("web-server SMS inbound channel — not configured", () => {
     projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-sms-unconfigured-project-"));
     homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-sms-unconfigured-home-"));
     for (const k of ["TWILIO_AUTH_TOKEN", "TWILIO_ACCOUNT_SID", "TWILIO_FROM_NUMBER", "TWILIO_API_BASE_URL"]) delete process.env[k];
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 5025));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {

@@ -87,7 +87,7 @@ describe("web-server: switching back to a default-family model after a local one
       JSON.stringify({ provider: "openai-compatible", baseUrl: defaultBaseUrl, model: "default/laguna", apiKey: "test-key" }),
     );
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4970));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 20_000);
 
   afterAll(async () => {

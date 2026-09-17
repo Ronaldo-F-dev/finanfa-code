@@ -26,7 +26,7 @@ describe("web-server /api/docker-models/* (real subprocess, real `docker model` 
     projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-dockermodels-project-"));
     homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-dockermodels-home-"));
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4800));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {

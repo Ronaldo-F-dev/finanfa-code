@@ -94,7 +94,7 @@ describe("web-server: a resumed session replays past errors, not just the ordina
   it(
     "interleaves a past error between the two real messages either side of it, after a reconnect",
     async () => {
-      const first = await spawnWebServer(projectDir, homeDir, 4980);
+      const first = await spawnWebServer(projectDir, homeDir);
       child = first.child;
 
       const events: WsEvent[] = [];
@@ -119,7 +119,7 @@ describe("web-server: a resumed session replays past errors, not just the ordina
       ws.close();
       await new Promise((r) => setTimeout(r, 200)); // let session.persist() from the finally block land
 
-      const second = await spawnWebServer(projectDir, homeDir, 4990);
+      const second = await spawnWebServer(projectDir, homeDir);
       killWebServer(child);
       child = second.child;
 

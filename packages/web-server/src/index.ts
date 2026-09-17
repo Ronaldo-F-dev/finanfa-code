@@ -1297,5 +1297,11 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
 await initTracing();
 
 httpServer.listen(PORT, () => {
-  console.log(`finanfa-code-web server listening on http://localhost:${PORT} (default workspace: ${DEFAULT_CWD})`);
+  // Log the REAL bound port, not the requested one — with PORT=0 (used by
+  // the e2e test suite to get a genuinely free, OS-assigned port instead
+  // of guessing an unused one in a fixed range) they're different, and
+  // spawn-server.ts's waitForServerReady parses this exact line to learn
+  // which port the server actually ended up on.
+  const boundPort = (httpServer.address() as { port: number }).port;
+  console.log(`finanfa-code-web server listening on http://localhost:${boundPort} (default workspace: ${DEFAULT_CWD})`);
 });

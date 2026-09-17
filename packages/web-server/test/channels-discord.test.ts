@@ -107,7 +107,7 @@ describe("web-server Discord inbound channel (real subprocess, real Ed25519-sign
     process.env.DISCORD_APPLICATION_ID = "app-123";
     process.env.DISCORD_API_BASE_URL = discordApiBaseUrl;
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 5000));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {
@@ -219,7 +219,7 @@ describe("web-server Discord inbound channel — not configured", () => {
     projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-discord-unconfigured-project-"));
     homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-discord-unconfigured-home-"));
     for (const k of ["DISCORD_PUBLIC_KEY", "DISCORD_APPLICATION_ID", "DISCORD_API_BASE_URL"]) delete process.env[k];
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 5005));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {

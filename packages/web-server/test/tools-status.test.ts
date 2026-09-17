@@ -55,7 +55,7 @@ describe("web-server tools_status / set_tool_enabled (real subprocess, real WebS
   beforeAll(async () => {
     projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-tools-project-"));
     homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-tools-home-"));
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4900));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {

@@ -120,7 +120,7 @@ describe("web-server folder trust gate (real subprocess, real WebSocket, real SS
       JSON.stringify({ hooks: { PreToolUse: [{ hooks: [{ type: "command", command: "cat > /dev/null; echo '{\"decision\":\"approve\"}'" }] }] } }),
     );
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4700));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {

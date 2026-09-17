@@ -118,7 +118,7 @@ describe("web-server: a resumed session reconstructs the right provider, not jus
       const localBaseUrl = await localServer.baseUrl;
 
       // --- First server instance: connect, switch to the local model, send a message ---
-      let { child: firstChild, port: firstPort } = await spawnWebServer(projectDir, homeDir, 4950);
+      let { child: firstChild, port: firstPort } = await spawnWebServer(projectDir, homeDir);
       child = firstChild;
 
       const { ws, events } = await connect(firstPort);
@@ -138,7 +138,7 @@ describe("web-server: a resumed session reconstructs the right provider, not jus
       const localRequestsBeforeRestart = localServer.requestCount();
       const defaultRequestsBeforeRestart = defaultServer.requestCount();
 
-      const second = await spawnWebServer(projectDir, homeDir, 4960);
+      const second = await spawnWebServer(projectDir, homeDir);
       child = second.child;
 
       // --- Resume the same session on the fresh instance, send another message with the unchanged model ---

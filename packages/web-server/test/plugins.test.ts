@@ -41,7 +41,7 @@ describe("web-server plugin loading (real subprocess, real WebSocket)", () => {
     // hardcoded absolute count that'd drift as builtins are added/removed.
     const baselineProjectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-plugins-baseline-"));
     const baselineHomeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-plugins-baseline-home-"));
-    const baseline = await spawnWebServer(baselineProjectDir, baselineHomeDir, 4950);
+    const baseline = await spawnWebServer(baselineProjectDir, baselineHomeDir);
     try {
       const ws = new WebSocket(`ws://127.0.0.1:${baseline.port}/ws`);
       const events: WsEvent[] = [];
@@ -77,7 +77,7 @@ describe("web-server plugin loading (real subprocess, real WebSocket)", () => {
       }`,
     );
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4950));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {

@@ -23,7 +23,7 @@ describe("web-server /api/ollama-models/* (real subprocess, real Ollama server w
     projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-ollamamodels-project-"));
     homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-ollamamodels-home-"));
 
-    ({ child, port } = await spawnWebServer(projectDir, homeDir, 4750));
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);
 
   afterAll(async () => {
