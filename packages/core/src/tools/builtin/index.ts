@@ -19,6 +19,7 @@ import { viewImageTool } from "./view-image.js";
 import { gitTools } from "./git.js";
 import { repoMapTool } from "./repo-map.js";
 import { createMydevopsTool } from "./mydevops.js";
+import { createDelegateToClaudeCodeTool, createDelegateToCodexTool } from "./delegate-agent.js";
 import { createRead1PasswordSecretTool } from "./onepassword.js";
 import { createReadVaultSecretTool } from "./vault.js";
 import { createFirmwareFlashTools } from "./firmware-flash.js";
@@ -140,6 +141,8 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   // that can never work on this machine and waste a turn discovering
   // that at call time instead of the tool simply not being offered.
   if (isCommandAvailable("mydevops")) registry.register(createMydevopsTool());
+  if (isCommandAvailable("claude")) registry.register(createDelegateToClaudeCodeTool());
+  if (isCommandAvailable("codex")) registry.register(createDelegateToCodexTool());
   if (isCommandAvailable("op")) registry.register(createRead1PasswordSecretTool());
   if (isCommandAvailable("vault")) registry.register(createReadVaultSecretTool());
   const [esptoolTool, avrdudeTool] = createFirmwareFlashTools();
