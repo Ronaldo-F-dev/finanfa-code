@@ -260,7 +260,7 @@ Not every model can see images. If your primary model can't, route just the turn
 - **Code quality**: `check_python_types` (Pyright), `check_typescript_types` (tsc), `lint_javascript` (ESLint), `lint_python` (ruff)
 - **Data**: `query_database` (SQLite/Postgres/MySQL), `python_repl` (persistent interpreter)
 - **UI generation**: `create_artifact` (React + Tailwind, live preview)
-- **Delegation**: `task` (sub-agents, optionally a named `agentType`), `todo_write`
+- **Delegation**: `task` (sub-agents, optionally a named `agentType`), `todo_write` (shown live in the web UI as a real Kanban-style board — see the sidebar's Tasks panel — not just a plain-text checklist)
 - **IoT/embedded**: `serial_*`, `run_esptool`/`run_avrdude`, `mqtt_publish`/`mqtt_subscribe`, `coap_request`, `gpio_*`, `run_arduino_cli`/`run_platformio`
 - **DevOps**: `run_docker`, `run_kubectl`, `run_mydevops` (when installed)
 - **macOS UI automation**: `run_applescript` (macOS only) — drives other applications (Finder, Mail, Music, System Events for cross-app UI scripting) via a real AppleScript, the same mechanism a native macOS automation script would use
