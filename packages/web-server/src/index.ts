@@ -25,6 +25,7 @@ import {
   type MemoryType,
 } from "@finanfa/core/src/memory/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
+import { loadScopedInstructions, formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import { loadConfig, saveGlobalConfig, thinkingBudgetTokensFromConfig, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
@@ -676,9 +677,14 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     if (memories.length > 0) tools.register(createReadMemoryTool(CWD));
 
     const projectInstructions = await loadProjectInstructions(CWD);
+    const scopedInstructions = await loadScopedInstructions(CWD);
     const designContract = await loadDesignContract(CWD);
     const systemPrompt =
-      BASE_SYSTEM_PROMPT + formatSkillIndex(skills) + formatMemoryIndex(memories) + formatProjectInstructions(projectInstructions);
+      BASE_SYSTEM_PROMPT +
+      formatSkillIndex(skills) +
+      formatMemoryIndex(memories) +
+      formatProjectInstructions(projectInstructions) +
+      formatScopedInstructions(scopedInstructions);
 
     // The session's own (readonly) model wins on resume — a saved session
     // keeps whatever model it was created with, same as the CLI has no

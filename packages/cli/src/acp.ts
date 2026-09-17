@@ -14,6 +14,7 @@ import { loadSkills, formatSkillIndex, createReadSkillTool } from "@finanfa/core
 import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "@finanfa/core/src/memory/loader.js";
 import { loadSubagentTypes } from "@finanfa/core/src/agents/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
+import { loadScopedInstructions, formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import { loadConfig, thinkingBudgetTokensFromConfig } from "@finanfa/core/src/core/config.js";
@@ -156,9 +157,14 @@ async function createAcpSession(cwd: string, cx: { notify: typeof acp.AgentSideC
   if (memories.length > 0) tools.register(createReadMemoryTool(cwd));
 
   const projectInstructions = await loadProjectInstructions(cwd);
+  const scopedInstructions = await loadScopedInstructions(cwd);
   const designContract = await loadDesignContract(cwd);
   const systemPrompt =
-    BASE_SYSTEM_PROMPT + formatSkillIndex(skills) + formatMemoryIndex(memories) + formatProjectInstructions(projectInstructions);
+    BASE_SYSTEM_PROMPT +
+    formatSkillIndex(skills) +
+    formatMemoryIndex(memories) +
+    formatProjectInstructions(projectInstructions) +
+    formatScopedInstructions(scopedInstructions);
 
   const session = new AgentSession({ cwd, model: defaultModel, systemPrompt });
   session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);

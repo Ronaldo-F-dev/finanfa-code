@@ -26,6 +26,7 @@ import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool 
 import { loadCustomCommands, runCustomCommand, type CustomCommand } from "@finanfa/core/src/commands/custom-commands.js";
 import { loadSubagentTypes } from "@finanfa/core/src/agents/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
+import { loadScopedInstructions, formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import type { LlmProvider } from "@finanfa/core/src/core/types.js";
@@ -224,10 +225,15 @@ export async function main(argv: string[]): Promise<void> {
   const agentTypes = await loadSubagentTypes(cwd);
 
   const projectInstructions = await loadProjectInstructions(cwd);
+  const scopedInstructions = await loadScopedInstructions(cwd);
   const designContract = await loadDesignContract(cwd);
 
   const systemPrompt =
-    BASE_SYSTEM_PROMPT + formatSkillIndex(skills) + formatMemoryIndex(memories) + formatProjectInstructions(projectInstructions);
+    BASE_SYSTEM_PROMPT +
+    formatSkillIndex(skills) +
+    formatMemoryIndex(memories) +
+    formatProjectInstructions(projectInstructions) +
+    formatScopedInstructions(scopedInstructions);
 
   const session = await resolveSession(cwd, opts, model, systemPrompt, ui);
   // Only fills in the configured budget when a session doesn't already
