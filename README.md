@@ -221,6 +221,10 @@ Ctrl+C persists the session and closes connections cleanly before exit.
 
 Skills, memory, commands, and agents each have a global counterpart under `~/.finanfa-code/` (merged with the project-local ones; project wins on a name collision).
 
+### Bundles ("Claws")
+
+`export_bundle`/`install_bundle`/`list_bundle_snapshots`/`rollback_bundle` package everything above (permission rules/hooks, MCP servers, memory, skills, commands, agent types, path-scoped instructions, `finanfa.md`/`finanfa-design.md`) into one shareable, versioned JSON bundle — a checkpoint of a project's whole configuration, or a way to hand someone else an identical setup. `install_bundle` snapshots the exact prior content of every file it's about to overwrite first, so `rollback_bundle` can undo it exactly (deleting a file that didn't exist before, restoring one that did). **A bundle's `settings.json` can carry hooks — arbitrary shell commands that run automatically once the project is trusted** — so `install_bundle` is `riskLevel: "dangerous"`; only install one from a source you actually trust. This covers the bundle format and local install/rollback mechanism, not a hosted registry to discover bundles published by others — share the JSON directly, the same way you'd share a gist.
+
 ### MCP (connecting external services)
 
 ```
