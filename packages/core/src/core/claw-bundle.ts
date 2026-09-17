@@ -13,12 +13,11 @@ import { isKnownPublisher, recordPublisherSeen } from "./claws-trust-store.js";
 // see docs/plugins.md) — a bundle is inert config+content, shareable as
 // a single JSON file with no code execution risk of its own.
 //
-// Deliberately local-only: this covers the bundle FORMAT and install/
-// rollback mechanism, not a hosted registry to discover/search bundles
-// published by others (that's a separate, much bigger gap — running a
-// real multi-tenant discovery service — genuinely out of scope here).
-// A bundle is meant to be shared the same way a gist or a file attachment
+// This module covers the bundle FORMAT and install/rollback mechanism —
+// a bundle can still be shared the same way a gist or a file attachment
 // already is: export it, hand the JSON to someone else, they install it.
+// For publishing to and discovering bundles from a real hosted registry
+// instead, see claws-registry.ts (a GitHub repo as the registry backend).
 
 const BUNDLEABLE_DIR_PREFIXES = [".finanfa-code/memory", ".finanfa-code/skills", ".finanfa-code/commands", ".finanfa-code/agents", ".finanfa-code/instructions"];
 const BUNDLEABLE_ROOT_FILES = [".finanfa-code/settings.json", ".finanfa-code/mcp.json", "finanfa.md", "finanfa-design.md"];
