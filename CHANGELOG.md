@@ -215,6 +215,15 @@ first tagged release.
   configs for the web server, both building the existing Dockerfile with
   no changes needed to it. See the README's new Fly.io/Render.com section.
 
+- `delegate_to_claude_code`/`delegate_to_codex` builtin tools (only
+  registered when the `claude`/`codex` CLI is installed): hand a real
+  coding task to a completely separate coding-agent CLI running in a
+  given directory, with its own model/tools/context — not a sub-agent of
+  this session's own `task` tool. A generic argv-passthrough wrapper (same
+  shape as `run_mydevops`) rather than a fixed "prompt only" abstraction,
+  since either CLI's exact current flags are best discovered via its own
+  `--help` rather than hardcoded here.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
