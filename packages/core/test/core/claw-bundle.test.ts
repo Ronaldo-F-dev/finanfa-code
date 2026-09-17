@@ -101,6 +101,31 @@ describe("claw bundle (export/install/rollback)", () => {
     expect(await clawSnapshotExists(dir, "not-a-real-snapshot-id")).toBe(false);
   });
 
+  describe("path traversal", () => {
+    it("installClawBundle refuses a bundle whose file path escapes the project, writing nothing", async () => {
+      const bundle = await exportClawBundle(dir, { name: "evil", version: "1.0.0" });
+      const outsideMarker = path.join(dir, "..", `finanfa-claw-traversal-canary-${path.basename(dir)}.txt`);
+      bundle.files["../" + path.basename(outsideMarker)] = "this should never be written";
+
+      await expect(installClawBundle(dir, bundle)).rejects.toThrow(/outside the project/);
+      await expect(readFile(outsideMarker, "utf-8")).rejects.toThrow(); // proves the write never happened
+    });
+
+    it("rollbackClawSnapshot refuses a snapshot file whose recorded path escapes the project", async () => {
+      const bundle = await exportClawBundle(dir, { name: "x", version: "1" });
+      bundle.files["finanfa.md"] = "v1";
+      const { snapshotId } = await installClawBundle(dir, bundle);
+
+      // Simulates a snapshot recorded before this validation existed (or
+      // tampered with on disk) — files.json directly names a path outside cwd.
+      const filesJsonPath = path.join(dir, ".finanfa-code", ".claws", "snapshots", snapshotId, "files.json");
+      await writeFile(filesJsonPath, JSON.stringify({ "../escaped.txt": "should never be written" }), "utf-8");
+
+      await expect(rollbackClawSnapshot(dir, snapshotId)).rejects.toThrow(/outside the project/);
+      await expect(readFile(path.join(dir, "..", "escaped.txt"), "utf-8")).rejects.toThrow();
+    });
+  });
+
   describe("signing and publisher trust", () => {
     it("exportClawBundle signs the bundle, and verifyClawBundleSignature confirms it's valid and unrecognized the first time", async () => {
       await writeFile(path.join(dir, "finanfa.md"), "shared conventions");

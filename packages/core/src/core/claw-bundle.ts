@@ -23,6 +23,28 @@ import { isKnownPublisher, recordPublisherSeen } from "./claws-trust-store.js";
 const BUNDLEABLE_DIR_PREFIXES = [".finanfa-code/memory", ".finanfa-code/skills", ".finanfa-code/commands", ".finanfa-code/agents", ".finanfa-code/instructions"];
 const BUNDLEABLE_ROOT_FILES = [".finanfa-code/settings.json", ".finanfa-code/mcp.json", "finanfa.md", "finanfa-design.md"];
 
+/**
+ * Real path-traversal gap: `bundle.files` keys come straight from
+ * attacker-controllable JSON (install_bundle's `bundle_json` input), and
+ * nothing previously stopped a key like "../../../.ssh/authorized_keys"
+ * from resolving outside `cwd` before being read (snapshot) or written
+ * (install/rollback) — a valid signature (see claws-signing.ts) only
+ * proves the *signer* didn't get tampered with in transit, it says
+ * nothing about whether the signer themselves put a traversal path in
+ * there. `path.resolve` collapses any "..", so a straightforward prefix
+ * check on the resolved path is enough — no need for a realpath/symlink
+ * check since `cwd` itself isn't attacker-controlled here.
+ */
+function assertPathsWithinCwd(cwd: string, relPaths: string[]): void {
+  const root = path.resolve(cwd) + path.sep;
+  for (const relPath of relPaths) {
+    const resolved = path.resolve(cwd, relPath);
+    if (resolved !== path.resolve(cwd) && !resolved.startsWith(root)) {
+      throw new Error(`Bundle file path "${relPath}" resolves outside the project (${cwd}) — refusing to touch it.`);
+    }
+  }
+}
+
 export interface ClawBundleManifest {
   name: string;
   version: string;
@@ -147,6 +169,11 @@ function nextMonotonicTimestampMs(): number {
 
 /** Reads the CURRENT on-disk content (or undefined if the file doesn't exist yet) of every path a bundle is about to overwrite, so installing it can be undone. */
 async function snapshotCurrentFiles(cwd: string, relPaths: string[], reason: string): Promise<string> {
+  // Defense in depth — installClawBundle already validates before calling
+  // this, but snapshotting also READS whatever path it's given, so a
+  // future caller that skips that check would otherwise leak arbitrary
+  // file content into the snapshot instead of just failing to write.
+  assertPathsWithinCwd(cwd, relPaths);
   const createdAt = new Date(nextMonotonicTimestampMs()).toISOString();
   const id = `${createdAt.replace(/[:.]/g, "-")}-${randomBytes(4).toString("hex")}`;
   const dir = path.join(snapshotsDir(cwd), id);
@@ -226,6 +253,11 @@ export interface InstallClawBundleResult {
 
 /** Installs `bundle` into `cwd`, snapshotting every file it's about to touch first (see rollbackClawSnapshot) so the install can be undone. Verifies the bundle's signature (if any — see verifyClawBundleSignature) and records its publisher as seen (a valid signature is a real, if partial, trust signal — an install that got this far already passed the "dangerous"-tool human approval gate), and compares against whichever version of this bundle name (if any) was last installed into this project. */
 export async function installClawBundle(cwd: string, bundle: ClawBundle): Promise<InstallClawBundleResult> {
+  // Fail closed on the WHOLE bundle rather than skipping just the bad
+  // entries — a bundle that needs a traversal path to work at all is not
+  // one to partially trust.
+  assertPathsWithinCwd(cwd, Object.keys(bundle.files));
+
   const signatureStatus = await verifyClawBundleSignature(bundle);
   if (signatureStatus.signed && signatureStatus.valid) await recordBundlePublisherSeen(signatureStatus.fingerprint);
 
@@ -260,6 +292,10 @@ export async function rollbackClawSnapshot(cwd: string, snapshotId: string): Pro
   const dir = path.join(snapshotsDir(cwd), snapshotId);
   const raw = await readFile(path.join(dir, "files.json"), "utf-8");
   const before = JSON.parse(raw) as Record<string, string | null>;
+  // Defense in depth (see assertPathsWithinCwd's comment) — an install
+  // this validation predates could in principle have left an unsafe path
+  // in an old snapshot file on disk.
+  assertPathsWithinCwd(cwd, Object.keys(before));
 
   for (const [relPath, content] of Object.entries(before)) {
     const absPath = path.join(cwd, relPath);
