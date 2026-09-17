@@ -17,6 +17,15 @@ describe("redactSecrets", () => {
   it("leaves ordinary text untouched", () => {
     expect(redactSecrets("just a normal tool result with no secrets in it")).toBe("just a normal tool result with no secrets in it");
   });
+
+  it("doesn't throw for a 9- or 10-character denylisted value (real bug: mask()'s slice(0,6)+slice(-4) scheme needs length > 10 to have any middle left to mask, and 'undefined'.length === 9)", () => {
+    // Reproduces the exact real-world trigger: a test elsewhere restoring
+    // `process.env.X = originalValue` where originalValue was undefined
+    // sets X to the literal string "undefined" (Node doesn't unset it),
+    // which then flows into the denylist here on every later persist().
+    expect(() => redactSecrets("some text", ["undefined"])).not.toThrow();
+    expect(() => redactSecrets("some text", ["1234567890"])).not.toThrow();
+  });
 });
 
 describe("collectEnvSecretValues", () => {
