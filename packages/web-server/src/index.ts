@@ -72,6 +72,7 @@ import { registerVoiceChannelRoutes } from "./channels-voice.js";
 import { parseWebUsers, authenticateBearerToken, authenticateQueryToken } from "./auth.js";
 import { SessionTokenStore } from "./session-token-store.js";
 import { loadUserStore, createUser, verifyUserPassword } from "./user-store.js";
+import { oidcConfigFromEnv, discoverOidcEndpoints, buildAuthorizationUrl, exchangeCodeForToken, fetchOidcUserInfo, OidcStateStore } from "./oidc.js";
 
 // The workspace the "default" project points at — the same "cwd" concept as
 // running the CLI from that directory, and the only workspace that existed
@@ -91,17 +92,21 @@ const DEFAULT_CWD = process.env.FINANFA_WEB_CWD ?? process.cwd();
 const PORT = Number(process.env.PORT ?? 4600);
 /** Undefined means no static shared-secret tokens are configured — see auth.ts. Real per-login accounts (GATEWAY_ENABLED, below) work independently of this. */
 const WEB_USERS = parseWebUsers();
-/** In-memory session tokens issued by POST /api/auth/login — see session-token-store.ts. Always constructed (cheap, no I/O); only ever consulted when GATEWAY_ENABLED. */
+/** In-memory session tokens issued by POST /api/auth/login or a completed OIDC login — see session-token-store.ts. Always constructed (cheap, no I/O); only ever consulted when GATEWAY_ENABLED. */
 const AUTH_SESSIONS = new SessionTokenStore();
+/** Undefined means SSO login isn't configured — see oidc.ts. */
+const OIDC_CONFIG = oidcConfigFromEnv();
+/** Pending (state -> PKCE verifier) OIDC login attempts — see oidc.ts. */
+const OIDC_STATES = new OidcStateStore();
 /**
- * Gateway auth is on when EITHER a static FINANFA_WEB_USERS token map is
- * configured, OR FINANFA_WEB_ACCOUNTS=1 opts into real per-login accounts
- * (see user-store.ts) with no static tokens at all — the two are
- * independent and can be combined. Off (both unset) means every request/
+ * Gateway auth is on when ANY of a static FINANFA_WEB_USERS token map,
+ * FINANFA_WEB_ACCOUNTS=1 (real per-login password accounts — see
+ * user-store.ts), or OIDC SSO (above) is configured — all three are
+ * independent and can be combined. Off (none set) means every request/
  * connection is treated as an unauthenticated single shared user, exactly
  * as before this feature existed.
  */
-const GATEWAY_ENABLED = Boolean(WEB_USERS) || process.env.FINANFA_WEB_ACCOUNTS === "1";
+const GATEWAY_ENABLED = Boolean(WEB_USERS) || process.env.FINANFA_WEB_ACCOUNTS === "1" || Boolean(OIDC_CONFIG);
 
 const app = express();
 app.use(
@@ -242,6 +247,58 @@ app.post("/api/auth/users", async (req, res) => {
   }
   res.json({ ok: true });
 });
+
+// Real OIDC-based SSO ("log in with Google/Okta/any OIDC provider")
+// alongside password accounts and static tokens — see oidc.ts for the
+// actual protocol. Both routes are deliberately before the auth gate
+// below: /login redirects an unauthenticated browser to the provider,
+// and /callback is where that provider redirects back to, neither of
+// which can carry a finanfa-code token yet.
+if (OIDC_CONFIG) {
+  const oidcConfig = OIDC_CONFIG;
+  app.get("/api/auth/oidc/login", async (_req, res) => {
+    try {
+      const endpoints = await discoverOidcEndpoints(oidcConfig.issuer);
+      const { state, challenge } = OIDC_STATES.create();
+      res.redirect(buildAuthorizationUrl(endpoints, oidcConfig, state, challenge));
+    } catch (err) {
+      res.status(502).json({ error: `OIDC discovery failed: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  });
+
+  app.get("/api/auth/oidc/callback", async (req, res) => {
+    const { code, state } = req.query as { code?: string; state?: string };
+    if (!code || !state) {
+      res.status(400).json({ error: "Missing code or state." });
+      return;
+    }
+    const verifier = OIDC_STATES.consume(state);
+    if (!verifier) {
+      res.status(400).json({ error: "Unknown, expired, or already-used state — start the login again." });
+      return;
+    }
+    try {
+      const endpoints = await discoverOidcEndpoints(oidcConfig.issuer);
+      const tokenResult = await exchangeCodeForToken(endpoints, oidcConfig, code, verifier);
+      if (!tokenResult.ok) {
+        res.status(401).json({ error: tokenResult.error });
+        return;
+      }
+      const userInfoResult = await fetchOidcUserInfo(endpoints, tokenResult.accessToken);
+      if (!userInfoResult.ok) {
+        res.status(401).json({ error: userInfoResult.error });
+        return;
+      }
+      const sessionToken = AUTH_SESSIONS.issue(userInfoResult.username);
+      // A URL fragment (#...), not a query param — never sent to the
+      // server on a later request, so it doesn't end up in access logs or
+      // get forwarded via a Referer header the way a query param could.
+      res.redirect(`/#token=${encodeURIComponent(sessionToken)}&user=${encodeURIComponent(userInfoResult.username)}`);
+    } catch (err) {
+      res.status(502).json({ error: `OIDC login failed: ${err instanceof Error ? err.message : String(err)}` });
+    }
+  });
+}
 
 // Gateway auth gate — every /api/* route registered from here on requires
 // a valid token when GATEWAY_ENABLED (channel webhooks above have their
