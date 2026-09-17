@@ -43,6 +43,7 @@ import { createGetSpotifyNowPlayingTool, createControlSpotifyPlaybackTool, spoti
 import { createGetSmartHomeStateTool, createControlSmartHomeDeviceTool, homeAssistantConfigFromEnv } from "./home-assistant.js";
 import { createRunRemoteCommandTool } from "./remote-exec.js";
 import { exportBundleTool, installBundleTool, listBundleSnapshotsTool, rollbackBundleTool } from "./claw-bundle-tools.js";
+import { createFleetCellTool, listFleetCellsTool, stopFleetCellTool, removeFleetCellTool } from "./fleet-tools.js";
 import { viewVideoFramesTool } from "./view-video-frames.js";
 import { createTranscribeAudioTool, transcribeAudioConfigFromEnv } from "./transcribe-audio.js";
 import { listAvailableModelsTool } from "./list-available-models.js";
@@ -161,7 +162,13 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   if (isCommandAvailable("arduino-cli")) registry.register(arduinoCliTool!);
   if (isCommandAvailable("pio")) registry.register(platformioTool!);
   const [dockerTool, kubectlTool] = createContainerTools();
-  if (isCommandAvailable("docker")) registry.register(dockerTool!);
+  if (isCommandAvailable("docker")) {
+    registry.register(dockerTool!);
+    registry.register(createFleetCellTool);
+    registry.register(listFleetCellsTool);
+    registry.register(stopFleetCellTool);
+    registry.register(removeFleetCellTool);
+  }
   if (isCommandAvailable("kubectl")) registry.register(kubectlTool!);
   registry.register(mqttPublishTool);
   registry.register(mqttSubscribeTool);
