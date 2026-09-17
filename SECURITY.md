@@ -24,13 +24,12 @@ permission-gated feature. What *is* in scope:
 
 - A `"safe"`-tagged tool taking an action that should have required a
   permission prompt (an `"ask"`/`"dangerous"` risk level).
-- Anything that bypasses the [permission system](README.md#tools) or the
-  [folder-trust gate](docs/plugins.md#trust) (e.g. an untrusted project's
-  `.finanfa-code/settings.json` hooks or `plugins/` running without the
-  trust prompt actually firing).
+- Anything that bypasses the [permission system](docs/security.md#permission-system)
+  or the [folder-trust gate](docs/plugins.md#trust) (e.g. an untrusted
+  project's `.finanfa-code/settings.json` hooks or `plugins/` running
+  without the trust prompt actually firing).
 - Path traversal in `read_file`/`write_file`/`edit_file` outside the
-  project root or the user's home directory (see the README's note on
-  this boundary).
+  project root or the user's home directory (see [docs/tools.md](docs/tools.md)).
 - Injection or SSRF in a tool that fetches URLs/runs queries on the
   user's behalf (`web_fetch`, `http_request`, `query_database`, ...)
   beyond what the user explicitly asked it to reach.
