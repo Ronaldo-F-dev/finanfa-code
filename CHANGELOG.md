@@ -265,6 +265,19 @@ first tagged release.
   has no long-running service to run one in, so consolidation here is
   explicitly triggered and acted on by the agent, not automatic.
 
+- "Gateway": opt-in multi-user authentication for the web server
+  (`FINANFA_WEB_USERS="alice:token1,bob:token2"`) — a Bearer token on
+  every `/api/*` request (channel webhooks keep their own signature
+  verification instead) and a `?token=` query param on the WebSocket
+  upgrade, plus per-user session isolation (`AgentSession.ownerUser`,
+  persisted): a user can only list/resume/delete their own sessions, not
+  another user's. Off by default — every existing single-user deployment
+  is unaffected. Closes the multi-user/multi-client control-plane gap
+  relative to a comparable project's own Gateway, scoped to
+  authentication + per-user session isolation within this one process,
+  not a separate service coordinating multiple downstream agent
+  instances.
+
 - "Claws": `export_bundle`/`install_bundle`/`list_bundle_snapshots`/
   `rollback_bundle` builtin tools — package a project's whole
   finanfa-code configuration (permission rules/hooks, MCP servers,
