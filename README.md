@@ -365,6 +365,17 @@ Then, on that number's **Configure** page in the Twilio Console, set **"A messag
 
 Each sender's phone number maps to its own persistent session. Same 404-until-configured behavior as every other channel here.
 
+### Voice
+
+Uses the same Twilio account/`TWILIO_AUTH_TOKEN` as SMS above — Programmable Voice, not Messaging:
+
+```bash
+export TWILIO_AUTH_TOKEN=...
+npm run dev:web-server
+```
+
+On that number's **Configure** page, set **"A call comes in"** to `https://<your-server>/api/channels/voice/webhook` (HTTP POST). Twilio Voice's webhook is fundamentally synchronous — the caller is on hold waiting for this exact HTTP response, unlike every text-based channel here, which acks immediately and replies later via its own send API. A full tool-calling turn routinely takes longer than a caller will wait (or than Twilio's own webhook timeout allows), so a turn is raced against an 8s deadline: within it, the caller hears the real reply and the conversation continues (`<Gather input="speech">` loops back for a follow-up); past it, the caller is told honestly instead of sitting on hold, and — if `TWILIO_ACCOUNT_SID`/`TWILIO_FROM_NUMBER` (see SMS above) are also configured — texted the answer once the turn actually finishes. Each call gets its own session (keyed by Twilio's own CallSid), unlike SMS/WhatsApp's persistent per-sender thread — a phone call is one bounded conversation, not an ongoing one.
+
 ## Editor integration (ACP)
 
 `finanfa --acp` runs as an [Agent Client Protocol](https://agentclientprotocol.com/) agent over stdio — the same tools/permissions/hooks as every other entry point, driven directly from an ACP-aware editor instead of a terminal or browser.
