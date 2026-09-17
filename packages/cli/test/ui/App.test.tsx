@@ -136,6 +136,14 @@ describe("Ink App", () => {
   });
 
   it("navigates suggestions with arrow keys", async () => {
+    // Real bug in an earlier version of this exact test: it wrote the
+    // literal characters "[B" (missing the actual ESC byte a down-arrow
+    // keypress sends) — not recognized as a key at all, just typed into
+    // the input as text — and still passed, because both "cost" and
+    // "clear" are always listed in the dropdown regardless of which is
+    // highlighted, so the assertion below was true either way. Asserting
+    // the input value itself (Tab only completes to the HIGHLIGHTED one)
+    // is what actually proves the arrow key moved the selection.
     const store = new UiStore();
     store.setCommands([
       { name: "cost", description: "Show usage" },
@@ -152,7 +160,43 @@ describe("Ink App", () => {
     stdin.write("\t");
     await tick();
 
-    expect(lastFrame()).toContain("/clear");
+    const frame = lastFrame();
+    expect(frame).toContain("> /clear");
+    expect(frame).not.toContain("> /cost");
+  });
+
+  it("submits the highlighted suggestion on Enter, not the raw typed text — real reported bug (typing '/', arrowing to a command, and pressing Enter used to submit the literal '/')", async () => {
+    const store = new UiStore();
+    store.setCommands([
+      { name: "cost", description: "Show usage" },
+      { name: "clear", description: "Clear history" },
+    ]);
+    const onSubmit = vi.fn();
+
+    const { stdin } = render(<App store={store} onSubmit={onSubmit} />);
+    await tick();
+    stdin.write("/");
+    await tick();
+    stdin.write("\x1B[B"); // down arrow — highlight the second suggestion ("clear")
+    await tick();
+    stdin.write("\r"); // Enter
+    await tick();
+
+    expect(onSubmit).toHaveBeenCalledWith("/clear");
+  });
+
+  it("Enter submits the raw text as usual when no suggestion is showing", async () => {
+    const store = new UiStore();
+    const onSubmit = vi.fn();
+
+    const { stdin } = render(<App store={store} onSubmit={onSubmit} />);
+    await tick();
+    stdin.write("hello there");
+    await tick();
+    stdin.write("\r");
+    await tick();
+
+    expect(onSubmit).toHaveBeenCalledWith("hello there");
   });
 
   it("does not show suggestions during a permission (confirm) prompt", async () => {

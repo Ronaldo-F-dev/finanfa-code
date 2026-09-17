@@ -95,9 +95,19 @@ export function App({
             value={input}
             onChange={handleChange}
             onSubmit={(value) => {
+              // Real reported bug: arrowing to a highlighted suggestion and
+              // pressing Enter submitted the raw typed text ("/") instead of
+              // the highlighted command — only Tab (above) actually applied
+              // a suggestion; Enter went straight to ink-text-input's own
+              // onSubmit with whatever was literally typed, ignoring
+              // selectedIndex entirely. While a suggestion list is showing,
+              // Enter now submits the highlighted one, same as Tab already
+              // does — this is what a user arrowing through a dropdown
+              // expects either key to do.
+              const chosen = suggestions.length > 0 ? suggestions[clampedIndex] : undefined;
               setInput("");
               setSelectedIndex(0);
-              onSubmit(value);
+              onSubmit(chosen ? `/${chosen.name}` : value);
             }}
           />
         </Box>
