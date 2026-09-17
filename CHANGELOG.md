@@ -198,6 +198,13 @@ first tagged release.
   Also adds a `send_whatsapp_message` builtin tool. See the README's new
   WhatsApp setup section.
 
+- A new inbound SMS channel (Twilio Programmable Messaging):
+  `POST /api/channels/sms/webhook` — Twilio's own URL+params HMAC-SHA1
+  request-validation scheme (verified against Twilio's own published test
+  vector), dedup on Twilio's own MessageSid, one persistent session per
+  sender. Also adds a `send_sms_message` builtin tool. See the README's
+  new SMS setup section.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
