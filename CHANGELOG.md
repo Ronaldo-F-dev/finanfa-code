@@ -173,6 +173,17 @@ first tagged release.
   fetching. Deliberately not applied to `http_request` (riskLevel "ask",
   and its own documented job is testing a locally-running API).
 
+- OpenAI-compatible and Cohere providers now repair a tool call's
+  arguments JSON when a stream disconnected before it closed (unclosed
+  braces/brackets/quotes, a trailing comma the closing exposed) instead of
+  asking the model to redo the whole call — the single most common real
+  cause of a "malformed tool-call arguments" failure. Deliberately skipped
+  when the disconnect was the model hitting its own max-output-token
+  limit: there the argument's own *content* (not just its JSON envelope)
+  is genuinely incomplete, and the existing truncation marker still
+  applies so the model knows to actually recover instead of silently
+  running with cut-off data.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
