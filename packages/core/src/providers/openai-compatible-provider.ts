@@ -162,19 +162,44 @@ async function fetchInitialResponse(
 ): Promise<Response> {
   return retryWithBackoff(
     async () => {
-      const response = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json", ...headers },
-        body: JSON.stringify({ ...body, stream: true }),
-        // Unlike bash.ts (ctx.signal + its own timeout/kill) and
-        // http-request.ts (AbortSignal.timeout), this had no timeout at
-        // all — a server that accepts the connection but never responds
-        // (GPU/OOM stress on a local model server) hung the call forever,
-        // with no way to recover short of killing the process. Combined
-        // (not replaced) with the caller's own signal, e.g. a user
-        // interrupt via loop.ts's streamController — either one aborts.
-        signal: signal ? AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT_MS), signal]) : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-      });
+      // Real, reported bug: AbortSignal.timeout(REQUEST_TIMEOUT_MS) passed
+      // straight to fetch() doesn't just bound the wait for response
+      // headers — the resulting signal stays attached to the fetch's
+      // underlying connection for as long as its body is being read, so it
+      // also aborted a healthy, still-streaming response the moment total
+      // request duration (headers + the whole download) crossed 300s. A
+      // small local model streaming a large HTML/CSS file plus its own
+      // explanatory text legitimately took longer than that end to end and
+      // got its connection killed mid-stream, discarding everything
+      // already generated — indistinguishable from a genuinely stuck
+      // server. A dedicated controller whose timer is cleared the moment
+      // headers arrive means this only ever bounds time-to-first-byte, as
+      // intended; STREAM_IDLE_TIMEOUT_MS below is what protects the body
+      // read itself, and it resets on every chunk instead of capping total
+      // duration.
+      const ttfbController = new AbortController();
+      const ttfbTimer = setTimeout(
+        () => ttfbController.abort(new Error(`No response within ${REQUEST_TIMEOUT_MS}ms`)),
+        REQUEST_TIMEOUT_MS,
+      );
+      let response: Response;
+      try {
+        response = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", ...headers },
+          body: JSON.stringify({ ...body, stream: true }),
+          // Unlike bash.ts (ctx.signal + its own timeout/kill) and
+          // http-request.ts (AbortSignal.timeout), this had no timeout at
+          // all — a server that accepts the connection but never responds
+          // (GPU/OOM stress on a local model server) hung the call forever,
+          // with no way to recover short of killing the process. Combined
+          // (not replaced) with the caller's own signal, e.g. a user
+          // interrupt via loop.ts's streamController — either one aborts.
+          signal: signal ? AbortSignal.any([ttfbController.signal, signal]) : ttfbController.signal,
+        });
+      } finally {
+        clearTimeout(ttfbTimer);
+      }
       const retryable = RETRYABLE_STATUSES.has(response.status) || (retryOn429 && response.status === 429);
       if (retryable) {
         const text = await response.text().catch(() => "");

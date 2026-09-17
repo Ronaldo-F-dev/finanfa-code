@@ -307,7 +307,89 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
   });
 
   it(
-    "real, reported case: a stall message includes the actual configured idle timeout, not a hardcoded " +
+    "real, reported bug: a healthy stream that's just slow overall (total duration past the old " +
+      "300s time-to-first-byte cap, but with regular activity well inside the idle timeout) must " +
+      "not be aborted — the time-to-first-byte timer must not keep governing the body read afterward",
+    async () => {
+      vi.useFakeTimers();
+      try {
+        let controller!: ReadableStreamDefaultController<Uint8Array>;
+        const body = new ReadableStream<Uint8Array>({
+          start(c) {
+            controller = c;
+          },
+        });
+        vi.stubGlobal("fetch", vi.fn().mockResolvedValue(new Response(body, { status: 200 })));
+
+        const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+        let streamed = "";
+        const promise = provider.streamTurn({
+          model: "m",
+          systemPrompt: "s",
+          messages: [],
+          tools: [],
+          onTextDelta: (t) => (streamed += t),
+        });
+
+        const encoder = new TextEncoder();
+        // Two chunks, each well inside the (now 300s) idle timeout, but
+        // 250s apart — 500s total, past the old 300s time-to-first-byte
+        // cap that used to also govern the whole body read.
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: "part1 " } }] })}\n\n`));
+        await vi.advanceTimersByTimeAsync(250_000);
+        controller.enqueue(encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: { content: "part2" } }] })}\n\n`));
+        await vi.advanceTimersByTimeAsync(250_000);
+        controller.enqueue(
+          encoder.encode(`data: ${JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] })}\n\n`),
+        );
+        controller.enqueue(encoder.encode("data: [DONE]\n\n"));
+        controller.close();
+
+        const result = await promise;
+        expect(result.assistantMessage.content).toBe("part1 part2");
+        expect(streamed).toBe("part1 part2");
+      } finally {
+        vi.useRealTimers();
+      }
+    },
+  );
+
+  it("still gives up if the server never even sends response headers (a genuinely dead connection)", async () => {
+    vi.useFakeTimers();
+    try {
+      // fetch() itself never resolves on its own — nothing (not even
+      // headers) ever arrives, unlike the "healthy but slow" case above.
+      // Rejects on its signal aborting, exactly like real fetch(), since a
+      // mock that simply ignores the signal wouldn't exercise the timeout
+      // at all.
+      vi.stubGlobal(
+        "fetch",
+        vi.fn().mockImplementation(
+          (_url: string, init: { signal?: AbortSignal }) =>
+            new Promise((_resolve, reject) => {
+              init.signal?.addEventListener("abort", () => reject(init.signal!.reason), { once: true });
+            }),
+        ),
+      );
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+      const promise = provider.streamTurn({
+        model: "m",
+        systemPrompt: "s",
+        messages: [],
+        tools: [],
+        onTextDelta: () => {},
+      });
+      const assertion = expect(promise).rejects.toThrow(/No response within/);
+      await vi.advanceTimersByTimeAsync(300_000);
+      await assertion;
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it(
+    "real, reported case: a stall message includes the actual configured idle timeout, not a hardcoded" +
       "number — proves streamIdleTimeoutMs (FINANFA_STREAM_IDLE_TIMEOUT_MS) is honored, not silently ignored",
     async () => {
       vi.useFakeTimers();

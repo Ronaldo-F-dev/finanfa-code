@@ -8,6 +8,18 @@ first tagged release.
 
 ## Unreleased
 
+### Fixed
+
+- The OpenAI-compatible provider's time-to-first-byte timeout
+  (`AbortSignal.timeout(300_000)` passed straight into `fetch()`) kept
+  governing the connection for the entire streamed response, not just the
+  wait for headers — a real reported case: a small local model streaming a
+  large HTML/CSS file plus its own explanatory text legitimately took
+  longer than 300s end to end and had its connection killed mid-stream,
+  discarding everything already generated. Now a dedicated timer is
+  cleared the moment headers arrive, so only the (now-configurable)
+  stream-idle timeout governs the body read afterward.
+
 ### Added
 
 - The OpenAI-compatible provider's stream-idle timeout (previously a fixed
