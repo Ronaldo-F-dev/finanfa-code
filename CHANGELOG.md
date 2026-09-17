@@ -10,6 +10,7 @@ first tagged release.
 
 ### Added
 
+- `/exit` now says "bye bye" before quitting.
 - CI (GitHub Actions): typecheck, lint, and the full real end-to-end
   test suite on every push/PR.
 - `oxlint` for fast linting (`npm run lint`).

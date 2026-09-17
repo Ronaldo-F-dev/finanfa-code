@@ -487,7 +487,14 @@ async function handleConfig(ctx: CommandContext): Promise<CommandOutcome> {
 }
 
 export function registerBuiltinCommands(commands: CommandRegistry): void {
-  commands.register("exit", () => "exit", "Quit finanfa-code");
+  commands.register(
+    "exit",
+    (ctx) => {
+      ctx.ui.writeSystem("bye bye");
+      return "exit";
+    },
+    "Quit finanfa-code",
+  );
 
   commands.register(
     "cost",
