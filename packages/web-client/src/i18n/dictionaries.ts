@@ -55,7 +55,15 @@ export const translations: Record<Language, Record<string, string>> = {
     "sidebar.connectors": "🔌 Connectors",
     "sidebar.models": "🧩 Models",
     "sidebar.tools": "🧰 Tools",
+    "sidebar.todos": "🗂️ Tasks",
     "sidebar.settings": "⚙ Settings",
+
+    // TodoPanel.tsx
+    "todos.title": "Tasks",
+    "todos.empty": "No tasks yet — they show up here once the agent plans a multi-step task.",
+    "todos.pending": "To do",
+    "todos.inProgress": "In progress",
+    "todos.completed": "Done",
 
     // BusyIndicator.tsx
     "busy.working": "working",
@@ -271,7 +279,14 @@ export const translations: Record<Language, Record<string, string>> = {
     "sidebar.connectors": "🔌 Connecteurs",
     "sidebar.models": "🧩 Modèles",
     "sidebar.tools": "🧰 Outils",
+    "sidebar.todos": "🗂️ Tâches",
     "sidebar.settings": "⚙ Réglages",
+
+    "todos.title": "Tâches",
+    "todos.empty": "Aucune tâche pour l'instant — elles apparaissent ici quand l'agent planifie une tâche à plusieurs étapes.",
+    "todos.pending": "À faire",
+    "todos.inProgress": "En cours",
+    "todos.completed": "Terminé",
 
     "busy.working": "en cours",
     "busy.localModelHint":

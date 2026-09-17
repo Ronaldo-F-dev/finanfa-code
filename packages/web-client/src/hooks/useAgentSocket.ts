@@ -62,6 +62,13 @@ export interface Attachment {
   base64: string;
 }
 
+export type TodoStatus = "pending" | "in_progress" | "completed";
+
+export interface TodoItem {
+  content: string;
+  status: TodoStatus;
+}
+
 let nextId = 1;
 const uid = () => String(nextId++);
 
@@ -94,6 +101,7 @@ export function useAgentSocket(
   const [toolsStatus, setToolsStatus] = useState<ToolStatus[]>([]);
   const [modelUnavailable, setModelUnavailable] = useState<ModelUnavailable | null>(null);
   const [effortNeedsDownload, setEffortNeedsDownload] = useState<EffortNeedsDownload | null>(null);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
   const [resumeToken, setResumeToken] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
@@ -114,6 +122,7 @@ export function useAgentSocket(
     setMcpServers([]);
     setMcpLoaded(false);
     setModelUnavailable(null);
+    setTodos([]);
     streamingIdRef.current = null;
     hadTitleRef.current = false;
 
@@ -158,6 +167,9 @@ export function useAgentSocket(
           break;
         case "media":
           setTimeline((t) => [...t, { kind: "media", id: uid(), mediaKind: msg.kind, path: msg.path, mimeType: msg.mimeType }]);
+          break;
+        case "todos":
+          setTodos(msg.todos);
           break;
         case "busy":
           setBusy({ active: msg.busy, label: msg.label });
@@ -269,6 +281,7 @@ export function useAgentSocket(
     toolsStatus,
     modelUnavailable,
     effortNeedsDownload,
+    todos,
     sendMessage,
     answerPermission,
     interrupt,

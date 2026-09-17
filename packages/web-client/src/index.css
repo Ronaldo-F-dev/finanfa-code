@@ -386,6 +386,49 @@ body {
   padding: 4px 0 4px 26px;
 }
 
+.todo-board {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+}
+.todo-column {
+  flex: 1 1 0;
+  min-width: 160px;
+  background: var(--bg);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 8px;
+}
+.todo-column-header {
+  display: flex;
+  justify-content: space-between;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 2px 4px 8px;
+}
+.todo-column-count {
+  color: var(--text-muted);
+}
+.todo-column-body {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.todo-card {
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px 10px;
+  font-size: 13px;
+  color: var(--text);
+}
+.todo-column-empty {
+  color: var(--text-muted);
+  font-size: 13px;
+  padding: 4px;
+}
+
 .docker-models-search-row {
   display: flex;
   gap: 8px;
