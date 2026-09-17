@@ -136,6 +136,19 @@ Open the URL `dev:web-client` prints (`http://localhost:5173` by default). Same 
 
 By default the web server operates on the directory it was started from; point it elsewhere with `FINANFA_WEB_CWD=/path/to/project npm run dev:web-server`, or change the port with `PORT=4601 npm run dev:web-server` (update the proxy target in `packages/web-client/vite.config.ts` to match). For a one-off production build instead of the dev server: `npm run build:web-client`, then `npm run dev:web-server` serves the built client directly — no separate client process needed.
 
+### Multi-user access (Gateway)
+
+By default the web server is fully open — anyone who can reach it can drive any session, same as any other local-dev tool. Set `FINANFA_WEB_USERS` to require a token and isolate each user's own sessions from everyone else's:
+
+```bash
+export FINANFA_WEB_USERS="alice:some-long-random-token,bob:another-long-random-token"
+npm run dev:web-server
+```
+
+Every `/api/*` request then needs `Authorization: Bearer <token>` (inbound channel webhooks are unaffected — they have their own signature verification instead); the WebSocket connection needs a `?token=` query param. A session created under one user's token is invisible to (and can't be resumed or deleted by) another user's — `GET /api/sessions` only lists your own, `DELETE /api/sessions/:id` 403s on someone else's, and resuming someone else's session over WebSocket closes the connection instead. A session with no owner recorded (predates this feature, or was created by the CLI/VS Code/ACP, which have no such concept) is unclaimed — the first user to resume it adopts it.
+
+This covers real authentication and per-user session isolation within one web-server process — not a separate control-plane service coordinating multiple downstream agent instances, and not per-user isolation of the underlying project/workspace files themselves (every authenticated user shares the same projects on disk; only conversation history is private).
+
 ### Docker
 
 ```bash
