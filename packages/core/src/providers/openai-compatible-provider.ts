@@ -430,6 +430,15 @@ export class OpenAiCompatibleProvider implements LlmProvider {
     this.keys = opts.apiKeys && opts.apiKeys.length > 0 ? opts.apiKeys : opts.apiKey ? [opts.apiKey] : [];
   }
 
+  /** So a caller (loop.ts's "model not found" recovery) can query this same server's /models. */
+  get baseUrl(): string {
+    return this.opts.baseUrl;
+  }
+
+  get apiKey(): string | undefined {
+    return this.keys[0];
+  }
+
   async streamTurn(params: StreamTurnParams): Promise<StreamTurnResult> {
     const attempts = Math.max(this.keys.length, 1);
     let lastError: unknown;
@@ -501,5 +510,24 @@ export class OpenAiCompatibleProvider implements LlmProvider {
       }
     }
     throw lastError;
+  }
+}
+
+// Every real OpenAI-compatible server this project talks to (Ollama, LM
+// Studio, vLLM, MLX's own server, ...) also serves GET {baseUrl}/models —
+// used only for the "model not found" recovery message in loop.ts, so a
+// user pointed at the wrong port/model name sees what that server actually
+// has instead of a bare 404. Best-effort: any failure here (server doesn't
+// implement it, network error) just means no suggestion, never a thrown error.
+export async function listAvailableModels(baseUrl: string, apiKey?: string): Promise<string[]> {
+  try {
+    const headers: Record<string, string> = {};
+    if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+    const res = await fetch(`${baseUrl.replace(/\/$/, "")}/models`, { headers });
+    if (!res.ok) return [];
+    const body = (await res.json()) as { data?: { id?: string }[] };
+    return (body.data ?? []).map((m) => m.id).filter((id): id is string => typeof id === "string");
+  } catch {
+    return [];
   }
 }

@@ -7,6 +7,7 @@ import { runTurn } from "../../src/core/loop.js";
 import { ToolRegistry } from "../../src/tools/registry.js";
 import { PermissionManager } from "../../src/permissions/manager.js";
 import { DEFAULT_PERMISSION_CONFIG } from "../../src/permissions/config.js";
+import { OpenAiCompatibleProvider } from "../../src/providers/openai-compatible-provider.js";
 import type { LlmProvider, StreamTurnResult } from "../../src/core/types.js";
 import type { UIAdapter } from "../../src/ui/adapter.js";
 
@@ -291,6 +292,77 @@ describe("runTurn: a provider call that throws ends the turn cleanly instead of 
     expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("doesn't support tool/function calling"));
     expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/tools"));
   });
+
+  it(
+    "real, reported case: a 404 against a local OpenAI-compatible server suggests the models that " +
+      "server actually reports, fetched live from its own /models",
+    async () => {
+      class ModelNotFoundProvider extends OpenAiCompatibleProvider {
+        async streamTurn(): Promise<StreamTurnResult> {
+          // Real wording from Ollama when the configured model isn't pulled.
+          throw new Error(
+            "OpenAI-compatible API error (404) from http://localhost:11434/v1/chat/completions " +
+              '(model: llama3.1:8b): {"error":{"message":"model \'llama3.1:8b\' not found","type":"not_found_error"}}',
+          );
+        }
+      }
+
+      const fetchMock = vi.fn().mockResolvedValue(
+        new Response(JSON.stringify({ data: [{ id: "qwen2.5-coder:7b" }, { id: "llama3.2:latest" }] }), {
+          status: 200,
+        }),
+      );
+      vi.stubGlobal("fetch", fetchMock);
+
+      const ui = makeStubUi();
+      const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+      const session = new AgentSession({ cwd: "/tmp", model: "llama3.1:8b", systemPrompt: "sys" });
+      const provider = new ModelNotFoundProvider({ baseUrl: "http://localhost:11434/v1" });
+
+      await runTurn(session, provider, ui, new ToolRegistry(), permissions, "hello");
+
+      expect(fetchMock).toHaveBeenCalledWith("http://localhost:11434/v1/models", expect.objectContaining({}));
+      expect(ui.writeSystem).toHaveBeenCalledWith(
+        expect.stringContaining("qwen2.5-coder:7b, llama3.2:latest"),
+      );
+      expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/config set model"));
+      vi.unstubAllGlobals();
+    },
+  );
+
+  it(
+    "falls back to a generic port/model-name hint when the server's own /models can't be reached either",
+    async () => {
+      class ModelNotFoundProvider extends OpenAiCompatibleProvider {
+        async streamTurn(): Promise<StreamTurnResult> {
+          // Real wording from an MLX server that doesn't even recognize the
+          // route at all (wrong port) — a plain HTML 404 page, no JSON body.
+          throw new Error(
+            "OpenAI-compatible API error (404) from http://localhost:8000/v1/chat/completions " +
+              "(model: TokenRhythm/NeoHorse-1-4B-MLX-4bit): <!DOCTYPE html><html>...404 Not Found...</html>",
+          );
+        }
+      }
+
+      const fetchMock = vi.fn().mockRejectedValue(new TypeError("fetch failed"));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const ui = makeStubUi();
+      const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+      const session = new AgentSession({
+        cwd: "/tmp",
+        model: "TokenRhythm/NeoHorse-1-4B-MLX-4bit",
+        systemPrompt: "sys",
+      });
+      const provider = new ModelNotFoundProvider({ baseUrl: "http://localhost:8000/v1" });
+
+      await runTurn(session, provider, ui, new ToolRegistry(), permissions, "hello");
+
+      expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("Ollama defaults to 11434"));
+      expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("http://localhost:8000/v1"));
+      vi.unstubAllGlobals();
+    },
+  );
 
   it("records the failure in session.errorLog (persisted) — not just shown live and then lost on resume", async () => {
     class FailingProvider implements LlmProvider {

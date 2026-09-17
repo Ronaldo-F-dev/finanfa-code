@@ -16,6 +16,7 @@ import { compactForProvider, CHARS_PER_TOKEN_ESTIMATE } from "./context.js";
 import { mcpToolServerName } from "../mcp/client-manager.js";
 import { withSpan } from "../observability/tracing.js";
 import { CALL_TOOL_NAME, SEARCH_TOOLS_NAME, DESCRIBE_TOOL_NAME, createToolSearchMetaTools, createCallToolMetaTool } from "./tool-search.js";
+import { OpenAiCompatibleProvider, listAvailableModels } from "../providers/openai-compatible-provider.js";
 
 /**
  * The model otherwise has no idea what "today" is — nothing in this
@@ -476,6 +477,21 @@ function isLikelyToolsUnsupportedError(message: string): boolean {
   return TOOLS_UNSUPPORTED_ERROR_PATTERN.test(message);
 }
 
+// Real, reported case: a user with several local servers running at once
+// (Ollama on 11434, an MLX server on 8000/8001, ...) kept pointing
+// FINANFA_BASE_URL/FINANFA_MODEL at the wrong combination — each attempt
+// failed with a 404, either a JSON "model 'x' not found" body or (from a
+// server that doesn't even recognize the route, e.g. the wrong port
+// entirely) a plain HTML "404 Not Found" page. Either way, this project's
+// own error wrapping already embeds the real status as "(404)" — see
+// extractHttpStatus/KEY_ROTATION_STATUSES in openai-compatible-provider.ts,
+// which uses the identical convention.
+const MODEL_NOT_FOUND_ERROR_PATTERN = /\(404\)/;
+
+function isLikelyModelNotFoundError(message: string): boolean {
+  return MODEL_NOT_FOUND_ERROR_PATTERN.test(message);
+}
+
 // Both LoopGuard messages below start with this — a distinctive marker so
 // callers (task.ts) can tell "the turn was cut off by the guard" apart from
 // "the model naturally finished", without runTurn needing a richer return
@@ -802,6 +818,21 @@ export async function runTurn(
           "here includes the full tool list. Pick a model that supports it, or disable every tool for this " +
           "session (/tools, or the web UI's Tools panel) to use this one for plain text chat with no tool use. " +
           `Original error: ${message})`;
+      } else if (isLikelyModelNotFoundError(message) && active.provider instanceof OpenAiCompatibleProvider) {
+        // The single most useful thing to show here isn't the raw 404 — it's
+        // what this exact server (right host/port, wrong model name; or the
+        // reverse) actually has available, straight from its own /models.
+        const models = await listAvailableModels(active.provider.baseUrl, active.provider.apiKey);
+        displayMessage =
+          models.length > 0
+            ? `(the model call failed — "${active.model}" was not found at ${active.provider.baseUrl}. This ` +
+              `server reports these models instead: ${models.join(", ")}. Pick one with /config set model ` +
+              `<name>. Original error: ${message})`
+            : `(the model call failed — "${active.model}" was not found at ${active.provider.baseUrl}, and that ` +
+              "server didn't report a model list either. Double-check the base URL/port match the server you " +
+              "actually started (Ollama defaults to 11434, LM Studio to 1234, an MLX/vLLM server to whatever " +
+              "you passed --port) and that the model name is exactly what that server calls it. Original " +
+              `error: ${message})`;
       } else {
         displayMessage = `(the model call failed: ${message})`;
       }

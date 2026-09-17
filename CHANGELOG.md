@@ -10,6 +10,12 @@ first tagged release.
 
 ### Added
 
+- A model-not-found (404) error against a local OpenAI-compatible server
+  (Ollama, LM Studio, MLX, vLLM, ...) now fetches that same server's own
+  `/models` and suggests the real model names it reports, instead of a
+  bare 404 — a real reported pain point setting up a local model for the
+  first time (wrong port, wrong model name, several local servers running
+  at once).
 - `/exit` now says "bye bye" before quitting.
 - CI (GitHub Actions): typecheck, lint, and the full real end-to-end
   test suite on every push/PR.
