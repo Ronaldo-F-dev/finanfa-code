@@ -420,6 +420,20 @@ first tagged release.
   idempotent) now always retries a couple of times on a transient
   connection failure before actually reporting a host unhealthy.
 
+- `analyze_video`'s File API path (see above) is now confirmed end to
+  end against a real, live Gemini account — a real ~21MB generated
+  video, forcing the exact path a smaller test file can't reach. That
+  real run surfaced two genuine bugs, both now fixed: `DEFAULT_MODEL`
+  had drifted to a since-deprecated model name (Gemini's own API told
+  new callers to migrate off it — updated to Google's own currently-
+  recommended one), and `startResumableUpload`/`finalizeResumableUpload`
+  had no retry at all unlike `generateContentWithPart`'s own
+  `fetchWithRetry` — a transient network blip partway through a real
+  multi-minute upload reliably reproduced the whole flow failing
+  outright. Both upload steps now share the same retry as the rest of
+  this file; the file-status poll no longer aborts the whole wait on a
+  single transient network error either, just tries again next interval.
+
 - "Gateway": opt-in multi-user authentication for the web server
   (`FINANFA_WEB_USERS="alice:token1,bob:token2"`) — a Bearer token on
   every `/api/*` request (channel webhooks keep their own signature
