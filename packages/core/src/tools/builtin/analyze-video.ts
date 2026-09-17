@@ -16,18 +16,30 @@ import { fetchWithRetry } from "../../channels/retry-fetch.js";
 // is currently selected, which this tool must NOT depend on, since it
 // needs to work regardless of the primary provider.
 //
-// Sent as inline_data (base64 in the request body), not Gemini's
-// separate Files API: inline data is the real, documented path for a
-// file under ~20MB in one request, and is far simpler/more verifiable
-// than the Files API's multi-step resumable-upload protocol (initiate,
-// get an upload URL back, PUT the bytes, finalize) — genuinely a
-// different, larger integration to get right without a real account to
-// test the exact wire behavior against. A video over the size ceiling
-// is reported clearly as out of scope, not silently truncated or
-// routed through an unverified upload flow.
+// A small video (<19MB) is sent inline (base64 in the request body) —
+// simplest, one request. A larger one goes through Gemini's real File
+// API instead: the standard resumable-upload protocol Google publishes
+// for this exact use case (start -> get an upload URL back via a real
+// response header -> upload+finalize the bytes -> poll until the file's
+// server-side processing reports ACTIVE -> reference it by file_uri in
+// generateContent -> delete it afterward). This isn't a guess at an
+// undocumented flow: it's Google's own published curl example for
+// uploading a video to Gemini, reproduced faithfully — but still
+// unverified against a real, live Gemini account (none available here),
+// so treat the exact response shapes as "should be right per the docs,"
+// not "confirmed against a real call" the way this project's other
+// third-party integrations were.
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com";
 const DEFAULT_MODEL = "gemini-2.0-flash";
 const MAX_INLINE_VIDEO_BYTES = 19 * 1024 * 1024;
+// The File API itself allows up to 2GB per file, but this tool reads the
+// whole file into memory (readFile + a base64/Buffer copy at points) —
+// a practical, self-imposed ceiling well under that to avoid a genuinely
+// huge file causing real memory pressure in this process, not a Gemini
+// API limit.
+const MAX_FILE_API_VIDEO_BYTES = 200 * 1024 * 1024;
+const FILE_PROCESSING_POLL_INTERVAL_MS = 2_000;
+const FILE_PROCESSING_TIMEOUT_MS = 120_000;
 
 export interface AnalyzeVideoConfig {
   apiKey: string;
@@ -69,13 +81,16 @@ interface GeminiGenerateContentResponse extends GeminiErrorBody {
 
 export type AnalyzeVideoResult = { ok: true; text: string } | { ok: false; error: string };
 
-export async function analyzeVideoWithGemini(
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+async function generateContentWithPart(
   config: AnalyzeVideoConfig,
-  videoBase64: string,
-  mimeType: string,
   prompt: string,
-  model = DEFAULT_MODEL,
-  apiBaseUrl = GEMINI_API_BASE,
+  videoPart: Record<string, unknown>,
+  model: string,
+  apiBaseUrl: string,
 ): Promise<AnalyzeVideoResult> {
   const url = `${apiBaseUrl}/v1beta/models/${encodeURIComponent(model)}:generateContent?key=${encodeURIComponent(config.apiKey)}`;
   let response: Response;
@@ -84,7 +99,7 @@ export async function analyzeVideoWithGemini(
     ({ response, bodyText } = await fetchWithRetry(url, {
       method: "POST",
       headers: { "content-type": "application/json" },
-      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }, { inline_data: { mime_type: mimeType, data: videoBase64 } }] }] }),
+      body: JSON.stringify({ contents: [{ role: "user", parts: [{ text: prompt }, videoPart] }] }),
     }));
   } catch (err) {
     return { ok: false, error: `Failed to reach Gemini: ${err instanceof Error ? err.message : String(err)}` };
@@ -106,6 +121,144 @@ export async function analyzeVideoWithGemini(
   return { ok: true, text };
 }
 
+/** A video under the inline ceiling: one request, base64 in the body. */
+export async function analyzeVideoInline(
+  config: AnalyzeVideoConfig,
+  videoBase64: string,
+  mimeType: string,
+  prompt: string,
+  model = DEFAULT_MODEL,
+  apiBaseUrl = GEMINI_API_BASE,
+): Promise<AnalyzeVideoResult> {
+  return generateContentWithPart(config, prompt, { inline_data: { mime_type: mimeType, data: videoBase64 } }, model, apiBaseUrl);
+}
+
+export interface UploadedGeminiFile {
+  uri: string;
+  name: string;
+}
+
+export type UploadGeminiFileResult = { ok: true; file: UploadedGeminiFile } | { ok: false; error: string };
+
+/** Step 1 of Google's real resumable-upload protocol: announces the upload (size/mime type) and gets back a one-time upload URL via the X-Goog-Upload-URL response header — not part of the JSON body. */
+async function startResumableUpload(config: AnalyzeVideoConfig, sizeBytes: number, mimeType: string, displayName: string, apiBaseUrl: string): Promise<{ ok: true; uploadUrl: string } | { ok: false; error: string }> {
+  let response: Response;
+  try {
+    response = await fetch(`${apiBaseUrl}/upload/v1beta/files?key=${encodeURIComponent(config.apiKey)}`, {
+      method: "POST",
+      headers: {
+        "X-Goog-Upload-Protocol": "resumable",
+        "X-Goog-Upload-Command": "start",
+        "X-Goog-Upload-Header-Content-Length": String(sizeBytes),
+        "X-Goog-Upload-Header-Content-Type": mimeType,
+        "content-type": "application/json",
+      },
+      body: JSON.stringify({ file: { display_name: displayName } }),
+    });
+  } catch (err) {
+    return { ok: false, error: `Failed to reach Gemini: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  const uploadUrl = response.headers.get("x-goog-upload-url");
+  if (!response.ok || !uploadUrl) {
+    const text = await response.text().catch(() => "");
+    return { ok: false, error: text.trim() || `Gemini upload-start error (HTTP ${response.status})` };
+  }
+  return { ok: true, uploadUrl };
+}
+
+/** Step 2: uploads the real bytes to the one-time URL from step 1, finalizing in the same request (offset 0, the whole file in one shot — this tool doesn't chunk an upload across multiple requests). */
+async function finalizeResumableUpload(uploadUrl: string, buffer: Buffer): Promise<UploadGeminiFileResult> {
+  let response: Response;
+  try {
+    response = await fetch(uploadUrl, {
+      method: "POST",
+      headers: { "X-Goog-Upload-Command": "upload, finalize", "X-Goog-Upload-Offset": "0", "content-length": String(buffer.length) },
+      body: buffer,
+    });
+  } catch (err) {
+    return { ok: false, error: `Failed to reach Gemini: ${err instanceof Error ? err.message : String(err)}` };
+  }
+  const bodyText = await response.text();
+  let data: (GeminiErrorBody & { file?: { uri?: string; name?: string } }) | undefined;
+  try {
+    data = JSON.parse(bodyText) as typeof data;
+  } catch {
+    return { ok: false, error: `Gemini returned an unparseable upload response (HTTP ${response.status}).` };
+  }
+  if (!response.ok) return { ok: false, error: data?.error?.message ?? `Gemini upload error (HTTP ${response.status})` };
+  if (!data?.file?.uri || !data.file.name) return { ok: false, error: "Gemini's upload response had no file uri/name." };
+  return { ok: true, file: { uri: data.file.uri, name: data.file.name } };
+}
+
+/** Step 3: a freshly-uploaded video needs server-side processing before it can be referenced in generateContent — polls the file's own state until it's ACTIVE (ready), FAILED (reported as an error), or a real timeout. */
+async function waitForFileActive(config: AnalyzeVideoConfig, fileName: string, apiBaseUrl: string): Promise<{ ok: true } | { ok: false; error: string }> {
+  const deadline = Date.now() + FILE_PROCESSING_TIMEOUT_MS;
+  for (;;) {
+    let response: Response;
+    let bodyText: string;
+    try {
+      response = await fetch(`${apiBaseUrl}/v1beta/${fileName}?key=${encodeURIComponent(config.apiKey)}`);
+      bodyText = await response.text();
+    } catch (err) {
+      return { ok: false, error: `Failed to reach Gemini: ${err instanceof Error ? err.message : String(err)}` };
+    }
+    let data: (GeminiErrorBody & { state?: string }) | undefined;
+    try {
+      data = JSON.parse(bodyText) as typeof data;
+    } catch {
+      return { ok: false, error: `Gemini returned an unparseable file-status response (HTTP ${response.status}).` };
+    }
+    if (!response.ok) return { ok: false, error: data?.error?.message ?? `Gemini file-status error (HTTP ${response.status})` };
+    if (data?.state === "ACTIVE") return { ok: true };
+    if (data?.state === "FAILED") return { ok: false, error: "Gemini failed to process the uploaded video." };
+    if (Date.now() >= deadline) return { ok: false, error: "Timed out waiting for Gemini to finish processing the uploaded video." };
+    await sleep(FILE_PROCESSING_POLL_INTERVAL_MS);
+  }
+}
+
+/** Best-effort cleanup — a failure here doesn't affect the actual analysis result, so it's never surfaced as an error of its own. */
+async function deleteGeminiFile(config: AnalyzeVideoConfig, fileName: string, apiBaseUrl: string): Promise<void> {
+  await fetch(`${apiBaseUrl}/v1beta/${fileName}?key=${encodeURIComponent(config.apiKey)}`, { method: "DELETE" }).catch(() => {});
+}
+
+/** A video over the inline ceiling: the full real File API flow (upload -> wait for processing -> analyze -> delete). */
+export async function analyzeVideoViaFilesApi(
+  config: AnalyzeVideoConfig,
+  buffer: Buffer,
+  mimeType: string,
+  prompt: string,
+  displayName: string,
+  model = DEFAULT_MODEL,
+  apiBaseUrl = GEMINI_API_BASE,
+): Promise<AnalyzeVideoResult> {
+  const started = await startResumableUpload(config, buffer.length, mimeType, displayName, apiBaseUrl);
+  if (!started.ok) return started;
+
+  const uploaded = await finalizeResumableUpload(started.uploadUrl, buffer);
+  if (!uploaded.ok) return uploaded;
+
+  const ready = await waitForFileActive(config, uploaded.file.name, apiBaseUrl);
+  if (!ready.ok) return ready;
+
+  const result = await generateContentWithPart(config, prompt, { file_data: { mime_type: mimeType, file_uri: uploaded.file.uri } }, model, apiBaseUrl);
+  void deleteGeminiFile(config, uploaded.file.name, apiBaseUrl);
+  return result;
+}
+
+/** Picks inline vs the real Files API based on size, so callers (the tool below) don't need to know which path applies. */
+export async function analyzeVideo(
+  config: AnalyzeVideoConfig,
+  buffer: Buffer,
+  mimeType: string,
+  prompt: string,
+  displayName: string,
+  model = DEFAULT_MODEL,
+  apiBaseUrl = GEMINI_API_BASE,
+): Promise<AnalyzeVideoResult> {
+  if (buffer.length <= MAX_INLINE_VIDEO_BYTES) return analyzeVideoInline(config, buffer.toString("base64"), mimeType, prompt, model, apiBaseUrl);
+  return analyzeVideoViaFilesApi(config, buffer, mimeType, prompt, displayName, model, apiBaseUrl);
+}
+
 interface AnalyzeVideoInput {
   path: string;
   prompt: string;
@@ -119,9 +272,11 @@ export function createAnalyzeVideoTool(config: AnalyzeVideoConfig | undefined, a
       "Ask a real question about a video's actual content — motion, audio, dialogue, what happens over time — " +
       "via Gemini's native video understanding (genuinely different from view_video_frames, which only samples " +
       "still images: this sees the real video and audio together). Requires GEMINI_API_KEY as an environment " +
-      `variable, independent of whichever provider is configured as the primary one. Limited to videos under ` +
-      `${Math.floor(MAX_INLINE_VIDEO_BYTES / (1024 * 1024))}MB (sent inline in one request) — a larger file is ` +
-      "reported as out of scope rather than silently failing.",
+      "variable, independent of whichever provider is configured as the primary one. A video under " +
+      `${Math.floor(MAX_INLINE_VIDEO_BYTES / (1024 * 1024))}MB is sent in one request; a larger one (up to ` +
+      `${Math.floor(MAX_FILE_API_VIDEO_BYTES / (1024 * 1024))}MB) goes through Gemini's real File API instead ` +
+      "(upload, wait for processing, analyze, then delete it) — slower, since a real video needs server-side " +
+      "processing before Gemini can see it.",
     riskLevel: "safe",
     inputSchema: {
       type: "object",
@@ -146,13 +301,14 @@ export function createAnalyzeVideoTool(config: AnalyzeVideoConfig | undefined, a
       } catch (err) {
         return { content: `Could not read "${input.path}": ${err instanceof Error ? err.message : String(err)}`, isError: true };
       }
-      if (size > MAX_INLINE_VIDEO_BYTES) {
+      if (size > MAX_FILE_API_VIDEO_BYTES) {
         const mb = (size / (1024 * 1024)).toFixed(1);
-        return { content: `"${input.path}" is ${mb}MB, over the ${Math.floor(MAX_INLINE_VIDEO_BYTES / (1024 * 1024))}MB limit for inline analysis.`, isError: true };
+        return { content: `"${input.path}" is ${mb}MB, over the ${Math.floor(MAX_FILE_API_VIDEO_BYTES / (1024 * 1024))}MB limit this tool supports.`, isError: true };
       }
 
       const buffer = await readFile(filePath);
-      const result = await analyzeVideoWithGemini(config, buffer.toString("base64"), mimeType, input.prompt, input.model, apiBaseUrl);
+      const displayName = input.path.split("/").pop() ?? input.path;
+      const result = await analyzeVideo(config, buffer, mimeType, input.prompt, displayName, input.model, apiBaseUrl);
       if (!result.ok) return { content: result.error, isError: true };
       return { content: result.text, isError: false };
     },
