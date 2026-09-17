@@ -389,6 +389,18 @@ first tagged release.
   CPU/memory telemetry, live migration of an already-running cell, or a
   persistent scheduling daemon.
 
+- Claws gains a real hosted registry: `publish_bundle_to_registry`/
+  `list_registry_bundles`/`list_registry_bundle_versions`/
+  `install_bundle_from_registry` publish to and install from any GitHub
+  repository the user (or their org) already controls, via GitHub's own
+  real Contents API (`bundles/<name>/<version>.json`, committed like
+  any other file) rather than a bespoke multi-tenant discovery service
+  this project would have to operate itself. Published versions are
+  immutable, same convention as a real package registry. Closes the
+  "publish/discover bundles from others" half of the Claws gap —
+  sharing a bundle's JSON directly (a gist, a file attachment) still
+  works exactly as before.
+
 - "Gateway": opt-in multi-user authentication for the web server
   (`FINANFA_WEB_USERS="alice:token1,bob:token2"`) — a Bearer token on
   every `/api/*` request (channel webhooks keep their own signature
