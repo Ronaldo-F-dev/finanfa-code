@@ -15,7 +15,7 @@ import type {
 import { compactForProvider, CHARS_PER_TOKEN_ESTIMATE } from "./context.js";
 import { mcpToolServerName } from "../mcp/client-manager.js";
 import { withSpan } from "../observability/tracing.js";
-import { CALL_TOOL_NAME, SEARCH_TOOLS_NAME, createToolSearchMetaTools, createCallToolMetaTool } from "./tool-search.js";
+import { CALL_TOOL_NAME, SEARCH_TOOLS_NAME, DESCRIBE_TOOL_NAME, createToolSearchMetaTools, createCallToolMetaTool } from "./tool-search.js";
 
 /**
  * The model otherwise has no idea what "today" is — nothing in this
@@ -123,6 +123,22 @@ async function runOneToolCall(
   permissions: PermissionManager,
 ): Promise<ToolCallOutcome> {
   let tool = tools.get(call.name);
+
+  // search_tools/describe_tool are, like call_tool below, never actually
+  // registered on the real ToolRegistry — they only ever exist in the
+  // synthesized list toolsForProvider sends to the model (see
+  // tool-search.ts). Without this, a real, observed bug: the model calls
+  // search_tools exactly as instructed, tools.get returns undefined, this
+  // function reports "Unknown tool", and the model retries with a
+  // slightly different query indefinitely (never actually broken, just
+  // never able to make progress) — confirmed directly against a real
+  // local model. Both are safe/read-only, so they're just constructed
+  // fresh and dispatched normally, no special remapping needed like
+  // call_tool's own interception below.
+  if (!tool && (call.name === SEARCH_TOOLS_NAME || call.name === DESCRIBE_TOOL_NAME)) {
+    const [searchTools, describeTool] = createToolSearchMetaTools(() => availableTools(tools, session));
+    tool = call.name === SEARCH_TOOLS_NAME ? searchTools : describeTool;
+  }
 
   // Tool Search's call_tool is never actually invoked as itself (see
   // tool-search.ts's own header comment on why) — remap `call` onto the

@@ -194,4 +194,50 @@ describe("runTurn: Tool Search (session.toolSearchEnabled)", () => {
       throw new Error("expected a tool message");
     }
   });
+
+  // Real bug found testing this against a real local model: search_tools/
+  // describe_tool are (like call_tool) never actually registered on the
+  // real ToolRegistry — only synthesized into the list sent to the model.
+  // Without runOneToolCall's own special-case for them (added alongside
+  // this test), calling search_tools reported "Unknown tool" every time,
+  // and the model retried with a different query indefinitely, never
+  // making any progress — confirmed directly, not a guess.
+  it("the model calling search_tools directly (not via call_tool) actually works, not 'Unknown tool'", async () => {
+    const tools = makeTools();
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+    session.toolSearchEnabled = true;
+    const provider = new OneShotToolCallProvider({ id: "c1", name: SEARCH_TOOLS_NAME, input: { query: "read a file" } });
+
+    await runTurn(session, provider, ui, tools, permissions, "find a tool to read a file");
+
+    const toolMsg = session.messages.find((m) => m.role === "tool");
+    if (toolMsg?.role === "tool") {
+      expect(toolMsg.results[0].isError).toBe(false);
+      expect(toolMsg.results[0].content).toContain("read_file");
+    } else {
+      throw new Error("expected a tool message");
+    }
+  });
+
+  it("the model calling describe_tool directly (not via call_tool) actually works, not 'Unknown tool'", async () => {
+    const tools = makeTools();
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+    session.toolSearchEnabled = true;
+    const provider = new OneShotToolCallProvider({ id: "c1", name: DESCRIBE_TOOL_NAME, input: { name: "read_file" } });
+
+    await runTurn(session, provider, ui, tools, permissions, "describe read_file");
+
+    const toolMsg = session.messages.find((m) => m.role === "tool");
+    if (toolMsg?.role === "tool") {
+      expect(toolMsg.results[0].isError).toBe(false);
+      const parsed = JSON.parse(toolMsg.results[0].content);
+      expect(parsed.name).toBe("read_file");
+    } else {
+      throw new Error("expected a tool message");
+    }
+  });
 });
