@@ -868,6 +868,13 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
       }
     }
 
+    // The current todo_write checklist likewise isn't part of `messages`
+    // (it lives on session.todos, see AgentSession) — replayed here so a
+    // reconnect to a still-running session (a browser reload, a second
+    // tab) sees the board as it currently stands, not empty until the
+    // next todo_write call.
+    if (session.todos.list().length > 0) ws.send(JSON.stringify({ type: "todos", todos: session.todos.list() }));
+
     let turnInFlight = false;
     // Per-connection, not persisted on the session — reopening a session
     // later should warn again (a fresh reminder is fine there), this is
