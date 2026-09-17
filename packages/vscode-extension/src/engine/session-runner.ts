@@ -21,8 +21,8 @@ import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import type { FinanfaConfig } from "@finanfa/core/src/core/config.js";
 import type { LlmProvider, NeutralImage } from "@finanfa/core/src/core/types.js";
-import { loadConfig, thinkingBudgetTokensFromConfig } from "@finanfa/core/src/core/config.js";
-import { BASE_SYSTEM_PROMPT, selectProvider, selectVisionProvider, connectMcpServers } from "@finanfa/core/src/app.js";
+import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled } from "@finanfa/core/src/core/config.js";
+import { BASE_SYSTEM_PROMPT, selectProvider, selectVisionProvider, connectMcpServers, isLocalProviderConfig } from "@finanfa/core/src/app.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
 import { isOllamaAvailable, listOllamaModels, pullOllamaModel as pullOllamaModelCore, type OllamaPullProgress } from "@finanfa/core/src/core/ollama-models.js";
 import { EFFORT_TIERS, getEffortTier, isDefaultProviderTier, MINIMAL_TOOL_SET } from "@finanfa/core/src/core/effort-tiers.js";
@@ -221,6 +221,7 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
     session = new AgentSession({ cwd, model, systemPrompt });
   }
   if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
+  session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
 
   // Real reported bug: reconstructs the provider/endpoint this session
   // actually last talked to, if it ever switched away from the

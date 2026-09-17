@@ -31,7 +31,7 @@ import { loadScopedInstructions, formatScopedInstructions } from "@finanfa/core/
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import type { LlmProvider } from "@finanfa/core/src/core/types.js";
-import { loadConfig, thinkingBudgetTokensFromConfig } from "@finanfa/core/src/core/config.js";
+import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled } from "@finanfa/core/src/core/config.js";
 import { initTracing, shutdownTracing } from "@finanfa/core/src/observability/tracing.js";
 import {
   BASE_SYSTEM_PROMPT,
@@ -39,6 +39,7 @@ import {
   selectProvider,
   selectVisionProvider,
   connectMcpServers,
+  isLocalProviderConfig,
 } from "@finanfa/core/src/app.js";
 
 export { BASE_SYSTEM_PROMPT, SECURITY_INSTRUCTION, connectMcpServers };
@@ -247,6 +248,10 @@ export async function main(argv: string[]): Promise<void> {
   // recorded one (from whatever config was active when it started) keeps
   // it, same "resumed state wins" precedent as maxTokens/effort.
   if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
+  // Runtime-only (never persisted — see session.ts), so a resumed session
+  // always starts at the class default and this always applies fresh,
+  // unlike thinkingBudgetTokens above.
+  session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
 
   const trusted = await resolveTrust(cwd, ui, opts.nonInteractive);
   const permissionConfig = await loadPermissionConfig(cwd, trusted);
