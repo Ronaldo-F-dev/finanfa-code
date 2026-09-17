@@ -8,6 +8,7 @@ import type {
   StreamTurnResult,
   ToolDefinition,
 } from "../core/types.js";
+import { repairTruncatedToolCallJson } from "./tool-call-json-repair.js";
 
 // Cohere's Chat API v2 (api.cohere.com/v2/chat) — genuinely distinct from
 // the OpenAI/Anthropic wire formats already spoken here: the system
@@ -68,18 +69,27 @@ interface PendingToolCall {
   argumentsJson: string;
 }
 
-function finalizeToolCalls(pending: Map<number, PendingToolCall>): NeutralToolCall[] {
+function finalizeToolCalls(pending: Map<number, PendingToolCall>, rawFinishReason: Cohere.ChatFinishReason | undefined): NeutralToolCall[] {
   const calls: NeutralToolCall[] = [];
   for (const call of pending.values()) {
     let input: unknown = {};
     try {
       input = call.argumentsJson.trim() ? JSON.parse(call.argumentsJson) : {};
     } catch {
+      // Same reasoning as OpenAiCompatibleProvider's own tool-call JSON
+      // handling: a stream cut off mid-argument for a reason OTHER than
+      // hitting the model's own max-token limit is usually just
+      // unclosed nesting — cheaply fixable without another full model
+      // turn. Skipped specifically on MaxTokens: there the argument's
+      // own *content* (not just its JSON envelope) is genuinely
+      // incomplete, and silently closing the JSON around it would hide
+      // that from the model instead of letting it recover correctly.
+      const repaired = rawFinishReason !== Cohere.ChatFinishReason.MaxTokens ? repairTruncatedToolCallJson(call.argumentsJson) : undefined;
       // A provider streaming malformed JSON is the agent loop's problem to
       // reject (see findMissingRequiredFields/JSON-parse handling in
       // loop.ts) the same way a malformed OpenAI/Anthropic tool call
       // already is — not this function's to silently paper over.
-      input = { __unparsable_arguments__: call.argumentsJson };
+      input = repaired !== undefined ? repaired : { __unparsable_arguments__: call.argumentsJson };
     }
     calls.push({ id: call.id, name: call.name, input });
   }
@@ -107,6 +117,7 @@ export class CohereProvider implements LlmProvider {
     let content = "";
     const pendingToolCalls = new Map<number, PendingToolCall>();
     let stopReason: StopReason = "other";
+    let rawFinishReason: Cohere.ChatFinishReason | undefined;
     let usage = { inputTokens: 0, outputTokens: 0 };
 
     for await (const event of stream) {
@@ -127,12 +138,13 @@ export class CohereProvider implements LlmProvider {
         const argsDelta = event.delta?.message?.toolCalls?.function?.arguments;
         if (existing && argsDelta) existing.argumentsJson += argsDelta;
       } else if (event.type === "message-end") {
-        stopReason = mapStopReason(event.delta?.finishReason);
+        rawFinishReason = event.delta?.finishReason;
+        stopReason = mapStopReason(rawFinishReason);
         usage = { inputTokens: event.delta?.usage?.tokens?.inputTokens ?? 0, outputTokens: event.delta?.usage?.tokens?.outputTokens ?? 0 };
       }
     }
 
-    const toolCalls = finalizeToolCalls(pendingToolCalls);
+    const toolCalls = finalizeToolCalls(pendingToolCalls, rawFinishReason);
     return {
       assistantMessage: { role: "assistant", content, toolCalls: toolCalls.length > 0 ? toolCalls : undefined },
       usage,

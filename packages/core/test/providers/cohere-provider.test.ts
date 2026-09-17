@@ -122,4 +122,68 @@ describe("CohereProvider.streamTurn (real cohere-ai SDK, real local HTTP server 
       server.close();
     }
   });
+
+  it("repairs tool-call arguments left open by a disconnect for a reason OTHER than max_tokens", async () => {
+    const server = http.createServer((req, res) => {
+      req.on("data", () => {});
+      req.on("end", () => {
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        res.write(sseLine({ type: "tool-call-start", index: 0, delta: { message: { toolCalls: { id: "call_1", type: "function", function: { name: "write_file", arguments: "" } } } } }));
+        res.write(sseLine({ type: "tool-call-delta", index: 0, delta: { message: { toolCalls: { function: { arguments: '{"path":"a.txt","content":"hello' } } } } }));
+        res.write(sseLine({ type: "message-end", delta: { finishReason: "COMPLETE", usage: { tokens: { inputTokens: 5, outputTokens: 5 } } } }));
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+    try {
+      const provider = new CohereProvider("test-key", baseUrl);
+      const result = await provider.streamTurn({
+        model: "command-a-plus",
+        systemPrompt: "s",
+        messages: [{ role: "user", content: "write a.txt" }],
+        tools: [],
+        onTextDelta: () => {},
+      });
+
+      expect(result.assistantMessage.toolCalls).toEqual([{ id: "call_1", name: "write_file", input: { path: "a.txt", content: "hello" } }]);
+    } finally {
+      server.close();
+    }
+  });
+
+  it("does NOT repair tool-call arguments when the disconnect was due to max_tokens — the content itself is genuinely incomplete", async () => {
+    const server = http.createServer((req, res) => {
+      req.on("data", () => {});
+      req.on("end", () => {
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        res.write(sseLine({ type: "tool-call-start", index: 0, delta: { message: { toolCalls: { id: "call_1", type: "function", function: { name: "write_file", arguments: "" } } } } }));
+        res.write(sseLine({ type: "tool-call-delta", index: 0, delta: { message: { toolCalls: { function: { arguments: '{"path":"a.txt","content":"hello' } } } } }));
+        res.write(sseLine({ type: "message-end", delta: { finishReason: "MAX_TOKENS", usage: { tokens: { inputTokens: 5, outputTokens: 5 } } } }));
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    const baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+
+    try {
+      const provider = new CohereProvider("test-key", baseUrl);
+      const result = await provider.streamTurn({
+        model: "command-a-plus",
+        systemPrompt: "s",
+        messages: [{ role: "user", content: "write a.txt" }],
+        tools: [],
+        onTextDelta: () => {},
+      });
+
+      expect(result.assistantMessage.toolCalls).toEqual([
+        { id: "call_1", name: "write_file", input: { __unparsable_arguments__: expect.stringContaining("hello") } },
+      ]);
+    } finally {
+      server.close();
+    }
+  });
 });
