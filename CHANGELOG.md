@@ -256,6 +256,13 @@ first tagged release.
   has no long-running service to run one in, so consolidation here is
   explicitly triggered and acted on by the agent, not automatic.
 
+- `run_applescript` builtin tool (macOS only, only registered when
+  `process.platform === "darwin"`): runs a real AppleScript via
+  `osascript`, the standard mechanism for driving other macOS
+  applications (Finder, Mail, Music, System Events for cross-app UI
+  scripting) — closing the macOS UI automation gap relative to a
+  comparable project's native macOS app.
+
 - Finer-grained permission rules: a `settings.json` rule can now add
   `cwdPrefix`, scoping it to part of a monorepo (e.g. auto-allow `bash`
   inside one already-reviewed directory without loosening the default
