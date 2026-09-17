@@ -265,6 +265,17 @@ first tagged release.
   has no long-running service to run one in, so consolidation here is
   explicitly triggered and acted on by the agent, not automatic.
 
+- The web UI now renders the current `todo_write` checklist as a real
+  visual task board (a "Tasks" panel in the sidebar, three columns: to
+  do/in progress/done) instead of only ever a plain-text log line —
+  closes the "Boards/Canvas/Workboard" gap relative to a comparable
+  project's own task-tracking UI. A new optional `UIAdapter.writeTodos`
+  hook carries the structured checklist over the existing WebSocket
+  protocol (a `"todos"` event); the terminal/ACP adapters are unaffected,
+  still relying on the existing plain-text echo. The checklist is now
+  also persisted on the session file (previously runtime-only) so a
+  resumed session's board isn't empty until the next `todo_write` call.
+
 - `view_video_frames` builtin tool (only registered when `ffmpeg`/
   `ffprobe` are installed): samples a handful of evenly-spaced still
   frames from a video file (mp4/mov/webm/...) and hands them to the model
@@ -296,6 +307,15 @@ first tagged release.
   files in parallel could collide on the same port, failing with a
   "bad port"/connection-refused error unrelated to the code under test.
 
+- `mask()` (secret redaction, see `redact.ts`): threw `RangeError: Invalid
+  count value` for a 9-character value instead of masking it — its
+  first-6/last-4 scheme needs more than 10 characters to have any real
+  middle left to mask. Found while adding a new `redactSecrets` caller
+  (todo persistence): a test elsewhere restoring `process.env.X =
+  originalValue` where `originalValue` was `undefined` had been silently
+  setting `X` to the literal string `"undefined"` (Node doesn't unset an
+  env var that way) — 9 characters — which then flowed into every later
+  test's redaction denylist in the same file.
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
   by upgrading to v5.
