@@ -295,6 +295,16 @@ first tagged release.
   daemon, not a multi-node/multi-host scheduler placing cells across a
   real fleet of machines.
 
+- `generate_video`/`generate_music` builtin tools: real, billed video and
+  music generation via any Replicate model (`REPLICATE_API_TOKEN`) —
+  passes the model's own real input fields straight through rather than
+  a fixed schema (every Replicate model's input is genuinely different),
+  polls the real prediction until it finishes, downloads the real output,
+  and saves it. Closes the video/music generation gap: neither OpenAI
+  nor Gemini has a broadly-available, non-invite-only API for this today,
+  but Replicate hosts real open models for both behind one ordinary API
+  token, no special access needed.
+
 - Gateway gains real OIDC-based SSO (`FINANFA_WEB_OIDC_ISSUER`/
   `FINANFA_WEB_OIDC_CLIENT_ID`/`FINANFA_WEB_OIDC_CLIENT_SECRET`/
   `FINANFA_WEB_OIDC_REDIRECT_URI`) — a real Authorization Code + PKCE
