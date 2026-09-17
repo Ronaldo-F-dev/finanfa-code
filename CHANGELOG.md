@@ -154,6 +154,15 @@ first tagged release.
   (a REPL, an install wizard, a long-lived dev server) the way a human at
   a terminal would, instead of only ever running a command to completion.
 
+- `debug_python_traceback`/`debug_node_traceback` builtin tools: run a
+  real script and, on an uncaught exception, capture more than a plain
+  `python3 script.py`/`node script.js` run would show on its own — Python
+  gets the failing frame's actual local variable values (post-mortem
+  inspection), Node gets `.cause` chains, `AggregateError.errors`, and any
+  custom error properties. For genuinely interactive step-through
+  debugging, run `python3 -m pdb`/`node inspect` inside a tmux session
+  instead (see the new tmux tools above).
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
