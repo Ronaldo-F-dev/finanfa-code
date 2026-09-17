@@ -486,6 +486,68 @@ async function handleConfig(ctx: CommandContext): Promise<CommandOutcome> {
   return "continue";
 }
 
+interface LocalModelCandidate {
+  label: string;
+  baseUrl: string;
+}
+
+// The handful of ports every common local OpenAI-compatible server
+// defaults to — real, reported pain point: a user pointed FINANFA_BASE_URL/
+// FINANFA_MODEL at the wrong combination four times in a row across
+// Ollama, an MLX server on two different ports, before landing on the
+// right one, entirely by trial and error.
+const LOCAL_MODEL_CANDIDATES: LocalModelCandidate[] = [
+  { label: "Ollama", baseUrl: "http://localhost:11434/v1" },
+  { label: "LM Studio", baseUrl: "http://localhost:1234/v1" },
+  { label: "vLLM / MLX / llama.cpp server (common default)", baseUrl: "http://localhost:8000/v1" },
+  { label: "vLLM / MLX / llama.cpp server (alternate default)", baseUrl: "http://localhost:8001/v1" },
+  { label: "text-generation-webui (OpenAI-compatible extension)", baseUrl: "http://localhost:5000/v1" },
+  { label: "generic OpenAI-compatible server", baseUrl: "http://localhost:8080/v1" },
+];
+
+/** Every server on this list happens to speak the OpenAI-compatible GET /models — including Ollama's own, confirmed directly against a real instance. A short timeout keeps a handful of unreachable ports from making the whole scan feel slow. */
+async function probeLocalModelServer(baseUrl: string): Promise<{ reachable: boolean; models: string[] }> {
+  try {
+    const res = await fetch(`${baseUrl.replace(/\/$/, "")}/models`, { signal: AbortSignal.timeout(1500) });
+    if (!res.ok) return { reachable: false, models: [] };
+    const body = (await res.json()) as { data?: { id?: string }[] };
+    return { reachable: true, models: (body.data ?? []).map((m) => m.id).filter((id): id is string => typeof id === "string") };
+  } catch {
+    return { reachable: false, models: [] };
+  }
+}
+
+async function handleModels(ctx: CommandContext): Promise<CommandOutcome> {
+  ctx.ui.setBusy(true, "scanning local ports");
+  const results = await Promise.all(
+    LOCAL_MODEL_CANDIDATES.map(async (c) => ({ ...c, ...(await probeLocalModelServer(c.baseUrl)) })),
+  );
+  ctx.ui.setBusy(false);
+
+  const reachable = results.filter((r) => r.reachable);
+  if (reachable.length === 0) {
+    const ports = LOCAL_MODEL_CANDIDATES.map((c) => new URL(c.baseUrl).port).join(", ");
+    ctx.ui.writeSystem(
+      `No local OpenAI-compatible server found on the common ports checked (${ports}). If yours runs ` +
+        "elsewhere, set it directly: FINANFA_PROVIDER=openai-compatible FINANFA_BASE_URL=<url> FINANFA_MODEL=<name>.",
+    );
+    return "continue";
+  }
+
+  const lines = reachable.flatMap((r) => {
+    const header = `${r.label} — ${r.baseUrl}`;
+    if (r.models.length === 0) return [header, "  reachable, but reports no models (pull/load one first)"];
+    return [
+      header,
+      ...r.models.map(
+        (m) => `  • ${m}\n    FINANFA_PROVIDER=openai-compatible FINANFA_BASE_URL=${r.baseUrl} FINANFA_MODEL=${m}`,
+      ),
+    ];
+  });
+  ctx.ui.writeSystem(lines.join("\n"));
+  return "continue";
+}
+
 export function registerBuiltinCommands(commands: CommandRegistry): void {
   commands.register(
     "exit",
@@ -600,6 +662,13 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
     "tools",
     handleTools,
     "List every registered tool with its risk level: /tools [list] | /tools enable <name> | /tools disable <name>",
+  );
+
+  commands.register(
+    "models",
+    handleModels,
+    "Scan common local ports (Ollama, LM Studio, vLLM/MLX/llama.cpp, ...) for a running OpenAI-compatible " +
+      "server and list its models with the exact env vars to use",
   );
 
   commands.register(

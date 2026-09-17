@@ -22,6 +22,12 @@ first tagged release.
 
 ### Added
 
+- `/models`: scans the common local ports (Ollama, LM Studio, vLLM/MLX/
+  llama.cpp, text-generation-webui) for a running OpenAI-compatible server
+  and lists its models with the exact `FINANFA_PROVIDER`/`FINANFA_BASE_URL`/
+  `FINANFA_MODEL` to use — a real reported pain point: getting a local
+  model's env vars right took 4 wrong guesses across several running
+  servers in one real session before landing on the correct combination.
 - The OpenAI-compatible provider's stream-idle timeout (previously a fixed
   120s) is now 300s by default and overridable via
   `FINANFA_STREAM_IDLE_TIMEOUT_MS` — a real reported case: a small local
