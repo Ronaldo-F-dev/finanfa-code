@@ -145,6 +145,15 @@ docker compose up --build
 
 Serves the same web app on `http://localhost:4600`. `./workspace` on the host is the agent's project directory inside the container; `~/.finanfa-code` config/sessions persist in a named volume across restarts. Set `FINANFA_PROVIDER`/`FINANFA_BASE_URL`/`FINANFA_MODEL`/`FINANFA_API_KEY` instead of `ANTHROPIC_API_KEY` for an OpenAI-compatible backend.
 
+### Fly.io / Render.com (self-hosting on someone else's hardware)
+
+Both build the same [Dockerfile](Dockerfile) above — nothing extra to write, just a hosting target for it:
+
+- **[fly.toml](fly.toml)**: `fly launch --no-deploy` (creates/renames the app), `fly volumes create finanfa_data --size 1 --region <region>` (persists `~/.finanfa-code` across deploys), `fly secrets set ANTHROPIC_API_KEY=...`, `fly deploy`.
+- **[render.yaml](render.yaml)**: in the Render dashboard, "New +" → "Blueprint", point it at this repo — Render reads the file and creates the service; set `ANTHROPIC_API_KEY` as a real secret in the service's Environment tab afterward (deliberately not committed to the file).
+
+Either way, the project directory itself (`/workspace` inside the container) is NOT persisted by default — only `~/.finanfa-code` (sessions/config/memory) is. Mount a second volume/disk at `/workspace` if you want the actual checkout to survive a restart too, instead of starting fresh from whatever the image's `COPY . .` baked in.
+
 ## CLI flags
 
 | Flag | Effect |

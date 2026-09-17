@@ -1,0 +1,47 @@
+# Fly.io deployment config for the web server — see
+# https://fly.io/docs/reference/configuration/
+#
+# One-time setup:
+#   fly launch --no-deploy               # creates the app, asks you to confirm/rename it below
+#   fly volumes create finanfa_data --size 1 --region <your-region>
+#   fly secrets set ANTHROPIC_API_KEY=sk-ant-...   # or whichever provider you're using — see README's Setup section
+#   fly deploy
+#
+# `app` below is a placeholder — `fly launch` rewrites it to whatever name
+# you actually pick (Fly app names are globally unique).
+app = "finanfa-code"
+primary_region = "iad"
+
+[build]
+
+[env]
+  PORT = "4600"
+  FINANFA_WEB_CWD = "/workspace"
+
+# Project files an agent works on persist only for the container's own
+# lifetime unless mounted here too — this default keeps just
+# ~/.finanfa-code (sessions, memory, config) durable across deploys/
+# restarts. Mount a second volume at /workspace instead if you also want
+# the actual project checkout to survive a restart rather than starting
+# from whatever COPY . . baked into the image.
+[mounts]
+  source = "finanfa_data"
+  destination = "/root/.finanfa-code"
+
+[http_service]
+  internal_port = 4600
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 0
+
+  [[http_service.checks]]
+    grace_period = "10s"
+    interval = "15s"
+    method = "GET"
+    timeout = "5s"
+    path = "/"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "512mb"

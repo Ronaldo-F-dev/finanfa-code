@@ -1,0 +1,27 @@
+# Render.com Blueprint for the web server — see
+# https://render.com/docs/blueprint-spec
+#
+# One-time setup: in the Render dashboard, "New +" → "Blueprint", point it
+# at this repo. Render reads this file and creates the service below;
+# after the first deploy, set ANTHROPIC_API_KEY (or whichever provider
+# you're using — see README's Setup section) as a real secret in the
+# service's Environment tab, since `sync: false` here deliberately means
+# "don't commit this file's own value to the repo."
+services:
+  - type: web
+    name: finanfa-code
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /
+    envVars:
+      - key: PORT
+        value: 4600
+      - key: FINANFA_WEB_CWD
+        value: /workspace
+      - key: ANTHROPIC_API_KEY
+        sync: false
+    disk:
+      name: finanfa-data
+      mountPath: /root/.finanfa-code
+      sizeGB: 1
