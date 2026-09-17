@@ -44,7 +44,7 @@ jobs:
       - name: Install system tools used by real end-to-end tests
         run: |
           sudo apt-get update
-          sudo apt-get install -y bubblewrap tesseract-ocr poppler-utils avrdude socat tmux
+          sudo apt-get install -y bubblewrap tesseract-ocr poppler-utils avrdude socat tmux ffmpeg
           # Ubuntu 24.04's AppArmor policy blocks unprivileged user namespaces by
           # default, which bwrap needs; without this bash.test.ts's sandbox silently
           # fails to sandbox instead of erroring.
