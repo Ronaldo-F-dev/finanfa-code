@@ -607,6 +607,13 @@ first tagged release.
 
 ### Fixed
 
+- Terminal UI: typing `/`, arrowing to a highlighted command suggestion,
+  and pressing Enter submitted the literal typed text (e.g. plain `/`,
+  reported as "Unknown command \"/\"") instead of the highlighted
+  command — only Tab actually applied a suggestion; Enter went straight
+  to the raw typed text, ignoring which one was highlighted entirely.
+  Enter now submits the highlighted suggestion too, matching Tab.
+
 - The built `finanfa` CLI binary (`packages/cli/dist/finanfa.js`) crashed
   on every single invocation outside this repo's own dev workflow —
   `npm run dev` (via tsx, real source) never exercises the bundled
