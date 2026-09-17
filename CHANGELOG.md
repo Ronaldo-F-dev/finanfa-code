@@ -401,6 +401,25 @@ first tagged release.
   sharing a bundle's JSON directly (a gist, a file attachment) still
   works exactly as before.
 
+- Gateway session tokens (from a password login or OIDC SSO) are now
+  persisted to `~/.finanfa-code/web-sessions.json` instead of living
+  only in the server process's memory — a restart (redeploy, crash) no
+  longer forces every logged-in user to log in again. Validating a
+  token stays synchronous/memory-only (no disk I/O added to the
+  authenticated-request hot path); only issuing/revoking a session
+  persists.
+
+- `run_remote_command` gains an opt-in `retries` (default 0, unchanged
+  behavior) that retries a transient SSH CONNECTION failure with
+  backoff — a network blip, a briefly-unreachable host — but never once
+  the remote command itself actually ran and returned its own exit code
+  (ssh's own documented exit 255 is the real signal used to tell those
+  apart, the same one real remote-automation tools like Ansible rely
+  on), so retrying never risks silently re-running a command that
+  already executed. `check_remote_host_health`'s own probe (read-only,
+  idempotent) now always retries a couple of times on a transient
+  connection failure before actually reporting a host unhealthy.
+
 - "Gateway": opt-in multi-user authentication for the web server
   (`FINANFA_WEB_USERS="alice:token1,bob:token2"`) — a Bearer token on
   every `/api/*` request (channel webhooks keep their own signature
