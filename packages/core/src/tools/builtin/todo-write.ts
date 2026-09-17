@@ -35,6 +35,7 @@ export const todoWriteTool: ToolDefinition<TodoWriteInput> = {
     }
     ctx.todos.set(input.todos);
     ctx.ui?.writeSystem(ctx.todos.format());
+    ctx.ui?.writeTodos?.(input.todos);
     return { content: "Todo list updated.", isError: false };
   },
 };

@@ -1,4 +1,5 @@
 import type { ToolRiskLevel } from "../core/types.js";
+import type { TodoItem } from "../core/todo-store.js";
 
 export interface ToolCallAnnouncement {
   /** The model's own tool_use id for this call — stable for the call's whole lifetime, so an adapter that needs to correlate this announcement with its later ToolResultAnnouncement (e.g. the ACP bridge's tool_call/tool_call_update pair) can, even across concurrent "safe" tool calls. */
@@ -77,5 +78,14 @@ export interface UIAdapter {
    * until writeToolCall, same as before this existed.
    */
   writeToolCallStarting?(info: { name: string }): void;
+  /**
+   * The current task checklist changed (todo_write) — optional, structured
+   * counterpart to the plain-text `writeSystem(ctx.todos.format())` echo
+   * every adapter already gets, for an adapter (the web UI) that wants to
+   * render it as a real visual board instead of a log line. Falls back
+   * silently for every existing adapter (terminal/ACP), which keeps
+   * relying on the writeSystem echo as before.
+   */
+  writeTodos?(todos: TodoItem[]): void;
   close(): void;
 }
