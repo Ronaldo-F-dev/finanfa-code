@@ -265,6 +265,16 @@ first tagged release.
   has no long-running service to run one in, so consolidation here is
   explicitly triggered and acted on by the agent, not automatic.
 
+- `run_remote_command` builtin tool (only registered when `ssh` is
+  installed): runs a command on a separate machine over the user's own
+  already-configured SSH (host aliases/keys/agent from their real
+  `~/.ssh/config` — no credentials of its own), non-interactively
+  (BatchMode). Closes the "node-host" distributed remote-execution gap
+  relative to a comparable project. Deliberately doesn't shell-
+  retokenize the remote command locally (unlike `runSubprocess`'s usual
+  shell:true+args behavior) — a command containing `$(...)`/backticks/
+  quotes is meant for the *remote* shell to interpret, not the local one.
+
 - `get_smart_home_state`/`control_smart_home_device` builtin tools: a
   real Home Assistant REST API connector (needs `HOME_ASSISTANT_BASE_URL`/
   `HOME_ASSISTANT_TOKEN`, a long-lived access token from Home Assistant's
