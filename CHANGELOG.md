@@ -295,6 +295,19 @@ first tagged release.
   daemon, not a multi-node/multi-host scheduler placing cells across a
   real fleet of machines.
 
+- Fleet now supports real Docker resource limits (`memory_limit`/`cpus`),
+  a restart policy, a real HEALTHCHECK (reported back as healthy/
+  unhealthy in `list_fleet_cells`, no extra polling needed — Docker's own
+  `docker ps` status string already carries it), a shared network
+  (`create_fleet_network`/`remove_fleet_network`, same fixed-prefix
+  isolation as cells) so cells can reach each other by name, and a real
+  remote host per cell/network/list/stop/remove call (a real
+  `DOCKER_HOST` value, e.g. `ssh://user@remote-machine`, over the user's
+  own already-configured SSH — the actual, standard way the `docker` CLI
+  itself supports a remote daemon, no bespoke protocol or agent to
+  deploy). Still doesn't do cross-host scheduling/placement on its own —
+  the caller picks the host explicitly.
+
 - Gateway now supports real per-login accounts (`FINANFA_WEB_ACCOUNTS=1`),
   not just a static shared-secret token map: hashed passwords (scrypt,
   random salt per password) persisted to `~/.finanfa-code/web-users.json`,
