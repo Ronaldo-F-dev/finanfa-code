@@ -607,6 +607,19 @@ first tagged release.
 
 ### Fixed
 
+- The built `finanfa` CLI binary (`packages/cli/dist/finanfa.js`) crashed
+  on every single invocation outside this repo's own dev workflow —
+  `npm run dev` (via tsx, real source) never exercises the bundled
+  output, so this shipped silently. `tsup.config.ts`'s own `external`
+  list had drifted out of sync with `packages/core`'s real dependencies
+  (missing every `@opentelemetry/*` package, among others); once
+  `@opentelemetry/sdk-trace-node` got bundled instead of staying
+  external, its own internal `require("async_hooks")` broke under
+  esbuild's ESM output ("Dynamic require of 'async_hooks' is not
+  supported"). Found by actually running the globally-linked `finanfa`
+  command from an unrelated directory. Same fix applied to the VS Code
+  extension's own esbuild config, which mirrors the same list.
+
 - Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)
   now spawns the real server with `PORT=0` and reads back the actual
   OS-assigned port from its startup log, instead of guessing one in a
