@@ -32,6 +32,7 @@ import { createSendEmailTool, emailConfigFromEnv } from "./send-email.js";
 import { createSendSlackMessageTool, slackConfigFromEnv } from "./send-slack-message.js";
 import { createSendTelegramMessageTool, telegramConfigFromEnv } from "./send-telegram-message.js";
 import { createSendDiscordMessageTool, discordConfigFromEnv } from "./send-discord-message.js";
+import { createSendWhatsappMessageTool, whatsappConfigFromEnv } from "./send-whatsapp-message.js";
 import { createTranscribeAudioTool, transcribeAudioConfigFromEnv } from "./transcribe-audio.js";
 import { listAvailableModelsTool } from "./list-available-models.js";
 import { createTmuxTools } from "./tmux.js";
@@ -160,6 +161,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(createSendSlackMessageTool(slackConfigFromEnv()));
   registry.register(createSendTelegramMessageTool(telegramConfigFromEnv()));
   registry.register(createSendDiscordMessageTool(discordConfigFromEnv()));
+  registry.register(createSendWhatsappMessageTool(whatsappConfigFromEnv()));
   registry.register(createTranscribeAudioTool(transcribeAudioConfigFromEnv()));
   registry.register(listAvailableModelsTool);
   if (isCommandAvailable("tmux")) for (const tool of createTmuxTools()) registry.register(tool);
