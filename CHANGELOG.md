@@ -524,6 +524,16 @@ first tagged release.
   name and its own `riskKey`-derived `keyPrefix`, with no way to scope by
   where the call actually runs.
 
+- Memory notes now carry real provenance (`createdAt`, `updatedAt`,
+  `sourceSessionId` — which session actually originated the note,
+  preserved across a later edit from a different one) and can be found
+  by `search_memories` instead of only by exact name — keyword mode by
+  default, or an optional semantic mode over OpenAI embeddings (cached
+  by content hash in `~/.finanfa-code/memory-embeddings.sqlite`, same
+  pattern as `recall_past_sessions`'s own session-embeddings cache).
+  Narrows the memory-subsystem gap relative to a comparable project's
+  own vector-search + provenance-tracked memory layer.
+
 ### Fixed
 
 - Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)
