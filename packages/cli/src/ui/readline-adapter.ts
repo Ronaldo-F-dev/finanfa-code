@@ -40,11 +40,21 @@ export function createReadlineAdapter(): UIAdapter {
   let lastStatus: StatusInfo | undefined;
   let spinnerTimer: NodeJS.Timeout | undefined;
   let spinnerFrame = 0;
+  // Set by setBusy(true, ...), cleared by setBusy(false) — lets the spinner
+  // show elapsed seconds (e.g. "thinking... 47s"). Real reported confusion:
+  // a slow local model produced no visible output for several minutes,
+  // indistinguishable from a hung process (same fix as the Ink UI's
+  // App.tsx/store.ts busySince — this is the readline/-p equivalent).
+  let busySince: number | undefined;
   // Assistant text streams into this buffer instead of the terminal directly:
   // markdown (tables especially) can't be rendered correctly until the whole
   // message is known, so we show the "thinking" spinner for the full
   // duration and print the rendered result once endAssistantMessage() fires.
   let assistantBuffer = "";
+
+  function elapsedSuffix(): string {
+    return busySince !== undefined ? ` ${Math.floor((Date.now() - busySince) / 1000)}s` : "";
+  }
 
   // Clears the in-progress spinner line (if any) before any other output is written.
   function clearSpinner(): void {
@@ -132,11 +142,15 @@ export function createReadlineAdapter(): UIAdapter {
     },
     setBusy(busy: boolean, label?: string): void {
       clearSpinner();
-      if (!busy) return;
+      if (!busy) {
+        busySince = undefined;
+        return;
+      }
+      busySince = Date.now();
       if (!atLineStart) stdout.write("\n");
       atLineStart = false;
       const draw = (): void => {
-        stdout.write(`\r\x1b[1;36m${SPINNER_FRAMES[spinnerFrame++ % SPINNER_FRAMES.length]} ${label ?? "working"}...\x1b[0m`);
+        stdout.write(`\r\x1b[1;36m${SPINNER_FRAMES[spinnerFrame++ % SPINNER_FRAMES.length]} ${label ?? "working"}...${elapsedSuffix()}\x1b[0m`);
       };
       draw(); // show a frame immediately instead of waiting for the first interval tick
       spinnerTimer = setInterval(draw, SPINNER_INTERVAL_MS);
@@ -150,7 +164,7 @@ export function createReadlineAdapter(): UIAdapter {
       if (!spinnerTimer) return;
       clearSpinner();
       const draw = (): void => {
-        stdout.write(`\r\x1b[1;36m${SPINNER_FRAMES[spinnerFrame++ % SPINNER_FRAMES.length]} calling ${info.name}...\x1b[0m`);
+        stdout.write(`\r\x1b[1;36m${SPINNER_FRAMES[spinnerFrame++ % SPINNER_FRAMES.length]} calling ${info.name}...${elapsedSuffix()}\x1b[0m`);
       };
       draw();
       spinnerTimer = setInterval(draw, SPINNER_INTERVAL_MS);

@@ -59,6 +59,20 @@ describe("readline UIAdapter busy indicator", () => {
     expect(written).not.toContain("\x1b[2m"); // no longer dimmed
   });
 
+  it(
+    "shows elapsed time on the spinner — real reported confusion: a slow local model produced no " +
+      "visible output for minutes, indistinguishable from a hung process",
+    () => {
+      const ui = createReadlineAdapter();
+      ui.setBusy(true, "thinking");
+
+      vi.advanceTimersByTime(65_000);
+
+      const written = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
+      expect(written).toMatch(/thinking\.\.\. 6[0-9]s/);
+    },
+  );
+
   it("clears the spinner line when busy is set back to false", () => {
     const ui = createReadlineAdapter();
     ui.setBusy(true, "thinking");
