@@ -583,6 +583,23 @@ first tagged release.
   a real npx invocation (real MCP initialize handshake, real tool list:
   73/41/8/9/52 tools respectively).
 
+- Tool Search: instead of every registered tool's full schema on every
+  turn, a session can send just 3 small meta-tools — `search_tools` (real
+  BM25 ranking over each tool's name+description), `describe_tool` (a
+  match's full schema), `call_tool` (actually run it) — deferring
+  everything else until the model asks for it. Closes a real, measured
+  problem: the per-turn request otherwise scales with the TOTAL number of
+  registered tools regardless of task relevance — confirmed directly at
+  277s just to start answering with this project's full ~180-tool list
+  on a small local model, vs 3-5s with a handful. `call_tool` is
+  intercepted before the missing-fields check, permission check, and
+  handler dispatch, and remapped onto the real target tool — every one of
+  those applies exactly the same way a direct call to it would have
+  triggered, and it can only reach a tool this session hasn't explicitly
+  disabled. Auto-enabled when the resolved provider looks local
+  (localhost/127.0.0.1 — see `isLocalProviderConfig`); `/config set
+  toolSearch true|false` forces it on/off regardless of provider.
+
 ### Fixed
 
 - Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)

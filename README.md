@@ -28,6 +28,8 @@ npm run dev
 
 Prefer a model with reliable tool-calling support — a model that writes tool calls as plain text instead of a structured response won't actually be able to use any tool. `/cost` reports `$0/0 tokens` for backends that don't return usage in streamed responses; that's expected.
 
+**Tool Search** (auto-enabled for a local `localhost`/`127.0.0.1` target — real, measured problem this closes: sending every registered tool's full schema on every turn scales prefill cost with the TOTAL tool count, confirmed directly at 277s just to start answering on a small local model with this project's full tool list, vs 3-5s with a handful): instead of the full list, the model gets 3 small meta-tools — `search_tools` (real BM25 ranking over name+description), `describe_tool` (full schema for one match), `call_tool` (actually run it) — deferring every other tool's schema until it's actually asked for. `call_tool` is routed through the exact same permission/risk-level check a direct call to that tool would trigger, and can only reach a tool this session hasn't explicitly disabled. Force it on/off regardless of provider with `/config set toolSearch true` (or `false`); `"auto"`/unset is the local-provider heuristic above.
+
 ### Azure OpenAI
 
 ```bash
