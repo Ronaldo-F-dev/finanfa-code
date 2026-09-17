@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, afterEach, vi } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { loadConfig, saveGlobalConfig, globalConfigPath, thinkingBudgetTokensFromConfig } from "../../src/core/config.js";
+import { loadConfig, saveGlobalConfig, globalConfigPath, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled } from "../../src/core/config.js";
 
 describe("core/config", () => {
   let homeDir: string;
@@ -91,5 +91,25 @@ describe("thinkingBudgetTokensFromConfig", () => {
     expect(thinkingBudgetTokensFromConfig({ thinkingBudgetTokens: "not a number" })).toBeUndefined();
     expect(thinkingBudgetTokensFromConfig({ thinkingBudgetTokens: "0" })).toBeUndefined();
     expect(thinkingBudgetTokensFromConfig({ thinkingBudgetTokens: "-5" })).toBeUndefined();
+  });
+});
+
+describe("resolveToolSearchEnabled", () => {
+  it("follows the local-provider heuristic when unset ('auto')", () => {
+    expect(resolveToolSearchEnabled({}, true)).toBe(true);
+    expect(resolveToolSearchEnabled({}, false)).toBe(false);
+  });
+
+  it("an explicit true always wins, even against a non-local provider", () => {
+    expect(resolveToolSearchEnabled({ toolSearch: true }, false)).toBe(true);
+  });
+
+  it("an explicit false always wins, even against a local provider", () => {
+    expect(resolveToolSearchEnabled({ toolSearch: false }, true)).toBe(false);
+  });
+
+  it("the string 'auto' behaves the same as unset", () => {
+    expect(resolveToolSearchEnabled({ toolSearch: "auto" }, true)).toBe(true);
+    expect(resolveToolSearchEnabled({ toolSearch: "auto" }, false)).toBe(false);
   });
 });

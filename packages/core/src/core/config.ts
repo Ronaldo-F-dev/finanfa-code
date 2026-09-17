@@ -68,6 +68,14 @@ export interface FinanfaConfig {
    * read-only, network stays shared.
    */
   sandbox?: SandboxConfig;
+  /**
+   * "auto" (default, unset also means this): Tool Search (see
+   * tool-search.ts) turns on automatically when the resolved provider
+   * looks local (see isLocalProviderConfig in app.ts), off otherwise.
+   * true/false force it on/off regardless of provider — an explicit
+   * choice always wins over the automatic one.
+   */
+  toolSearch?: "auto" | boolean;
 }
 
 /** Parses config.thinkingBudgetTokens (a plain string, like every other /config-set value) into the number session.thinkingBudgetTokens actually wants — undefined for unset/non-positive/non-numeric, never NaN or 0, so callers can assign it straight through without their own validation. */
@@ -75,6 +83,12 @@ export function thinkingBudgetTokensFromConfig(config: FinanfaConfig): number | 
   if (!config.thinkingBudgetTokens) return undefined;
   const parsed = Number(config.thinkingBudgetTokens);
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
+}
+
+/** Resolves config.toolSearch against whether the provider actually looks local (isLocalProviderConfig in app.ts) into the plain boolean session.toolSearchEnabled wants — an explicit true/false always wins; "auto"/unset falls back to the local-provider heuristic. */
+export function resolveToolSearchEnabled(config: FinanfaConfig, isLocalProvider: boolean): boolean {
+  if (typeof config.toolSearch === "boolean") return config.toolSearch;
+  return isLocalProvider;
 }
 
 // Computed lazily (not memoized as a module constant) so it reflects the

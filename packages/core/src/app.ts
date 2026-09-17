@@ -324,6 +324,33 @@ export function selectProvider(config: FinanfaConfig): { provider: LlmProvider; 
   };
 }
 
+const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
+
+/**
+ * True when whatever selectProvider(config) would actually resolve to
+ * points at a local server — openai-compatible is the only family that
+ * can point anywhere at all, including a local one (Ollama/LM Studio/
+ * llama.cpp/vLLM/a raw MLX server), so every other kind is never local.
+ * Mirrors selectProvider's own env/config precedence for that one branch
+ * rather than changing its return shape. Used to auto-enable Tool Search
+ * (session.toolSearchEnabled) for a local/small model without the user
+ * needing to configure anything — see tool-search.ts's own header
+ * comment for the real, measured problem this closes specifically for
+ * this case (a small local model's prefill cost scaling with the total
+ * tool count).
+ */
+export function isLocalProviderConfig(config: FinanfaConfig): boolean {
+  const kind = process.env.FINANFA_PROVIDER ?? config.provider ?? "anthropic";
+  if (kind !== "openai-compatible") return false;
+  const baseUrl = process.env.FINANFA_BASE_URL ?? config.baseUrl;
+  if (!baseUrl) return false;
+  try {
+    return LOCAL_HOSTNAMES.has(new URL(baseUrl).hostname);
+  } catch {
+    return false;
+  }
+}
+
 /**
  * Optional second provider used only for the turn right after a vision tool
  * (browser_screenshot, view_image) returns an image — see VisionRoute in
