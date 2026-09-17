@@ -295,6 +295,17 @@ first tagged release.
   daemon, not a multi-node/multi-host scheduler placing cells across a
   real fleet of machines.
 
+- Gateway gains real OIDC-based SSO (`FINANFA_WEB_OIDC_ISSUER`/
+  `FINANFA_WEB_OIDC_CLIENT_ID`/`FINANFA_WEB_OIDC_CLIENT_SECRET`/
+  `FINANFA_WEB_OIDC_REDIRECT_URI`) — a real Authorization Code + PKCE
+  flow (`GET /api/auth/oidc/login` redirects to the provider,
+  `GET /api/auth/oidc/callback` completes it and issues a real session
+  token identical to a password login's), independent of and combinable
+  with static tokens/password accounts. Trusts the provider's userinfo
+  endpoint for identity instead of verifying the ID token's JWT signature
+  locally — a real, documented simplification many minimal OIDC clients
+  make, not a silent gap. Closes the OAuth/SSO half of the Gateway gap.
+
 - `analyze_video` now supports videos up to 200MB (previously ~19MB),
   via Gemini's real File API — Google's own documented resumable-upload
   protocol (announce the upload, get a one-time upload URL back via a
