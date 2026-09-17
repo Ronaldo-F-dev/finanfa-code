@@ -70,7 +70,12 @@ describe("AgentSession.persist", () => {
       expect(JSON.stringify(resumed.messages)).not.toContain("sk-ant-real-secret-0123456789");
       expect(resumed.errorLog?.[0].text).not.toContain("sk-ant-real-secret-0123456789");
     } finally {
-      process.env.ANTHROPIC_API_KEY = originalKey;
+      // Real bug found here: `process.env.X = undefined` does NOT unset X —
+      // Node coerces it to the literal string "undefined", which then
+      // leaked into every later test's denylist (collectEnvSecretValues)
+      // since ANTHROPIC_API_KEY isn't unset in this shell to begin with.
+      if (originalKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = originalKey;
     }
   });
 
@@ -104,6 +109,51 @@ describe("AgentSession.persist", () => {
     const resumed = await AgentSession.resume("/some/project", session.id, "s");
     expect(resumed.providerKind).toBeUndefined();
     expect(resumed.providerBaseUrl).toBeUndefined();
+  });
+
+  it("persists the current todo_write checklist and restores it into a fresh TodoStore on resume", async () => {
+    const session = new AgentSession({ cwd: "/some/project", model: "m", systemPrompt: "s" });
+    session.todos.set([
+      { content: "Write the plan", status: "completed" },
+      { content: "Ship it", status: "pending" },
+    ]);
+
+    await session.persist();
+
+    const resumed = await AgentSession.resume("/some/project", session.id, "s");
+    expect(resumed.todos.list()).toEqual([
+      { content: "Write the plan", status: "completed" },
+      { content: "Ship it", status: "pending" },
+    ]);
+  });
+
+  it("redacts a configured secret env var's value out of todo content before writing to disk", async () => {
+    const originalKey = process.env.ANTHROPIC_API_KEY;
+    process.env.ANTHROPIC_API_KEY = "sk-ant-real-secret-0123456789";
+    try {
+      const session = new AgentSession({ cwd: "/some/project", model: "m", systemPrompt: "s" });
+      session.todos.set([{ content: "rotate the leaked key sk-ant-real-secret-0123456789", status: "pending" }]);
+
+      await session.persist();
+
+      const projectHash = createHash("sha256").update("/some/project").digest("hex").slice(0, 12);
+      const raw = await readFile(path.join(homeDir, ".finanfa-code", "sessions", projectHash, `${session.id}.json`), "utf-8");
+      expect(raw).not.toContain("sk-ant-real-secret-0123456789");
+
+      const resumed = await AgentSession.resume("/some/project", session.id, "s");
+      expect(JSON.stringify(resumed.todos.list())).not.toContain("sk-ant-real-secret-0123456789");
+    } finally {
+      if (originalKey === undefined) delete process.env.ANTHROPIC_API_KEY;
+      else process.env.ANTHROPIC_API_KEY = originalKey;
+    }
+  });
+
+  it("resuming a session with no persisted todos leaves a fresh, empty TodoStore", async () => {
+    const session = new AgentSession({ cwd: "/some/project", model: "m", systemPrompt: "s" });
+    await session.persist();
+
+    const resumed = await AgentSession.resume("/some/project", session.id, "s");
+    expect(resumed.todos.list()).toEqual([]);
   });
 });
 

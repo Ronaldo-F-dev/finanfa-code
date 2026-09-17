@@ -5,7 +5,7 @@ import os from "node:os";
 import type { NeutralMessage, UsageTotals } from "./types.js";
 import { estimateCostUsd } from "./pricing.js";
 import { EditHistory } from "./edit-history.js";
-import { TodoStore } from "./todo-store.js";
+import { TodoStore, type TodoItem } from "./todo-store.js";
 import { FileFreshnessTracker } from "./file-freshness.js";
 import { collectEnvSecretValues, redactSecrets } from "./redact.js";
 
@@ -55,6 +55,8 @@ export interface SessionFile {
   effort?: string;
   /** See AgentSession.thinkingBudgetTokens's own doc comment. */
   thinkingBudgetTokens?: number;
+  /** The current todo_write checklist (see TodoStore) — persisted so a resumed session's board isn't always empty until the next todo_write call; restored into a fresh TodoStore on resume(). */
+  todos?: TodoItem[];
 }
 
 // Computed lazily (not memoized as a module constant) so it reflects the
@@ -166,6 +168,7 @@ export class AgentSession {
     session.maxTokens = data.maxTokens;
     session.effort = data.effort;
     session.thinkingBudgetTokens = data.thinkingBudgetTokens;
+    if (data.todos) session.todos.set(data.todos);
     return session;
   }
 
@@ -226,6 +229,7 @@ export class AgentSession {
         return { ...message, content: redactSecrets(message.content, denylist) };
       }),
       errorLog: data.errorLog?.map((entry) => ({ ...entry, text: redactSecrets(entry.text, denylist) })),
+      todos: data.todos?.map((todo) => ({ ...todo, content: redactSecrets(todo.content, denylist) })),
     };
   }
 
@@ -256,6 +260,7 @@ export class AgentSession {
         maxTokens: this.maxTokens,
         effort: this.effort,
         thinkingBudgetTokens: this.thinkingBudgetTokens,
+        todos: this.todos.list(),
       };
       await writeFile(tmp, JSON.stringify(this.redactSessionFile(data), null, 2), "utf-8");
       await rename(tmp, file);
