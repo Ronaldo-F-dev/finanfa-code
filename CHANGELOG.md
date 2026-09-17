@@ -205,6 +205,12 @@ first tagged release.
   sender. Also adds a `send_sms_message` builtin tool. See the README's
   new SMS setup section.
 
+- Path-scoped project instructions: `.finanfa-code/instructions/*.md`,
+  with frontmatter `applyTo` (a glob or list of globs) — for conventions
+  that only apply to one part of a monorepo instead of competing for
+  attention in one whole-project `finanfa.md`. Folded into the system
+  prompt at every entry point, each labeled with its own globs.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
