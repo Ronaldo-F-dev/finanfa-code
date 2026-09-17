@@ -38,6 +38,7 @@ import { createSendWhatsappMessageTool, whatsappConfigFromEnv } from "./send-wha
 import { createSendSmsMessageTool, smsConfigFromEnv } from "./send-sms-message.js";
 import { createReadNotionPageTool, createWriteNotionPageTool, notionConfigFromEnv } from "./notion.js";
 import { createCreateTrelloCardTool, trelloConfigFromEnv } from "./trello.js";
+import { createRunAppleScriptTool } from "./applescript.js";
 import { createTranscribeAudioTool, transcribeAudioConfigFromEnv } from "./transcribe-audio.js";
 import { listAvailableModelsTool } from "./list-available-models.js";
 import { createTmuxTools } from "./tmux.js";
@@ -175,6 +176,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(createReadNotionPageTool(notionConfig));
   registry.register(createWriteNotionPageTool(notionConfig));
   registry.register(createCreateTrelloCardTool(trelloConfigFromEnv()));
+  if (process.platform === "darwin") registry.register(createRunAppleScriptTool());
   registry.register(createTranscribeAudioTool(transcribeAudioConfigFromEnv()));
   registry.register(listAvailableModelsTool);
   if (isCommandAvailable("tmux")) for (const tool of createTmuxTools()) registry.register(tool);
