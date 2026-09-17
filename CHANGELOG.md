@@ -295,6 +295,17 @@ first tagged release.
   daemon, not a multi-node/multi-host scheduler placing cells across a
   real fleet of machines.
 
+- `analyze_video` now supports videos up to 200MB (previously ~19MB),
+  via Gemini's real File API — Google's own documented resumable-upload
+  protocol (announce the upload, get a one-time upload URL back via a
+  response header, upload+finalize the bytes, poll until the file's
+  real server-side processing reports it ready, reference it by
+  `file_uri` in `generateContent`, then delete it) — reproduced
+  faithfully from Google's published example, not guessed at, though
+  still unverified against a real live account (none available to test
+  against). A video under ~19MB still goes the simpler inline route.
+  Closes the practical size ceiling half of the earlier multimodal gap.
+
 - node-host gains a real known-hosts registry: `register_remote_host`/
   `list_remote_hosts`/`remove_remote_host`/`check_remote_host_health`
   (`~/.finanfa-code/remote-hosts.json`) — a persistent, named list of
