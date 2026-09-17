@@ -64,6 +64,7 @@ import { registerSlackChannelRoutes } from "./channels-slack.js";
 import { registerTelegramChannelRoutes } from "./channels-telegram.js";
 import { registerDiscordChannelRoutes } from "./channels-discord.js";
 import { registerWhatsappChannelRoutes } from "./channels-whatsapp.js";
+import { registerSmsChannelRoutes } from "./channels-sms.js";
 
 // The workspace the "default" project points at — the same "cwd" concept as
 // running the CLI from that directory, and the only workspace that existed
@@ -100,6 +101,7 @@ registerSlackChannelRoutes(app, DEFAULT_CWD);
 registerTelegramChannelRoutes(app, DEFAULT_CWD);
 registerDiscordChannelRoutes(app, DEFAULT_CWD);
 registerWhatsappChannelRoutes(app, DEFAULT_CWD);
+registerSmsChannelRoutes(app, DEFAULT_CWD);
 
 /** Resolves a `?project=` query param to a real, validated directory — 404s (via the thrown error's message) rather than silently falling back, so a stale/deleted project id in the URL surfaces clearly instead of quietly operating on the wrong workspace. */
 async function resolveCwd(projectId: string | undefined): Promise<string> {
