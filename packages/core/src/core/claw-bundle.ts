@@ -1,5 +1,8 @@
 import { readFile, writeFile, readdir, mkdir, rm, stat } from "node:fs/promises";
+import { randomBytes } from "node:crypto";
 import path from "node:path";
+import { getOrCreateSigningIdentity, fingerprintPublicKey, signPayload, verifyPayload, canonicalJson } from "./claws-signing.js";
+import { isKnownPublisher, recordPublisherSeen } from "./claws-trust-store.js";
 
 // "Claws" — versioned, installable bundles of a project's own
 // finanfa-code configuration (permission rules/hooks, MCP servers,
@@ -27,6 +30,10 @@ export interface ClawBundleManifest {
   createdAt: string;
   /** Where this bundle was exported from — not a security boundary, just a provenance record shown on install. */
   sourceProjectPath: string;
+  /** The exporting machine's persistent Ed25519 public key (see claws-signing.ts) — its fingerprint is what a later install checks against the local trust store (see claws-trust-store.ts) to tell "known publisher" from "first time seeing this one." */
+  publicKeyPem?: string;
+  /** Ed25519 signature (base64) over canonicalJson(files) by the private key matching publicKeyPem — proves the bundle's content hasn't changed since whoever holds that key signed it. Doesn't imply the content itself is safe. */
+  signature?: string;
 }
 
 export interface ClawBundle {
@@ -56,7 +63,7 @@ async function readMarkdownFilesFromDir(cwd: string, relDir: string): Promise<Re
   return files;
 }
 
-/** Collects every bundleable file (see BUNDLEABLE_DIR_PREFIXES/BUNDLEABLE_ROOT_FILES) that actually exists in `cwd` into a single, shareable bundle. */
+/** Collects every bundleable file (see BUNDLEABLE_DIR_PREFIXES/BUNDLEABLE_ROOT_FILES) that actually exists in `cwd` into a single, shareable bundle, signed with this machine's own persistent identity (see claws-signing.ts) — auto-generated on first use, stable across every bundle exported from here after that. */
 export async function exportClawBundle(cwd: string, meta: { name: string; version: string; description?: string }): Promise<ClawBundle> {
   const files: Record<string, string> = {};
   for (const dir of BUNDLEABLE_DIR_PREFIXES) Object.assign(files, await readMarkdownFilesFromDir(cwd, dir));
@@ -67,10 +74,30 @@ export async function exportClawBundle(cwd: string, meta: { name: string; versio
       // Not every project has every one of these files — a missing one is normal, not an error.
     }
   }
+  const identity = await getOrCreateSigningIdentity();
+  const signature = signPayload(canonicalJson(files), identity.privateKeyPem);
   return {
-    manifest: { name: meta.name, version: meta.version, description: meta.description, createdAt: new Date().toISOString(), sourceProjectPath: cwd },
+    manifest: { name: meta.name, version: meta.version, description: meta.description, createdAt: new Date().toISOString(), sourceProjectPath: cwd, publicKeyPem: identity.publicKeyPem, signature },
     files,
   };
+}
+
+export type ClawSignatureStatus =
+  | { signed: false }
+  | { signed: true; valid: true; fingerprint: string; knownPublisher: boolean }
+  | { signed: true; valid: false };
+
+/** Checks a bundle's signature (if it has one — an older/hand-built bundle might not) against its own embedded public key, and whether that key's fingerprint has been seen by THIS machine before (see claws-trust-store.ts). Doesn't record anything — see recordBundlePublisherSeen, called separately once a human has actually decided to install. */
+export async function verifyClawBundleSignature(bundle: ClawBundle): Promise<ClawSignatureStatus> {
+  if (!bundle.manifest.signature || !bundle.manifest.publicKeyPem) return { signed: false };
+  const valid = verifyPayload(canonicalJson(bundle.files), bundle.manifest.signature, bundle.manifest.publicKeyPem);
+  if (!valid) return { signed: true, valid: false };
+  const fingerprint = fingerprintPublicKey(bundle.manifest.publicKeyPem);
+  return { signed: true, valid: true, fingerprint, knownPublisher: await isKnownPublisher(fingerprint) };
+}
+
+export async function recordBundlePublisherSeen(fingerprint: string, label?: string): Promise<void> {
+  await recordPublisherSeen(fingerprint, label);
 }
 
 function snapshotsDir(cwd: string): string {
@@ -105,9 +132,23 @@ export async function listClawSnapshots(cwd: string): Promise<ClawSnapshotInfo[]
   return infos.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 }
 
+// Two installs landing in the same real millisecond is a real, observed
+// case (not hypothetical) — Date.now() alone both collides on id (one
+// snapshot silently overwriting the other) and ties on createdAt for
+// sort order. This monotonic counter (per process) guarantees each
+// snapshot gets a strictly later timestamp than the last one taken here,
+// regardless of wall-clock resolution.
+let lastSnapshotTimestampMs = 0;
+function nextMonotonicTimestampMs(): number {
+  const now = Date.now();
+  lastSnapshotTimestampMs = now > lastSnapshotTimestampMs ? now : lastSnapshotTimestampMs + 1;
+  return lastSnapshotTimestampMs;
+}
+
 /** Reads the CURRENT on-disk content (or undefined if the file doesn't exist yet) of every path a bundle is about to overwrite, so installing it can be undone. */
 async function snapshotCurrentFiles(cwd: string, relPaths: string[], reason: string): Promise<string> {
-  const id = `${new Date().toISOString().replace(/[:.]/g, "-")}`;
+  const createdAt = new Date(nextMonotonicTimestampMs()).toISOString();
+  const id = `${createdAt.replace(/[:.]/g, "-")}-${randomBytes(4).toString("hex")}`;
   const dir = path.join(snapshotsDir(cwd), id);
   await mkdir(dir, { recursive: true });
 
@@ -119,18 +160,83 @@ async function snapshotCurrentFiles(cwd: string, relPaths: string[], reason: str
       before[relPath] = null; // didn't exist before — rollback should delete it, not write an empty file
     }
   }
-  await writeFile(path.join(dir, "manifest.json"), JSON.stringify({ createdAt: new Date().toISOString(), reason }), "utf-8");
+  await writeFile(path.join(dir, "manifest.json"), JSON.stringify({ createdAt, reason }), "utf-8");
   await writeFile(path.join(dir, "files.json"), JSON.stringify(before), "utf-8");
   return id;
 }
 
+function installedBundlesPath(cwd: string): string {
+  return path.join(cwd, ".finanfa-code", ".claws", "installed.json");
+}
+
+interface InstalledBundleRecord {
+  version: string;
+  publisherFingerprint?: string;
+  installedAt: string;
+}
+
+async function loadInstalledBundles(cwd: string): Promise<Record<string, InstalledBundleRecord>> {
+  try {
+    return JSON.parse(await readFile(installedBundlesPath(cwd), "utf-8")) as Record<string, InstalledBundleRecord>;
+  } catch {
+    return {};
+  }
+}
+
+async function saveInstalledBundle(cwd: string, name: string, record: InstalledBundleRecord): Promise<void> {
+  const all = await loadInstalledBundles(cwd);
+  all[name] = record;
+  await mkdir(path.dirname(installedBundlesPath(cwd)), { recursive: true });
+  await writeFile(installedBundlesPath(cwd), JSON.stringify(all, null, 2), "utf-8");
+}
+
+/**
+ * Compares two version strings loosely as semver (major.minor.patch,
+ * numeric parts compared in order, a shorter version treated as padded
+ * with zeros) — not a full semver-spec implementation (no build-metadata/
+ * prerelease-precedence rules), which is enough to answer "is this an
+ * upgrade, a downgrade, or the same version" for a bundle manifest's own
+ * free-form version string. Falls back to plain string equality/ordering
+ * for anything that doesn't parse as dot-separated numbers, rather than
+ * throwing on a non-semver version like "2024-01-01".
+ */
+export function compareVersions(a: string, b: string): -1 | 0 | 1 {
+  const partsA = a.split(".").map(Number);
+  const partsB = b.split(".").map(Number);
+  const bothNumeric = [...partsA, ...partsB].every((n) => Number.isFinite(n));
+  if (!bothNumeric) return a === b ? 0 : a < b ? -1 : 1;
+  const length = Math.max(partsA.length, partsB.length);
+  for (let i = 0; i < length; i++) {
+    const diff = (partsA[i] ?? 0) - (partsB[i] ?? 0);
+    if (diff !== 0) return diff < 0 ? -1 : 1;
+  }
+  return 0;
+}
+
+export type BundleVersionChange = "new" | "upgrade" | "downgrade" | "same";
+
 export interface InstallClawBundleResult {
   snapshotId: string;
   filesWritten: string[];
+  signatureStatus: ClawSignatureStatus;
+  /** "new" when this bundle name has never been installed into this project before. */
+  versionChange: BundleVersionChange;
+  previousVersion?: string;
 }
 
-/** Installs `bundle` into `cwd`, snapshotting every file it's about to touch first (see rollbackClawSnapshot) so the install can be undone. */
+/** Installs `bundle` into `cwd`, snapshotting every file it's about to touch first (see rollbackClawSnapshot) so the install can be undone. Verifies the bundle's signature (if any — see verifyClawBundleSignature) and records its publisher as seen (a valid signature is a real, if partial, trust signal — an install that got this far already passed the "dangerous"-tool human approval gate), and compares against whichever version of this bundle name (if any) was last installed into this project. */
 export async function installClawBundle(cwd: string, bundle: ClawBundle): Promise<InstallClawBundleResult> {
+  const signatureStatus = await verifyClawBundleSignature(bundle);
+  if (signatureStatus.signed && signatureStatus.valid) await recordBundlePublisherSeen(signatureStatus.fingerprint);
+
+  const previous = (await loadInstalledBundles(cwd))[bundle.manifest.name];
+  const versionChange: BundleVersionChange = !previous
+    ? "new"
+    : (() => {
+        const cmp = compareVersions(bundle.manifest.version, previous.version);
+        return cmp === 0 ? "same" : cmp > 0 ? "upgrade" : "downgrade";
+      })();
+
   const relPaths = Object.keys(bundle.files);
   const snapshotId = await snapshotCurrentFiles(cwd, relPaths, `before installing "${bundle.manifest.name}@${bundle.manifest.version}"`);
 
@@ -139,7 +245,14 @@ export async function installClawBundle(cwd: string, bundle: ClawBundle): Promis
     await mkdir(path.dirname(absPath), { recursive: true });
     await writeFile(absPath, bundle.files[relPath]!, "utf-8");
   }
-  return { snapshotId, filesWritten: relPaths };
+
+  await saveInstalledBundle(cwd, bundle.manifest.name, {
+    version: bundle.manifest.version,
+    publisherFingerprint: signatureStatus.signed && signatureStatus.valid ? signatureStatus.fingerprint : undefined,
+    installedAt: new Date().toISOString(),
+  });
+
+  return { snapshotId, filesWritten: relPaths, signatureStatus, versionChange, previousVersion: previous?.version };
 }
 
 /** Restores every file a given install snapshot recorded back to what it was before — deletes a file that didn't exist yet at snapshot time, rather than leaving it behind. */
