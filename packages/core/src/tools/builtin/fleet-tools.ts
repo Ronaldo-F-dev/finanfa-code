@@ -1,5 +1,6 @@
 import type { ToolDefinition } from "../../core/types.js";
 import { createFleetCell, listFleetCells, stopFleetCell, removeFleetCell, createFleetNetwork, removeFleetNetwork } from "../../core/fleet.js";
+import { registerFleetHost, removeFleetHost, loadFleetHosts, fleetHostLoads, pickLeastLoadedFleetHost } from "../../core/fleet-hosts.js";
 
 interface CreateFleetCellInput {
   name: string;
@@ -13,6 +14,7 @@ interface CreateFleetCellInput {
   health_check_command?: string[];
   network?: string;
   host?: string;
+  command?: string[];
 }
 
 export const createFleetCellTool: ToolDefinition<CreateFleetCellInput> = {
@@ -43,12 +45,31 @@ export const createFleetCellTool: ToolDefinition<CreateFleetCellInput> = {
       restart_policy: { type: "string", enum: ["no", "on-failure", "unless-stopped", "always"] },
       health_check_command: { type: "array", items: { type: "string" }, description: 'Command run INSIDE the container to decide health, e.g. ["curl", "-f", "http://localhost:4600/"]' },
       network: { type: "string", description: "Joins a network created by create_fleet_network, by its short name" },
-      host: { type: "string", description: 'A real DOCKER_HOST value (e.g. "ssh://user@remote-machine") to place this cell on a different machine — omit to use the local Docker daemon' },
+      host: {
+        type: "string",
+        description:
+          'A real DOCKER_HOST value (e.g. "ssh://user@remote-machine") to place this cell on a specific machine. Omit to auto-schedule: if any fleet hosts are registered (see register_fleet_host), the least-loaded reachable one is picked automatically; otherwise the local Docker daemon is used, same as before this existed.',
+      },
+      command: { type: "array", items: { type: "string" }, description: "Overrides the image's own default command — most real cell images already have a sensible long-running entrypoint and don't need this" },
     },
     required: ["name", "image", "host_port"],
   },
   describeCall: (input) => `create fleet cell "${input.name}" (${input.image}) on port ${input.host_port}${input.host ? ` at ${input.host}` : ""}`,
   async handler(input) {
+    let host = input.host;
+    if (!host) {
+      const registered = await loadFleetHosts();
+      if (Object.keys(registered).length > 0) {
+        const scheduled = await pickLeastLoadedFleetHost();
+        if (!scheduled.ok) return { content: scheduled.error, isError: true };
+        host = scheduled.host.dockerHost;
+      }
+      // No fleet hosts registered at all: host stays undefined, meaning
+      // the local Docker daemon — the same behavior as before scheduling
+      // existed, not a silent fallback away from a real request to use
+      // the fleet.
+    }
+
     const result = await createFleetCell({
       name: input.name,
       image: input.image,
@@ -59,11 +80,12 @@ export const createFleetCellTool: ToolDefinition<CreateFleetCellInput> = {
       cpus: input.cpus,
       restartPolicy: input.restart_policy,
       healthCheck: input.health_check_command ? { command: input.health_check_command } : undefined,
+      command: input.command,
       network: input.network,
-      host: input.host,
+      host,
     });
     if (!result.ok) return { content: result.error, isError: true };
-    return { content: `Cell "${input.name}" created (container ${result.containerId}), listening on host port ${input.host_port}.`, isError: false };
+    return { content: `Cell "${input.name}" created (container ${result.containerId}), listening on host port ${input.host_port}${host ? ` at ${host}` : ""}.`, isError: false };
   },
 };
 
@@ -140,5 +162,68 @@ export const removeFleetNetworkTool: ToolDefinition<FleetNetworkNameInput> = {
     const result = await removeFleetNetwork(input.name, { host: input.host });
     if (!result.ok) return { content: result.error, isError: true };
     return { content: `Network "${input.name}" removed.`, isError: false };
+  },
+};
+
+interface RegisterFleetHostInput {
+  alias: string;
+  docker_host?: string;
+}
+
+export const registerFleetHostTool: ToolDefinition<RegisterFleetHostInput> = {
+  name: "register_fleet_host",
+  description:
+    "Add a machine to the Fleet host pool that create_fleet_cell auto-schedules across when no explicit `host` " +
+    "is given — a new cell then goes to whichever registered host currently has the fewest running cells. Omit " +
+    "docker_host to register the local Docker daemon itself as one of the pool's hosts (useful once you also " +
+    "register at least one remote one, so the local machine is still a real scheduling candidate, not silently " +
+    "excluded).",
+  riskLevel: "ask",
+  inputSchema: {
+    type: "object",
+    properties: {
+      alias: { type: "string", description: 'A short name for this host, e.g. "eu-west-1"' },
+      docker_host: { type: "string", description: 'A real DOCKER_HOST value (e.g. "ssh://user@remote-machine") — omit for the local daemon' },
+    },
+    required: ["alias"],
+  },
+  describeCall: (input) => `register fleet host "${input.alias}"${input.docker_host ? ` (${input.docker_host})` : " (local daemon)"}`,
+  async handler(input) {
+    await registerFleetHost(input.alias, input.docker_host);
+    return { content: `Registered fleet host "${input.alias}".`, isError: false };
+  },
+};
+
+interface FleetHostAliasInput {
+  alias: string;
+}
+
+export const removeFleetHostTool: ToolDefinition<FleetHostAliasInput> = {
+  name: "remove_fleet_host",
+  description: "Remove a host from the Fleet scheduling pool (see register_fleet_host). Doesn't stop or remove any cell already running there.",
+  riskLevel: "ask",
+  inputSchema: { type: "object", properties: { alias: { type: "string" } }, required: ["alias"] },
+  describeCall: (input) => `remove fleet host "${input.alias}"`,
+  async handler(input) {
+    const removed = await removeFleetHost(input.alias);
+    if (!removed) return { content: `No registered fleet host named "${input.alias}".`, isError: true };
+    return { content: `Removed fleet host "${input.alias}".`, isError: false };
+  },
+};
+
+export const listFleetHostsTool: ToolDefinition<Record<string, never>> = {
+  name: "list_fleet_hosts",
+  description: "List every registered Fleet host with its real, live load (a fresh docker ps/version check against each one) — which one create_fleet_cell would pick next.",
+  riskLevel: "safe",
+  inputSchema: { type: "object", properties: {} },
+  async handler() {
+    const loads = await fleetHostLoads();
+    if (loads.length === 0) return { content: "No fleet hosts registered — create_fleet_cell uses the local Docker daemon.", isError: false };
+    return {
+      content: loads
+        .map((l) => `${l.alias} (${l.dockerHost ?? "local daemon"}): ${l.reachable ? `${l.runningCells} running cell(s)` : "UNREACHABLE"}`)
+        .join("\n"),
+      isError: false,
+    };
   },
 };

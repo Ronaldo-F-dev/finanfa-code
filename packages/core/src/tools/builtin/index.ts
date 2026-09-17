@@ -44,7 +44,7 @@ import { createGetSmartHomeStateTool, createControlSmartHomeDeviceTool, homeAssi
 import { createRunRemoteCommandTool } from "./remote-exec.js";
 import { createRegisterRemoteHostTool, createRemoveRemoteHostTool, createListRemoteHostsTool, createCheckRemoteHostHealthTool } from "./remote-hosts-tools.js";
 import { exportBundleTool, installBundleTool, listBundleSnapshotsTool, rollbackBundleTool } from "./claw-bundle-tools.js";
-import { createFleetCellTool, listFleetCellsTool, stopFleetCellTool, removeFleetCellTool, createFleetNetworkTool, removeFleetNetworkTool } from "./fleet-tools.js";
+import { createFleetCellTool, listFleetCellsTool, stopFleetCellTool, removeFleetCellTool, createFleetNetworkTool, removeFleetNetworkTool, registerFleetHostTool, removeFleetHostTool, listFleetHostsTool } from "./fleet-tools.js";
 import { viewVideoFramesTool } from "./view-video-frames.js";
 import { createTranscribeAudioTool, transcribeAudioConfigFromEnv } from "./transcribe-audio.js";
 import { listAvailableModelsTool } from "./list-available-models.js";
@@ -174,6 +174,9 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
     registry.register(removeFleetCellTool);
     registry.register(createFleetNetworkTool);
     registry.register(removeFleetNetworkTool);
+    registry.register(registerFleetHostTool);
+    registry.register(removeFleetHostTool);
+    registry.register(listFleetHostsTool);
   }
   if (isCommandAvailable("kubectl")) registry.register(kubectlTool!);
   registry.register(mqttPublishTool);
