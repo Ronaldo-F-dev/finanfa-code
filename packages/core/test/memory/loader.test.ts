@@ -1,7 +1,9 @@
-import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach, beforeAll, afterAll } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
+import http from "node:http";
+import type { AddressInfo } from "node:net";
 import {
   loadMemories,
   formatMemoryIndex,
@@ -11,8 +13,10 @@ import {
   findNearDuplicateMemory,
   findDuplicateMemoryPairs,
   findDuplicateMemoriesTool,
+  createSearchMemoriesTool,
   type Memory,
 } from "../../src/memory/loader.js";
+import { resetMemorySearchIndexForTests } from "../../src/core/memory-search-index.js";
 
 describe("memory loader", () => {
   let dir: string;
@@ -169,6 +173,30 @@ describe("memory loader", () => {
     expect(memories[0].description).toBe('a "quoted": value');
   });
 
+  it("write_memory records real provenance: createdAt/updatedAt and the calling session's id", async () => {
+    const result = await writeMemoryTool.handler({ name: "prov", description: "d", type: "project", content: "c" }, { ...ctx(), sessionId: "session-abc" });
+    expect(result.isError).toBe(false);
+
+    const [memory] = await loadMemories(dir);
+    expect(memory.createdAt).toBeTruthy();
+    expect(memory.updatedAt).toBe(memory.createdAt);
+    expect(memory.sourceSessionId).toBe("session-abc");
+  });
+
+  it("write_memory preserves the original createdAt/sourceSessionId across a later rewrite from a different session", async () => {
+    await writeMemoryTool.handler({ name: "prov", description: "d", type: "project", content: "c" }, { ...ctx(), sessionId: "session-original" });
+    const [firstWrite] = await loadMemories(dir);
+    const originalCreatedAt = firstWrite.createdAt;
+
+    await new Promise((r) => setTimeout(r, 5)); // ensure a real, distinguishable later timestamp
+    await writeMemoryTool.handler({ name: "prov", description: "d", type: "project", content: "c2" }, { ...ctx(), sessionId: "session-later" });
+    const [rewritten] = await loadMemories(dir);
+
+    expect(rewritten.createdAt).toBe(originalCreatedAt); // preserved, not reset
+    expect(rewritten.updatedAt).not.toBe(originalCreatedAt); // but genuinely moved forward
+    expect(rewritten.sourceSessionId).toBe("session-original"); // the ORIGINAL session, not the rewriting one — real provenance means "who first created this," not "who last touched it"
+  });
+
   it("findNearDuplicateMemory matches a similar description in the same scope, ignores a different scope or an exact-slug match", () => {
     const existing: Memory[] = [
       { name: "commit-style", description: "user prefers small atomic commits per function", type: "feedback", content: "c", scope: "project" },
@@ -278,5 +306,98 @@ describe("memory loader", () => {
     const found = await tool.handler({ name: "later" }, ctx());
     expect(found.isError).toBe(false);
     expect(found.content).toBe("full content");
+  });
+
+  it("search_memories (keyword mode) finds a note by meaning-adjacent words without knowing its exact name", async () => {
+    await writeMemoryTool.handler({ name: "commit-style", description: "user prefers small atomic commits", type: "feedback", content: "c" }, ctx());
+    await writeMemoryTool.handler({ name: "gardening", description: "unrelated note", type: "project", content: "tomatoes" }, ctx());
+
+    const tool = createSearchMemoriesTool(undefined);
+    const result = await tool.handler({ query: "atomic commits" }, ctx());
+    expect(result.isError).toBe(false);
+    expect(result.content).toContain("commit-style");
+    expect(result.content).not.toContain("gardening");
+  });
+
+  it("search_memories reports plainly when nothing matches", async () => {
+    await writeMemoryTool.handler({ name: "a", description: "d", type: "project", content: "c" }, ctx());
+    const tool = createSearchMemoriesTool(undefined);
+    const result = await tool.handler({ query: "completely unrelated query terms" }, ctx());
+    expect(result.isError).toBe(false);
+    expect(result.content).toContain("No saved memory matched");
+  });
+
+  it("search_memories (semantic mode) reports a clear error when not configured", async () => {
+    const tool = createSearchMemoriesTool(undefined);
+    const result = await tool.handler({ query: "x", mode: "semantic" }, ctx());
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain("OPENAI_API_KEY");
+  });
+
+  it("has 'safe' risk level", () => {
+    expect(createSearchMemoriesTool(undefined).riskLevel).toBe("safe");
+  });
+});
+
+describe("search_memories (semantic mode, real fake embeddings server, real node:sqlite)", () => {
+  let dir: string;
+  let homeDir: string;
+  let originalHome: string | undefined;
+  let server: http.Server;
+  let apiBaseUrl: string;
+  const ctx = () => ({ cwd: dir, sessionId: "s", signal: new AbortController().signal });
+
+  function vectorFor(text: string): [number, number] {
+    if (text.includes("atomic") || text.includes("commit")) return [1, 0];
+    if (text.includes("tomato")) return [0, 1];
+    if (text.includes("review") || text.includes("PR")) return [0.9, 0.1];
+    return [0.5, 0.5];
+  }
+
+  beforeAll(async () => {
+    server = http.createServer((req, res) => {
+      let raw = "";
+      req.on("data", (c) => (raw += c));
+      req.on("end", () => {
+        const body = JSON.parse(raw) as { input: string[] };
+        const data = body.input.map((text, index) => ({ index, embedding: vectorFor(text) }));
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ data }));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    apiBaseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "finanfa-search-memories-"));
+    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-search-memories-home-"));
+    originalHome = process.env.HOME;
+    process.env.HOME = homeDir;
+    resetMemorySearchIndexForTests();
+  });
+
+  afterEach(async () => {
+    resetMemorySearchIndexForTests();
+    process.env.HOME = originalHome;
+    await rm(dir, { recursive: true, force: true });
+    await rm(homeDir, { recursive: true, force: true });
+  });
+
+  it("finds a conceptually related note with no shared keywords with the query", async () => {
+    await writeMemoryTool.handler({ name: "commit-style", description: "user prefers atomic commits", type: "feedback", content: "one feature per commit" }, ctx());
+    await writeMemoryTool.handler({ name: "gardening", description: "unrelated note", type: "project", content: "prune the tomato plants" }, ctx());
+
+    const tool = createSearchMemoriesTool({ apiKey: "test" }, apiBaseUrl);
+    const result = await tool.handler({ query: "how should PRs be reviewed", mode: "semantic" }, ctx());
+    expect(result.isError).toBe(false);
+    const commitIndex = result.content.indexOf("commit-style");
+    const gardeningIndex = result.content.indexOf("gardening");
+    expect(commitIndex).toBeGreaterThanOrEqual(0);
+    expect(gardeningIndex === -1 || commitIndex < gardeningIndex).toBe(true);
   });
 });

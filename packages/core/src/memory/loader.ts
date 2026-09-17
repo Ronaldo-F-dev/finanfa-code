@@ -3,6 +3,8 @@ import os from "node:os";
 import path from "node:path";
 import matter from "gray-matter";
 import type { ToolDefinition } from "../core/types.js";
+import { searchMemoriesBySimilarity, searchMemoriesByKeyword, type MemorySearchHit } from "../core/memory-search-index.js";
+import type { EmbeddingsConfig } from "../core/embeddings.js";
 
 export type MemoryScope = "project" | "global";
 
@@ -13,6 +15,10 @@ export interface Memory {
   content: string;
   /** Which file this actually came from — needed to edit/delete the right one, since a project-scoped entry can shadow a global one of the same name. */
   scope: MemoryScope;
+  /** Provenance — when this note was first saved, when it was last rewritten (equal to createdAt for a note write_memory has only ever written once), and which session (if any) was actually running when it was saved. Undefined only for a memory hand-written or created before these fields existed — never backfilled, since there's no real origin to record for those. */
+  createdAt?: string;
+  updatedAt?: string;
+  sourceSessionId?: string;
 }
 
 const MEMORY_TYPES = ["user", "feedback", "project", "reference"] as const;
@@ -61,6 +67,9 @@ async function readMemoriesFromDir(dir: string, scope: MemoryScope): Promise<Mem
         type: typeof metadata?.type === "string" ? metadata.type : "project",
         content: content.trim(),
         scope,
+        createdAt: typeof metadata?.createdAt === "string" ? metadata.createdAt : undefined,
+        updatedAt: typeof metadata?.updatedAt === "string" ? metadata.updatedAt : undefined,
+        sourceSessionId: typeof metadata?.sourceSessionId === "string" ? metadata.sourceSessionId : undefined,
       });
     } catch (err) {
       // A single unreadable file (permission error) or one with malformed
@@ -123,6 +132,8 @@ export interface WriteMemoryInput {
   type: MemoryType;
   content: string;
   scope?: MemoryScope;
+  /** Which session was actually running when this note was saved — real provenance, not derivable after the fact once the session itself is gone. Optional since a few call sites (the web UI's Memory panel, a direct human edit) have no session to attribute it to. */
+  sourceSessionId?: string;
 }
 
 /**
@@ -130,6 +141,13 @@ export interface WriteMemoryInput {
  * Memory panel (a human, directly) — one real write path so both stay in
  * exactly the same file format instead of two implementations quietly
  * drifting apart.
+ *
+ * Provenance: createdAt and sourceSessionId are set once, from the FIRST
+ * write of a given name, and preserved across every later rewrite
+ * (read from whatever's already on disk, if anything) — provenance means
+ * recording which session actually originated a note, not which one most
+ * recently edited it. updatedAt is the one field that always reflects
+ * this call.
  */
 export async function writeMemory(cwd: string, input: WriteMemoryInput): Promise<{ slug: string; scope: MemoryScope }> {
   const slug = slugifyMemoryName(input.name);
@@ -137,7 +155,15 @@ export async function writeMemory(cwd: string, input: WriteMemoryInput): Promise
   const scope: MemoryScope = input.scope === "global" ? "global" : "project";
   const dir = memoryDir(cwd, scope);
   await mkdir(dir, { recursive: true });
-  const frontmatter = `---\nname: ${slug}\ndescription: ${JSON.stringify(input.description)}\n` + `metadata:\n  type: ${input.type}\n---\n\n`;
+
+  const existing = (await readMemoriesFromDir(dir, scope)).find((m) => slugifyMemoryName(m.name) === slug);
+  const now = new Date().toISOString();
+  const createdAt = existing?.createdAt ?? now;
+  const sourceSessionId = existing?.sourceSessionId ?? input.sourceSessionId;
+
+  const metadataLines = [`  type: ${input.type}`, `  createdAt: ${JSON.stringify(createdAt)}`, `  updatedAt: ${JSON.stringify(now)}`];
+  if (sourceSessionId) metadataLines.push(`  sourceSessionId: ${JSON.stringify(sourceSessionId)}`);
+  const frontmatter = `---\nname: ${slug}\ndescription: ${JSON.stringify(input.description)}\n` + `metadata:\n${metadataLines.join("\n")}\n---\n\n`;
   await writeFile(path.join(dir, `${slug}.md`), frontmatter + input.content.trim() + "\n", "utf-8");
   return { slug, scope };
 }
@@ -289,7 +315,7 @@ export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
   async handler(input, ctx) {
     try {
       const duplicate = findNearDuplicateMemory(await loadMemories(ctx.cwd), input);
-      const { slug, scope } = await writeMemory(ctx.cwd, input);
+      const { slug, scope } = await writeMemory(ctx.cwd, { ...input, sourceSessionId: ctx.sessionId });
       const duplicateNote = duplicate
         ? ` Note: this looks similar to the existing memory "${duplicate.name}" (${duplicate.description}) — consider updating/deleting one of them instead of keeping both.`
         : "";
@@ -299,3 +325,68 @@ export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
     }
   },
 };
+
+interface SearchMemoriesInput {
+  query: string;
+  maxResults?: number;
+  /** "keyword" (default): matches on name/description/content text, no API call. "semantic": embedding-based similarity — finds a conceptually related note with no shared keywords, at the cost of a real OpenAI embeddings call; only available when OPENAI_API_KEY is configured. */
+  mode?: "keyword" | "semantic";
+}
+
+function formatMemorySearchHits(hits: MemorySearchHit[]): string {
+  if (hits.length === 0) return "No saved memory matched that query.";
+  const lines = hits.map((h) => {
+    const when = h.memory.updatedAt ? ` (updated ${h.memory.updatedAt})` : "";
+    return `- ${h.memory.name} (${h.memory.type}, ${h.memory.scope}${when}): ${h.memory.description}`;
+  });
+  return `${hits.length} matching memory note(s) — use read_memory <name> for the full content:\n${lines.join("\n")}`;
+}
+
+/**
+ * Finds a saved memory note by MEANING rather than its exact name — the
+ * real gap read_memory's own exact-name lookup and the system-prompt
+ * index (a flat list, fine at a handful of notes, not at hundreds) left
+ * open. Same "keyword by default, opt into semantic" shape as
+ * recall_past_sessions over session history, reusing the same
+ * EmbeddingsConfig/OPENAI_API_KEY.
+ */
+export function createSearchMemoriesTool(embeddingsConfig: EmbeddingsConfig | undefined, embeddingsApiBaseUrl?: string): ToolDefinition<SearchMemoriesInput> {
+  return {
+    name: "search_memories",
+    description:
+      "Find a saved memory note (project + global) by meaning, not just its exact name — use before write_memory " +
+      "to check whether something similar is already saved, or whenever the system prompt's own memory index " +
+      "doesn't obviously contain what you're looking for. Returns matching notes with their description; use " +
+      'read_memory <name> for the full content. mode "keyword" (default) matches on name/description/content ' +
+      'text. mode "semantic" finds a conceptually related note even with no shared keywords (e.g. "how does the ' +
+      'user like PRs reviewed" matching a note about atomic commits) via a real OpenAI embeddings call — needs ' +
+      "OPENAI_API_KEY configured, and costs a real API call each time.",
+    riskLevel: "safe",
+    inputSchema: {
+      type: "object",
+      properties: {
+        query: { type: "string", description: "Keywords (keyword mode) or a natural-language description (semantic mode) to search for" },
+        maxResults: { type: "number", description: "Maximum number of notes to return (default 5)" },
+        mode: { type: "string", enum: ["keyword", "semantic"], description: 'Default "keyword"' },
+      },
+      required: ["query"],
+    },
+    describeCall: (input) => `search memories matching "${input.query}"${input.mode === "semantic" ? " (semantic)" : ""}`,
+    async handler(input, ctx) {
+      const maxResults = input.maxResults ?? 5;
+      const memories = await loadMemories(ctx.cwd);
+      const mode = input.mode ?? "keyword";
+
+      if (mode === "semantic") {
+        if (!embeddingsConfig) {
+          return { content: "Semantic memory search is not configured — set OPENAI_API_KEY as an environment variable, or use mode \"keyword\" instead.", isError: true };
+        }
+        const hits = await searchMemoriesBySimilarity(memories, input.query, maxResults, embeddingsConfig, embeddingsApiBaseUrl);
+        return { content: formatMemorySearchHits(hits), isError: false };
+      }
+
+      const hits = searchMemoriesByKeyword(memories, input.query, maxResults);
+      return { content: formatMemorySearchHits(hits), isError: false };
+    },
+  };
+}
