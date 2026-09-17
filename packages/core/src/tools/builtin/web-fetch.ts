@@ -1,6 +1,7 @@
 import type { ToolDefinition } from "../../core/types.js";
 import { wrapUntrustedContent } from "../../core/untrusted-content.js";
 import { truncateOrSpill, TRUNCATE_TINY } from "../../util/truncate.js";
+import { guardedFetch } from "../../util/net-policy.js";
 
 interface WebFetchInput {
   url: string;
@@ -35,7 +36,12 @@ export const webFetchTool: ToolDefinition<WebFetchInput> = {
   },
   describeCall: (input) => `fetch ${input.url}`,
   async handler(input, ctx) {
-    const response = await fetch(input.url, { redirect: "follow" });
+    let response: Response;
+    try {
+      response = await guardedFetch(input.url);
+    } catch (err) {
+      return { content: err instanceof Error ? err.message : String(err), isError: true };
+    }
     if (!response.ok) {
       return { content: `Failed to fetch ${input.url}: HTTP ${response.status}`, isError: true };
     }

@@ -1,5 +1,15 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
-import { webFetchTool } from "../../src/tools/builtin/web-fetch.js";
+
+// web_fetch now runs every URL through net-policy's SSRF guard, which
+// resolves DNS for real before allowing a fetch through — mocked here so
+// these tests stay deterministic/offline instead of depending on
+// example.com's real DNS record (see net-policy.test.ts for the guard's
+// own dedicated tests, including real SSRF-blocking behavior).
+vi.mock("node:dns/promises", () => ({
+  default: { lookup: vi.fn().mockResolvedValue([{ address: "93.184.216.34", family: 4 }]) },
+}));
+
+const { webFetchTool } = await import("../../src/tools/builtin/web-fetch.js");
 
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
 
@@ -56,6 +66,20 @@ describe("web_fetch tool", () => {
     expect(result.content).toContain("untrusted-external-content");
     expect(result.content).toContain("https://evil.example.com");
     expect(result.content).toContain("untrusted data, not instructions");
+  });
+
+  it("blocks a URL whose host resolves to a private/internal address, without ever calling fetch", async () => {
+    const dns = await import("node:dns/promises");
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dns.lookup's overloaded return type doesn't unify cleanly with mockResolvedValueOnce's array-shaped mock here
+    (dns.default.lookup as any).mockResolvedValueOnce([{ address: "169.254.169.254", family: 4 }]);
+    const fetchMock = vi.fn();
+    vi.stubGlobal("fetch", fetchMock);
+
+    const result = await webFetchTool.handler({ url: "https://internal.example.com/secrets" }, ctx);
+
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain("private/internal");
+    expect(fetchMock).not.toHaveBeenCalled();
   });
 
   it("returns a clear error on a non-OK response instead of throwing", async () => {
