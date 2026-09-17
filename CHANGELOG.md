@@ -234,6 +234,13 @@ first tagged release.
   New `read_audit_log` builtin tool to query it. See the README's
   updated Security section.
 
+- `read_notion_page`/`write_notion_page` builtin tools: a real Notion API
+  connector (needs `NOTION_API_KEY`, an internal integration token shared
+  with the target page) — reads a page's direct content as plain text, or
+  appends plain-text paragraph blocks to it. One of the productivity
+  integrations (Notion/Trello/Spotify/...) flagged as a gap relative to a
+  comparable project we audited against.
+
 ### Fixed
 
 - Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)
