@@ -295,6 +295,18 @@ first tagged release.
   daemon, not a multi-node/multi-host scheduler placing cells across a
   real fleet of machines.
 
+- Gateway now supports real per-login accounts (`FINANFA_WEB_ACCOUNTS=1`),
+  not just a static shared-secret token map: hashed passwords (scrypt,
+  random salt per password) persisted to `~/.finanfa-code/web-users.json`,
+  `POST /api/auth/users` (bootstraps with no auth for the very first
+  account, requires an existing valid token for every one after) and
+  `POST /api/auth/login` issuing a real, opaque, in-memory session token
+  (30-day expiry) — authenticates identically to a static
+  `FINANFA_WEB_USERS` token everywhere else (REST, WebSocket, session
+  ownership). The two mechanisms are independent and can be combined.
+  Closes the "real user accounts, not a shared secret" half of the
+  Gateway gap.
+
 - "Gateway": opt-in multi-user authentication for the web server
   (`FINANFA_WEB_USERS="alice:token1,bob:token2"`) — a Bearer token on
   every `/api/*` request (channel webhooks keep their own signature
