@@ -467,6 +467,31 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
   );
 
   it(
+    "repairs tool-call arguments left open by a stream cut off for a reason OTHER than the length limit, instead of asking the model to redo the whole call",
+    async () => {
+      const events = [
+        // A real disconnect mid-argument (finish_reason "stop", not "length") — the JSON never closed, but every open brace/bracket/quote here really is just left open, nothing else wrong with it.
+        JSON.stringify({
+          choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "write_file", arguments: '{"path":"a.txt","content":"hello' } }] } }],
+        }),
+        JSON.stringify({ choices: [{ delta: {}, finish_reason: "stop" }] }),
+      ];
+      vi.stubGlobal("fetch", vi.fn().mockResolvedValue(sseResponse(events)));
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+      const result = await provider.streamTurn({
+        model: "m",
+        systemPrompt: "s",
+        messages: [],
+        tools: [],
+        onTextDelta: () => {},
+      });
+
+      expect(result.assistantMessage.toolCalls).toEqual([{ id: "call_1", name: "write_file", input: { path: "a.txt", content: "hello" } }]);
+    },
+  );
+
+  it(
     "marks malformed tool-call arguments as truncated when finish_reason is 'length', instead of a plain {} — " +
       "real reported pattern: one huge file-write argument (a bash heredoc) cut off by the max output token limit",
     async () => {

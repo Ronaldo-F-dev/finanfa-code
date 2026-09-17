@@ -8,6 +8,7 @@ import type {
   ToolDefinition,
 } from "../core/types.js";
 import { retryWithBackoff } from "../util/retry.js";
+import { repairTruncatedToolCallJson } from "./tool-call-json-repair.js";
 
 // A generic client for any server implementing the OpenAI chat-completions
 // wire format: Ollama, OpenRouter, Poolside, LM Studio, vLLM, etc. all speak
@@ -299,12 +300,6 @@ async function attemptStreamChatCompletion(
     try {
       input = call.arguments.length > 0 ? JSON.parse(call.arguments) : {};
     } catch (err) {
-      // A truncated/malformed arguments fragment used to silently become
-      // `{}` — e.g. an edit_file call missing its path, with no error
-      // surfaced anywhere, so the model would see a confusing tool failure
-      // (or worse, act on wrongly-empty input) with no hint why. Surfacing
-      // it here at least makes it visible instead of a silent substitution.
-      console.error(`Warning: malformed tool-call arguments for "${call.name}", treating as {}: ${call.arguments}`);
       if (finishReason === "length") {
         // Real reported pattern: a model repeatedly generating one huge
         // single tool call (e.g. an entire file's contents as one bash
@@ -315,9 +310,37 @@ async function attemptStreamChatCompletion(
         // tool's own required-fields check — see loop.ts's
         // findMissingRequiredFields) so the tool_result the model sees can
         // name the real cause and actually recover (split into smaller
-        // calls) instead of blindly retrying.
+        // calls) instead of blindly retrying. Deliberately NOT attempting
+        // JSON-nesting repair here even though it would often succeed
+        // syntactically — the argument's own *content* (e.g. a half-written
+        // file) is genuinely incomplete, and silently "fixing" the JSON
+        // envelope around it would hide that from the model instead of
+        // letting it recover correctly.
+        console.error(`Warning: malformed tool-call arguments for "${call.name}", treating as {}: ${call.arguments}`);
         input = { __toolCallTruncated: true };
       } else {
+        // Before falling back to a marker field asking the model to redo
+        // the whole call: the single most common real cause of a parse
+        // failure that ISN'T a length cutoff is the stream simply getting
+        // cut off before the JSON closed (a dropped connection, a
+        // mid-argument disconnect) — cheaply fixable by closing whatever
+        // nesting was left open, without another full model turn. Only
+        // ever "finishes" open nesting, never guesses at content, so a
+        // genuine syntax error (not a truncation) correctly falls through
+        // to the marker-field handling below instead of being silently
+        // misrepaired.
+        const repaired = repairTruncatedToolCallJson(call.arguments);
+        if (repaired !== undefined) {
+          toolCalls.push({ id: call.id, name: call.name, input: repaired });
+          continue;
+        }
+
+        // A truncated/malformed arguments fragment used to silently become
+        // `{}` — e.g. an edit_file call missing its path, with no error
+        // surfaced anywhere, so the model would see a confusing tool failure
+        // (or worse, act on wrongly-empty input) with no hint why. Surfacing
+        // it here at least makes it visible instead of a silent substitution.
+        console.error(`Warning: malformed tool-call arguments for "${call.name}", treating as {}: ${call.arguments}`);
         // Real reported pattern, distinct from the length case above: a
         // model producing a write_file call with a large/complex `content`
         // string whose own JSON escaping was wrong (an unescaped quote or
