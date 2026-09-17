@@ -265,6 +265,7 @@ Not every model can see images. If your primary model can't, route just the turn
 - **Secrets**: `read_1password_secret` (via the `op` CLI), `read_vault_secret` (via the `vault` CLI) — both only registered when the underlying CLI is installed, `riskLevel: "dangerous"`
 - **Security scanning**: prompt injection/jailbreak/system-prompt-leak/PII-leakage/excessive-agency self-red-team, plus SSRF/XSS/SQLi/XXE/SSTI/IDOR/CSRF/JWT/LDAP-injection/subdomain-takeover/recon/email-security/and more against a target URL
 - **Session**: `recall_past_sessions` (full-text search over past sessions, plus an optional semantic mode — needs `OPENAI_API_KEY`), `write_memory`
+- **Observability**: `read_traces` (OpenTelemetry tool-call/LLM-turn durations and error rates), `read_audit_log` (structured permission-decision audit trail — see [Security](#security))
 
 Notes:
 - `web_search`/`web_fetch`/`browser_*` results are wrapped as untrusted content — treated as data, not instructions, to reduce prompt-injection risk.
@@ -388,6 +389,8 @@ Scope of this first pass: the core lifecycle (init, session, prompt streaming, t
 ## Security
 
 The system prompt permits authorized security testing, defensive security, CTF, and security education, and declines destructive techniques, DoS tooling, mass targeting, supply-chain compromise, or detection evasion — several supported backends (local/free models) have little built-in safety alignment of their own.
+
+Every permission decision (allow/deny, and which of a PreToolUse hook/`--yolo`/the session allowlist/a config rule/the risk-level default/a direct user answer decided it) is appended to a structured audit trail at `~/.finanfa-code/audit/<date>.jsonl` — one JSON line per decision, independent of both the OpenTelemetry trace file (`~/.finanfa-code/traces/`, perf-only, never sees a denied call) and the session transcript. Read it back with the `read_audit_log` tool, or directly with `jq`/`grep` for a compliance review.
 
 ## Tests
 
