@@ -54,10 +54,11 @@ export class PermissionManager {
     }
   }
 
-  private matchRule(tool: ToolDefinition, key: string): PermissionDecision | undefined {
+  private matchRule(tool: ToolDefinition, key: string, cwd: string): PermissionDecision | undefined {
     for (const rule of this.config.rules) {
       if (rule.tool !== "*" && rule.tool !== tool.name) continue;
       if (rule.keyPrefix && !key.startsWith(rule.keyPrefix)) continue;
+      if (rule.cwdPrefix && !cwd.startsWith(rule.cwdPrefix)) continue;
       return rule.decision;
     }
     return undefined;
@@ -137,7 +138,7 @@ export class PermissionManager {
       return this.record(tool, riskKey, ctx, "allow", "session_allowlist");
     }
 
-    const ruleDecision = this.matchRule(tool, riskKey);
+    const ruleDecision = this.matchRule(tool, riskKey, ctx.cwd);
     const decision = ruleDecision ?? this.config.defaultForRiskLevel[tool.riskLevel];
 
     if (decision !== "ask") return this.record(tool, riskKey, ctx, decision, ruleDecision ? "rule" : "default_for_risk_level");

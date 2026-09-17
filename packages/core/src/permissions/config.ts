@@ -8,6 +8,16 @@ export type PermissionDecision = "allow" | "ask" | "deny";
 export interface PermissionRule {
   tool: string; // tool name, or "*"
   keyPrefix?: string; // matched as a prefix against the tool's riskKey
+  /**
+   * Matched as a prefix against the tool call's actual working directory
+   * (ctx.cwd — the resolved directory the call runs in, e.g. bash's own
+   * cwd, not the project root a relative `cwd` input is joined onto).
+   * Lets a rule apply only within part of a monorepo — e.g. auto-allow
+   * `bash` inside `scripts/` (a checked-in, reviewed directory) while
+   * still asking everywhere else — instead of a rule's only granularity
+   * being the tool name and its own riskKey.
+   */
+  cwdPrefix?: string;
   decision: PermissionDecision;
 }
 

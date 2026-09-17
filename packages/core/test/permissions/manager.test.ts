@@ -314,6 +314,41 @@ describe("PermissionManager", () => {
     },
   );
 
+  describe("cwd-scoped rules", () => {
+    it("applies a rule only when the call's cwd starts with the rule's cwdPrefix", async () => {
+      const ui = makeUi("n"); // would deny if actually asked — proves the in-scope call skipped the prompt
+      const config = { ...DEFAULT_PERMISSION_CONFIG, rules: [{ tool: "bash", cwdPrefix: "/tmp/project/scripts", decision: "allow" as const }] };
+      const manager = new PermissionManager({ config, ui });
+
+      const inside = await manager.check(bashLikeTool, { command: "rm -rf /" }, { ...ctx, cwd: "/tmp/project/scripts" });
+      expect(inside).toBe("allow");
+      expect(ui.askUser).not.toHaveBeenCalled();
+
+      // Outside the rule's cwdPrefix, the rule doesn't apply — falls through to the ask prompt, which answers "n".
+      const outside = await manager.check(bashLikeTool, { command: "rm -rf /" }, { ...ctx, cwd: "/tmp/project/src" });
+      expect(outside).toBe("deny");
+      expect(ui.askUser).toHaveBeenCalledTimes(1);
+    });
+
+    it("a rule with both keyPrefix and cwdPrefix requires both to match", async () => {
+      const ui = makeUi("y");
+      const config = {
+        ...DEFAULT_PERMISSION_CONFIG,
+        rules: [{ tool: "bash", keyPrefix: "git", cwdPrefix: "/tmp/project", decision: "allow" as const }],
+      };
+      const manager = new PermissionManager({ config, ui });
+
+      const matches = await manager.check(bashLikeTool, { command: "git status" }, { ...ctx, cwd: "/tmp/project" });
+      expect(matches).toBe("allow");
+      expect(ui.askUser).not.toHaveBeenCalled();
+
+      // Right keyPrefix, wrong cwd — the rule doesn't apply, so this falls through to the ask prompt instead (still ends up "allow", but via the "y" answer, not the rule).
+      const wrongCwd = await manager.check(bashLikeTool, { command: "git status" }, { ...ctx, cwd: "/tmp/other" });
+      expect(wrongCwd).toBe("allow");
+      expect(ui.askUser).toHaveBeenCalledTimes(1);
+    });
+  });
+
   describe("audit trail", () => {
     it("records an allow decision from the default risk-level policy, with no user prompt", async () => {
       const ui = makeUi("y");
