@@ -1,9 +1,13 @@
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
+import { mkdtemp, rm, readFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { PermissionManager } from "../../src/permissions/manager.js";
 import { DEFAULT_PERMISSION_CONFIG } from "../../src/permissions/config.js";
 import type { HooksConfig } from "../../src/hooks/config.js";
 import type { ToolDefinition, ToolContext } from "../../src/core/types.js";
 import type { UIAdapter } from "../../src/ui/adapter.js";
+import { auditFilePath } from "../../src/observability/audit-log.js";
 
 function makeUi(answer: string): UIAdapter {
   return {
@@ -41,6 +45,28 @@ const bashLikeTool: ToolDefinition<{ command: string }> = {
 };
 
 describe("PermissionManager", () => {
+  let homeDir: string;
+  let originalHome: string | undefined;
+
+  beforeEach(async () => {
+    // check() now writes an audit-log entry for every decision (see
+    // audit-log.ts) — isolate HOME so these tests don't append real
+    // entries to the developer's own ~/.finanfa-code/audit/.
+    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-permissions-audit-"));
+    originalHome = process.env.HOME;
+    process.env.HOME = homeDir;
+  });
+
+  afterEach(async () => {
+    process.env.HOME = originalHome;
+    await rm(homeDir, { recursive: true, force: true });
+  });
+
+  async function readAuditEvents(): Promise<Record<string, unknown>[]> {
+    const raw = await readFile(auditFilePath(), "utf-8");
+    return raw.trim().split("\n").map((l) => JSON.parse(l));
+  }
+
   it("allows safe tools without prompting", async () => {
     const ui = makeUi("y");
     const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
@@ -287,4 +313,67 @@ describe("PermissionManager", () => {
       );
     },
   );
+
+  describe("audit trail", () => {
+    it("records an allow decision from the default risk-level policy, with no user prompt", async () => {
+      const ui = makeUi("y");
+      const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+      await manager.check(safeTool, {}, ctx);
+
+      const events = await readAuditEvents();
+      expect(events).toHaveLength(1);
+      expect(events[0]).toMatchObject({ tool: "safe_tool", riskLevel: "safe", decision: "allow", source: "default_for_risk_level", sessionId: "s" });
+    });
+
+    it("records a deny decision answered directly by the user, distinct from an auto-denied one", async () => {
+      const ui = makeUi("n");
+      const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+      await manager.check(bashLikeTool, { command: "rm -rf /" }, ctx);
+
+      const events = await readAuditEvents();
+      expect(events[0]).toMatchObject({ tool: "bash", riskKey: "rm", decision: "deny", source: "user_prompt" });
+    });
+
+    it("records a deny decision auto-denied by --non-interactive, without ever prompting", async () => {
+      const ui = makeUi("y");
+      const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, nonInteractive: true });
+      await manager.check(bashLikeTool, { command: "rm -rf /" }, ctx);
+
+      const events = await readAuditEvents();
+      expect(events[0]).toMatchObject({ decision: "deny", source: "non_interactive" });
+    });
+
+    it("records an allow decision bypassed by --yolo", async () => {
+      const ui = makeUi("n");
+      const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+      await manager.check(bashLikeTool, { command: "rm -rf /" }, ctx);
+
+      const events = await readAuditEvents();
+      expect(events[0]).toMatchObject({ decision: "allow", source: "yolo" });
+    });
+
+    it("records a decision made by a PreToolUse hook", async () => {
+      const ui = makeUi("y");
+      const hooksConfig: HooksConfig = {
+        PreToolUse: [{ hooks: [{ type: "command", command: "cat > /dev/null; echo '{\"decision\":\"block\",\"reason\":\"org policy\"}'" }] }],
+      };
+      const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, hooksConfig });
+      await manager.check(safeTool, {}, ctx);
+
+      const events = await readAuditEvents();
+      expect(events[0]).toMatchObject({ decision: "deny", source: "pre_tool_use_hook" });
+    });
+
+    it("records only one entry for a repeated 'always'-allowlisted call, sourced as session_allowlist", async () => {
+      const ui = makeUi("a");
+      const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+      await manager.check(bashLikeTool, { command: "git status" }, ctx);
+      await manager.check(bashLikeTool, { command: "git status" }, ctx);
+
+      const events = await readAuditEvents();
+      expect(events).toHaveLength(2);
+      expect(events[0]).toMatchObject({ decision: "allow", source: "user_prompt" });
+      expect(events[1]).toMatchObject({ decision: "allow", source: "session_allowlist" });
+    });
+  });
 });

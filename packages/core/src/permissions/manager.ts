@@ -3,6 +3,7 @@ import type { UIAdapter } from "../ui/adapter.js";
 import type { PermissionConfig, PermissionDecision } from "./config.js";
 import type { HooksConfig } from "../hooks/config.js";
 import { runHooks } from "../hooks/runner.js";
+import { appendAuditEvent, type AuditDecisionSource } from "../observability/audit-log.js";
 
 export type AskAnswer = "allow" | "deny" | "always" | "always-tool";
 
@@ -98,7 +99,7 @@ export class PermissionManager {
   }
 
   /** Returns a decision when a PreToolUse hook has an opinion (block/approve); undefined means the normal permission flow should decide instead. */
-  private async checkPreToolUseHooks(tool: ToolDefinition, input: unknown, ctx: ToolContext): Promise<PermissionDecision | undefined> {
+  private async checkPreToolUseHooks(tool: ToolDefinition, input: unknown, ctx: ToolContext): Promise<"allow" | "deny" | undefined> {
     if (!this.hooksConfig) return undefined;
     const outcome = await runHooks(
       this.hooksConfig,
@@ -116,24 +117,32 @@ export class PermissionManager {
     return undefined;
   }
 
+  /** Appends one line to the audit log (~/.finanfa-code/audit/<date>.jsonl) for every decision this method reaches, regardless of which path decided it — a denied call never even reaches the OTel trace file (see loop.ts), so this is the only durable, structured record of it. */
+  private record(tool: ToolDefinition, riskKey: string, ctx: ToolContext, decision: "allow" | "deny", source: AuditDecisionSource): "allow" | "deny" {
+    appendAuditEvent({ sessionId: ctx.sessionId, cwd: ctx.cwd, tool: tool.name, riskLevel: tool.riskLevel, riskKey, decision, source });
+    return decision;
+  }
+
   /** `toolCallId` is the model's own tool_use id for this call, if the caller has minted one yet (see loop.ts) — passed through to askUser so an adapter like the ACP bridge can correlate its permission request with the real tool_call, not a synthetic placeholder. */
   async check(tool: ToolDefinition, input: unknown, ctx: ToolContext, toolCallId?: string): Promise<PermissionDecision> {
+    const riskKey = this.riskKey(tool, input);
+
     const hookDecision = await this.checkPreToolUseHooks(tool, input, ctx);
-    if (hookDecision) return hookDecision;
+    if (hookDecision) return this.record(tool, riskKey, ctx, hookDecision, "pre_tool_use_hook");
 
-    if (this.yolo) return "allow";
+    if (this.yolo) return this.record(tool, riskKey, ctx, "allow", "yolo");
 
-    const key = `${tool.name}:${this.riskKey(tool, input)}`;
+    const key = `${tool.name}:${riskKey}`;
     if (this.sessionAllowlist.has(key) || this.sessionAllowlist.has(tool.name)) {
-      return "allow";
+      return this.record(tool, riskKey, ctx, "allow", "session_allowlist");
     }
 
-    const ruleDecision = this.matchRule(tool, this.riskKey(tool, input));
+    const ruleDecision = this.matchRule(tool, riskKey);
     const decision = ruleDecision ?? this.config.defaultForRiskLevel[tool.riskLevel];
 
-    if (decision !== "ask") return decision;
+    if (decision !== "ask") return this.record(tool, riskKey, ctx, decision, ruleDecision ? "rule" : "default_for_risk_level");
 
-    if (this.nonInteractive) return "deny";
+    if (this.nonInteractive) return this.record(tool, riskKey, ctx, "deny", "non_interactive");
 
     // Neither describeCall() nor preview() is guaranteed not to throw — e.g.
     // edit_file's preview() throws when old_string no longer matches (a
@@ -152,13 +161,13 @@ export class PermissionManager {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.ui.writeError(`Could not prepare "${tool.name}" for confirmation: ${message}`);
-      return "deny";
+      return this.record(tool, riskKey, ctx, "deny", "prepare_error");
     }
     const answer = await this.promptUser(tool.name, summary, preview, toolCallId);
 
     if (answer === "always") this.sessionAllowlist.add(key);
     if (answer === "always-tool") this.sessionAllowlist.add(tool.name);
-    return answer === "deny" ? "deny" : "allow";
+    return this.record(tool, riskKey, ctx, answer === "deny" ? "deny" : "allow", "user_prompt");
   }
 
   private async promptUser(toolName: string, summary: string, preview?: string, toolCallId?: string): Promise<AskAnswer> {
