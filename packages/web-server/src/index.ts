@@ -71,6 +71,7 @@ import { registerDiscordChannelRoutes } from "./channels-discord.js";
 import { registerWhatsappChannelRoutes } from "./channels-whatsapp.js";
 import { registerSmsChannelRoutes } from "./channels-sms.js";
 import { registerVoiceChannelRoutes } from "./channels-voice.js";
+import { registerMatrixChannelRoutes } from "./channels-matrix.js";
 import { parseWebUsers, authenticateBearerToken, authenticateQueryToken } from "./auth.js";
 import { SessionTokenStore, defaultSessionStorePath } from "./session-token-store.js";
 import { loadUserStore, createUser, verifyUserPassword } from "./user-store.js";
@@ -131,6 +132,7 @@ registerDiscordChannelRoutes(app, DEFAULT_CWD);
 registerWhatsappChannelRoutes(app, DEFAULT_CWD);
 registerSmsChannelRoutes(app, DEFAULT_CWD);
 registerVoiceChannelRoutes(app, DEFAULT_CWD);
+registerMatrixChannelRoutes(app, DEFAULT_CWD);
 
 /** Resolves a `?project=` query param to a real, validated directory — 404s (via the thrown error's message) rather than silently falling back, so a stale/deleted project id in the URL surfaces clearly instead of quietly operating on the wrong workspace. */
 async function resolveCwd(projectId: string | undefined): Promise<string> {
