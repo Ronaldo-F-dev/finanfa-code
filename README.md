@@ -308,6 +308,25 @@ Then, one-time setup in the Discord Developer Portal:
    ```
 3. Invite the bot to a server and run `/ask message:<your question>` in any channel — each channel maps to its own persistent session. Discord shows "thinking..." immediately (a turn takes longer than its 3-second reply window), then edits in the real answer once it's ready. Attaching an image via the optional `image` option routes the turn through the project's configured vision model, same as a Slack file upload or the CLI/web UI's own image input.
 
+### WhatsApp
+
+Uses the [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api) (a Meta developer app + a WhatsApp Business phone number, not a personal WhatsApp account):
+
+```bash
+export WHATSAPP_APP_SECRET=...          # your Meta app's "App Secret", from App Settings → Basic
+export WHATSAPP_VERIFY_TOKEN=...        # any string you pick — used only for the one-time handshake below
+export WHATSAPP_ACCESS_TOKEN=...        # a token for the WhatsApp Business Account, from WhatsApp → API Setup
+export WHATSAPP_PHONE_NUMBER_ID=...     # same page — the sending number's id, not the phone number itself
+npm run dev:web-server
+```
+
+Then, in your Meta app's WhatsApp → Configuration page:
+1. Set **Callback URL** to `https://<your-server>/api/channels/whatsapp/webhook` and **Verify Token** to the same value as `WHATSAPP_VERIFY_TOKEN` — Meta verifies this itself via a signed `GET` handshake (`hub.mode`/`hub.verify_token`/`hub.challenge`) before it'll save the URL.
+2. Subscribe the app to the `messages` webhook field.
+3. Message the connected number — each sender's phone number maps to its own persistent session.
+
+The endpoint 404s (both the GET handshake and POST events) until its own env vars are set — same "no unauthenticated middle state" as every other channel here. Only plain text messages are handled today; media/location/interactive-reply messages are ignored.
+
 ## Editor integration (ACP)
 
 `finanfa --acp` runs as an [Agent Client Protocol](https://agentclientprotocol.com/) agent over stdio — the same tools/permissions/hooks as every other entry point, driven directly from an ACP-aware editor instead of a terminal or browser.
