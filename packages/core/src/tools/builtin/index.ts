@@ -90,6 +90,8 @@ import { createArtifactTool } from "./create-artifact.js";
 import { PreviewServer } from "../../core/preview-server.js";
 import { generate3dTool } from "./generate-3d.js";
 import { createGenerate2dTool, generate2dConfigFromEnv } from "./generate-2d.js";
+import { createGenerateVideoTool, createGenerateMusicTool } from "./generate-media.js";
+import { replicateConfigFromEnv } from "../../core/replicate.js";
 import { createAnalyzeVideoTool, analyzeVideoConfigFromEnv } from "./analyze-video.js";
 import { translateTextTool } from "./translate.js";
 import { textToSpeechTool } from "./text-to-speech.js";
@@ -245,6 +247,9 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(waitForPortTool);
   registry.register(generate3dTool);
   registry.register(createGenerate2dTool(generate2dConfigFromEnv()));
+  const replicateConfig = replicateConfigFromEnv();
+  registry.register(createGenerateVideoTool(replicateConfig));
+  registry.register(createGenerateMusicTool(replicateConfig));
   registry.register(translateTextTool);
   registry.register(textToSpeechTool);
   registry.register(convertSpreadsheetTool);
