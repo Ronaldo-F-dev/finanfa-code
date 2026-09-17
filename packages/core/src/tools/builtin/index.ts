@@ -88,7 +88,7 @@ import { createPreviewHtmlTool } from "./preview-html.js";
 import { createArtifactTool } from "./create-artifact.js";
 import { PreviewServer } from "../../core/preview-server.js";
 import { generate3dTool } from "./generate-3d.js";
-import { generate2dTool } from "./generate-2d.js";
+import { createGenerate2dTool, generate2dConfigFromEnv } from "./generate-2d.js";
 import { translateTextTool } from "./translate.js";
 import { textToSpeechTool } from "./text-to-speech.js";
 import { convertSpreadsheetTool } from "./convert-spreadsheet.js";
@@ -233,7 +233,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(lintJavascriptTool);
   registry.register(waitForPortTool);
   registry.register(generate3dTool);
-  registry.register(generate2dTool);
+  registry.register(createGenerate2dTool(generate2dConfigFromEnv()));
   registry.register(translateTextTool);
   registry.register(textToSpeechTool);
   registry.register(convertSpreadsheetTool);
