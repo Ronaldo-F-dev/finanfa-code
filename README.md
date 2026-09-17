@@ -1,5 +1,7 @@
 # finanfa-code
 
+**Real tools, real actions, any machine. Not a chatbot — an operator.**
+
 A from-scratch AI coding agent, in TypeScript, with a terminal UI (Ink) and a browser UI. Pluggable LLM backend: Anthropic, Azure OpenAI, Gemini, Cohere, GitHub Copilot, Amazon Bedrock, Google Vertex AI, or anything speaking the OpenAI chat-completions wire format (Ollama, OpenRouter, Poolside, LM Studio, vLLM, ...).
 
 Requires Node.js **22.5.0+**.
