@@ -216,6 +216,97 @@ describe("analyzeVideoViaFilesApi (real local HTTP server implementing Google's 
   });
 });
 
+describe("analyzeVideoViaFilesApi tolerates a transient network failure (real local HTTP server, one connection reset per case)", () => {
+  // A real bug found by testing this against a real Gemini account: a
+  // network blip partway through a real multi-minute upload used to
+  // fail the whole flow outright, since only generateContentWithPart had
+  // retry (fetchWithRetry) — the upload-start/finalize/poll steps didn't.
+  // These tests reproduce that blip locally by destroying the raw TCP
+  // connection on the first attempt at a given step (a real fetch()
+  // failure, not a mocked one) and confirming the flow still finishes.
+  let server: http.Server;
+  let baseUrl: string;
+  let failFirstUploadStart: boolean;
+  let failFirstFinalize: boolean;
+  let failFirstPoll: boolean;
+
+  beforeAll(async () => {
+    server = http.createServer((req, res) => {
+      if (req.url?.startsWith("/upload/v1beta/files") && failFirstUploadStart) {
+        failFirstUploadStart = false;
+        req.socket.destroy();
+        return;
+      }
+      if (req.url === "/upload-session/abc123" && failFirstFinalize) {
+        failFirstFinalize = false;
+        req.socket.destroy();
+        return;
+      }
+      if (req.url?.startsWith("/v1beta/files/abc123") && req.method === "GET" && failFirstPoll) {
+        failFirstPoll = false;
+        req.socket.destroy();
+        return;
+      }
+
+      req.on("data", () => {});
+      req.on("end", () => {
+        if (req.url?.startsWith("/upload/v1beta/files")) {
+          res.writeHead(200, { "x-goog-upload-url": `${baseUrl}/upload-session/abc123`, "content-type": "application/json" });
+          res.end("{}");
+          return;
+        }
+        if (req.url === "/upload-session/abc123") {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ file: { uri: `${baseUrl}/v1beta/files/abc123:download`, name: "files/abc123" } }));
+          return;
+        }
+        if (req.url?.startsWith("/v1beta/files/abc123") && req.method === "GET") {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end(JSON.stringify({ state: "ACTIVE" }));
+          return;
+        }
+        if (req.url?.startsWith("/v1beta/files/abc123") && req.method === "DELETE") {
+          res.writeHead(200, { "content-type": "application/json" });
+          res.end("{}");
+          return;
+        }
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ candidates: [{ content: { parts: [{ text: "survived a transient network blip" }] } }] }));
+      });
+    });
+    await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+    baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+  });
+
+  afterAll(() => {
+    server.close();
+  });
+
+  it("recovers from a connection reset on the upload-start step", async () => {
+    failFirstUploadStart = true;
+    failFirstFinalize = false;
+    failFirstPoll = false;
+    const result = await analyzeVideoViaFilesApi({ apiKey: "k" }, Buffer.from("real bytes"), "video/mp4", "what happens?", "clip.mp4", undefined, baseUrl);
+    expect(result).toEqual({ ok: true, text: "survived a transient network blip" });
+  }, 15_000);
+
+  it("recovers from a connection reset on the finalize-upload step", async () => {
+    failFirstUploadStart = false;
+    failFirstFinalize = true;
+    failFirstPoll = false;
+    const result = await analyzeVideoViaFilesApi({ apiKey: "k" }, Buffer.from("real bytes"), "video/mp4", "what happens?", "clip.mp4", undefined, baseUrl);
+    expect(result).toEqual({ ok: true, text: "survived a transient network blip" });
+  }, 15_000);
+
+  it("recovers from a connection reset on a single file-status poll, without aborting the whole wait", async () => {
+    failFirstUploadStart = false;
+    failFirstFinalize = false;
+    failFirstPoll = true;
+    const result = await analyzeVideoViaFilesApi({ apiKey: "k" }, Buffer.from("real bytes"), "video/mp4", "what happens?", "clip.mp4", undefined, baseUrl);
+    expect(result).toEqual({ ok: true, text: "survived a transient network blip" });
+  }, 15_000);
+});
+
 describe("analyzeVideoConfigFromEnv", () => {
   it("returns undefined when GEMINI_API_KEY is not set", () => {
     expect(analyzeVideoConfigFromEnv({})).toBeUndefined();

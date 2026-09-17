@@ -22,15 +22,19 @@ import { fetchWithRetry } from "../../channels/retry-fetch.js";
 // for this exact use case (start -> get an upload URL back via a real
 // response header -> upload+finalize the bytes -> poll until the file's
 // server-side processing reports ACTIVE -> reference it by file_uri in
-// generateContent -> delete it afterward). This isn't a guess at an
-// undocumented flow: it's Google's own published curl example for
-// uploading a video to Gemini, reproduced faithfully — but still
-// unverified against a real, live Gemini account (none available here),
-// so treat the exact response shapes as "should be right per the docs,"
-// not "confirmed against a real call" the way this project's other
-// third-party integrations were.
+// generateContent -> delete it afterward). Confirmed end to end against
+// a real, live Gemini account (a real ~21MB generated video, forcing
+// this exact path) — both the inline and File API paths returned a real
+// answer, and the uploaded file was confirmed actually deleted
+// afterward. That same real run is also what surfaced two genuine bugs
+// fixed alongside this: DEFAULT_MODEL below had drifted to a
+// since-deprecated model name (Gemini's own API told new callers to
+// migrate off it), and start/finalizeResumableUpload had no retry at
+// all unlike generateContentWithPart's fetchWithRetry — a transient
+// network blip during a real multi-minute upload reliably reproduced
+// the whole flow failing outright before that fix.
 const GEMINI_API_BASE = "https://generativelanguage.googleapis.com";
-const DEFAULT_MODEL = "gemini-2.0-flash";
+const DEFAULT_MODEL = "gemini-3.6-flash";
 const MAX_INLINE_VIDEO_BYTES = 19 * 1024 * 1024;
 // The File API itself allows up to 2GB per file, but this tool reads the
 // whole file into memory (readFile + a base64/Buffer copy at points) —
@@ -140,11 +144,23 @@ export interface UploadedGeminiFile {
 
 export type UploadGeminiFileResult = { ok: true; file: UploadedGeminiFile } | { ok: false; error: string };
 
-/** Step 1 of Google's real resumable-upload protocol: announces the upload (size/mime type) and gets back a one-time upload URL via the X-Goog-Upload-URL response header — not part of the JSON body. */
+/**
+ * Step 1 of Google's real resumable-upload protocol: announces the
+ * upload (size/mime type) and gets back a one-time upload URL via the
+ * X-Goog-Upload-URL response header — not part of the JSON body.
+ *
+ * Uses fetchWithRetry (the same shared network-level retry as
+ * generateContentWithPart below) rather than a bare fetch — confirmed
+ * against a real Gemini account that a large-video upload can take long
+ * enough for a plain transient network blip to otherwise kill the whole
+ * flow immediately, with no chance to recover the way this same file's
+ * generateContentWithPart already could.
+ */
 async function startResumableUpload(config: AnalyzeVideoConfig, sizeBytes: number, mimeType: string, displayName: string, apiBaseUrl: string): Promise<{ ok: true; uploadUrl: string } | { ok: false; error: string }> {
   let response: Response;
+  let bodyText: string;
   try {
-    response = await fetch(`${apiBaseUrl}/upload/v1beta/files?key=${encodeURIComponent(config.apiKey)}`, {
+    ({ response, bodyText } = await fetchWithRetry(`${apiBaseUrl}/upload/v1beta/files?key=${encodeURIComponent(config.apiKey)}`, {
       method: "POST",
       headers: {
         "X-Goog-Upload-Protocol": "resumable",
@@ -154,31 +170,39 @@ async function startResumableUpload(config: AnalyzeVideoConfig, sizeBytes: numbe
         "content-type": "application/json",
       },
       body: JSON.stringify({ file: { display_name: displayName } }),
-    });
+    }));
   } catch (err) {
     return { ok: false, error: `Failed to reach Gemini: ${err instanceof Error ? err.message : String(err)}` };
   }
   const uploadUrl = response.headers.get("x-goog-upload-url");
   if (!response.ok || !uploadUrl) {
-    const text = await response.text().catch(() => "");
-    return { ok: false, error: text.trim() || `Gemini upload-start error (HTTP ${response.status})` };
+    return { ok: false, error: bodyText.trim() || `Gemini upload-start error (HTTP ${response.status})` };
   }
   return { ok: true, uploadUrl };
 }
 
-/** Step 2: uploads the real bytes to the one-time URL from step 1, finalizing in the same request (offset 0, the whole file in one shot — this tool doesn't chunk an upload across multiple requests). */
+/**
+ * Step 2: uploads the real bytes to the one-time URL from step 1,
+ * finalizing in the same request (offset 0, the whole file in one shot
+ * — this tool doesn't chunk an upload across multiple requests). Also
+ * on fetchWithRetry, for the same real reason as startResumableUpload —
+ * sending the same offset-0/finalize request again on a transient
+ * network failure is safe to retry (each attempt re-sends the whole
+ * buffer against the still-open, one-time upload URL from step 1, not a
+ * partial continuation that could double up).
+ */
 async function finalizeResumableUpload(uploadUrl: string, buffer: Buffer): Promise<UploadGeminiFileResult> {
   let response: Response;
+  let bodyText: string;
   try {
-    response = await fetch(uploadUrl, {
+    ({ response, bodyText } = await fetchWithRetry(uploadUrl, {
       method: "POST",
       headers: { "X-Goog-Upload-Command": "upload, finalize", "X-Goog-Upload-Offset": "0", "content-length": String(buffer.length) },
       body: buffer,
-    });
+    }));
   } catch (err) {
     return { ok: false, error: `Failed to reach Gemini: ${err instanceof Error ? err.message : String(err)}` };
   }
-  const bodyText = await response.text();
   let data: (GeminiErrorBody & { file?: { uri?: string; name?: string } }) | undefined;
   try {
     data = JSON.parse(bodyText) as typeof data;
@@ -190,27 +214,42 @@ async function finalizeResumableUpload(uploadUrl: string, buffer: Buffer): Promi
   return { ok: true, file: { uri: data.file.uri, name: data.file.name } };
 }
 
-/** Step 3: a freshly-uploaded video needs server-side processing before it can be referenced in generateContent — polls the file's own state until it's ACTIVE (ready), FAILED (reported as an error), or a real timeout. */
+/**
+ * Step 3: a freshly-uploaded video needs server-side processing before
+ * it can be referenced in generateContent — polls the file's own state
+ * until it's ACTIVE (ready), FAILED (reported as an error), or a real
+ * timeout. A network-level failure on any one poll attempt doesn't abort
+ * the whole wait — it's treated the same as "not ready yet" and the loop
+ * tries again next interval, up to the same overall deadline, since a
+ * transient blip here has no reason to be any more fatal than one on the
+ * next poll a couple seconds later would be.
+ */
 async function waitForFileActive(config: AnalyzeVideoConfig, fileName: string, apiBaseUrl: string): Promise<{ ok: true } | { ok: false; error: string }> {
   const deadline = Date.now() + FILE_PROCESSING_TIMEOUT_MS;
   for (;;) {
-    let response: Response;
-    let bodyText: string;
-    try {
-      response = await fetch(`${apiBaseUrl}/v1beta/${fileName}?key=${encodeURIComponent(config.apiKey)}`);
-      bodyText = await response.text();
-    } catch (err) {
-      return { ok: false, error: `Failed to reach Gemini: ${err instanceof Error ? err.message : String(err)}` };
+    const outcome = await (async (): Promise<{ ok: true; state?: string } | { ok: false; error: string } | { retry: true }> => {
+      let response: Response;
+      let bodyText: string;
+      try {
+        response = await fetch(`${apiBaseUrl}/v1beta/${fileName}?key=${encodeURIComponent(config.apiKey)}`);
+        bodyText = await response.text();
+      } catch {
+        return { retry: true };
+      }
+      let data: (GeminiErrorBody & { state?: string }) | undefined;
+      try {
+        data = JSON.parse(bodyText) as typeof data;
+      } catch {
+        return { ok: false, error: `Gemini returned an unparseable file-status response (HTTP ${response.status}).` };
+      }
+      if (!response.ok) return { ok: false, error: data?.error?.message ?? `Gemini file-status error (HTTP ${response.status})` };
+      return { ok: true, state: data?.state };
+    })();
+    if ("error" in outcome) return outcome;
+    if ("ok" in outcome) {
+      if (outcome.state === "ACTIVE") return { ok: true };
+      if (outcome.state === "FAILED") return { ok: false, error: "Gemini failed to process the uploaded video." };
     }
-    let data: (GeminiErrorBody & { state?: string }) | undefined;
-    try {
-      data = JSON.parse(bodyText) as typeof data;
-    } catch {
-      return { ok: false, error: `Gemini returned an unparseable file-status response (HTTP ${response.status}).` };
-    }
-    if (!response.ok) return { ok: false, error: data?.error?.message ?? `Gemini file-status error (HTTP ${response.status})` };
-    if (data?.state === "ACTIVE") return { ok: true };
-    if (data?.state === "FAILED") return { ok: false, error: "Gemini failed to process the uploaded video." };
     if (Date.now() >= deadline) return { ok: false, error: "Timed out waiting for Gemini to finish processing the uploaded video." };
     await sleep(FILE_PROCESSING_POLL_INTERVAL_MS);
   }
