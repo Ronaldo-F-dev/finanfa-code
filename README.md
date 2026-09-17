@@ -160,6 +160,8 @@ curl -X POST http://localhost:4600/api/auth/login -H 'content-type: application/
 
 A login's session token (30-day expiry, in-memory only — a server restart just means logging in again) authenticates identically to a static token everywhere else in this section. Once logged in, alice can create further accounts (`POST /api/auth/users` with her own token) without needing a shared secret handed to her out of band.
 
+**SSO — log in with Google/Okta/any real OIDC provider**: set `FINANFA_WEB_OIDC_ISSUER`/`FINANFA_WEB_OIDC_CLIENT_ID`/`FINANFA_WEB_OIDC_CLIENT_SECRET`/`FINANFA_WEB_OIDC_REDIRECT_URI` (register the redirect URI as `https://<your-server>/api/auth/oidc/callback` with your provider). A real Authorization Code + PKCE flow: visiting `GET /api/auth/oidc/login` redirects to the provider; after login it redirects back to `/#token=...&user=...` (a URL fragment — never sent to the server, so it can't leak via logs/Referer) with a real session token that authenticates identically to a password login's. Trusts the provider's userinfo endpoint for identity rather than verifying the ID token's JWT signature locally — a real, honest simplification (an attacker without a genuinely valid access token can't get a userinfo response back either way), not a silent gap.
+
 This covers real authentication and per-user session isolation within one web-server process — not a separate control-plane service coordinating multiple downstream agent instances, and not per-user isolation of the underlying project/workspace files themselves (every authenticated user shares the same projects on disk; only conversation history is private).
 
 ### Docker
