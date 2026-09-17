@@ -295,6 +295,17 @@ first tagged release.
   daemon, not a multi-node/multi-host scheduler placing cells across a
   real fleet of machines.
 
+- node-host gains a real known-hosts registry: `register_remote_host`/
+  `list_remote_hosts`/`remove_remote_host`/`check_remote_host_health`
+  (`~/.finanfa-code/remote-hosts.json`) — a persistent, named list of
+  remote machines with a real, live health probe (uptime + disk usage
+  over SSH, reusing `run_remote_command`'s own argv-building/subprocess
+  runner so it's exactly the same real SSH invocation shape, not a
+  second implementation). Still not a deployed agent process on each
+  remote node — health means "can I reach it and run a command right
+  now," checked live each time, not a persistent heartbeat this project
+  receives.
+
 - Claws bundles are now cryptographically signed (Ed25519, a stable
   per-machine identity auto-generated at `~/.finanfa-code/claws-
   identity.json`) — `install_bundle` verifies the signature (catches
