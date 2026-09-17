@@ -11,7 +11,8 @@ import { resolveTrust } from "@finanfa/core/src/core/trust-gate.js";
 import { CommandRegistry } from "@finanfa/core/src/commands/registry.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
-import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool } from "@finanfa/core/src/memory/loader.js";
+import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool, createSearchMemoriesTool } from "@finanfa/core/src/memory/loader.js";
+import { embeddingsConfigFromEnv } from "@finanfa/core/src/core/embeddings.js";
 import { loadSubagentTypes } from "@finanfa/core/src/agents/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { loadScopedInstructions, formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
@@ -158,6 +159,7 @@ async function createAcpSession(cwd: string, cx: { notify: typeof acp.AgentSideC
   if (memories.length > 0) {
     tools.register(createReadMemoryTool(cwd));
     tools.register(findDuplicateMemoriesTool);
+    tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
   }
 
   const projectInstructions = await loadProjectInstructions(cwd);

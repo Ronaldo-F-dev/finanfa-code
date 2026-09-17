@@ -9,7 +9,8 @@ import { resolveTrust } from "../core/trust-gate.js";
 import { CommandRegistry } from "../commands/registry.js";
 import { loadPlugins } from "../plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "../skills/loader.js";
-import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool } from "../memory/loader.js";
+import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool, createSearchMemoriesTool } from "../memory/loader.js";
+import { embeddingsConfigFromEnv } from "../core/embeddings.js";
 import { loadSubagentTypes } from "../agents/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "../core/project-instructions.js";
 import { loadScopedInstructions, formatScopedInstructions } from "../core/scoped-instructions.js";
@@ -100,6 +101,7 @@ export async function runHeadlessTurn(cwd: string, sessionId: string, userText: 
   if (memories.length > 0) {
     tools.register(createReadMemoryTool(cwd));
     tools.register(findDuplicateMemoriesTool);
+    tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
   }
 
   const projectInstructions = await loadProjectInstructions(cwd);

@@ -22,10 +22,12 @@ import {
   writeMemoryTool,
   deleteMemoryTool,
   findDuplicateMemoriesTool,
+  createSearchMemoriesTool,
   writeMemory,
   deleteMemory,
   type MemoryType,
 } from "@finanfa/core/src/memory/loader.js";
+import { embeddingsConfigFromEnv } from "@finanfa/core/src/core/embeddings.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { loadScopedInstructions, formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
@@ -843,6 +845,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
     if (memories.length > 0) {
       tools.register(createReadMemoryTool(CWD));
       tools.register(findDuplicateMemoriesTool);
+      tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
     }
 
     const projectInstructions = await loadProjectInstructions(CWD);
