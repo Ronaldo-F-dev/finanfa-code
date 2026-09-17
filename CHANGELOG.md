@@ -577,6 +577,12 @@ first tagged release.
   specified, both of which differ per region/tenant unlike a fixed API
   host.
 
+- The web UI's one-click MCP connector catalog gains Hostinger's own
+  `hostinger-api-mcp` package as five separate stdio servers — hosting,
+  domains, DNS, billing, reach — each confirmed connecting end to end via
+  a real npx invocation (real MCP initialize handshake, real tool list:
+  73/41/8/9/52 tools respectively).
+
 ### Fixed
 
 - Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)

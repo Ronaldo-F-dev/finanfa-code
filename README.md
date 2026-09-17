@@ -268,6 +268,8 @@ Beyond sharing the JSON directly (a gist, a file attachment), `publish_bundle_to
 
 Stdio servers run as a local process; `http`/`sse` servers go through an OAuth flow on first use if required (`/mcp connect <name>`), with tokens persisted under `~/.finanfa-code/mcp-auth/`. Any server implementing the MCP spec works this way — GitHub, Notion, Gmail, Google Drive, Canva, Supabase, and others have official or community servers.
 
+The web UI's one-click connector catalog (`packages/web-server/src/mcp-catalog.ts`) also ships Hostinger's own `hostinger-api-mcp` package as five separate stdio servers — hosting, domains, DNS, billing, and reach (each its own real npx-launched process, confirmed connecting end to end: 73/41/8/9/52 real tools respectively), alongside GitHub/Notion/Canva/Supabase/Gamma/Vercel.
+
 With a GitHub MCP server connected, the agent can carry an issue through to a PR end to end (read issue → branch → change → test → commit → push → open PR).
 
 ### Vision routing

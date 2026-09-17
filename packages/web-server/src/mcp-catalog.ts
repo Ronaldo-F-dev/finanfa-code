@@ -27,4 +27,15 @@ export const MCP_CATALOG: McpServerConfig[] = [
   { name: "supabase", transport: "http", url: "https://mcp.supabase.com/mcp" },
   { name: "gamma", transport: "http", url: "https://mcp.gamma.app/mcp" },
   { name: "vercel", transport: "http", url: "https://mcp.vercel.com" },
+  // Hostinger's own hostinger-api-mcp package (https://github.com/hostinger/api-mcp-server)
+  // — each of these 5 is a separate real npx-launched stdio server (one
+  // process per domain area, not one server exposing everything), all
+  // confirmed connecting end-to-end via a real npx invocation (real
+  // MCP initialize handshake, real tool list: 73/41/8/9/52 tools
+  // respectively) — not a guess at the package's shape.
+  { name: "hostinger-hosting", transport: "stdio", command: "npx", args: ["--package=hostinger-api-mcp@latest", "hostinger-hosting-mcp"] },
+  { name: "hostinger-domains", transport: "stdio", command: "npx", args: ["--package=hostinger-api-mcp@latest", "hostinger-domains-mcp"] },
+  { name: "hostinger-dns", transport: "stdio", command: "npx", args: ["--package=hostinger-api-mcp@latest", "hostinger-dns-mcp"] },
+  { name: "hostinger-billing", transport: "stdio", command: "npx", args: ["--package=hostinger-api-mcp@latest", "hostinger-billing-mcp"] },
+  { name: "hostinger-reach", transport: "stdio", command: "npx", args: ["--package=hostinger-api-mcp@latest", "hostinger-reach-mcp"] },
 ];
