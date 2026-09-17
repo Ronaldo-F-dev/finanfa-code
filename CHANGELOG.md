@@ -544,6 +544,13 @@ first tagged release.
   Widens the channel-platform gap relative to a comparable project's own
   much larger set of chat integrations.
 
+- Another new channel: LINE (`POST /api/channels/line/webhook`,
+  `send_line_message` tool), via the real Messaging API. Real HMAC-SHA256
+  signature verification (`X-Line-Signature`); outbound replies go
+  through the push endpoint rather than a reply token, since a reply
+  token is one-time-use and expires quickly — too short-lived for a real
+  agent turn that can take a while to produce an answer.
+
 ### Fixed
 
 - Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)
