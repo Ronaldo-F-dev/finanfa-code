@@ -39,6 +39,7 @@ import { createSendSmsMessageTool, smsConfigFromEnv } from "./send-sms-message.j
 import { createReadNotionPageTool, createWriteNotionPageTool, notionConfigFromEnv } from "./notion.js";
 import { createCreateTrelloCardTool, trelloConfigFromEnv } from "./trello.js";
 import { createRunAppleScriptTool } from "./applescript.js";
+import { createGetSpotifyNowPlayingTool, createControlSpotifyPlaybackTool, spotifyConfigFromEnv } from "./spotify.js";
 import { createTranscribeAudioTool, transcribeAudioConfigFromEnv } from "./transcribe-audio.js";
 import { listAvailableModelsTool } from "./list-available-models.js";
 import { createTmuxTools } from "./tmux.js";
@@ -177,6 +178,9 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(createWriteNotionPageTool(notionConfig));
   registry.register(createCreateTrelloCardTool(trelloConfigFromEnv()));
   if (process.platform === "darwin") registry.register(createRunAppleScriptTool());
+  const spotifyConfig = spotifyConfigFromEnv();
+  registry.register(createGetSpotifyNowPlayingTool(spotifyConfig));
+  registry.register(createControlSpotifyPlaybackTool(spotifyConfig));
   registry.register(createTranscribeAudioTool(transcribeAudioConfigFromEnv()));
   registry.register(listAvailableModelsTool);
   if (isCommandAvailable("tmux")) for (const tool of createTmuxTools()) registry.register(tool);
