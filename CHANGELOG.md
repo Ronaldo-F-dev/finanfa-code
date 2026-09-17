@@ -191,6 +191,13 @@ first tagged release.
   ending the whole turn on a text question and waiting for the next
   message.
 
+- A new inbound WhatsApp channel (WhatsApp Cloud API):
+  `GET`/`POST /api/channels/whatsapp/webhook` — Meta's own verification
+  handshake, X-Hub-Signature-256 HMAC verification on every event,
+  dedup on WhatsApp's own message id, one persistent session per sender.
+  Also adds a `send_whatsapp_message` builtin tool. See the README's new
+  WhatsApp setup section.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
