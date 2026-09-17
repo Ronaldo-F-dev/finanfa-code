@@ -265,6 +265,14 @@ first tagged release.
   has no long-running service to run one in, so consolidation here is
   explicitly triggered and acted on by the agent, not automatic.
 
+- `view_video_frames` builtin tool (only registered when `ffmpeg`/
+  `ffprobe` are installed): samples a handful of evenly-spaced still
+  frames from a video file (mp4/mov/webm/...) and hands them to the model
+  the same way `view_image` does — real video-native understanding
+  (motion, timing, audio) is explicitly out of scope; `transcribe_audio`
+  already covers the audio track. Closes part of the "deeper multimodal
+  understanding beyond Whisper" gap relative to a comparable project.
+
 - `run_applescript` builtin tool (macOS only, only registered when
   `process.platform === "darwin"`): runs a real AppleScript via
   `osascript`, the standard mechanism for driving other macOS
