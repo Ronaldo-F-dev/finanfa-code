@@ -36,6 +36,7 @@ import { createSendTelegramMessageTool, telegramConfigFromEnv } from "./send-tel
 import { createSendMatrixMessageTool, matrixConfigFromEnv } from "./send-matrix-message.js";
 import { createSendLineMessageTool, lineConfigFromEnv } from "./send-line-message.js";
 import { createSendFeishuMessageTool, feishuConfigFromEnv } from "./send-feishu-message.js";
+import { createSendTeamsMessageTool, teamsConfigFromEnv } from "./send-teams-message.js";
 import { createSendDiscordMessageTool, discordConfigFromEnv } from "./send-discord-message.js";
 import { createSendWhatsappMessageTool, whatsappConfigFromEnv } from "./send-whatsapp-message.js";
 import { createSendSmsMessageTool, smsConfigFromEnv } from "./send-sms-message.js";
@@ -198,6 +199,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(createSendMatrixMessageTool(matrixConfigFromEnv()));
   registry.register(createSendLineMessageTool(lineConfigFromEnv()));
   registry.register(createSendFeishuMessageTool(feishuConfigFromEnv()));
+  registry.register(createSendTeamsMessageTool(teamsConfigFromEnv()));
   registry.register(createSendDiscordMessageTool(discordConfigFromEnv()));
   registry.register(createSendWhatsappMessageTool(whatsappConfigFromEnv()));
   registry.register(createSendSmsMessageTool(smsConfigFromEnv()));
