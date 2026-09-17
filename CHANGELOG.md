@@ -245,6 +245,13 @@ first tagged release.
   (needs `TRELLO_API_KEY`/`TRELLO_API_TOKEN`) — creates a card on a given
   list. Another of the same productivity-integration gaps.
 
+- Finer-grained permission rules: a `settings.json` rule can now add
+  `cwdPrefix`, scoping it to part of a monorepo (e.g. auto-allow `bash`
+  inside one already-reviewed directory without loosening the default
+  everywhere else) — previously a rule's only granularity was the tool
+  name and its own `riskKey`-derived `keyPrefix`, with no way to scope by
+  where the call actually runs.
+
 ### Fixed
 
 - Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)
