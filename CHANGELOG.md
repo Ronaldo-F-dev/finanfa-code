@@ -295,6 +295,19 @@ first tagged release.
   daemon, not a multi-node/multi-host scheduler placing cells across a
   real fleet of machines.
 
+- Claws bundles are now cryptographically signed (Ed25519, a stable
+  per-machine identity auto-generated at `~/.finanfa-code/claws-
+  identity.json`) — `install_bundle` verifies the signature (catches
+  tampering/corruption in transit) and reports whether this machine has
+  seen that publisher's key before (`~/.finanfa-code/claws-trusted-
+  publishers.json`), plus a real semver-ish comparison against whatever
+  version of that bundle name was last installed into this project
+  (`.finanfa-code/.claws/installed.json`) — new/upgrade/downgrade/
+  reinstall. Closes the "provenance is just an unverified string" half
+  of the Claws gap. Also fixes a real snapshot-id collision: two installs
+  landing in the same millisecond used to silently overwrite each
+  other's rollback snapshot.
+
 - Fleet now supports real Docker resource limits (`memory_limit`/`cpus`),
   a restart policy, a real HEALTHCHECK (reported back as healthy/
   unhealthy in `list_fleet_cells`, no extra polling needed — Docker's own
