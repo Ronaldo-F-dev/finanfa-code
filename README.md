@@ -199,6 +199,15 @@ Ctrl+C persists the session and closes connections cleanly before exit.
 - `mcp.json` — `{ "servers": [...] }`, one entry per MCP server (stdio or http/sse).
 - `plugins/<name>/index.js` — exports `registerTools`/`registerCommands`. See [docs/plugins.md](docs/plugins.md) for the full contract.
 - `finanfa.md` (project root) — free-form project instructions, folded into the system prompt (the `CLAUDE.md`/`AGENTS.md` equivalent).
+- `instructions/*.md` — path-scoped project instructions, for conventions that only apply to one part of a monorepo (frontend vs. backend, tests vs. everything else) instead of competing for attention in one `finanfa.md`. Frontmatter `description` (optional) and `applyTo` (a glob, or a list of globs — omit it for a note that's always relevant regardless of path). Every one of these is included in the system prompt up front, labeled with its own globs — unlike an IDE that only shows instructions for the file you have open, this project has no "currently open file" to key off, so the model is expected to apply each one only when it's actually working on a matching path:
+  ```markdown
+  ---
+  description: React conventions
+  applyTo: "packages/web-client/**/*.tsx"
+  ---
+
+  Function components only, never class components. Co-locate a component's styles in the same file.
+  ```
 - `finanfa-design.md` (project root) — design contract for `create_artifact`, replaces the built-in default when present.
 
 Skills, memory, commands, and agents each have a global counterpart under `~/.finanfa-code/` (merged with the project-local ones; project wins on a name collision).
