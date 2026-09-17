@@ -66,6 +66,11 @@ first tagged release.
   5xx, instead of failing permanently on the first transient error —
   a confirmed gap relative to every channel plugin in a comparable
   project we audited against.
+- README rewritten as a lean, tutorial-first quickstart (clone → install
+  → configure a model, local or remote, or Docker → run); the detailed
+  per-topic content it used to carry inline now lives in dedicated docs
+  under `docs/` (providers, Tool Search, the full tool catalog, channels,
+  MCP, project configuration, deployment, editor integration, security).
 
 - `finanfa --acp`'s permission requests now carry the real tool_use id
   (the same one the `tool_call` notification for that call uses), instead
