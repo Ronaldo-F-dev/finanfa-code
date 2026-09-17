@@ -53,6 +53,7 @@ import {
 import { readNotebookTool, editNotebookTool } from "./notebook.js";
 import { checkPythonTypesTool } from "./check-python-types.js";
 import { createDebugPythonTracebackTool } from "./debug-python.js";
+import { askUserTool } from "./ask-user.js";
 import { checkTypescriptTypesTool } from "./check-typescript-types.js";
 import { createDebugNodeTracebackTool } from "./debug-node.js";
 import { lintPythonTool } from "./lint-python.js";
@@ -181,6 +182,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(editNotebookTool);
   registry.register(checkPythonTypesTool);
   registry.register(createDebugPythonTracebackTool());
+  registry.register(askUserTool);
   registry.register(checkTypescriptTypesTool);
   registry.register(createDebugNodeTracebackTool());
   registry.register(lintPythonTool);
