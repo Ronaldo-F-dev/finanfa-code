@@ -44,6 +44,8 @@ import { createGetSmartHomeStateTool, createControlSmartHomeDeviceTool, homeAssi
 import { createRunRemoteCommandTool } from "./remote-exec.js";
 import { createRegisterRemoteHostTool, createRemoveRemoteHostTool, createListRemoteHostsTool, createCheckRemoteHostHealthTool } from "./remote-hosts-tools.js";
 import { exportBundleTool, installBundleTool, listBundleSnapshotsTool, rollbackBundleTool } from "./claw-bundle-tools.js";
+import { createPublishBundleToRegistryTool, createListRegistryBundlesTool, createListRegistryBundleVersionsTool, createInstallBundleFromRegistryTool } from "./claws-registry-tools.js";
+import { registryConfigFromEnv } from "../../core/claws-registry.js";
 import { createFleetCellTool, listFleetCellsTool, stopFleetCellTool, removeFleetCellTool, createFleetNetworkTool, removeFleetNetworkTool, registerFleetHostTool, removeFleetHostTool, listFleetHostsTool } from "./fleet-tools.js";
 import { viewVideoFramesTool } from "./view-video-frames.js";
 import { createTranscribeAudioTool, transcribeAudioConfigFromEnv } from "./transcribe-audio.js";
@@ -215,6 +217,11 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(installBundleTool);
   registry.register(listBundleSnapshotsTool);
   registry.register(rollbackBundleTool);
+  const clawsRegistryConfig = registryConfigFromEnv();
+  registry.register(createPublishBundleToRegistryTool(clawsRegistryConfig));
+  registry.register(createListRegistryBundlesTool(clawsRegistryConfig));
+  registry.register(createListRegistryBundleVersionsTool(clawsRegistryConfig));
+  registry.register(createInstallBundleFromRegistryTool(clawsRegistryConfig));
   if (isCommandAvailable("ffmpeg") && isCommandAvailable("ffprobe")) registry.register(viewVideoFramesTool);
   registry.register(createAnalyzeVideoTool(analyzeVideoConfigFromEnv()));
   registry.register(createTranscribeAudioTool(transcribeAudioConfigFromEnv()));
