@@ -163,6 +163,16 @@ first tagged release.
   debugging, run `python3 -m pdb`/`node inspect` inside a tmux session
   instead (see the new tmux tools above).
 
+- `web_fetch` (riskLevel "safe" — no human confirmation) now runs every
+  URL, and every redirect hop it follows, through a real SSRF guard: only
+  http/https, no embedded credentials, and the actual resolved IP (not
+  just the hostname string, which DNS rebinding could otherwise get
+  around) must be a public address — blocks cloud metadata endpoints
+  (169.254.169.254) and other internal/private targets a page's own
+  content or a search result could otherwise steer the agent into
+  fetching. Deliberately not applied to `http_request` (riskLevel "ask",
+  and its own documented job is testing a locally-running API).
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
