@@ -245,6 +245,17 @@ first tagged release.
   (needs `TRELLO_API_KEY`/`TRELLO_API_TOKEN`) — creates a card on a given
   list. Another of the same productivity-integration gaps.
 
+- `delete_memory` builtin tool (a memory note could previously only be
+  written/overwritten by the agent, never removed by it — only a human
+  via the web UI's Memory panel had a delete path) and
+  `find_duplicate_memories`: scans every saved note for likely
+  near-duplicates (the same pairwise check `write_memory` already ran
+  against a single new note, extended over the whole store) so they can
+  be reviewed and merged. A pragmatic, tool-driven stand-in for a
+  persistent background "dreaming"/consolidation process — this project
+  has no long-running service to run one in, so consolidation here is
+  explicitly triggered and acted on by the agent, not automatic.
+
 - Finer-grained permission rules: a `settings.json` rule can now add
   `cwdPrefix`, scoping it to part of a monorepo (e.g. auto-allow `bash`
   inside one already-reviewed directory without loosening the default
