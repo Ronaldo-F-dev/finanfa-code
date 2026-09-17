@@ -12,9 +12,11 @@ export const exportBundleTool: ToolDefinition<ExportBundleInput> = {
   description:
     "Export this project's finanfa-code configuration (permission rules/hooks, MCP servers, memory, skills, " +
     "commands, agent types, path-scoped instructions, finanfa.md/finanfa-design.md — everything under " +
-    "`.finanfa-code/` plus those two root files) as one shareable, versioned bundle (JSON). Hand the output to " +
-    "someone else to set up an identical project configuration via install_bundle, or keep it as a labeled " +
-    "checkpoint of the current setup.",
+    "`.finanfa-code/` plus those two root files) as one shareable, versioned bundle (JSON), cryptographically " +
+    "signed with this machine's own persistent identity (generated automatically the first time) so " +
+    "install_bundle elsewhere can verify it hasn't been tampered with and recognize repeat installs from the " +
+    "same publisher. Hand the output to someone else to set up an identical project configuration via " +
+    "install_bundle, or keep it as a labeled checkpoint of the current setup.",
   riskLevel: "safe",
   inputSchema: {
     type: "object",
@@ -45,9 +47,13 @@ export const installBundleTool: ToolDefinition<InstallBundleInput> = {
     "settings.json/memory/skills/commands/agents/instructions/mcp.json/finanfa.md files into `.finanfa-code/` " +
     "and the project root, OVERWRITING any existing file at the same path. The exact previous content of every " +
     "file it touches is snapshotted first (see list_bundle_snapshots/rollback_bundle) so this can be undone. " +
+    "Verifies the bundle's signature (if it has one) and reports whether this machine has seen that publisher " +
+    "before, plus whether this is a new/upgrade/downgrade/reinstall relative to whatever version of this " +
+    "bundle name was last installed here. " +
     "IMPORTANT: a bundle's settings.json can include PreToolUse/PostToolUse/UserPromptSubmit hooks — arbitrary " +
-    "shell commands that run automatically once this project is trusted. Only install a bundle from a source " +
-    "the user actually trusts, and confirm with them first.",
+    "shell commands that run automatically once this project is trusted. A valid signature only proves the " +
+    "bundle wasn't tampered with in transit, NOT that its content is safe — only install one from a source the " +
+    "user actually trusts, and confirm with them first.",
   riskLevel: "dangerous",
   inputSchema: {
     type: "object",
@@ -73,8 +79,25 @@ export const installBundleTool: ToolDefinition<InstallBundleInput> = {
       return { content: "Not a valid bundle — missing manifest.name or files.", isError: true };
     }
     const result = await installClawBundle(ctx.cwd, bundle);
+
+    const signatureNote = !result.signatureStatus.signed
+      ? "unsigned bundle — no publisher identity to verify"
+      : !result.signatureStatus.valid
+        ? "SIGNATURE DID NOT VERIFY — this bundle's content doesn't match its own signature (tampered, or corrupted in transit)"
+        : `signature verified (publisher ${result.signatureStatus.fingerprint}${result.signatureStatus.knownPublisher ? ", a publisher this machine has seen before" : ", first time seeing this publisher"})`;
+    const versionNote =
+      result.versionChange === "new"
+        ? "first time installing this bundle name here"
+        : result.versionChange === "same"
+          ? `reinstalling the same version (${result.previousVersion})`
+          : result.versionChange === "upgrade"
+            ? `upgrading from ${result.previousVersion} to ${bundle.manifest.version}`
+            : `DOWNGRADING from ${result.previousVersion} to ${bundle.manifest.version}`;
+
     return {
-      content: `Installed "${bundle.manifest.name}@${bundle.manifest.version}" — ${result.filesWritten.length} file(s) written. Snapshot "${result.snapshotId}" saved beforehand — use rollback_bundle to undo.`,
+      content:
+        `Installed "${bundle.manifest.name}@${bundle.manifest.version}" — ${result.filesWritten.length} file(s) written (${versionNote}). ${signatureNote}. ` +
+        `Snapshot "${result.snapshotId}" saved beforehand — use rollback_bundle to undo.`,
       isError: false,
     };
   },

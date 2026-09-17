@@ -7,14 +7,24 @@ import type { ClawBundle } from "../../src/core/claw-bundle.js";
 
 describe("bundle tools (export_bundle/install_bundle/list_bundle_snapshots/rollback_bundle)", () => {
   let dir: string;
+  let homeDir: string;
+  let originalHome: string | undefined;
   const ctx = () => ({ cwd: dir, sessionId: "s", signal: new AbortController().signal });
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(tmpdir(), "finanfa-claw-bundle-tools-"));
+    // export_bundle now signs with this machine's own persistent identity
+    // (~/.finanfa-code/claws-identity.json) — isolate HOME so tests don't
+    // read/write the real developer's own identity/trust-store files.
+    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-claw-bundle-tools-home-"));
+    originalHome = process.env.HOME;
+    process.env.HOME = homeDir;
   });
 
   afterEach(async () => {
+    process.env.HOME = originalHome;
     await rm(dir, { recursive: true, force: true });
+    await rm(homeDir, { recursive: true, force: true });
   });
 
   it("export_bundle produces real bundle JSON with the given name/version and this project's actual files", async () => {
