@@ -147,6 +147,19 @@ npm run dev:web-server
 
 Every `/api/*` request then needs `Authorization: Bearer <token>` (inbound channel webhooks are unaffected — they have their own signature verification instead); the WebSocket connection needs a `?token=` query param. A session created under one user's token is invisible to (and can't be resumed or deleted by) another user's — `GET /api/sessions` only lists your own, `DELETE /api/sessions/:id` 403s on someone else's, and resuming someone else's session over WebSocket closes the connection instead. A session with no owner recorded (predates this feature, or was created by the CLI/VS Code/ACP, which have no such concept) is unclaimed — the first user to resume it adopts it.
 
+**Real accounts instead of (or alongside) shared static tokens**: set `FINANFA_WEB_ACCOUNTS=1` to enable real, per-login accounts with hashed passwords (scrypt, random salt per password — never the plain password — persisted to `~/.finanfa-code/web-users.json`), independent of `FINANFA_WEB_USERS` (either can be used alone, or both together):
+
+```bash
+export FINANFA_WEB_ACCOUNTS=1
+npm run dev:web-server
+# first account ever needs no auth to create (bootstrap) — every one after that does:
+curl -X POST http://localhost:4600/api/auth/users -H 'content-type: application/json' -d '{"username":"alice","password":"a-real-password"}'
+curl -X POST http://localhost:4600/api/auth/login -H 'content-type: application/json' -d '{"username":"alice","password":"a-real-password"}'
+# -> {"token": "...", "user": "alice"} — use that token exactly like a static FINANFA_WEB_USERS one
+```
+
+A login's session token (30-day expiry, in-memory only — a server restart just means logging in again) authenticates identically to a static token everywhere else in this section. Once logged in, alice can create further accounts (`POST /api/auth/users` with her own token) without needing a shared secret handed to her out of band.
+
 This covers real authentication and per-user session isolation within one web-server process — not a separate control-plane service coordinating multiple downstream agent instances, and not per-user isolation of the underlying project/workspace files themselves (every authenticated user shares the same projects on disk; only conversation history is private).
 
 ### Docker
