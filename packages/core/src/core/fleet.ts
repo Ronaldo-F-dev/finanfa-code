@@ -132,6 +132,12 @@ function parseHealthy(status: string): boolean | undefined {
   return undefined;
 }
 
+/** A real, cheap reachability check for a Docker daemon (local or remote) — distinguishes "this host has zero cells" from "this host can't be reached at all," which listFleetCells's own always-succeeds-with-an-empty-array-on-error return shape can't (used by fleet-hosts.ts's scheduler to exclude an unreachable host rather than treating it as idle). */
+export async function pingDockerHost(target: DockerTarget = {}): Promise<boolean> {
+  const result = await runDocker(["version", "--format", "{{.Server.Version}}"], target, 10_000);
+  return !result.isError;
+}
+
 /** Every cell this module has ever created that still exists (running or stopped) on the given Docker daemon — never any other container, thanks to CONTAINER_PREFIX. */
 export async function listFleetCells(target: DockerTarget = {}): Promise<FleetCellInfo[]> {
   const result = await runDocker(["ps", "-a", "--filter", `name=^/${CONTAINER_PREFIX}`, "--format", "{{.ID}}\t{{.Names}}\t{{.Status}}"], target);
