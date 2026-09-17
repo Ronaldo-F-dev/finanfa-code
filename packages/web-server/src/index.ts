@@ -70,6 +70,8 @@ import { registerWhatsappChannelRoutes } from "./channels-whatsapp.js";
 import { registerSmsChannelRoutes } from "./channels-sms.js";
 import { registerVoiceChannelRoutes } from "./channels-voice.js";
 import { parseWebUsers, authenticateBearerToken, authenticateQueryToken } from "./auth.js";
+import { SessionTokenStore } from "./session-token-store.js";
+import { loadUserStore, createUser, verifyUserPassword } from "./user-store.js";
 
 // The workspace the "default" project points at — the same "cwd" concept as
 // running the CLI from that directory, and the only workspace that existed
@@ -87,8 +89,19 @@ const WEB_MAX_AUTO_CONTINUE_TURNS = 5;
 
 const DEFAULT_CWD = process.env.FINANFA_WEB_CWD ?? process.cwd();
 const PORT = Number(process.env.PORT ?? 4600);
-/** Undefined means auth is off — every request/connection is treated as an unauthenticated single shared user, exactly as before this feature existed. See auth.ts. */
+/** Undefined means no static shared-secret tokens are configured — see auth.ts. Real per-login accounts (GATEWAY_ENABLED, below) work independently of this. */
 const WEB_USERS = parseWebUsers();
+/** In-memory session tokens issued by POST /api/auth/login — see session-token-store.ts. Always constructed (cheap, no I/O); only ever consulted when GATEWAY_ENABLED. */
+const AUTH_SESSIONS = new SessionTokenStore();
+/**
+ * Gateway auth is on when EITHER a static FINANFA_WEB_USERS token map is
+ * configured, OR FINANFA_WEB_ACCOUNTS=1 opts into real per-login accounts
+ * (see user-store.ts) with no static tokens at all — the two are
+ * independent and can be combined. Off (both unset) means every request/
+ * connection is treated as an unauthenticated single shared user, exactly
+ * as before this feature existed.
+ */
+const GATEWAY_ENABLED = Boolean(WEB_USERS) || process.env.FINANFA_WEB_ACCOUNTS === "1";
 
 const app = express();
 app.use(
@@ -185,15 +198,61 @@ function buildProvider(family: ProviderFamily, config: FinanfaConfig): LlmProvid
   return new OpenAiCompatibleProvider({ baseUrl, apiKey, apiKeys });
 }
 
+// Real per-login accounts (hashed passwords, see user-store.ts) — routes
+// registered BEFORE the blanket auth gate below so logging in doesn't
+// itself require a token, same reasoning as the channel webhooks above.
+// Both routes work whether GATEWAY_ENABLED is on or off (creating/
+// logging into an account is harmless either way), but only matter once
+// it's on — a login's session token is otherwise never checked by
+// anything.
+app.post("/api/auth/login", async (req, res) => {
+  const { username, password } = req.body as { username?: string; password?: string };
+  if (!username || !password) {
+    res.status(400).json({ error: "username and password are both required." });
+    return;
+  }
+  if (!(await verifyUserPassword(username, password))) {
+    res.status(401).json({ error: "Invalid username or password." });
+    return;
+  }
+  res.json({ token: AUTH_SESSIONS.issue(username), user: username });
+});
+
+app.post("/api/auth/users", async (req, res) => {
+  const { username, password } = req.body as { username?: string; password?: string };
+  if (!username || !password) {
+    res.status(400).json({ error: "username and password are both required." });
+    return;
+  }
+  // Bootstrap: creating the very first account ever needs no auth (there's
+  // no way to have a valid token yet) — every account after that requires
+  // one, so a stranger who finds this server can't just add themselves.
+  const existingUsers = await loadUserStore();
+  if (Object.keys(existingUsers).length > 0) {
+    const user = authenticateBearerToken(WEB_USERS ?? new Map(), AUTH_SESSIONS, req.header("authorization"));
+    if (!user) {
+      res.status(401).json({ error: "Creating an account requires being logged in as an existing one, once at least one exists." });
+      return;
+    }
+  }
+  const result = await createUser(username, password);
+  if (!result.ok) {
+    res.status(400).json({ error: result.error });
+    return;
+  }
+  res.json({ ok: true });
+});
+
 // Gateway auth gate — every /api/* route registered from here on requires
-// a valid token when FINANFA_WEB_USERS is configured (channel webhooks
-// above have their own signature verification instead, and are never
-// meant to carry one of these tokens, so they're registered before this
-// middleware and never reach it). A no-op when WEB_USERS is undefined.
-if (WEB_USERS) {
-  const users = WEB_USERS;
+// a valid token when GATEWAY_ENABLED (channel webhooks above have their
+// own signature verification instead, and are never meant to carry one of
+// these tokens, so they're registered before this middleware and never
+// reach it; /api/auth/* above is also deliberately before this gate). A
+// no-op when GATEWAY_ENABLED is false.
+if (GATEWAY_ENABLED) {
+  const users = WEB_USERS ?? new Map<string, string>();
   app.use("/api", (req, res, next) => {
-    const user = authenticateBearerToken(users, req.header("authorization"));
+    const user = authenticateBearerToken(users, AUTH_SESSIONS, req.header("authorization"));
     if (!user) {
       res.status(401).json({ error: "Missing or invalid Authorization: Bearer <token>." });
       return;
@@ -393,13 +452,13 @@ app.get("/api/sessions", async (req, res) => {
   // this feature existed. Auth on: only this user's own sessions, plus any
   // legacy/ownerless one (predates this field, or was created by a CLI/VS
   // Code/ACP session sharing the same project) — never another user's.
-  const visible = WEB_USERS ? sessions.filter((s) => !s.ownerUser || s.ownerUser === req.user) : sessions;
+  const visible = GATEWAY_ENABLED ? sessions.filter((s) => !s.ownerUser || s.ownerUser === req.user) : sessions;
   res.json({ sessions: visible.map((s) => ({ id: s.id, title: s.title, mtime: s.mtime })) });
 });
 
 app.delete("/api/sessions/:id", async (req, res) => {
   const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
-  if (WEB_USERS) {
+  if (GATEWAY_ENABLED) {
     const owner = await AgentSession.ownerOf(cwd, req.params.id);
     if (owner && owner !== req.user) {
       res.status(403).json({ error: "This session belongs to a different user." });
@@ -661,9 +720,9 @@ const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
 
 wss.on("connection", (ws: WebSocket, req) => {
   const url = req.url ?? "";
-  if (WEB_USERS) {
+  if (GATEWAY_ENABLED) {
     const token = new URL(url, "http://localhost").searchParams.get("token");
-    const user = authenticateQueryToken(WEB_USERS, token);
+    const user = authenticateQueryToken(WEB_USERS ?? new Map(), AUTH_SESSIONS, token);
     if (!user) {
       ws.close(4001, "Missing or invalid ?token=");
       return;
@@ -750,7 +809,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
         // history to another. A session with no owner recorded yet (predates
         // this field, or was created by a non-web entry point sharing this
         // project) is treated as unclaimed — resuming it adopts it below.
-        if (WEB_USERS && session.ownerUser && session.ownerUser !== user) {
+        if (GATEWAY_ENABLED && session.ownerUser && session.ownerUser !== user) {
           adapter.writeError(`Session "${requestedSessionId}" belongs to a different user.`);
           ws.close(4003, "Session belongs to a different user");
           return;
@@ -764,7 +823,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
     } else {
       session = new AgentSession({ cwd: CWD, model: requestedModel ?? defaultModel, systemPrompt });
     }
-    if (WEB_USERS) session.ownerUser = user;
+    if (GATEWAY_ENABLED) session.ownerUser = user;
     if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
     const model = session.model;
 

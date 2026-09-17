@@ -40,12 +40,27 @@ export function parseWebUsers(env: NodeJS.ProcessEnv = process.env): Map<string,
   return byToken.size > 0 ? byToken : undefined;
 }
 
-export function authenticateBearerToken(users: Map<string, string>, authorizationHeader: string | undefined): string | undefined {
-  if (!authorizationHeader?.startsWith("Bearer ")) return undefined;
-  return users.get(authorizationHeader.slice("Bearer ".length));
+import type { SessionTokenStore } from "./session-token-store.js";
+
+/**
+ * A presented token is checked against BOTH sources: the static
+ * FINANFA_WEB_USERS map (a fixed, operator-configured shared secret —
+ * simple, scriptable, no login flow) and real per-login session tokens
+ * (see session-token-store.ts, issued by POST /api/auth/login against a
+ * real hashed-password account — see user-store.ts). Either kind
+ * authenticates identically from here on; nothing downstream needs to
+ * know which one it was.
+ */
+export function authenticateToken(users: Map<string, string>, sessions: SessionTokenStore, token: string | undefined): string | undefined {
+  if (!token) return undefined;
+  return users.get(token) ?? sessions.validate(token);
 }
 
-export function authenticateQueryToken(users: Map<string, string>, token: string | null): string | undefined {
-  if (!token) return undefined;
-  return users.get(token);
+export function authenticateBearerToken(users: Map<string, string>, sessions: SessionTokenStore, authorizationHeader: string | undefined): string | undefined {
+  if (!authorizationHeader?.startsWith("Bearer ")) return undefined;
+  return authenticateToken(users, sessions, authorizationHeader.slice("Bearer ".length));
+}
+
+export function authenticateQueryToken(users: Map<string, string>, sessions: SessionTokenStore, token: string | null): string | undefined {
+  return authenticateToken(users, sessions, token ?? undefined);
 }
