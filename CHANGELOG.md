@@ -265,6 +265,18 @@ first tagged release.
   has no long-running service to run one in, so consolidation here is
   explicitly triggered and acted on by the agent, not automatic.
 
+- "Claws": `export_bundle`/`install_bundle`/`list_bundle_snapshots`/
+  `rollback_bundle` builtin tools — package a project's whole
+  finanfa-code configuration (permission rules/hooks, MCP servers,
+  memory, skills, commands, agent types, instructions, finanfa.md/
+  finanfa-design.md) into one shareable, versioned JSON bundle, with
+  provenance and rollback (every file an install touches is snapshotted
+  first). Closes the versioned-bundle gap relative to a comparable
+  project — deliberately scoped to the bundle format and local install/
+  rollback mechanism, not a hosted registry to discover bundles others
+  published (that's a separate, much larger gap — running a real
+  multi-tenant discovery service — genuinely out of scope here).
+
 - `run_remote_command` builtin tool (only registered when `ssh` is
   installed): runs a command on a separate machine over the user's own
   already-configured SSH (host aliases/keys/agent from their real
