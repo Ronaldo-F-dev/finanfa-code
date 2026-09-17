@@ -241,6 +241,10 @@ first tagged release.
   integrations (Notion/Trello/Spotify/...) flagged as a gap relative to a
   comparable project we audited against.
 
+- `create_trello_card` builtin tool: a real Trello REST API connector
+  (needs `TRELLO_API_KEY`/`TRELLO_API_TOKEN`) — creates a card on a given
+  list. Another of the same productivity-integration gaps.
+
 ### Fixed
 
 - Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)
