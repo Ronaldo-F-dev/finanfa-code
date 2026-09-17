@@ -12,6 +12,11 @@
 const args = process.argv.slice(2);
 const command = args[args.length - 1];
 
+if (process.env.FAKE_SSH_FAIL === "1") {
+  console.error("ssh: connect to host unreachable-host port 22: Operation timed out");
+  process.exit(255);
+}
+
 if (command === "whoami") {
   console.log(`args=${JSON.stringify(args)}`);
   process.exit(0);

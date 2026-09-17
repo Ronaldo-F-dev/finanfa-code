@@ -46,6 +46,23 @@ export function runSsh(binary: string, args: string[], timeoutMs: number): Promi
 
 const DEFAULT_TIMEOUT_MS = 60_000;
 
+export interface SshTarget {
+  host: string;
+  command: string;
+  user?: string;
+  port?: number;
+  identityFile?: string;
+}
+
+/** Shared by run_remote_command and remote-hosts.ts's health check — the exact same real BatchMode/target/command argv shape either way. */
+export function buildSshArgs(target: SshTarget): string[] {
+  const args = ["-o", "BatchMode=yes"];
+  if (target.port) args.push("-p", String(target.port));
+  if (target.identityFile) args.push("-i", target.identityFile);
+  args.push(target.user ? `${target.user}@${target.host}` : target.host, target.command);
+  return args;
+}
+
 export interface RunRemoteCommandToolOptions {
   binary?: string;
 }
@@ -86,11 +103,7 @@ export function createRunRemoteCommandTool(options: RunRemoteCommandToolOptions 
     riskKey: (input) => `remote:${input.host}`,
     describeCall: (input) => `ssh ${input.user ? `${input.user}@` : ""}${input.host}: ${input.command}`,
     async handler(input) {
-      const args = ["-o", "BatchMode=yes"];
-      if (input.port) args.push("-p", String(input.port));
-      if (input.identity_file) args.push("-i", input.identity_file);
-      args.push(input.user ? `${input.user}@${input.host}` : input.host, input.command);
-
+      const args = buildSshArgs({ host: input.host, command: input.command, user: input.user, port: input.port, identityFile: input.identity_file });
       const result = await runSsh(binary, args, input.timeout_ms ?? DEFAULT_TIMEOUT_MS);
       const header = result.isError ? "(failed)\n" : "(exit code 0)\n";
       const content = `${header}--- stdout ---\n${result.stdout}\n--- stderr ---\n${result.stderr}`;
