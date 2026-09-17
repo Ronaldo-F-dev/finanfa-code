@@ -28,6 +28,7 @@ import { createContainerTools } from "./containers.js";
 import { createRecallSessionsTool } from "./recall-sessions.js";
 import { embeddingsConfigFromEnv } from "../../core/embeddings.js";
 import { readTracesTool } from "./read-traces.js";
+import { readAuditLogTool } from "./read-audit-log.js";
 import { createSchedulerTools } from "./scheduler.js";
 import { createSendEmailTool, emailConfigFromEnv } from "./send-email.js";
 import { createSendSlackMessageTool, slackConfigFromEnv } from "./send-slack-message.js";
@@ -160,6 +161,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   for (const tool of createGpioTools(new GpioManager())) registry.register(tool);
   registry.register(createRecallSessionsTool(embeddingsConfigFromEnv()));
   registry.register(readTracesTool);
+  registry.register(readAuditLogTool);
   for (const tool of createSchedulerTools()) registry.register(tool);
   registry.register(createSendEmailTool(emailConfigFromEnv()));
   registry.register(createSendSlackMessageTool(slackConfigFromEnv()));
