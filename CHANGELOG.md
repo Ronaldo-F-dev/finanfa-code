@@ -376,6 +376,19 @@ first tagged release.
   Closes the "real user accounts, not a shared secret" half of the
   Gateway gap.
 
+- Fleet gains a real multi-host scheduler: `register_fleet_host`/
+  `list_fleet_hosts`/`remove_fleet_host` maintain a persistent pool of
+  Docker hosts (`~/.finanfa-code/fleet-hosts.json`, local or remote via
+  a real `DOCKER_HOST` value); `create_fleet_cell` now auto-schedules
+  onto whichever registered, reachable host currently has the fewest
+  running cells (a real, live `docker ps`/`docker version` check per
+  host at schedule time) when no explicit `host` is given, falling back
+  to the local daemon exactly as before when no hosts are registered at
+  all. Closes the cross-host scheduling/placement half of the Fleet
+  gap — still live-load placement only, not bin-packing by actual
+  CPU/memory telemetry, live migration of an already-running cell, or a
+  persistent scheduling daemon.
+
 - "Gateway": opt-in multi-user authentication for the web server
   (`FINANFA_WEB_USERS="alice:token1,bob:token2"`) — a Bearer token on
   every `/api/*` request (channel webhooks keep their own signature
