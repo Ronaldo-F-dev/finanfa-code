@@ -28,6 +28,17 @@ export function App({
     };
   }, [store]);
 
+  // Ticks the elapsed-time display on the busy spinner once a second — the
+  // store itself only emits "change" when something actually happens
+  // (a delta, a tool call starting), so without this a long silent stretch
+  // (a slow local model composing a big response) renders the exact same
+  // "thinking..." forever, indistinguishable from a hung process.
+  useEffect(() => {
+    if (!store.busy) return;
+    const interval = setInterval(() => forceRender((n) => n + 1), 1000);
+    return () => clearInterval(interval);
+  }, [store.busy]);
+
   const isChatInput = (store.prompt?.kind ?? "input") === "input";
   const suggestions = useMemo(() => {
     if (!isChatInput || !input.startsWith("/")) return [];
@@ -84,6 +95,7 @@ export function App({
         <Text color="cyan" bold>
           <Spinner type="dots" />
           {" "}{store.busyLabel ?? "working"}...
+          {store.busySince !== undefined && ` ${Math.floor((Date.now() - store.busySince) / 1000)}s`}
         </Text>
       )}
 

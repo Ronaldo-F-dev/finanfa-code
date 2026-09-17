@@ -10,6 +10,10 @@ first tagged release.
 
 ### Added
 
+- The Ink UI's busy spinner ("thinking...", "running bash...") now shows
+  elapsed seconds — a real reported confusion: a slow local model produced
+  no visible output for several minutes, indistinguishable from a hung
+  process.
 - A model-not-found (404) error against a local OpenAI-compatible server
   (Ollama, LM Studio, MLX, vLLM, ...) now fetches that same server's own
   `/models` and suggests the real model names it reports, instead of a

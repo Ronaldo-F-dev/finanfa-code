@@ -221,6 +221,24 @@ describe("Ink App", () => {
     expect(lastFrame()).toContain("thinking...");
   });
 
+  it(
+    "shows elapsed time on the busy indicator — real reported confusion: a slow local model produced " +
+      "no visible output for minutes, indistinguishable from a hung process",
+    () => {
+      const store = new UiStore();
+      store.setBusy(true, "thinking");
+      // setBusy stamps busySince from the real clock — backdate it directly
+      // rather than sleeping the test for real seconds.
+      store.busySince = Date.now() - 65_000;
+
+      const { lastFrame } = render(<App store={store} onSubmit={vi.fn()} />);
+      const frame = lastFrame();
+
+      expect(frame).toContain("thinking...");
+      expect(frame).toMatch(/thinking\.\.\. 6[0-9]s/);
+    },
+  );
+
   it("hides the busy indicator once work finishes", () => {
     const store = new UiStore();
     store.setBusy(true, "running bash");

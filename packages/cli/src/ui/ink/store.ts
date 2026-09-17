@@ -23,6 +23,12 @@ export class UiStore extends EventEmitter {
   commands: CommandInfo[] = [];
   busy = false;
   busyLabel: string | undefined;
+  // Set each time busy flips to true — lets the UI show elapsed time on the
+  // spinner (e.g. "thinking... 47s") instead of a bare label that looks
+  // identical whether it's been running for 2 seconds or 10 minutes. Real
+  // reported confusion: a slow local model produced no visible output for
+  // several minutes, indistinguishable from a hung process.
+  busySince: number | undefined;
 
   pushLog(item: LogItem): void {
     this.log = [...this.log, item];
@@ -59,6 +65,7 @@ export class UiStore extends EventEmitter {
   setBusy(busy: boolean, label?: string): void {
     this.busy = busy;
     this.busyLabel = label;
+    this.busySince = busy ? Date.now() : undefined;
     this.emit("change");
   }
 }
