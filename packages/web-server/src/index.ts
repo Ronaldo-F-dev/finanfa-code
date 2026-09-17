@@ -70,7 +70,7 @@ import { registerWhatsappChannelRoutes } from "./channels-whatsapp.js";
 import { registerSmsChannelRoutes } from "./channels-sms.js";
 import { registerVoiceChannelRoutes } from "./channels-voice.js";
 import { parseWebUsers, authenticateBearerToken, authenticateQueryToken } from "./auth.js";
-import { SessionTokenStore } from "./session-token-store.js";
+import { SessionTokenStore, defaultSessionStorePath } from "./session-token-store.js";
 import { loadUserStore, createUser, verifyUserPassword } from "./user-store.js";
 import { oidcConfigFromEnv, discoverOidcEndpoints, buildAuthorizationUrl, exchangeCodeForToken, fetchOidcUserInfo, OidcStateStore } from "./oidc.js";
 
@@ -92,8 +92,9 @@ const DEFAULT_CWD = process.env.FINANFA_WEB_CWD ?? process.cwd();
 const PORT = Number(process.env.PORT ?? 4600);
 /** Undefined means no static shared-secret tokens are configured — see auth.ts. Real per-login accounts (GATEWAY_ENABLED, below) work independently of this. */
 const WEB_USERS = parseWebUsers();
-/** In-memory session tokens issued by POST /api/auth/login or a completed OIDC login — see session-token-store.ts. Always constructed (cheap, no I/O); only ever consulted when GATEWAY_ENABLED. */
-const AUTH_SESSIONS = new SessionTokenStore();
+/** Session tokens issued by POST /api/auth/login or a completed OIDC login — see session-token-store.ts. Persisted to disk (~/.finanfa-code/web-sessions.json) so a server restart doesn't force every logged-in user to log in again; restore() below reloads whatever hadn't expired yet. Always constructed; only ever consulted when GATEWAY_ENABLED. */
+const AUTH_SESSIONS = new SessionTokenStore(defaultSessionStorePath());
+await AUTH_SESSIONS.restore();
 /** Undefined means SSO login isn't configured — see oidc.ts. */
 const OIDC_CONFIG = oidcConfigFromEnv();
 /** Pending (state -> PKCE verifier) OIDC login attempts — see oidc.ts. */
@@ -220,7 +221,7 @@ app.post("/api/auth/login", async (req, res) => {
     res.status(401).json({ error: "Invalid username or password." });
     return;
   }
-  res.json({ token: AUTH_SESSIONS.issue(username), user: username });
+  res.json({ token: await AUTH_SESSIONS.issue(username), user: username });
 });
 
 app.post("/api/auth/users", async (req, res) => {
@@ -289,7 +290,7 @@ if (OIDC_CONFIG) {
         res.status(401).json({ error: userInfoResult.error });
         return;
       }
-      const sessionToken = AUTH_SESSIONS.issue(userInfoResult.username);
+      const sessionToken = await AUTH_SESSIONS.issue(userInfoResult.username);
       // A URL fragment (#...), not a query param — never sent to the
       // server on a later request, so it doesn't end up in access logs or
       // get forwarded via a Referer header the way a query param could.
