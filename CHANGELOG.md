@@ -224,6 +224,16 @@ first tagged release.
   since either CLI's exact current flags are best discovered via its own
   `--help` rather than hardcoded here.
 
+- A structured, security-focused audit trail: every permission decision
+  (allow/deny, and which code path decided it — a PreToolUse hook,
+  `--yolo`, the session allowlist, a config rule, the risk-level default,
+  or a direct user answer) is appended to `~/.finanfa-code/audit/
+  <date>.jsonl`, one JSON line per decision. Independent of the existing
+  OpenTelemetry trace file (perf-only, and a denied call never reaches
+  it) and the session transcript (no explicit decision/reason recorded).
+  New `read_audit_log` builtin tool to query it. See the README's
+  updated Security section.
+
 ### Fixed
 
 - Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)
