@@ -327,6 +327,21 @@ Then, in your Meta app's WhatsApp → Configuration page:
 
 The endpoint 404s (both the GET handshake and POST events) until its own env vars are set — same "no unauthenticated middle state" as every other channel here. Only plain text messages are handled today; media/location/interactive-reply messages are ignored.
 
+### SMS
+
+Uses [Twilio](https://www.twilio.com/docs/usage/security#validating-requests)'s Programmable Messaging API:
+
+```bash
+export TWILIO_ACCOUNT_SID=AC...      # from the Twilio Console dashboard
+export TWILIO_AUTH_TOKEN=...         # same page — also what verifies inbound webhook requests
+export TWILIO_FROM_NUMBER=+1...      # your Twilio phone number, E.164 format
+npm run dev:web-server
+```
+
+Then, on that number's **Configure** page in the Twilio Console, set **"A message comes in"** to `https://<your-server>/api/channels/sms/webhook` (HTTP POST). Twilio signs every webhook request against the exact URL it's configured to call, so this only verifies correctly once the server is actually reachable at that same public URL — same requirement `TWILIO_WEBHOOK_URL` lets you override explicitly if the server sits behind something that changes what it sees as its own host/protocol.
+
+Each sender's phone number maps to its own persistent session. Same 404-until-configured behavior as every other channel here.
+
 ## Editor integration (ACP)
 
 `finanfa --acp` runs as an [Agent Client Protocol](https://agentclientprotocol.com/) agent over stdio — the same tools/permissions/hooks as every other entry point, driven directly from an ACP-aware editor instead of a terminal or browser.
