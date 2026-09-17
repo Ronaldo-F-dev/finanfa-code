@@ -148,6 +148,12 @@ first tagged release.
   live, rather than sitting behind a generic "thinking..." for a long
   tool-calling turn's entire duration.
 
+- `tmux_list_sessions`/`tmux_new_session`/`tmux_send_keys`/`tmux_capture_pane`/
+  `tmux_kill_session` builtin tools (only registered when `tmux` is
+  installed): lets the agent drive an already-running interactive program
+  (a REPL, an install wizard, a long-lived dev server) the way a human at
+  a terminal would, instead of only ever running a command to completion.
+
 ### Fixed
 
 - A critical arbitrary-file-read advisory in `vitest` (<3.2.6, dev-only)
