@@ -1,7 +1,7 @@
 import { describe, expect, it, afterEach, beforeAll } from "vitest";
 import { execFile } from "node:child_process";
 import { promisify } from "node:util";
-import { createFleetCellTool, listFleetCellsTool, stopFleetCellTool, removeFleetCellTool } from "../../src/tools/builtin/fleet-tools.js";
+import { createFleetCellTool, listFleetCellsTool, stopFleetCellTool, removeFleetCellTool, createFleetNetworkTool, removeFleetNetworkTool } from "../../src/tools/builtin/fleet-tools.js";
 
 const execFileAsync = promisify(execFile);
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
@@ -76,5 +76,53 @@ describe("fleet tools (real docker containers)", () => {
     expect(stopFleetCellTool.riskLevel).toBe("ask");
     expect(createFleetCellTool.riskLevel).toBe("dangerous");
     expect(removeFleetCellTool.riskLevel).toBe("dangerous");
+  });
+
+  it("create_fleet_cell applies real resource limits/restart policy/health check, reported back via list_fleet_cells", async () => {
+    const name = uniqueCellName();
+    const createResult = await createFleetCellTool.handler(
+      { name, image: "alpine:latest", host_port: uniquePort(), memory_limit: "64m", cpus: "0.5", restart_policy: "on-failure", health_check_command: ["true"] },
+      ctx,
+    );
+    expect(createResult.isError).toBe(false);
+    const listResult = await listFleetCellsTool.handler({}, ctx);
+    expect(listResult.content).toContain(name);
+  }, 20_000);
+});
+
+describe("fleet network tools (real docker networks)", () => {
+  const TEST_NETWORK_NAMES: string[] = [];
+  function uniqueNetworkName(): string {
+    const name = `tool-test-net-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+    TEST_NETWORK_NAMES.push(name);
+    return name;
+  }
+
+  afterEach(async () => {
+    while (TEST_NETWORK_NAMES.length > 0) {
+      const name = TEST_NETWORK_NAMES.pop()!;
+      await execFileAsync("docker", ["network", "rm", `finanfa-fleet-net-${name}`]).catch(() => {});
+    }
+  });
+
+  it("create_fleet_network / remove_fleet_network drive a real docker network end to end", async () => {
+    const name = uniqueNetworkName();
+    const createResult = await createFleetNetworkTool.handler({ name }, ctx);
+    expect(createResult.isError).toBe(false);
+    expect(createResult.content).toBe(`Network "${name}" created.`);
+
+    const removeResult = await removeFleetNetworkTool.handler({ name }, ctx);
+    expect(removeResult.isError).toBe(false);
+    expect(removeResult.content).toBe(`Network "${name}" removed.`);
+  }, 15_000);
+
+  it("remove_fleet_network reports a real error for a network that doesn't exist", async () => {
+    const result = await removeFleetNetworkTool.handler({ name: "nonexistent-network" }, ctx);
+    expect(result.isError).toBe(true);
+  });
+
+  it("has the expected risk levels: ask to create, dangerous to remove", () => {
+    expect(createFleetNetworkTool.riskLevel).toBe("ask");
+    expect(removeFleetNetworkTool.riskLevel).toBe("dangerous");
   });
 });
