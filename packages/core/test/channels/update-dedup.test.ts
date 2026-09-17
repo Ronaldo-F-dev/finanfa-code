@@ -17,4 +17,11 @@ describe("UpdateDedupTracker", () => {
     expect(tracker.markSeen(3)).toBe(true); // pushes the tracked set over its limit — evicts 1
     expect(tracker.markSeen(1)).toBe(true); // 1 was evicted, so it reads as "new" again
   });
+
+  it("works with string ids too (e.g. WhatsApp's own message id), not just Telegram's numeric update_id", () => {
+    const tracker = new UpdateDedupTracker<string>();
+    expect(tracker.markSeen("wamid.abc")).toBe(true);
+    expect(tracker.markSeen("wamid.abc")).toBe(false);
+    expect(tracker.markSeen("wamid.def")).toBe(true);
+  });
 });
