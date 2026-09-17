@@ -551,6 +551,16 @@ first tagged release.
   token is one-time-use and expires quickly — too short-lived for a real
   agent turn that can take a while to produce an answer.
 
+- Another new channel: Feishu/Lark (`POST /api/channels/feishu/webhook`,
+  `send_feishu_message` tool), via the real Open Platform IM API,
+  including the one-time `url_verification` handshake required before
+  Feishu will save the webhook URL. Outbound calls authenticate with a
+  real `tenant_access_token` (fetched via `FEISHU_APP_ID`/
+  `FEISHU_APP_SECRET`, cached until shortly before its real ~2-hour
+  expiry) rather than a static bot token. Verification-Token auth only —
+  Feishu's optional AES "Encrypt Key" payload-encryption mode is a real,
+  disclosed scope boundary, not implemented here.
+
 ### Fixed
 
 - Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)

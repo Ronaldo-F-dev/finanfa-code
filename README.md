@@ -294,7 +294,7 @@ Not every model can see images. If your primary model can't, route just the turn
 - **Images**: `view_image`, `resize_image`, `generate_2d` (real image generation via OpenAI's Images API, needs `OPENAI_API_KEY`), `generate_3d` (currently disabled — see below)
 - **Video/music generation**: `generate_video`/`generate_music` (needs `REPLICATE_API_TOKEN`) — real, billed generation via any Replicate model (e.g. `"minimax/video-01"` for video, `"meta/musicgen"` for music), passing that model's own real input fields straight through rather than a fixed schema (every Replicate model's input is different — check the model's own page on replicate.com). Neither OpenAI nor Gemini has a broadly-available, non-invite-only API for this; Replicate hosts real open models for both behind one ordinary API token.
 - **Video**: `view_video_frames` (when `ffmpeg`/`ffprobe` are installed) — samples a handful of evenly-spaced still frames from a video file for the model to look at (not full video understanding: no motion/timing/audio); `analyze_video` (real native video+audio understanding via Gemini, needs `GEMINI_API_KEY`, independent of the primary chat provider). A video under ~19MB is sent in one request; a larger one (up to 200MB) goes through Gemini's real File API instead — the actual documented resumable-upload protocol (upload, wait for real server-side processing, analyze, then delete it). Confirmed end to end against a real Gemini account (both the inline and File API paths, including a real ~21MB video), with retry now covering the upload steps too — a transient network blip during a real multi-minute upload no longer fails the whole thing outright.
-- **Voice & messaging**: `text_to_speech` (free, Google Translate backend), `transcribe_audio` (Whisper, needs `OPENAI_API_KEY`), `send_slack_message`/`send_telegram_message`/`send_matrix_message`/`send_line_message`/`send_discord_message`/`send_whatsapp_message`/`send_sms_message`, `send_email` — see [Channels](#channels) for the inbound side of Slack/Telegram/Matrix/LINE/Discord/WhatsApp/SMS
+- **Voice & messaging**: `text_to_speech` (free, Google Translate backend), `transcribe_audio` (Whisper, needs `OPENAI_API_KEY`), `send_slack_message`/`send_telegram_message`/`send_matrix_message`/`send_line_message`/`send_feishu_message`/`send_discord_message`/`send_whatsapp_message`/`send_sms_message`, `send_email` — see [Channels](#channels) for the inbound side of Slack/Telegram/Matrix/LINE/Feishu/Discord/WhatsApp/SMS
 - **Productivity**: `read_notion_page`/`write_notion_page` (real Notion API, needs `NOTION_API_KEY`), `create_trello_card` (real Trello API, needs `TRELLO_API_KEY`/`TRELLO_API_TOKEN`), `get_spotify_now_playing`/`control_spotify_playback` (real Spotify Web API, needs `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET`/`SPOTIFY_REFRESH_TOKEN`)
 - **Smart home**: `get_smart_home_state`/`control_smart_home_device` (real Home Assistant REST API, needs `HOME_ASSISTANT_BASE_URL`/`HOME_ASSISTANT_TOKEN`) — Home Assistant's own REST API covers thousands of real device integrations behind one interface
 - **Code quality**: `check_python_types` (Pyright), `check_typescript_types` (tsc), `lint_javascript` (ESLint), `lint_python` (ruff)
@@ -391,6 +391,19 @@ npm run dev:web-server
 Then, in the LINE Developers Console's Messaging API tab, set the **Webhook URL** to `https://<your-server>/api/channels/line/webhook` and enable "Use webhook" (LINE verifies reachability itself via a "Verify" button, not an automatic handshake).
 
 Message the bot directly, or in a group/room it's been added to — each user/group/room maps to its own persistent session. Replies go through the Messaging API's push endpoint rather than its one-time, short-lived reply token, since a real agent turn routinely takes longer than a reply token stays valid. Same 404-until-configured, real-signature-verified behavior as every other channel here.
+
+### Feishu / Lark
+
+```bash
+export FEISHU_VERIFICATION_TOKEN=...   # from your app's Event Subscriptions page
+export FEISHU_APP_ID=cli_...           # from the app's Credentials & Basic Info page
+export FEISHU_APP_SECRET=...           # same page
+npm run dev:web-server
+```
+
+Then, on your app's Event Subscriptions page, set the **Request URL** to `https://<your-server>/api/channels/feishu/webhook` (Feishu verifies this itself via a one-time `url_verification` handshake the endpoint answers) and subscribe to the `im.message.receive_v1` event.
+
+Message the bot directly, or in a group it's been added to — each chat maps to its own persistent session. Outbound replies authenticate with a real `tenant_access_token` (fetched via `FEISHU_APP_ID`/`FEISHU_APP_SECRET` and cached until shortly before its real ~2-hour expiry), not a static bot token. Verification is Feishu's Verification-Token scheme (a shared secret embedded in the event body itself); the optional "Encrypt Key" mode that AES-encrypts the whole event payload isn't implemented — a real, disclosed scope boundary, not a silent gap.
 
 ### Discord
 
