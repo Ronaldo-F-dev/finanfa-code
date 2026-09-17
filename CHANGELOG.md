@@ -561,6 +561,22 @@ first tagged release.
   Feishu's optional AES "Encrypt Key" payload-encryption mode is a real,
   disclosed scope boundary, not implemented here.
 
+- A fifth new channel: Microsoft Teams (`POST /api/channels/teams/webhook`,
+  `send_teams_message` tool), via the real Bot Framework Connector API.
+  Unlike every other channel added this round, Teams has no static bot-
+  token or shared-secret auth — inbound requests carry a real JWT signed
+  by Microsoft, verified with a genuine RS256 signature check against
+  Microsoft's own published, rotating keys (real OpenID Connect
+  discovery + JWKS fetch, cached, force-refreshed once on an unrecognized
+  key id to handle real key rotation) plus issuer/audience/expiry checks
+  — more machinery than this project's own OIDC login flow uses, since a
+  webhook push has no "ask the platform itself" shortcut the way a
+  login's userinfo endpoint gives one. Outbound replies authenticate
+  with a real OAuth2 `client_credentials` token (cached) and post to
+  whichever `serviceUrl`/conversation id the inbound activity itself
+  specified, both of which differ per region/tenant unlike a fixed API
+  host.
+
 ### Fixed
 
 - Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)
