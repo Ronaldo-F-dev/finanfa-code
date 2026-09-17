@@ -21,7 +21,15 @@ import { killProcessGroup } from "../../util/process.js";
 // writing to a temp file — here the fix is simpler: don't go through a
 // shell locally at all, since the remote command is meant to be
 // interpreted by the *remote* shell, not the local one).
-export function runSsh(binary: string, args: string[], timeoutMs: number): Promise<{ stdout: string; stderr: string; isError: boolean }> {
+export interface SshResult {
+  stdout: string;
+  stderr: string;
+  isError: boolean;
+  /** ssh's own real exit code (null if it never even started, e.g. ENOENT) — 255 is ssh's documented code for "an error occurred" (couldn't connect/authenticate/etc.), distinct from the REMOTE command's own exit code passed through unchanged for everything else. See isRetryableSshFailure. */
+  exitCode: number | null;
+}
+
+export function runSsh(binary: string, args: string[], timeoutMs: number): Promise<SshResult> {
   return new Promise((resolve) => {
     const child = spawn(binary, args, { detached: true }); // shell: false (the default) is the whole point here
     let stdout = "";
@@ -35,13 +43,43 @@ export function runSsh(binary: string, args: string[], timeoutMs: number): Promi
     child.stderr?.on("data", (d) => (stderr += d));
     child.on("close", (code) => {
       clearTimeout(timer);
-      resolve({ stdout, stderr: timedOut ? `Timed out after ${timeoutMs}ms` : stderr, isError: timedOut || code !== 0 });
+      resolve({ stdout, stderr: timedOut ? `Timed out after ${timeoutMs}ms` : stderr, isError: timedOut || code !== 0, exitCode: timedOut ? null : code });
     });
     child.on("error", (err) => {
       clearTimeout(timer);
-      resolve({ stdout: "", stderr: err.message, isError: true });
+      resolve({ stdout: "", stderr: err.message, isError: true, exitCode: null });
     });
   });
+}
+
+/**
+ * True only for a failure ssh itself reports BEFORE the remote command
+ * ever ran (exit 255 — ssh's own documented code for "an error occurred":
+ * couldn't connect, auth failed, DNS didn't resolve, etc. — see ssh(1)),
+ * or a local timeout/spawn failure (never reached the remote side
+ * either). Deliberately false for every other exit code: that means ssh
+ * connected fine and the REMOTE command itself returned it, and retrying
+ * a command that may have already partially run remotely risks running
+ * it twice — a real hazard for anything non-idempotent (a deploy, a
+ * write). This is the same signal real remote-automation tools (e.g.
+ * Ansible) use to distinguish "never ran" from "ran and failed".
+ */
+export function isRetryableSshFailure(result: SshResult): boolean {
+  return result.isError && (result.exitCode === 255 || result.exitCode === null);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+/** Retries runSsh up to `retries` extra times, but ONLY on a connection-level failure (see isRetryableSshFailure) — never after the remote command itself ran and returned a real exit code. Exponential backoff between attempts (baseDelayMs, doubling). */
+export async function runSshWithRetry(binary: string, args: string[], timeoutMs: number, retries = 0, baseDelayMs = 500): Promise<SshResult> {
+  let result = await runSsh(binary, args, timeoutMs);
+  for (let attempt = 0; attempt < retries && isRetryableSshFailure(result); attempt++) {
+    await sleep(baseDelayMs * 2 ** attempt);
+    result = await runSsh(binary, args, timeoutMs);
+  }
+  return result;
 }
 
 const DEFAULT_TIMEOUT_MS = 60_000;
@@ -74,6 +112,7 @@ interface RunRemoteCommandInput {
   port?: number;
   identity_file?: string;
   timeout_ms?: number;
+  retries?: number;
 }
 
 export function createRunRemoteCommandTool(options: RunRemoteCommandToolOptions = {}): ToolDefinition<RunRemoteCommandInput> {
@@ -97,6 +136,11 @@ export function createRunRemoteCommandTool(options: RunRemoteCommandToolOptions 
         port: { type: "number", description: "SSH port, if not 22 and not already set in ~/.ssh/config" },
         identity_file: { type: "string", description: "Path to a specific private key, if not already resolved via ~/.ssh/config or ssh-agent" },
         timeout_ms: { type: "number", description: "Timeout in milliseconds (default 60000)" },
+        retries: {
+          type: "number",
+          description:
+            "Retry up to this many extra times (exponential backoff) on a transient CONNECTION failure — a network blip, host briefly unreachable, timeout. Never retries once the remote command itself actually ran and returned its own exit code, only a failure ssh reports before that (default 0 — off, matching the previous behavior). Only set this above 0 for a command safe to run more than once (idempotent) — a network drop that happens mid-command can't always be told apart from one before it started.",
+        },
       },
       required: ["host", "command"],
     },
@@ -104,7 +148,7 @@ export function createRunRemoteCommandTool(options: RunRemoteCommandToolOptions 
     describeCall: (input) => `ssh ${input.user ? `${input.user}@` : ""}${input.host}: ${input.command}`,
     async handler(input) {
       const args = buildSshArgs({ host: input.host, command: input.command, user: input.user, port: input.port, identityFile: input.identity_file });
-      const result = await runSsh(binary, args, input.timeout_ms ?? DEFAULT_TIMEOUT_MS);
+      const result = await runSshWithRetry(binary, args, input.timeout_ms ?? DEFAULT_TIMEOUT_MS, input.retries ?? 0);
       const header = result.isError ? "(failed)\n" : "(exit code 0)\n";
       const content = `${header}--- stdout ---\n${result.stdout}\n--- stderr ---\n${result.stderr}`;
       return { content, isError: result.isError };

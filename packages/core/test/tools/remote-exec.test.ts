@@ -1,7 +1,9 @@
-import { describe, expect, it, beforeAll } from "vitest";
-import { chmod } from "node:fs/promises";
+import { describe, expect, it, beforeAll, beforeEach, afterEach } from "vitest";
+import { chmod, mkdtemp, writeFile, rm } from "node:fs/promises";
+import { tmpdir } from "node:os";
+import path from "node:path";
 import { fileURLToPath } from "node:url";
-import { createRunRemoteCommandTool } from "../../src/tools/builtin/remote-exec.js";
+import { createRunRemoteCommandTool, runSsh, runSshWithRetry, isRetryableSshFailure } from "../../src/tools/builtin/remote-exec.js";
 
 const FAKE_SSH_SCRIPT = fileURLToPath(new URL("../fixtures/fake-ssh.mjs", import.meta.url));
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
@@ -62,4 +64,80 @@ describe("run_remote_command tool (real subprocess, fake ssh binary stand-in)", 
     // failure here is still ssh's own real exit code, not a crash).
     expect(typeof result.isError).toBe("boolean");
   }, 15_000);
+});
+
+describe("runSsh / runSshWithRetry / isRetryableSshFailure (real subprocess, fake ssh binary stand-in)", () => {
+  let failCountFile: string;
+  let dir: string;
+  let originalFailCountFile: string | undefined;
+
+  beforeAll(async () => {
+    await chmod(FAKE_SSH_SCRIPT, 0o755);
+  });
+
+  beforeEach(async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "finanfa-remote-exec-retry-"));
+    failCountFile = path.join(dir, "fail-count");
+    originalFailCountFile = process.env.FAKE_SSH_FAIL_COUNT_FILE;
+    process.env.FAKE_SSH_FAIL_COUNT_FILE = failCountFile;
+  });
+
+  afterEach(async () => {
+    if (originalFailCountFile === undefined) delete process.env.FAKE_SSH_FAIL_COUNT_FILE;
+    else process.env.FAKE_SSH_FAIL_COUNT_FILE = originalFailCountFile;
+    await rm(dir, { recursive: true, force: true });
+  });
+
+  it("isRetryableSshFailure is true for ssh's own exit 255 (connection-level failure)", async () => {
+    const result = await runSsh(FAKE_SSH_SCRIPT, ["fail"], 5_000);
+    expect(result.exitCode).toBe(255);
+    expect(isRetryableSshFailure(result)).toBe(true);
+  });
+
+  it("isRetryableSshFailure is false once the REMOTE command itself ran and returned its own exit code", async () => {
+    const result = await runSsh(FAKE_SSH_SCRIPT, ["remote-fail"], 5_000);
+    expect(result.exitCode).toBe(7);
+    expect(isRetryableSshFailure(result)).toBe(false);
+  });
+
+  it("isRetryableSshFailure is false for a clean success", async () => {
+    const result = await runSsh(FAKE_SSH_SCRIPT, ["whoami"], 5_000);
+    expect(isRetryableSshFailure(result)).toBe(false);
+  });
+
+  it("runSshWithRetry succeeds after N transient connection failures, within the given retry budget", async () => {
+    await writeFile(failCountFile, "2"); // fails twice (connection-level), then the fixture lets it through
+
+    const result = await runSshWithRetry(FAKE_SSH_SCRIPT, ["whoami"], 5_000, 2, 10);
+    expect(result.isError).toBe(false);
+    expect(result.stdout).toContain("args=");
+  });
+
+  it("runSshWithRetry gives up and reports the real failure once retries are exhausted", async () => {
+    await writeFile(failCountFile, "5"); // more failures than the retry budget below
+
+    const result = await runSshWithRetry(FAKE_SSH_SCRIPT, ["whoami"], 5_000, 2, 10);
+    expect(result.isError).toBe(true);
+    expect(result.exitCode).toBe(255);
+  });
+
+  it("runSshWithRetry never retries a real remote-command failure, even with a nonzero retry budget", async () => {
+    const result = await runSshWithRetry(FAKE_SSH_SCRIPT, ["remote-fail"], 5_000, 3, 10);
+    expect(result.isError).toBe(true);
+    expect(result.exitCode).toBe(7);
+  });
+
+  it("run_remote_command's own retries input plumbs through and recovers from a transient failure", async () => {
+    await writeFile(failCountFile, "1");
+    const tool = createRunRemoteCommandTool({ binary: FAKE_SSH_SCRIPT });
+    const result = await tool.handler({ host: "flaky-host", command: "whoami", retries: 2 }, ctx);
+    expect(result.isError).toBe(false);
+  });
+
+  it("run_remote_command defaults to retries: 0 — a single transient connection failure is reported immediately, not retried", async () => {
+    await writeFile(failCountFile, "1");
+    const tool = createRunRemoteCommandTool({ binary: FAKE_SSH_SCRIPT });
+    const result = await tool.handler({ host: "flaky-host", command: "whoami" }, ctx);
+    expect(result.isError).toBe(true);
+  });
 });

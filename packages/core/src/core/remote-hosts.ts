@@ -1,7 +1,7 @@
 import { readFile, writeFile, mkdir, rename } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
-import { runSsh, buildSshArgs } from "../tools/builtin/remote-exec.js";
+import { runSshWithRetry, buildSshArgs } from "../tools/builtin/remote-exec.js";
 
 // A real known-hosts registry for node-host — the "node" half of remote
 // execution that run_remote_command's own one-off SSH calls didn't have
@@ -83,16 +83,21 @@ export async function removeRemoteHost(alias: string, filePath: string = default
 
 const HEALTH_CHECK_COMMAND = "uptime && echo ---FLEET-HEALTH-DISK--- && df -h / 2>/dev/null || df -Pk /";
 const HEALTH_CHECK_TIMEOUT_MS = 15_000;
+// A health check is read-only and idempotent (uptime/disk usage, no side
+// effects) — unlike an arbitrary run_remote_command call, there's no
+// hazard in retrying it, so a transient connection blip (see
+// isRetryableSshFailure) doesn't have to mean "unhealthy" on its own.
+const HEALTH_CHECK_RETRIES = 2;
 
 export interface HealthCheckResult {
   healthy: boolean;
   summary: string;
 }
 
-/** Runs a real, portable, read-only health probe (uptime + disk usage) over SSH — reuses run_remote_command's own argv-building (buildSshArgs) and subprocess runner (runSsh), so this is exactly the same real SSH invocation shape, not a second implementation that could drift from it. */
+/** Runs a real, portable, read-only health probe (uptime + disk usage) over SSH — reuses run_remote_command's own argv-building (buildSshArgs) and subprocess runner (runSshWithRetry), so this is exactly the same real SSH invocation shape, not a second implementation that could drift from it. Retries a couple of times on a transient connection failure before actually reporting unhealthy. */
 export async function checkRemoteHostHealth(entry: RemoteHostEntry, binary = "ssh"): Promise<HealthCheckResult> {
   const args = buildSshArgs({ host: entry.host, command: HEALTH_CHECK_COMMAND, user: entry.user, port: entry.port, identityFile: entry.identityFile });
-  const result = await runSsh(binary, args, HEALTH_CHECK_TIMEOUT_MS);
+  const result = await runSshWithRetry(binary, args, HEALTH_CHECK_TIMEOUT_MS, HEALTH_CHECK_RETRIES);
   if (result.isError) return { healthy: false, summary: result.stderr.trim() || "unreachable" };
   return { healthy: true, summary: result.stdout.trim() };
 }
