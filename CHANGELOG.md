@@ -265,6 +265,16 @@ first tagged release.
   has no long-running service to run one in, so consolidation here is
   explicitly triggered and acted on by the agent, not automatic.
 
+- `analyze_video` builtin tool: real native video+audio understanding
+  via Gemini's multimodal API (`GEMINI_API_KEY`, independent of whatever
+  the primary chat provider is), sent inline (a real ~19MB ceiling —
+  larger videos are reported as out of scope, not routed through
+  Gemini's separate Files API/resumable-upload protocol, a genuinely
+  bigger integration to get right without a real account to verify it
+  against). Closes the "deeper multimodal understanding beyond Whisper"
+  gap for real — unlike `view_video_frames`'s still-frame sampling, this
+  actually sees the video's real motion and audio together.
+
 - `generate_2d` now really generates an image, via OpenAI's Images API
   (`gpt-image-1`, `OPENAI_API_KEY` — the same key `transcribe_audio`/
   `recall_past_sessions`' semantic mode already use), instead of always
