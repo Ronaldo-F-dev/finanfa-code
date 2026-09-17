@@ -270,7 +270,7 @@ Not every model can see images. If your primary model can't, route just the turn
 - **Git**: `git_status`/`git_diff`/`git_log`/`git_branch`/`git_fetch` (safe), `git_add`/`git_commit`/`git_checkout`/`git_push`/`git_pull`/`git_stash` (ask)
 - **Web & browser**: `web_search`, `web_fetch`, `http_request`, `browser_navigate`/`browser_click`/`browser_screenshot` (Playwright/Chromium), `preview_html`
 - **Documents**: `read_document`/`write_document`/`edit_document` (PDF, Word, Excel, CSV), `write_spreadsheet`/`edit_spreadsheet`/`merge_spreadsheets`, `merge_pdf`/`split_pdf`/`images_to_pdf`/`convert_pdf_to_image`, `convert_to_pdf`, `convert_spreadsheet`, `ocr_image`, `read_notebook`/`edit_notebook`
-- **Images**: `view_image`, `resize_image`, `generate_2d`/`generate_3d` (currently disabled — see Status)
+- **Images**: `view_image`, `resize_image`, `generate_2d` (real image generation via OpenAI's Images API, needs `OPENAI_API_KEY`), `generate_3d` (currently disabled — see below)
 - **Video**: `view_video_frames` (when `ffmpeg`/`ffprobe` are installed) — samples a handful of evenly-spaced still frames from a video file for the model to look at (not full video understanding: no motion/timing/audio)
 - **Voice & messaging**: `text_to_speech` (free, Google Translate backend), `transcribe_audio` (Whisper, needs `OPENAI_API_KEY`), `send_slack_message`/`send_telegram_message`/`send_discord_message`/`send_whatsapp_message`/`send_sms_message`, `send_email` — see [Channels](#channels) for the inbound side of Slack/Telegram/Discord/WhatsApp/SMS
 - **Productivity**: `read_notion_page`/`write_notion_page` (real Notion API, needs `NOTION_API_KEY`), `create_trello_card` (real Trello API, needs `TRELLO_API_KEY`/`TRELLO_API_TOKEN`), `get_spotify_now_playing`/`control_spotify_playback` (real Spotify Web API, needs `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET`/`SPOTIFY_REFRESH_TOKEN`)
@@ -293,7 +293,7 @@ Not every model can see images. If your primary model can't, route just the turn
 Notes:
 - `web_search`/`web_fetch`/`browser_*` results are wrapped as untrusted content — treated as data, not instructions, to reduce prompt-injection risk.
 - `read_file`/`write_file`/`edit_file` work within the project root or the user's home directory; nothing outside either is reachable through these tools (not a hard security boundary — `bash` has none).
-- `generate_2d`/`generate_3d` are honest stubs: no free image/3D-generation backend currently works reliably, so they report that instead of silently failing.
+- `generate_2d` generates a real image via OpenAI's Images API (`gpt-image-1`) when `OPENAI_API_KEY` is set — a real, metered call, not free, unlike the rest of this project's image tools. Without it, reports unavailable rather than silently failing (NVIDIA NIM lists free FLUX/Stable Diffusion models on the same free catalog this project's text/vision routing already uses, but its image endpoint never responded across three real test attempts). `generate_3d` is still an honest stub: no image-to-3D provider is wired in (SAM 3D/TRELLIS need 24-32GB of VRAM to self-host; no paid API like fal.ai is configured).
 
 ## Channels
 
