@@ -265,6 +265,14 @@ first tagged release.
   has no long-running service to run one in, so consolidation here is
   explicitly triggered and acted on by the agent, not automatic.
 
+- `generate_2d` now really generates an image, via OpenAI's Images API
+  (`gpt-image-1`, `OPENAI_API_KEY` — the same key `transcribe_audio`/
+  `recall_past_sessions`' semantic mode already use), instead of always
+  reporting unavailable. `riskLevel` moved from "safe" to "ask" — a real,
+  metered API call, and an optional file write. Still reports unavailable
+  when `OPENAI_API_KEY` isn't set. `generate_3d` remains an honest stub
+  (still no viable image-to-3D provider).
+
 - "Fleet": `create_fleet_cell`/`list_fleet_cells`/`stop_fleet_cell`/
   `remove_fleet_cell` builtin tools (only registered when `docker` is
   installed) — provisions and manages isolated per-tenant containers
