@@ -265,6 +265,18 @@ first tagged release.
   has no long-running service to run one in, so consolidation here is
   explicitly triggered and acted on by the agent, not automatic.
 
+- "Fleet": `create_fleet_cell`/`list_fleet_cells`/`stop_fleet_cell`/
+  `remove_fleet_cell` builtin tools (only registered when `docker` is
+  installed) — provisions and manages isolated per-tenant containers
+  ("cells") on the Docker daemon this process can already reach, wrapping
+  the real `docker` CLI the same way `run_docker`/`run_mydevops` already
+  do. Every cell is named with a fixed prefix so these tools can only
+  ever affect a container they created themselves. Closes the multi-
+  tenant sandboxed hosting gap relative to a comparable project's own
+  Fleet — deliberately scoped to managing cells on one existing Docker
+  daemon, not a multi-node/multi-host scheduler placing cells across a
+  real fleet of machines.
+
 - "Gateway": opt-in multi-user authentication for the web server
   (`FINANFA_WEB_USERS="alice:token1,bob:token2"`) — a Bearer token on
   every `/api/*` request (channel webhooks keep their own signature
