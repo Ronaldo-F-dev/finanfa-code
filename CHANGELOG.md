@@ -265,6 +265,16 @@ first tagged release.
   has no long-running service to run one in, so consolidation here is
   explicitly triggered and acted on by the agent, not automatic.
 
+- `get_smart_home_state`/`control_smart_home_device` builtin tools: a
+  real Home Assistant REST API connector (needs `HOME_ASSISTANT_BASE_URL`/
+  `HOME_ASSISTANT_TOKEN`, a long-lived access token from Home Assistant's
+  own Profile page) — reads an entity's state/attributes, or turns a
+  device on/off/toggles it. Closes the smart-home integration gap
+  relative to a comparable project we audited against; wrapping Home
+  Assistant's own REST API covers thousands of real device integrations
+  behind one interface, rather than integrating any single vendor
+  directly.
+
 - A new inbound Voice channel (Twilio Programmable Voice):
   `POST /api/channels/voice/webhook` (a new call) and
   `POST /api/channels/voice/gather` (the caller's spoken reply), both
