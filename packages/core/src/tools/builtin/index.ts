@@ -89,6 +89,7 @@ import { createArtifactTool } from "./create-artifact.js";
 import { PreviewServer } from "../../core/preview-server.js";
 import { generate3dTool } from "./generate-3d.js";
 import { createGenerate2dTool, generate2dConfigFromEnv } from "./generate-2d.js";
+import { createAnalyzeVideoTool, analyzeVideoConfigFromEnv } from "./analyze-video.js";
 import { translateTextTool } from "./translate.js";
 import { textToSpeechTool } from "./text-to-speech.js";
 import { convertSpreadsheetTool } from "./convert-spreadsheet.js";
@@ -201,6 +202,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(listBundleSnapshotsTool);
   registry.register(rollbackBundleTool);
   if (isCommandAvailable("ffmpeg") && isCommandAvailable("ffprobe")) registry.register(viewVideoFramesTool);
+  registry.register(createAnalyzeVideoTool(analyzeVideoConfigFromEnv()));
   registry.register(createTranscribeAudioTool(transcribeAudioConfigFromEnv()));
   registry.register(listAvailableModelsTool);
   if (isCommandAvailable("tmux")) for (const tool of createTmuxTools()) registry.register(tool);
