@@ -20,6 +20,8 @@ import {
   formatMemoryIndex,
   createReadMemoryTool,
   writeMemoryTool,
+  deleteMemoryTool,
+  findDuplicateMemoriesTool,
   writeMemory,
   deleteMemory,
   type MemoryType,
@@ -673,8 +675,12 @@ async function handleConnection(ws: WebSocket, url: string): Promise<void> {
     const skills = await loadSkills(CWD);
     if (skills.length > 0) tools.register(createReadSkillTool(skills));
     tools.register(writeMemoryTool);
+    tools.register(deleteMemoryTool);
     const memories = await loadMemories(CWD);
-    if (memories.length > 0) tools.register(createReadMemoryTool(CWD));
+    if (memories.length > 0) {
+      tools.register(createReadMemoryTool(CWD));
+      tools.register(findDuplicateMemoriesTool);
+    }
 
     const projectInstructions = await loadProjectInstructions(CWD);
     const scopedInstructions = await loadScopedInstructions(CWD);

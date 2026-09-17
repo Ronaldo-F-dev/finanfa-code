@@ -22,7 +22,7 @@ import type { CommandOutcome } from "@finanfa/core/src/commands/types.js";
 import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
-import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "@finanfa/core/src/memory/loader.js";
+import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool } from "@finanfa/core/src/memory/loader.js";
 import { loadCustomCommands, runCustomCommand, type CustomCommand } from "@finanfa/core/src/commands/custom-commands.js";
 import { loadSubagentTypes } from "@finanfa/core/src/agents/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
@@ -218,8 +218,12 @@ export async function main(argv: string[]): Promise<void> {
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
 
   tools.register(writeMemoryTool);
+  tools.register(deleteMemoryTool);
   const memories = await loadMemories(cwd);
-  if (memories.length > 0) tools.register(createReadMemoryTool(cwd));
+  if (memories.length > 0) {
+    tools.register(createReadMemoryTool(cwd));
+    tools.register(findDuplicateMemoriesTool);
+  }
 
   const customCommands = await loadCustomCommands(cwd);
   const agentTypes = await loadSubagentTypes(cwd);

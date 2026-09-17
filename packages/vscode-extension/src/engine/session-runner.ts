@@ -12,7 +12,7 @@ import { registerBuiltinCommands } from "@finanfa/core/src/commands/builtin.js";
 import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
-import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "@finanfa/core/src/memory/loader.js";
+import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool } from "@finanfa/core/src/memory/loader.js";
 import { loadSubagentTypes } from "@finanfa/core/src/agents/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { loadScopedInstructions, formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
@@ -176,8 +176,12 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
 
   tools.register(writeMemoryTool);
+  tools.register(deleteMemoryTool);
   const memories = await loadMemories(cwd);
-  if (memories.length > 0) tools.register(createReadMemoryTool(cwd));
+  if (memories.length > 0) {
+    tools.register(createReadMemoryTool(cwd));
+    tools.register(findDuplicateMemoriesTool);
+  }
 
   const agentTypes = await loadSubagentTypes(cwd);
   const projectInstructions = await loadProjectInstructions(cwd);

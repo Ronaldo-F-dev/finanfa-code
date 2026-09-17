@@ -9,7 +9,7 @@ import { resolveTrust } from "../core/trust-gate.js";
 import { CommandRegistry } from "../commands/registry.js";
 import { loadPlugins } from "../plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "../skills/loader.js";
-import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool } from "../memory/loader.js";
+import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool } from "../memory/loader.js";
 import { loadSubagentTypes } from "../agents/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "../core/project-instructions.js";
 import { loadScopedInstructions, formatScopedInstructions } from "../core/scoped-instructions.js";
@@ -95,8 +95,12 @@ export async function runHeadlessTurn(cwd: string, sessionId: string, userText: 
   const skills = await loadSkills(cwd);
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
   tools.register(writeMemoryTool);
+  tools.register(deleteMemoryTool);
   const memories = await loadMemories(cwd);
-  if (memories.length > 0) tools.register(createReadMemoryTool(cwd));
+  if (memories.length > 0) {
+    tools.register(createReadMemoryTool(cwd));
+    tools.register(findDuplicateMemoriesTool);
+  }
 
   const projectInstructions = await loadProjectInstructions(cwd);
   const scopedInstructions = await loadScopedInstructions(cwd);

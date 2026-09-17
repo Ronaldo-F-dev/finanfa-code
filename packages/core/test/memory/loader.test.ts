@@ -2,7 +2,17 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool, findNearDuplicateMemory, type Memory } from "../../src/memory/loader.js";
+import {
+  loadMemories,
+  formatMemoryIndex,
+  createReadMemoryTool,
+  writeMemoryTool,
+  deleteMemoryTool,
+  findNearDuplicateMemory,
+  findDuplicateMemoryPairs,
+  findDuplicateMemoriesTool,
+  type Memory,
+} from "../../src/memory/loader.js";
 
 describe("memory loader", () => {
   let dir: string;
@@ -199,6 +209,64 @@ describe("memory loader", () => {
     await writeMemoryTool.handler({ name: "commit-style", description: "user prefers small atomic commits", type: "feedback", content: "c" }, ctx());
     const result = await writeMemoryTool.handler({ name: "commit-style", description: "user prefers small atomic commits", type: "feedback", content: "c2" }, ctx());
     expect(result.content).not.toContain("similar");
+  });
+
+  it("findDuplicateMemoryPairs finds a near-duplicate pair within the same scope, ignoring cross-scope and self-pairs", () => {
+    const memories: Memory[] = [
+      { name: "commit-style", description: "user prefers small atomic commits per function", type: "feedback", content: "c", scope: "project" },
+      { name: "commit-preference", description: "user prefers atomic commits per function, small", type: "feedback", content: "c", scope: "project" },
+      { name: "commit-style", description: "user prefers small atomic commits per function", type: "feedback", content: "c", scope: "global" },
+      { name: "unrelated", description: "user is a senior typescript engineer", type: "user", content: "c", scope: "project" },
+    ];
+    const pairs = findDuplicateMemoryPairs(memories);
+    expect(pairs).toHaveLength(1);
+    expect([pairs[0].a.name, pairs[0].b.name].sort()).toEqual(["commit-preference", "commit-style"]);
+  });
+
+  it("find_duplicate_memories tool reports likely duplicate pairs across the whole store", async () => {
+    await writeMemoryTool.handler(
+      { name: "commit-style", description: "user prefers small atomic commits per function", type: "feedback", content: "c" },
+      ctx(),
+    );
+    await writeMemoryTool.handler(
+      { name: "commit-preference", description: "user prefers atomic commits per function, small", type: "feedback", content: "c" },
+      ctx(),
+    );
+    const result = await findDuplicateMemoriesTool.handler({}, ctx());
+    expect(result.isError).toBe(false);
+    expect(result.content).toContain("commit-style");
+    expect(result.content).toContain("commit-preference");
+  });
+
+  it("find_duplicate_memories tool reports no duplicates when there aren't any", async () => {
+    await writeMemoryTool.handler({ name: "a", description: "one thing", type: "project", content: "c" }, ctx());
+    const result = await findDuplicateMemoriesTool.handler({}, ctx());
+    expect(result.content).toBe("No likely duplicate memories found.");
+  });
+
+  it("delete_memory tool removes a project memory by name", async () => {
+    await writeMemoryTool.handler({ name: "to-delete", description: "d", type: "project", content: "c" }, ctx());
+    expect(await loadMemories(dir)).toHaveLength(1);
+
+    const result = await deleteMemoryTool.handler({ name: "to-delete" }, ctx());
+    expect(result.isError).toBe(false);
+    expect(await loadMemories(dir)).toHaveLength(0);
+  });
+
+  it("delete_memory tool reports a clear error for a memory that doesn't exist, instead of silently succeeding", async () => {
+    const result = await deleteMemoryTool.handler({ name: "nonexistent" }, ctx());
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain("No project memory named");
+  });
+
+  it("delete_memory tool respects scope: global vs project independently", async () => {
+    await writeMemoryTool.handler({ name: "same-name", description: "d", type: "project", content: "c", scope: "global" }, ctx());
+    // A project-scoped delete of the same name must not find/remove the global one.
+    const projectResult = await deleteMemoryTool.handler({ name: "same-name" }, ctx());
+    expect(projectResult.isError).toBe(true);
+
+    const globalResult = await deleteMemoryTool.handler({ name: "same-name", scope: "global" }, ctx());
+    expect(globalResult.isError).toBe(false);
   });
 
   it("read_memory tool re-reads from disk, seeing a memory written after tool creation", async () => {

@@ -1,4 +1,4 @@
-import { readFile, readdir, mkdir, writeFile, rm } from "node:fs/promises";
+import { readFile, readdir, mkdir, writeFile, rm, stat } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import matter from "gray-matter";
@@ -147,8 +147,17 @@ export async function deleteMemory(cwd: string, name: string, scope: MemoryScope
   await rm(path.join(memoryDir(cwd, scope), `${slug}.md`), { force: true });
 }
 
+async function memoryFileExists(cwd: string, name: string, scope: MemoryScope): Promise<boolean> {
+  try {
+    await stat(path.join(memoryDir(cwd, scope), `${slugifyMemoryName(name)}.md`));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 /** Jaccard similarity over lowercase word sets — cheap, dependency-free, good enough for a one-line memory description (not meant to catch every paraphrase, just the common case of writing near-identical notes under two different names). */
-function descriptionSimilarity(a: string, b: string): number {
+export function descriptionSimilarity(a: string, b: string): number {
   const wordsA = new Set(a.toLowerCase().match(/[a-z0-9]+/g) ?? []);
   const wordsB = new Set(b.toLowerCase().match(/[a-z0-9]+/g) ?? []);
   if (wordsA.size === 0 || wordsB.size === 0) return 0;
@@ -177,6 +186,82 @@ export function findNearDuplicateMemory(existing: Memory[], input: WriteMemoryIn
     (m) => m.scope === scope && m.name !== slug && descriptionSimilarity(m.description, input.description) >= NEAR_DUPLICATE_DESCRIPTION_SIMILARITY,
   );
 }
+
+export interface DuplicateMemoryPair {
+  a: Memory;
+  b: Memory;
+  similarity: number;
+}
+
+/**
+ * Same near-duplicate check write_memory already runs against a single new
+ * note, but over every pair in the whole store — a manual, tool-driven
+ * stand-in for a "dreaming"/background-consolidation process (periodically
+ * reviewing and merging accumulated memory): this project has no
+ * persistent background service to run one in, so consolidation here is
+ * something the agent (or user) triggers and acts on via write_memory/
+ * delete_memory, not something that happens on its own.
+ */
+export function findDuplicateMemoryPairs(memories: Memory[]): DuplicateMemoryPair[] {
+  const pairs: DuplicateMemoryPair[] = [];
+  for (let i = 0; i < memories.length; i++) {
+    for (let j = i + 1; j < memories.length; j++) {
+      const a = memories[i]!;
+      const b = memories[j]!;
+      if (a.scope !== b.scope || a.name === b.name) continue;
+      const similarity = descriptionSimilarity(a.description, b.description);
+      if (similarity >= NEAR_DUPLICATE_DESCRIPTION_SIMILARITY) pairs.push({ a, b, similarity });
+    }
+  }
+  return pairs.sort((x, y) => y.similarity - x.similarity);
+}
+
+export const findDuplicateMemoriesTool: ToolDefinition<Record<string, never>> = {
+  name: "find_duplicate_memories",
+  description:
+    "Scan every saved memory note (project + global) for likely near-duplicates — the same fact saved under " +
+    "two different names/descriptions — so they can be reviewed and merged (rewrite one with write_memory, " +
+    "then delete_memory the other) instead of both lingering indefinitely. Read-only: reports candidates, " +
+    "doesn't change anything itself.",
+  riskLevel: "safe",
+  inputSchema: { type: "object", properties: {} },
+  async handler(_input, ctx) {
+    const pairs = findDuplicateMemoryPairs(await loadMemories(ctx.cwd));
+    if (pairs.length === 0) return { content: "No likely duplicate memories found.", isError: false };
+    const lines = pairs.map((p) => `- "${p.a.name}" ~ "${p.b.name}" (${p.a.scope}, ${Math.round(p.similarity * 100)}% similar descriptions)`);
+    return { content: `${pairs.length} likely duplicate pair(s):\n${lines.join("\n")}`, isError: false };
+  },
+};
+
+interface DeleteMemoryInput {
+  name: string;
+  scope?: MemoryScope;
+}
+
+export const deleteMemoryTool: ToolDefinition<DeleteMemoryInput> = {
+  name: "delete_memory",
+  description:
+    "Delete a saved memory note by name — use to remove a stale note or, after reviewing find_duplicate_memories " +
+    "and merging its content elsewhere, one half of a duplicate pair.",
+  riskLevel: "ask",
+  inputSchema: {
+    type: "object",
+    properties: {
+      name: { type: "string" },
+      scope: { type: "string", enum: ["project", "global"], description: 'Default "project"' },
+    },
+    required: ["name"],
+  },
+  describeCall: (input) => `delete_memory ${input.name}${input.scope === "global" ? " (global)" : ""}`,
+  async handler(input, ctx) {
+    const scope: MemoryScope = input.scope === "global" ? "global" : "project";
+    if (!(await memoryFileExists(ctx.cwd, input.name, scope))) {
+      return { content: `No ${scope} memory named "${input.name}".`, isError: true };
+    }
+    await deleteMemory(ctx.cwd, input.name, scope);
+    return { content: `Deleted ${scope} memory "${input.name}".`, isError: false };
+  },
+};
 
 export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
   name: "write_memory",
