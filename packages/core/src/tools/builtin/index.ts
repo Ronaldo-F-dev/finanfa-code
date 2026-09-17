@@ -36,6 +36,7 @@ import { createSendTelegramMessageTool, telegramConfigFromEnv } from "./send-tel
 import { createSendDiscordMessageTool, discordConfigFromEnv } from "./send-discord-message.js";
 import { createSendWhatsappMessageTool, whatsappConfigFromEnv } from "./send-whatsapp-message.js";
 import { createSendSmsMessageTool, smsConfigFromEnv } from "./send-sms-message.js";
+import { createReadNotionPageTool, createWriteNotionPageTool, notionConfigFromEnv } from "./notion.js";
 import { createTranscribeAudioTool, transcribeAudioConfigFromEnv } from "./transcribe-audio.js";
 import { listAvailableModelsTool } from "./list-available-models.js";
 import { createTmuxTools } from "./tmux.js";
@@ -169,6 +170,9 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(createSendDiscordMessageTool(discordConfigFromEnv()));
   registry.register(createSendWhatsappMessageTool(whatsappConfigFromEnv()));
   registry.register(createSendSmsMessageTool(smsConfigFromEnv()));
+  const notionConfig = notionConfigFromEnv();
+  registry.register(createReadNotionPageTool(notionConfig));
+  registry.register(createWriteNotionPageTool(notionConfig));
   registry.register(createTranscribeAudioTool(transcribeAudioConfigFromEnv()));
   registry.register(listAvailableModelsTool);
   if (isCommandAvailable("tmux")) for (const tool of createTmuxTools()) registry.register(tool);
