@@ -255,7 +255,7 @@ Not every model can see images. If your primary model can't, route just the turn
 - **Documents**: `read_document`/`write_document`/`edit_document` (PDF, Word, Excel, CSV), `write_spreadsheet`/`edit_spreadsheet`/`merge_spreadsheets`, `merge_pdf`/`split_pdf`/`images_to_pdf`/`convert_pdf_to_image`, `convert_to_pdf`, `convert_spreadsheet`, `ocr_image`, `read_notebook`/`edit_notebook`
 - **Images**: `view_image`, `resize_image`, `generate_2d`/`generate_3d` (currently disabled — see Status)
 - **Voice & messaging**: `text_to_speech` (free, Google Translate backend), `transcribe_audio` (Whisper, needs `OPENAI_API_KEY`), `send_slack_message`/`send_telegram_message`/`send_discord_message`/`send_whatsapp_message`/`send_sms_message`, `send_email` — see [Channels](#channels) for the inbound side of Slack/Telegram/Discord/WhatsApp/SMS
-- **Productivity**: `read_notion_page`/`write_notion_page` (real Notion API, needs `NOTION_API_KEY`)
+- **Productivity**: `read_notion_page`/`write_notion_page` (real Notion API, needs `NOTION_API_KEY`), `create_trello_card` (real Trello API, needs `TRELLO_API_KEY`/`TRELLO_API_TOKEN`)
 - **Code quality**: `check_python_types` (Pyright), `check_typescript_types` (tsc), `lint_javascript` (ESLint), `lint_python` (ruff)
 - **Data**: `query_database` (SQLite/Postgres/MySQL), `python_repl` (persistent interpreter)
 - **UI generation**: `create_artifact` (React + Tailwind, live preview)
