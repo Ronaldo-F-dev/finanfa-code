@@ -534,6 +534,16 @@ first tagged release.
   Narrows the memory-subsystem gap relative to a comparable project's
   own vector-search + provenance-tracked memory layer.
 
+- A new inbound/outbound channel: Matrix, as a real
+  [Application Service](https://spec.matrix.org/latest/application-service-api/)
+  (`PUT /api/channels/matrix/transactions/:txnId`, `send_matrix_message`
+  tool) — works against any homeserver (Synapse, Dendrite, Conduit),
+  federated and self-hostable rather than tied to one vendor's API,
+  unlike every other channel here so far. Same real-token-verified,
+  404-until-configured, per-room-session shape as Telegram/Slack.
+  Widens the channel-platform gap relative to a comparable project's own
+  much larger set of chat integrations.
+
 ### Fixed
 
 - Flaky web-server e2e tests: `spawnWebServer` (shared by ~15 test files)

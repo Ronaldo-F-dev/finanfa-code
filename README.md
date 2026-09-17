@@ -292,7 +292,7 @@ Not every model can see images. If your primary model can't, route just the turn
 - **Images**: `view_image`, `resize_image`, `generate_2d` (real image generation via OpenAI's Images API, needs `OPENAI_API_KEY`), `generate_3d` (currently disabled — see below)
 - **Video/music generation**: `generate_video`/`generate_music` (needs `REPLICATE_API_TOKEN`) — real, billed generation via any Replicate model (e.g. `"minimax/video-01"` for video, `"meta/musicgen"` for music), passing that model's own real input fields straight through rather than a fixed schema (every Replicate model's input is different — check the model's own page on replicate.com). Neither OpenAI nor Gemini has a broadly-available, non-invite-only API for this; Replicate hosts real open models for both behind one ordinary API token.
 - **Video**: `view_video_frames` (when `ffmpeg`/`ffprobe` are installed) — samples a handful of evenly-spaced still frames from a video file for the model to look at (not full video understanding: no motion/timing/audio); `analyze_video` (real native video+audio understanding via Gemini, needs `GEMINI_API_KEY`, independent of the primary chat provider). A video under ~19MB is sent in one request; a larger one (up to 200MB) goes through Gemini's real File API instead — the actual documented resumable-upload protocol (upload, wait for real server-side processing, analyze, then delete it). Confirmed end to end against a real Gemini account (both the inline and File API paths, including a real ~21MB video), with retry now covering the upload steps too — a transient network blip during a real multi-minute upload no longer fails the whole thing outright.
-- **Voice & messaging**: `text_to_speech` (free, Google Translate backend), `transcribe_audio` (Whisper, needs `OPENAI_API_KEY`), `send_slack_message`/`send_telegram_message`/`send_discord_message`/`send_whatsapp_message`/`send_sms_message`, `send_email` — see [Channels](#channels) for the inbound side of Slack/Telegram/Discord/WhatsApp/SMS
+- **Voice & messaging**: `text_to_speech` (free, Google Translate backend), `transcribe_audio` (Whisper, needs `OPENAI_API_KEY`), `send_slack_message`/`send_telegram_message`/`send_matrix_message`/`send_discord_message`/`send_whatsapp_message`/`send_sms_message`, `send_email` — see [Channels](#channels) for the inbound side of Slack/Telegram/Matrix/Discord/WhatsApp/SMS
 - **Productivity**: `read_notion_page`/`write_notion_page` (real Notion API, needs `NOTION_API_KEY`), `create_trello_card` (real Trello API, needs `TRELLO_API_KEY`/`TRELLO_API_TOKEN`), `get_spotify_now_playing`/`control_spotify_playback` (real Spotify Web API, needs `SPOTIFY_CLIENT_ID`/`SPOTIFY_CLIENT_SECRET`/`SPOTIFY_REFRESH_TOKEN`)
 - **Smart home**: `get_smart_home_state`/`control_smart_home_device` (real Home Assistant REST API, needs `HOME_ASSISTANT_BASE_URL`/`HOME_ASSISTANT_TOKEN`) — Home Assistant's own REST API covers thousands of real device integrations behind one interface
 - **Code quality**: `check_python_types` (Pyright), `check_typescript_types` (tsc), `lint_javascript` (ESLint), `lint_python` (ruff)
@@ -349,6 +349,34 @@ curl "https://api.telegram.org/bot<TELEGRAM_BOT_TOKEN>/setWebhook?url=https://<y
 ```
 
 Message the bot directly, or in a group it's been added to — each chat (or forum topic, in a topics-enabled supergroup) maps to its own persistent session. Same 404-until-configured behavior as Slack above.
+
+### Matrix
+
+Runs as a real [Application Service](https://spec.matrix.org/latest/application-service-api/) — works against any homeserver (Synapse, Dendrite, Conduit, self-hosted or not), since Matrix is a federated, open protocol, not a single vendor's API:
+
+```bash
+export MATRIX_HOMESERVER_URL=https://matrix.example.org   # your homeserver's own base URL
+export MATRIX_AS_TOKEN=...           # this AS's own token, set when you register it — authenticates its outbound API calls
+export MATRIX_HS_TOKEN=...           # a separate token the HOMESERVER authenticates its pushes to us with
+export MATRIX_BOT_USER_ID=@finanfa-bot:example.org   # this AS's own bot user id, so it can recognize (and ignore) its own sent messages
+npm run dev:web-server
+```
+
+Then register the Application Service on your homeserver (a YAML file, e.g. Synapse's `app_service_config_files`):
+
+```yaml
+id: finanfa-code
+url: https://<your-server>/api/channels/matrix/transactions
+as_token: "<MATRIX_AS_TOKEN>"
+hs_token: "<MATRIX_HS_TOKEN>"
+sender_localpart: finanfa-bot
+namespaces:
+  users: [{ exclusive: true, regex: "@finanfa-bot:example\\.org" }]
+  rooms: []
+  aliases: []
+```
+
+Invite the bot's user id to a room (or have it join one) — each room maps to its own persistent session. Same 404-until-configured, real-token-verified behavior as every other channel here; the homeserver's own push is acked immediately (a real turn takes far longer than Matrix's own transaction-delivery timeout), same reasoning as Telegram/Slack above.
 
 ### Discord
 
