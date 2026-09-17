@@ -15,6 +15,7 @@ import type {
 import { compactForProvider, CHARS_PER_TOKEN_ESTIMATE } from "./context.js";
 import { mcpToolServerName } from "../mcp/client-manager.js";
 import { withSpan } from "../observability/tracing.js";
+import { CALL_TOOL_NAME, SEARCH_TOOLS_NAME, createToolSearchMetaTools, createCallToolMetaTool } from "./tool-search.js";
 
 /**
  * The model otherwise has no idea what "today" is — nothing in this
@@ -58,20 +59,36 @@ function systemPromptWithDate(session: AgentSession): string {
 }
 
 /**
- * Tools to actually offer the model this call — every registered MCP tool
- * whose server is in `session.disabledMcpServers` (toggled via /mcp disable,
- * without disconnecting the server) is left out, so a session juggling many
- * connected servers doesn't pay the token cost of every tool schema from
- * every server on every single call regardless of task relevance. Built-in
- * tools are never filtered.
+ * Every tool this session is actually allowed to use — every registered
+ * MCP tool whose server is in `session.disabledMcpServers` (toggled via
+ * /mcp disable, without disconnecting the server) is left out, and any
+ * built-in tool explicitly disabled via `session.disabledTools`. This is
+ * the real authority on "what's available right now" — both a direct
+ * send (toolsForProvider below) and Tool Search's search_tools/call_tool
+ * (tool-search.ts) resolve against exactly this, so a disabled tool stays
+ * unreachable either way, not just hidden from the schema list.
  */
-function toolsForProvider(tools: ToolRegistry, session: AgentSession): ToolDefinition[] {
+function availableTools(tools: ToolRegistry, session: AgentSession): ToolDefinition[] {
   if (session.disabledMcpServers.size === 0 && session.disabledTools.size === 0) return tools.list();
   return tools.list().filter((tool) => {
     if (session.disabledTools.has(tool.name)) return false;
     const server = mcpToolServerName(tool.name);
     return !server || !session.disabledMcpServers.has(server);
   });
+}
+
+/**
+ * Tools to actually send to the provider this call. Normally the full
+ * availableTools() list; when Tool Search is enabled for this session
+ * (session.toolSearchEnabled — see tool-search.ts's own header comment
+ * for the real, measured problem this closes), just the 3 meta-tools
+ * instead, so the per-turn request stays small regardless of how many
+ * tools are actually available — full schemas are deferred until the
+ * model asks for one via describe_tool.
+ */
+function toolsForProvider(tools: ToolRegistry, session: AgentSession): ToolDefinition[] {
+  if (!session.toolSearchEnabled) return availableTools(tools, session);
+  return [...createToolSearchMetaTools(() => availableTools(tools, session)), createCallToolMetaTool()];
 }
 
 interface ToolCallOutcome {
@@ -105,7 +122,33 @@ async function runOneToolCall(
   tools: ToolRegistry,
   permissions: PermissionManager,
 ): Promise<ToolCallOutcome> {
-  const tool = tools.get(call.name);
+  let tool = tools.get(call.name);
+
+  // Tool Search's call_tool is never actually invoked as itself (see
+  // tool-search.ts's own header comment on why) — remap `call` onto the
+  // REAL target tool/input right here, before anything else (missing-
+  // fields check, permission check, handler dispatch) runs, so every one
+  // of those applies to the target exactly the same way a direct call to
+  // it would have triggered. Resolved against availableTools (not
+  // tools.get directly) so call_tool can only reach a tool search_tools
+  // could actually have surfaced — not a way for the model to blind-guess
+  // the name of something this session has explicitly disabled just
+  // because it isn't offered a schema for it.
+  if (call.name === CALL_TOOL_NAME) {
+    const raw = call.input as Record<string, unknown> | undefined;
+    const targetName = typeof raw?.name === "string" ? raw.name : undefined;
+    if (!targetName) {
+      return { result: { toolCallId: call.id, isError: true, content: `${CALL_TOOL_NAME} requires "name" — the real tool to call (see ${SEARCH_TOOLS_NAME}).` } };
+    }
+    const target = availableTools(tools, session).find((t) => t.name === targetName);
+    if (!target) {
+      return { result: { toolCallId: call.id, isError: true, content: `No tool named "${targetName}" is currently available (unknown, or disabled for this session) — use ${SEARCH_TOOLS_NAME} to find the right name.` } };
+    }
+    const targetInput = raw?.input && typeof raw.input === "object" ? raw.input : {};
+    call = { id: call.id, name: target.name, input: targetInput };
+    tool = target;
+  }
+
   if (!tool) {
     return { result: { toolCallId: call.id, isError: true, content: `Unknown tool "${call.name}"` } };
   }

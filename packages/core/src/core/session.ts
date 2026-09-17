@@ -106,6 +106,19 @@ export class AgentSession {
   /** Built-in tool names excluded from the tool list sent to the model — e.g. a web UI's explicit "web search off"/"image generation off" toggles, distinct from disabledMcpServers (which only ever covers MCP-provided tools). */
   readonly disabledTools = new Set<string>();
   /**
+   * When true, loop.ts sends only 3 meta-tools (search_tools/describe_tool/
+   * call_tool — see tool-search.ts) instead of every available tool's full
+   * schema, deferring the rest until the model actually asks for one. Real
+   * gap this closes: the per-turn request otherwise scales with the TOTAL
+   * number of available tools regardless of task relevance — measured
+   * directly at 277s just to start answering with this project's full
+   * ~180-tool list on a small local model, vs 3-5s with a handful. Not
+   * persisted (a resumed session re-derives it from whether its current
+   * provider looks local, same as the effort-tier picker already does),
+   * same runtime-only convention as disabledTools/disabledMcpServers.
+   */
+  toolSearchEnabled = false;
+  /**
    * One entry per currently-running tool call (see runOneToolCall in
    * loop.ts) — a Set, not a single controller, since "safe" tools run
    * concurrently via Promise.all. Runtime-only, never persisted: a fresh
