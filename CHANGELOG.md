@@ -29,6 +29,15 @@ first tagged release.
 
 ### Fixed
 
+- **Real, reported bug**: disabling every tool from the Tools panel — to
+  use a model with no tool-calling support at all, e.g. `medgemma:4b` —
+  still sent a non-empty `tools` request field whenever Tool Search was
+  active (the default for local providers), since the 3 Tool Search
+  meta-tools were unconditionally attached regardless of how many real
+  tools were actually left. A provider that flatly rejects the `tools`
+  field on an incompatible model still failed outright, "no tool enabled"
+  in the UI notwithstanding. Now falls through to a genuinely empty tools
+  list once nothing real is left to search for.
 - **Critical, real reported bug**: every channel (Telegram, Slack, Discord,
   WhatsApp, ...) silently dropped a failed turn's error message instead of
   relaying it — `runTurn` catches its own provider errors internally and

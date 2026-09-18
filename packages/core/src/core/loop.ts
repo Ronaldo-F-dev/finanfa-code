@@ -92,10 +92,21 @@ function availableTools(tools: ToolRegistry, session: AgentSession): ToolDefinit
  * instead, so the per-turn request stays small regardless of how many
  * tools are actually available — full schemas are deferred until the
  * model asks for one via describe_tool.
+ *
+ * Real, reported bug: disabling every tool from the Tools panel (to use a
+ * model with no tool-calling support at all, e.g. medgemma) still sent a
+ * non-empty `tools` array — the 3 Tool Search meta-tools themselves —
+ * since they're unconditionally attached whenever toolSearchEnabled is
+ * true, regardless of how many real tools availableTools() actually
+ * returns. A provider that flatly rejects the `tools` request field
+ * (rather than just failing an unresolvable call) failed immediately, "no
+ * tool enabled" in the UI notwithstanding. Falls through to the plain,
+ * genuinely empty list once nothing real is left to search for.
  */
 function toolsForProvider(tools: ToolRegistry, session: AgentSession): ToolDefinition[] {
-  if (!session.toolSearchEnabled) return availableTools(tools, session);
-  return [...createToolSearchMetaTools(() => availableTools(tools, session)), createCallToolMetaTool()];
+  const available = availableTools(tools, session);
+  if (!session.toolSearchEnabled || available.length === 0) return available;
+  return [...createToolSearchMetaTools(() => available), createCallToolMetaTool()];
 }
 
 interface ToolCallOutcome {

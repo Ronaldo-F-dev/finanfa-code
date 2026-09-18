@@ -98,6 +98,28 @@ describe("runTurn: Tool Search (session.toolSearchEnabled)", () => {
     expect(provider.offeredToolNames.sort()).toEqual([CALL_TOOL_NAME, DESCRIBE_TOOL_NAME, SEARCH_TOOLS_NAME]);
   });
 
+  // Real, reported bug: disabling every tool from the Tools panel (to use a
+  // model with no tool-calling support at all, e.g. medgemma) still sent a
+  // non-empty `tools` request field — the 3 meta-tools themselves, always
+  // attached whenever Tool Search is on regardless of how many real tools
+  // are actually left — so a provider that flatly rejects `tools` on an
+  // incompatible model failed anyway, "no tool enabled" in the UI
+  // notwithstanding.
+  it("offers NO tools at all (not even the meta-tools) when Tool Search is on but every real tool has been disabled", async () => {
+    const tools = makeTools();
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+    session.toolSearchEnabled = true;
+    session.disabledTools.add("read_file");
+    session.disabledTools.add("bash");
+    const provider = new CapturingProvider();
+
+    await runTurn(session, provider, ui, tools, permissions, "hi");
+
+    expect(provider.offeredToolNames).toEqual([]);
+  });
+
   it("call_tool actually runs the real target tool's handler and returns its real result", async () => {
     const tools = makeTools();
     const ui = makeStubUi();
