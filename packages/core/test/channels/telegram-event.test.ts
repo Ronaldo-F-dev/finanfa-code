@@ -37,8 +37,46 @@ describe("parseTelegramUpdate", () => {
     ).toEqual({ kind: "ignored" });
   });
 
-  it("ignores a non-message update (e.g. callback_query)", () => {
+  it("ignores a malformed callback_query missing the fields a real one always has", () => {
     expect(parseTelegramUpdate({ update_id: 1, callback_query: { id: "abc" } })).toEqual({ kind: "ignored" });
+  });
+
+  // Real, reported feature: a permission-confirmation prompt sent to a
+  // channel now gets real tappable buttons (see channels-telegram.ts's
+  // CONFIRMATION_KEYBOARD) instead of asking the user to type y/n/a/t —
+  // this is Telegram's real callback_query payload shape for a button tap.
+  it("extracts a real callback_query (a tapped confirmation button)", () => {
+    const result = parseTelegramUpdate({
+      update_id: 7,
+      callback_query: {
+        id: "cbq123",
+        from: { id: 1, is_bot: false },
+        message: { message_id: 99, chat: { id: 12345, type: "private" } },
+        data: "y",
+      },
+    });
+    expect(result).toEqual({ kind: "callback", event: { updateId: 7, chatId: "12345", messageThreadId: undefined, callbackQueryId: "cbq123", data: "y" } });
+  });
+
+  it("carries message_thread_id through for a callback tapped inside a forum topic", () => {
+    const result = parseTelegramUpdate({
+      update_id: 7,
+      callback_query: {
+        id: "cbq123",
+        message: { message_id: 99, chat: { id: -100123, type: "supergroup" }, message_thread_id: 5 },
+        data: "n",
+      },
+    });
+    expect(result).toEqual({ kind: "callback", event: { updateId: 7, chatId: "-100123", messageThreadId: 5, callbackQueryId: "cbq123", data: "n" } });
+  });
+
+  it("ignores a callback_query from a bot (defensive, same as a message)", () => {
+    expect(
+      parseTelegramUpdate({
+        update_id: 7,
+        callback_query: { id: "cbq123", from: { is_bot: true }, message: { message_id: 99, chat: { id: 12345 } }, data: "y" },
+      }),
+    ).toEqual({ kind: "ignored" });
   });
 
   it("extracts a voice note message by its file_id, for later download + transcription", () => {

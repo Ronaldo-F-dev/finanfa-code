@@ -2,10 +2,31 @@ import type { Express } from "express";
 import { verifyTelegramSecret } from "@finanfa/core/src/channels/telegram-secret.js";
 import { parseTelegramUpdate } from "@finanfa/core/src/channels/telegram-event.js";
 import { runHeadlessTurn } from "@finanfa/core/src/channels/headless-turn.js";
-import { postTelegramMessage, telegramConfigFromEnv } from "@finanfa/core/src/tools/builtin/send-telegram-message.js";
+import { resolvePendingConfirmation } from "@finanfa/core/src/channels/pending-confirmations.js";
+import { postTelegramMessage, answerTelegramCallbackQuery, telegramConfigFromEnv, type TelegramInlineKeyboardButton } from "@finanfa/core/src/tools/builtin/send-telegram-message.js";
 import { UpdateDedupTracker } from "@finanfa/core/src/channels/update-dedup.js";
 import { fetchTelegramFile } from "@finanfa/core/src/channels/telegram-file.js";
 import { transcribeAudioBytes, transcribeAudioConfigFromEnv } from "@finanfa/core/src/tools/builtin/transcribe-audio.js";
+
+// PermissionManager's own promptUser (permissions/manager.ts) always
+// includes this exact substring in a permission-confirmation prompt —
+// matched here so a Telegram confirmation gets real tappable buttons
+// instead of asking the user to type y/n/a/t by hand. Narrow on purpose:
+// only this one, well-known prompt shape gets buttons; every other
+// writeSystem/writeError message (an error report, a re-prompt after an
+// unrecognized answer) is sent as plain text.
+const CONFIRMATION_PROMPT_MARKER = "[y]es / [n]o";
+
+const CONFIRMATION_KEYBOARD: TelegramInlineKeyboardButton[][] = [
+  [
+    { text: "✅ Yes", callback_data: "y" },
+    { text: "❌ No", callback_data: "n" },
+  ],
+  [
+    { text: "Always this action", callback_data: "a" },
+    { text: "Always allow this tool", callback_data: "t" },
+  ],
+];
 
 async function handleTelegramMessage(
   cwd: string,
@@ -19,8 +40,22 @@ async function handleTelegramMessage(
   // Overridable only for tests against a real local fake Telegram API —
   // real deployments always want the real https://api.telegram.org default.
   const apiBaseUrl = process.env.TELEGRAM_API_BASE_URL;
+  // Real remote-confirmation support: given to runHeadlessTurn so a tool
+  // needing "ask" permission can post its confirmation question back into
+  // this exact chat instead of being auto-denied outright (see
+  // pending-confirmations.ts and headless-turn.ts's own askUser). Only
+  // wired up when config exists — no bot token means no way to post the
+  // question in the first place, so the previous auto-deny default still
+  // applies exactly as before.
+  const sendMessage = config
+    ? async (replyText: string): Promise<void> => {
+        const inlineKeyboard = replyText.includes(CONFIRMATION_PROMPT_MARKER) ? CONFIRMATION_KEYBOARD : undefined;
+        const result = await postTelegramMessage(config, { chatId, text: replyText, replyToMessageId: messageId, messageThreadId, inlineKeyboard }, apiBaseUrl);
+        if (!result.ok) console.error(`Telegram channel: failed to post message to chat ${chatId}: ${result.error}`);
+      }
+    : undefined;
   try {
-    const { replyText } = await runHeadlessTurn(cwd, sessionId, text);
+    const { replyText } = await runHeadlessTurn(cwd, sessionId, text, undefined, sendMessage);
     if (!replyText.trim()) return;
     if (!config) {
       console.error(`Telegram channel: got a reply but TELEGRAM_BOT_TOKEN isn't set, so it can't be posted back: ${replyText}`);
@@ -116,8 +151,29 @@ export function registerTelegramChannelRoutes(app: Express, cwd: string): void {
     if (parsed.kind === "ignored") return;
     if (!dedup.markSeen(parsed.event.updateId)) return; // a redelivery of an update already handled — don't run a second turn or post a duplicate reply
 
-    const { chatId, messageThreadId, messageId } = parsed.event;
+    const { chatId, messageThreadId } = parsed.event;
     const sessionId = `telegram:${chatId}:${messageThreadId ?? "main"}`;
+
+    if (parsed.kind === "callback") {
+      // A tapped confirmation button — the tap's own callback_data is
+      // exactly the y/n/a/t vocabulary PermissionManager's text-answer
+      // path already expects (see CONFIRMATION_KEYBOARD above), so this
+      // resolves the exact same pending confirmation a typed reply would.
+      const config = telegramConfigFromEnv();
+      if (config) void answerTelegramCallbackQuery(config, parsed.event.callbackQueryId, process.env.TELEGRAM_API_BASE_URL);
+      resolvePendingConfirmation(sessionId, parsed.event.data);
+      return;
+    }
+
+    // A text reply while this chat has a pending permission-confirmation
+    // question (see pending-confirmations.ts) is the answer to that
+    // question, not a new message — resolving it here hands control back
+    // to the still-in-flight runHeadlessTurn call that asked it, instead
+    // of starting a second, unrelated turn for what the user typed. Only
+    // reachable for a user who typed y/n instead of tapping a button.
+    if (parsed.kind === "message" && resolvePendingConfirmation(sessionId, parsed.event.text)) return;
+
+    const { messageId } = parsed.event;
     if (parsed.kind === "voice") {
       void handleTelegramVoiceMessage(cwd, sessionId, chatId, messageId, messageThreadId, parsed.event.fileId);
       return;

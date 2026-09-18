@@ -1,8 +1,8 @@
-import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { describe, expect, it, beforeAll, afterAll, beforeEach } from "vitest";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
@@ -202,6 +202,120 @@ describe("web-server Telegram inbound channel (real subprocess, real fake LLM + 
     expect(status).toBe(200);
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(sentMessages).toHaveLength(0);
+  });
+});
+
+// Real, reported feature: a permission-confirmation prompt now goes back
+// out through the same Telegram chat with real tappable buttons, and a
+// tapped button (a real callback_query update) resolves the exact same
+// pending confirmation a typed y/n reply would — own dedicated subprocess/
+// servers so this doesn't touch the plain-text-reply fixtures above at all.
+describe("web-server Telegram inbound channel — real remote confirmation via inline buttons", () => {
+  let projectDir: string;
+  let homeDir: string;
+  let child: ChildProcessWithoutNullStreams;
+  let port: number;
+
+  let llmServer: http.Server;
+  let llmBaseUrl: string;
+  let callCount: number;
+
+  let telegramApiServer: http.Server;
+  let telegramApiBaseUrl: string;
+  let sentMessages: { url: string; body: { chat_id: string; text: string; reply_markup?: { inline_keyboard: { text: string; callback_data: string }[][] } } }[];
+
+  beforeAll(async () => {
+    llmServer = http.createServer((req, res) => {
+      let raw = "";
+      req.on("data", (c) => (raw += c));
+      req.on("end", () => {
+        callCount++;
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        if (callCount === 1) {
+          const events = [
+            JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "write_file", arguments: "" } }] } }] }),
+            JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"path":"note.txt","content":"hi"}' } }] } }] }),
+            JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }),
+          ];
+          for (const e of events) res.write(`data: ${e}\n\n`);
+        } else {
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: "Done." }, finish_reason: "stop" }] })}\n\n`);
+        }
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
+    });
+    await new Promise<void>((resolve) => llmServer.listen(0, "127.0.0.1", resolve));
+    llmBaseUrl = `http://127.0.0.1:${(llmServer.address() as AddressInfo).port}`;
+
+    telegramApiServer = http.createServer((req, res) => {
+      let raw = "";
+      req.on("data", (c) => (raw += c));
+      req.on("end", () => {
+        sentMessages.push({ url: req.url ?? "", body: raw ? JSON.parse(raw) : {} });
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ ok: true, result: { message_id: 99 } }));
+      });
+    });
+    await new Promise<void>((resolve) => telegramApiServer.listen(0, "127.0.0.1", resolve));
+    telegramApiBaseUrl = `http://127.0.0.1:${(telegramApiServer.address() as AddressInfo).port}`;
+
+    projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-telegram-confirm-project-"));
+    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-telegram-confirm-home-"));
+
+    await mkdir(path.join(projectDir, ".finanfa-code"), { recursive: true });
+    await writeFile(
+      path.join(projectDir, ".finanfa-code", "config.json"),
+      JSON.stringify({ provider: "openai-compatible", baseUrl: llmBaseUrl, model: "test-model", apiKey: "test-key" }),
+    );
+
+    process.env.TELEGRAM_WEBHOOK_SECRET = WEBHOOK_SECRET;
+    process.env.TELEGRAM_BOT_TOKEN = "123:test-bot-token";
+    process.env.TELEGRAM_API_BASE_URL = telegramApiBaseUrl;
+
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
+  }, 30_000);
+
+  afterAll(async () => {
+    killWebServer(child);
+    llmServer.close();
+    telegramApiServer.close();
+    await rm(projectDir, { recursive: true, force: true });
+    await rm(homeDir, { recursive: true, force: true });
+    for (const k of ["TELEGRAM_WEBHOOK_SECRET", "TELEGRAM_BOT_TOKEN", "TELEGRAM_API_BASE_URL"]) delete process.env[k];
+  });
+
+  beforeEach(() => {
+    callCount = 0;
+    sentMessages = [];
+  });
+
+  it("sends the confirmation prompt with real inline buttons, and a tapped button (callback_query) runs the tool", async () => {
+    await postTelegramUpdate(port, { update_id: 10, message: { message_id: 1, chat: { id: 777 }, text: "write a note" } });
+
+    await waitFor(() => sentMessages.some((m) => m.body.text?.includes('wants to run "write_file"')));
+    const confirmationMessage = sentMessages.find((m) => m.body.text?.includes('wants to run "write_file"'));
+    expect(confirmationMessage?.body.reply_markup?.inline_keyboard).toEqual([
+      [
+        { text: "✅ Yes", callback_data: "y" },
+        { text: "❌ No", callback_data: "n" },
+      ],
+      [
+        { text: "Always this action", callback_data: "a" },
+        { text: "Always allow this tool", callback_data: "t" },
+      ],
+    ]);
+
+    // The real Telegram callback_query shape for a tap on the "✅ Yes" button.
+    await postTelegramUpdate(port, {
+      update_id: 11,
+      callback_query: { id: "cbq1", from: { id: 1, is_bot: false }, message: { message_id: 99, chat: { id: 777 } }, data: "y" },
+    });
+
+    await waitFor(() => sentMessages.some((m) => m.body.text === "Done."));
+    expect(await readFile(path.join(projectDir, "note.txt"), "utf-8")).toBe("hi");
+    // answerCallbackQuery, not another sendMessage, is what acks the tap itself.
+    expect(sentMessages.some((m) => m.url.includes("answerCallbackQuery"))).toBe(true);
   });
 });
 

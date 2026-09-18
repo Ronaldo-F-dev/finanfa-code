@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { runHeadlessTurn } from "../../src/channels/headless-turn.js";
 import { sessionDir } from "../../src/core/session.js";
+import { hasPendingConfirmation, resolvePendingConfirmation } from "../../src/channels/pending-confirmations.js";
 
 // Real end-to-end test: a real local HTTP server speaking the OpenAI
 // chat-completions SSE format (same as azure-openai-provider.test.ts),
@@ -148,5 +149,101 @@ describe("runHeadlessTurn (real local HTTP server, real project directory, real 
       baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
       process.env.FINANFA_BASE_URL = baseUrl;
     }
+  });
+
+  // Real, reported feature: a channel (Telegram) can now post a real
+  // permission-confirmation question back through the same chat and wait
+  // for the user's own next message as the answer, instead of every
+  // "ask"-risk tool call (write_file here) being auto-denied outright.
+  // Real local HTTP server standing in for the model: calls write_file on
+  // its first turn, then (once the tool result comes back) just confirms
+  // in plain text — the only thing simulating "the remote user" is the
+  // resolvePendingConfirmation call below, which is exactly what
+  // channels-telegram.ts's webhook handler calls for real.
+  describe("real remote permission-confirmation flow", () => {
+    let confirmServer: http.Server;
+    let confirmBaseUrl: string;
+    let callCount: number;
+    let sentMessages: string[];
+
+    beforeAll(async () => {
+      confirmServer = http.createServer((req, res) => {
+        let raw = "";
+        req.on("data", (c) => (raw += c));
+        req.on("end", () => {
+          callCount++;
+          res.writeHead(200, { "content-type": "text/event-stream" });
+          if (callCount === 1) {
+            const events = [
+              JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "write_file", arguments: "" } }] } }] }),
+              JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"path":"note.txt","content":"hi"}' } }] } }] }),
+              JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }),
+            ];
+            for (const e of events) res.write(`data: ${e}\n\n`);
+          } else {
+            res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: "Done." }, finish_reason: "stop" }] })}\n\n`);
+          }
+          res.write("data: [DONE]\n\n");
+          res.end();
+        });
+      });
+      await new Promise<void>((resolve) => confirmServer.listen(0, "127.0.0.1", resolve));
+      confirmBaseUrl = `http://127.0.0.1:${(confirmServer.address() as AddressInfo).port}`;
+    });
+
+    afterAll(() => {
+      confirmServer.close();
+    });
+
+    beforeEach(() => {
+      callCount = 0;
+      sentMessages = [];
+      process.env.FINANFA_BASE_URL = confirmBaseUrl;
+    });
+
+    it("sends the confirmation prompt through the channel, then runs the tool once the simulated remote reply arrives", async () => {
+      const sessionId = "telegram:confirm-yes";
+      const sendMessage = async (text: string): Promise<void> => {
+        sentMessages.push(text);
+      };
+
+      const resultPromise = runHeadlessTurn(projectDir, sessionId, "write a note", undefined, sendMessage);
+
+      // Real polling for the async confirmation prompt to actually land,
+      // rather than a fixed sleep — this is the same kind of wait a real
+      // webhook handler doesn't need (it's event-driven), but a test
+      // racing against runHeadlessTurn's own internals does.
+      while (!hasPendingConfirmation(sessionId)) {
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      expect(sentMessages.some((m) => m.includes('wants to run "write_file"'))).toBe(true);
+
+      resolvePendingConfirmation(sessionId, "y");
+      const result = await resultPromise;
+
+      expect(result.replyText).toBe("Done.");
+      expect(await readFile(path.join(projectDir, "note.txt"), "utf-8")).toBe("hi");
+    });
+
+    it("denies the tool call when the simulated remote reply is 'n', same as a typed 'no' would", async () => {
+      const sessionId = "telegram:confirm-no";
+      const sendMessage = async (): Promise<void> => {};
+
+      const resultPromise = runHeadlessTurn(projectDir, sessionId, "write a note", undefined, sendMessage);
+      while (!hasPendingConfirmation(sessionId)) {
+        await new Promise((r) => setTimeout(r, 5));
+      }
+      resolvePendingConfirmation(sessionId, "n");
+      await resultPromise;
+
+      await expect(readFile(path.join(projectDir, "note.txt"), "utf-8")).rejects.toThrow();
+    });
+
+    it("auto-denies instead of asking at all when no sendMessage callback is given (a channel that hasn't opted in)", async () => {
+      const result = await runHeadlessTurn(projectDir, "telegram:no-confirm-support", "write a note");
+      expect(hasPendingConfirmation("telegram:no-confirm-support")).toBe(false);
+      expect(result.replyText).toBe("Done.");
+      await expect(readFile(path.join(projectDir, "note.txt"), "utf-8")).rejects.toThrow();
+    });
   });
 });

@@ -18,6 +18,7 @@ import { loadDesignContract } from "../core/design-contract.js";
 import { BrowserManager } from "../browser/manager.js";
 import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled } from "../core/config.js";
 import { BASE_SYSTEM_PROMPT, selectProvider, selectVisionProvider, isLocalProviderConfig } from "../app.js";
+import { waitForRemoteConfirmation } from "./pending-confirmations.js";
 import type { UIAdapter } from "../ui/adapter.js";
 import type { NeutralImage } from "../core/types.js";
 
@@ -41,27 +42,46 @@ import type { NeutralImage } from "../core/types.js";
  * buffer as real assistant text means a channel user always sees
  * something instead of nothing.
  */
-function createBufferingUiAdapter(): UIAdapter & { replyText: () => string } {
+/**
+ * `sendMessage`, when given, is what makes a real confirmation loop
+ * possible at all: a channel that can post an out-of-band message mid-turn
+ * (see channels-telegram.ts) and correlate the user's next inbound message
+ * as the answer (pending-confirmations.ts) can let askUser actually ask,
+ * instead of PermissionManager's nonInteractive mode auto-denying every
+ * "ask"-risk tool call outright. Without it (a channel that hasn't wired
+ * this up yet), behavior is unchanged from before: askUser is never
+ * reached at all, since runHeadlessTurn passes nonInteractive: true in
+ * that case.
+ */
+function createBufferingUiAdapter(sessionId: string, sendMessage?: (text: string) => Promise<void>): UIAdapter & { replyText: () => string } {
   let buffer = "";
   const appendLine = (text: string): void => {
     if (buffer.length > 0) buffer += "\n\n";
     buffer += text;
   };
+  // With real-time delivery available, a system/error message (a failed
+  // turn, an "unrecognized answer, try again" reprompt) goes out live
+  // instead of waiting to be bundled into the final reply — the whole
+  // point for the reprompt case, since the user needs to see it before
+  // their very next message is expected to be the actual answer.
+  const deliver = sendMessage ? (text: string) => void sendMessage(text) : appendLine;
   return {
     writeAssistantDelta(text) {
       buffer += text;
     },
     endAssistantMessage() {},
     writeBanner() {},
-    writeSystem: appendLine,
-    writeError: appendLine,
+    writeSystem: deliver,
+    writeError: deliver,
     writeToolCall() {},
     setStatus() {},
     getStatus: () => undefined,
     setCommands() {},
     setBusy() {},
-    async askUser() {
-      return "";
+    async askUser(prompt: string) {
+      if (!sendMessage) return "";
+      await sendMessage(prompt);
+      return waitForRemoteConfirmation(sessionId);
     },
     close() {},
     replyText: () => buffer,
@@ -90,9 +110,24 @@ export interface HeadlessTurnResult {
  * vision fallback provider (selectVisionProvider), same as every other
  * front-end, so a primary model with no vision support still works for a
  * channel message that includes one.
+ *
+ * `sendMessage`, when given, is a way for this turn to post a real
+ * out-of-band message back through the same channel *before* it finishes
+ * (a permission-confirmation prompt for a risky tool call — see
+ * createBufferingUiAdapter and pending-confirmations.ts). A channel that
+ * hasn't wired this up (or a genuinely unattended one, like a scheduled
+ * task with nobody to ask) keeps the previous, safer default: every
+ * "ask"-risk tool call is auto-denied rather than left hanging forever
+ * waiting for a reply nobody can give.
  */
-export async function runHeadlessTurn(cwd: string, sessionId: string, userText: string, images?: NeutralImage[]): Promise<HeadlessTurnResult> {
-  const ui = createBufferingUiAdapter();
+export async function runHeadlessTurn(
+  cwd: string,
+  sessionId: string,
+  userText: string,
+  images?: NeutralImage[],
+  sendMessage?: (text: string) => Promise<void>,
+): Promise<HeadlessTurnResult> {
+  const ui = createBufferingUiAdapter(sessionId, sendMessage);
   const config = await loadConfig(cwd);
   const { provider, defaultModel } = selectProvider(config);
 
@@ -106,7 +141,7 @@ export async function runHeadlessTurn(cwd: string, sessionId: string, userText: 
   const trusted = await resolveTrust(cwd, ui, true);
   const permissionConfig = await loadPermissionConfig(cwd, trusted);
   const hooksConfig = await loadHooksConfig(cwd, trusted);
-  const permissions = new PermissionManager({ config: permissionConfig, ui, nonInteractive: true, hooksConfig });
+  const permissions = new PermissionManager({ config: permissionConfig, ui, nonInteractive: !sendMessage, hooksConfig });
   if (trusted) await loadPlugins(cwd, tools, new CommandRegistry());
 
   const skills = await loadSkills(cwd);

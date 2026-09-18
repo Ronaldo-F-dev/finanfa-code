@@ -28,6 +28,12 @@ interface TelegramApiResponse {
 
 export type PostTelegramMessageResult = { ok: true; messageId?: number } | { ok: false; error: string };
 
+/** One row of Telegram's own inline-keyboard shape — https://core.telegram.org/bots/api#inlinekeyboardmarkup. */
+export interface TelegramInlineKeyboardButton {
+  text: string;
+  callback_data: string;
+}
+
 /**
  * The raw sendMessage call, shared by this tool and the inbound Telegram
  * channel webhook (see @finanfa/web-server's channels-telegram.ts) so
@@ -35,7 +41,14 @@ export type PostTelegramMessageResult = { ok: true; messageId?: number } | { ok:
  */
 export async function postTelegramMessage(
   config: TelegramConfig,
-  input: { chatId: string; text: string; replyToMessageId?: number; messageThreadId?: number },
+  input: {
+    chatId: string;
+    text: string;
+    replyToMessageId?: number;
+    messageThreadId?: number;
+    /** Real tappable buttons instead of asking the user to type an answer — see channels-telegram.ts's permission-confirmation prompts. */
+    inlineKeyboard?: TelegramInlineKeyboardButton[][];
+  },
   apiBaseUrl = "https://api.telegram.org",
 ): Promise<PostTelegramMessageResult> {
   let response: Response;
@@ -54,6 +67,7 @@ export async function postTelegramMessage(
           text: input.text,
           reply_to_message_id: input.replyToMessageId,
           message_thread_id: input.messageThreadId,
+          reply_markup: input.inlineKeyboard ? { inline_keyboard: input.inlineKeyboard } : undefined,
         }),
       },
       { retryAfterMs: (_response, body) => parseRetryAfterMs(body) },
@@ -70,6 +84,24 @@ export async function postTelegramMessage(
   }
 
   return data.ok ? { ok: true, messageId: data.result?.message_id } : { ok: false, error: data.description ?? "unknown error" };
+}
+
+/**
+ * Acknowledges a button tap (answerCallbackQuery) — Telegram shows a
+ * loading spinner on the tapped button until this is called, regardless
+ * of whether the tap actually changed anything; best-effort since a
+ * failure here doesn't affect whether the tap's own decision was applied.
+ */
+export async function answerTelegramCallbackQuery(config: TelegramConfig, callbackQueryId: string, apiBaseUrl = "https://api.telegram.org"): Promise<void> {
+  try {
+    await fetchWithRetry(`${apiBaseUrl}/bot${config.botToken}/answerCallbackQuery`, {
+      method: "POST",
+      headers: { "content-type": "application/json; charset=utf-8" },
+      body: JSON.stringify({ callback_query_id: callbackQueryId }),
+    });
+  } catch {
+    // Best-effort — see doc comment above.
+  }
 }
 
 function parseRetryAfterMs(bodyText: string): number | undefined {

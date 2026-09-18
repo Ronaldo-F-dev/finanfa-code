@@ -62,6 +62,21 @@ first tagged release.
 
 ### Added
 
+- Real remote permission confirmation for a chat channel (Telegram
+  first): a tool call needing "ask" confirmation now sends the question
+  back through the same chat — with real tappable Yes/No/Always buttons,
+  not just typed y/n/a/t — and waits for the user's reply there before
+  running it, instead of being auto-denied outright the way every
+  channel-driven turn previously was. Real motivation: OpenClaw (a
+  comparable reference agent) already does this, more richly (configurable
+  approvers, multiple channels) — this is finanfa-code's own version for
+  Telegram, with the same underlying pending-confirmation mechanism
+  (`pending-confirmations.ts`) reusable by any future channel that wants
+  it. A channel that hasn't wired up a `sendMessage` callback keeps the
+  previous, safer default unchanged: every "ask"-risk tool call is still
+  auto-denied. Verified end-to-end against a real Telegram bot: a real
+  `bash: ls -la` confirmation prompt, a real button tap, a real command
+  run, and the real result posted back.
 - Flags a real, distinct failure mode found testing several small local
   models: instead of a real structured tool call, the model writes its
   intended call as plain assistant text (e.g. `{"name": "bash",

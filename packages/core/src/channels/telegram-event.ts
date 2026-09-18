@@ -12,9 +12,19 @@ export type TelegramMessageEvent = TelegramMessageCommon & { text: string };
 /** A voice note (always Ogg/Opus) — no `text`, needs downloading + transcribing before a turn can run on it (see channels-telegram.ts). */
 export type TelegramVoiceEvent = TelegramMessageCommon & { fileId: string };
 
+/** A tap on one of the inline-keyboard buttons attached to a permission-confirmation prompt (see channels-telegram.ts) — `data` is exactly the button's own callback_data, the same y/n/a/t vocabulary PermissionManager's text-answer path already expects. */
+export interface TelegramCallbackEvent {
+  updateId: number;
+  chatId: string;
+  messageThreadId?: number;
+  callbackQueryId: string;
+  data: string;
+}
+
 export type ParsedTelegramUpdate =
   | { kind: "message"; event: TelegramMessageEvent }
   | { kind: "voice"; event: TelegramVoiceEvent }
+  | { kind: "callback"; event: TelegramCallbackEvent }
   | { kind: "ignored" };
 
 /**
@@ -29,6 +39,32 @@ export type ParsedTelegramUpdate =
 export function parseTelegramUpdate(body: unknown): ParsedTelegramUpdate {
   if (typeof body !== "object" || body === null) return { kind: "ignored" };
   const update = body as Record<string, unknown>;
+
+  const callbackQuery = update.callback_query as Record<string, unknown> | undefined;
+  if (typeof callbackQuery === "object" && callbackQuery !== null) {
+    const cbFrom = callbackQuery.from as Record<string, unknown> | undefined;
+    if (cbFrom?.is_bot) return { kind: "ignored" };
+    const cbMessage = callbackQuery.message as Record<string, unknown> | undefined;
+    const cbChat = cbMessage?.chat as Record<string, unknown> | undefined;
+    if (
+      (typeof cbChat?.id !== "number" && typeof cbChat?.id !== "string") ||
+      typeof callbackQuery.id !== "string" ||
+      typeof callbackQuery.data !== "string" ||
+      typeof update.update_id !== "number"
+    ) {
+      return { kind: "ignored" };
+    }
+    return {
+      kind: "callback",
+      event: {
+        updateId: update.update_id,
+        chatId: String(cbChat.id),
+        messageThreadId: typeof cbMessage?.message_thread_id === "number" ? cbMessage.message_thread_id : undefined,
+        callbackQueryId: callbackQuery.id,
+        data: callbackQuery.data,
+      },
+    };
+  }
 
   if (typeof update.message !== "object" || update.message === null) return { kind: "ignored" };
   const message = update.message as Record<string, unknown>;
