@@ -7,8 +7,25 @@ import type {
   StreamTurnResult,
   ToolDefinition,
 } from "../core/types.js";
+import { Agent } from "undici";
 import { retryWithBackoff } from "../util/retry.js";
 import { repairTruncatedToolCallJson } from "./tool-call-json-repair.js";
+
+// Real, reported bug found via a raw fetch() repro against a real local
+// server (bypassing this whole provider): Node's global fetch is backed by
+// undici, whose default Agent applies its OWN 300s headersTimeout/
+// bodyTimeout to every request — completely independent of, and invisible
+// to, this file's own timeout logic below. A local model that went silent
+// for over 5 minutes while composing a large tool-call argument got its
+// connection killed by undici itself (a raw, uncaught "TypeError:
+// terminated" / UND_ERR_BODY_TIMEOUT), regardless of how high
+// STREAM_IDLE_TIMEOUT_MS (or FINANFA_STREAM_IDLE_TIMEOUT_MS) was set —
+// that knob was silently powerless against this hidden second timeout.
+// Disabling both of the dispatcher's own timeouts (0 = no limit) makes
+// this file's own timers — the ttfbController below for headers, and the
+// read-loop's idle timeout for the body, both of which actually reset on
+// activity instead of capping total duration — the sole authority.
+const dispatcher = new Agent({ bodyTimeout: 0, headersTimeout: 0 });
 
 // A generic client for any server implementing the OpenAI chat-completions
 // wire format: Ollama, OpenRouter, Poolside, LM Studio, vLLM, etc. all speak
@@ -196,7 +213,11 @@ async function fetchInitialResponse(
           // (not replaced) with the caller's own signal, e.g. a user
           // interrupt via loop.ts's streamController — either one aborts.
           signal: signal ? AbortSignal.any([ttfbController.signal, signal]) : ttfbController.signal,
-        });
+          // See the `dispatcher` module-level comment above — without this,
+          // undici's own default Agent silently overrides every timeout
+          // this file implements.
+          dispatcher,
+        } as unknown as RequestInit);
       } finally {
         clearTimeout(ttfbTimer);
       }

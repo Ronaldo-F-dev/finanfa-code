@@ -49,6 +49,7 @@ export default defineConfig({
     "serialport",
     "sharp",
     "tree-sitter-wasms",
+    "undici",
     "web-tree-sitter",
     "word-extractor",
   ],

@@ -1,4 +1,5 @@
 import { describe, expect, it, vi, afterEach } from "vitest";
+import { Agent } from "undici";
 import { OpenAiCompatibleProvider } from "../../src/providers/openai-compatible-provider.js";
 
 function sseResponse(events: string[]): Response {
@@ -17,6 +18,30 @@ describe("OpenAiCompatibleProvider.streamTurn (SSE parsing)", () => {
   afterEach(() => {
     vi.unstubAllGlobals();
   });
+
+  it(
+    "real, reported bug: passes a dispatcher with its own timeouts disabled — Node's global fetch is " +
+      "backed by undici, whose default Agent applies a hidden 300s bodyTimeout/headersTimeout to every " +
+      "request, independent of and invisible to this file's own timeout logic. A local model that went " +
+      "silent for over 5 minutes composing a large tool call got killed by undici itself " +
+      "(UND_ERR_BODY_TIMEOUT) no matter how high STREAM_IDLE_TIMEOUT_MS was set, confirmed via a raw " +
+      "fetch() repro against a real local server that bypassed this provider entirely.",
+    async () => {
+      const fetchMock = vi.fn().mockResolvedValue(sseResponse([JSON.stringify({ choices: [{ delta: { content: "hi" } }] })]));
+      vi.stubGlobal("fetch", fetchMock);
+
+      const provider = new OpenAiCompatibleProvider({ baseUrl: "http://localhost:11434/v1" });
+      await provider.streamTurn({ model: "m", systemPrompt: "s", messages: [], tools: [], onTextDelta: () => {} });
+
+      const init = fetchMock.mock.calls[0][1] as { dispatcher?: unknown };
+      // Agent doesn't expose its configured bodyTimeout/headersTimeout as
+      // plain readable properties, so this only pins down that a real
+      // undici Agent (not Node's own hidden default one) is actually
+      // passed — see openai-compatible-provider.ts's module-level
+      // `dispatcher` for what it's configured with and why.
+      expect(init.dispatcher).toBeInstanceOf(Agent);
+    },
+  );
 
   it("accumulates streamed text deltas and reports usage/stop reason", async () => {
     const events = [

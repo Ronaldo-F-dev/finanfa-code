@@ -10,6 +10,20 @@ first tagged release.
 
 ### Fixed
 
+- **Critical**: Node's global `fetch()` is backed by undici, whose default
+  Agent applies its own hidden 300s `bodyTimeout`/`headersTimeout` to every
+  request — completely independent of, and invisible to, this project's own
+  timeout logic. A local model that went silent for over 5 minutes while
+  composing a large tool call (an entire HTML/CSS file as a `write_file`
+  argument) got killed by undici itself (`UND_ERR_BODY_TIMEOUT`) no matter
+  how high `FINANFA_STREAM_IDLE_TIMEOUT_MS` was set — that knob was
+  silently powerless against this second, hidden timeout. Confirmed via a
+  raw `fetch()` repro against a real local server that bypassed this
+  project's provider code entirely. Fixed by passing a dedicated undici
+  `Agent` with both timeouts disabled, so this project's own timers (which
+  actually reset on activity, instead of capping total duration) are the
+  sole authority. Verified against the real failing case: a run with a
+  5-minute-49-second silent gap completed successfully.
 - The OpenAI-compatible provider's time-to-first-byte timeout
   (`AbortSignal.timeout(300_000)` passed straight into `fetch()`) kept
   governing the connection for the entire streamed response, not just the
