@@ -25,6 +25,11 @@ describe("findKnownModelNote", () => {
     expect(findKnownModelNote("qwen2.5-coder:7b")).toContain("doesn't reliably use real function/tool calls");
   });
 
+  it("matches qwen3.5:4b, a tag that requires the trailing size to disambiguate from other qwen3.5 tags", () => {
+    expect(findKnownModelNote("qwen3.5:4b")).toContain("os.Exit(0)");
+    expect(findKnownModelNote("qwen3.5:27b")).toBeUndefined();
+  });
+
   it("returns undefined for a model with no known note", () => {
     expect(findKnownModelNote("llama3.2:latest")).toBeUndefined();
   });

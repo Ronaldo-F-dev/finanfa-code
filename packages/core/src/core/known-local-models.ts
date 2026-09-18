@@ -85,6 +85,21 @@ export const KNOWN_LOCAL_MODEL_NOTES: readonly KnownModelNote[] = [
       "no file gets written. Zero files were created in either real multi-file test. Not usable for " +
       "tool-driven tasks through finanfa as tested, regardless of size.",
   },
+  {
+    pattern: "qwen3.5:4b",
+    note:
+      "Real tested behavior: a confusing split. Isolated, single-turn raw requests (both a direct tool and " +
+      "finanfa's search_tools/describe_tool/call_tool indirection) got a real, correctly-formed tool_calls " +
+      "entry every time, with a sensible query for search_tools. But through finanfa's real REPL (its full " +
+      "system prompt, not a short isolated request), it never called any tool at all in two separate real " +
+      'multi-file tests — instead it just described the files as plain text and then claimed "J\'ai créé les ' +
+      'fichiers via write_file" (French: "I created the files via write_file") when it demonstrably hadn\'t; ' +
+      "zero files existed on disk both times. The one file layout it did show also had a real Go bug " +
+      "(`exit(0)` with no such builtin/import — needs `os.Exit(0)` and an `\"os\"` import). Something about " +
+      "finanfa's longer, real system prompt seems to derail this model's tool use specifically, even though " +
+      "the underlying tool-calling mechanism clearly works for it in isolation. Not usable through finanfa as " +
+      "tested — verify carefully if it claims to have written anything.",
+  },
 ] as const;
 
 /** Case-insensitive substring match against a model id — the same convention Ollama/registry model names already use loosely (e.g. "author/name:tag"). */
