@@ -227,7 +227,13 @@ export async function runAcpAgent(cwd: string): Promise<void> {
 
       state.cancelRequested = false;
       await runTurn(state.session, state.provider, state.ui, state.tools, state.permissions, text);
-      await maybeGenerateTitle(state.session, state.provider);
+      // Not awaited — same real reported bug as cli.ts's repl(): this is a
+      // second, separate provider call the client (IDE) has no visibility
+      // into at all, and awaiting it here held the whole ACP RPC response
+      // (and with it, the IDE's "still generating" state) hostage to
+      // however long that invisible extra call took against a slow model.
+      // Best-effort and self-persisting on success — see its own docstring.
+      void maybeGenerateTitle(state.session, state.provider);
       await state.session.persist();
       return { stopReason: state.cancelRequested ? "cancelled" : "end_turn" };
     })

@@ -410,7 +410,18 @@ async function repl(deps: ReplDeps): Promise<void> {
 
     try {
       await runTurn(deps.session, provider, ui, tools, permissions, trimmed, visionRoute);
-      await maybeGenerateTitle(deps.session, provider);
+      // Real reported bug: awaiting this here blocked the REPL from
+      // showing the next "> " prompt at all until title generation
+      // finished — its own extra provider.streamTurn call, which runs
+      // with no busy indicator of any kind (maybeGenerateTitle never
+      // touches ui.setBusy). Against a slow local model, this made typing
+      // a second message look like finanfa had frozen (or was ignoring
+      // input entirely) for as long as that invisible call took — now
+      // worse than before, since the timeout fixes elsewhere in this
+      // session let it legitimately run for minutes instead of failing
+      // fast. Title generation is best-effort (see its own docstring) and
+      // persists itself on success — nothing here needs to wait on it.
+      void maybeGenerateTitle(deps.session, provider);
     } catch (err) {
       ui.writeError(err instanceof Error ? err.message : String(err));
     }

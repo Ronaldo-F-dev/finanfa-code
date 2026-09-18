@@ -10,6 +10,19 @@ first tagged release.
 
 ### Fixed
 
+- **Critical, real reported bug**: after the first exchange of a session,
+  every interactive surface (CLI repl, custom commands, ACP, the VS Code
+  extension) silently blocked on a second, *invisible* provider call
+  (auto-generating the session title) before accepting the next prompt —
+  with no busy indicator of any kind, since `maybeGenerateTitle` never
+  touches the UI's busy state. Against a slow local model, this made typing
+  a second message look like finanfa had frozen (or was ignoring input
+  entirely) for as long as that hidden call took — worse than before, since
+  this session's own timeout fixes let it legitimately run for minutes
+  instead of failing fast. Fixed by no longer awaiting it in every
+  interactive context (one-shot/script modes like `-p` and channel
+  messages still await it, since the process exits soon after anyway) —
+  title generation is best-effort and persists itself on success.
 - **Critical**: Node's global `fetch()` is backed by undici, whose default
   Agent applies its own hidden 300s `bodyTimeout`/`headersTimeout` to every
   request — completely independent of, and invisible to, this project's own

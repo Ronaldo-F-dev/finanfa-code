@@ -155,4 +155,48 @@ describe("runCustomCommand", () => {
     expect(outcome).toBe("continue");
     expect(capturedUserContent).toBe("Review the diff, focus: security");
   });
+
+  it(
+    "real, reported bug: does not block on title generation — a second, invisible provider call with " +
+      "no busy indicator that used to hold up the whole command (and the CLI repl's next prompt) for " +
+      "however long it took against a slow model, even if it never resolved at all",
+    async () => {
+      let calls = 0;
+      class FirstCallOkThenHangsProvider implements LlmProvider {
+        async streamTurn(): Promise<StreamTurnResult> {
+          calls++;
+          if (calls === 1) {
+            return { assistantMessage: { role: "assistant", content: "done" }, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: "end_turn" };
+          }
+          // The title-generation call — never resolves, simulating a
+          // genuinely stuck local model. If runCustomCommand awaited this,
+          // the test itself would hang forever.
+          return new Promise<StreamTurnResult>(() => {});
+        }
+      }
+
+      const ui = makeStubUi();
+      const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+      const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+      const command: CustomCommand = { name: "review", description: "", content: "Review the diff", scope: "project" };
+
+      const outcome = await runCustomCommand(
+        {
+          session,
+          ui,
+          tools: new ToolRegistry(),
+          permissions,
+          mcp: undefined as never,
+          provider: new FirstCallOkThenHangsProvider(),
+          cwd: "/tmp",
+          args: "",
+          setSession: () => {},
+        },
+        command,
+      );
+
+      expect(outcome).toBe("continue");
+      expect(calls).toBeGreaterThanOrEqual(1);
+    },
+  );
 });

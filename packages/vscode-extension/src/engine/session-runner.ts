@@ -288,7 +288,13 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
     },
     async sendMessage(text, images) {
       await runTurn(session, provider, ui, tools, permissions, text, visionRoute, images);
-      await maybeGenerateTitle(session, provider);
+      // Not awaited — same real reported bug as the CLI's repl(): this is
+      // a second, separate provider call the chat panel has no visibility
+      // into, and awaiting it here kept the panel's own "still working"
+      // state (spinner, disabled input) hostage to however long that
+      // invisible extra call took against a slow model. Best-effort and
+      // self-persisting on success — see its own docstring.
+      void maybeGenerateTitle(session, provider);
     },
     async listModels(): Promise<ModelListing> {
       const availability = await familyAvailability(config);

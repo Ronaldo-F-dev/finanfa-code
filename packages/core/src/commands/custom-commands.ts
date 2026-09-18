@@ -85,6 +85,10 @@ export function expandCustomCommand(command: CustomCommand, args: string): strin
 export async function runCustomCommand(ctx: CommandContext, command: CustomCommand): Promise<CommandOutcome> {
   const expanded = expandCustomCommand(command, ctx.args);
   await runTurn(ctx.session, ctx.provider, ctx.ui, ctx.tools, ctx.permissions, expanded);
-  await maybeGenerateTitle(ctx.session, ctx.provider);
+  // Not awaited — same real reported bug as the CLI repl()'s own turn
+  // handling: a second, invisible provider call (no busy indicator) that
+  // callers have no reason to block their next prompt on. Best-effort and
+  // self-persisting on success — see its own docstring.
+  void maybeGenerateTitle(ctx.session, ctx.provider);
   return "continue";
 }
