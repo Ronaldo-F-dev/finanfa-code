@@ -72,6 +72,19 @@ export const KNOWN_LOCAL_MODEL_NOTES: readonly KnownModelNote[] = [
       "module syntax, and an unfilled `{name}` placeholder). Not reliable enough yet for an unattended " +
       "multi-file task; expect to need at least one retry.",
   },
+  {
+    pattern: "qwen2.5-coder:3b",
+    note:
+      "Real tested behavior: doesn't reliably use real function/tool calls at all, at least at this size/" +
+      "quantization (3.1B, Q4_K_M) — asked to write files, it printed its intended call as plain assistant " +
+      'text (e.g. `{"name": "bash", "arguments": {...}}` or a made-up `{action: "create_file", ...}` shape) ' +
+      "instead of a real structured tool_calls entry, confirmed both through finanfa and with a raw, isolated " +
+      "request. Ollama's own template for this model does reference ToolCalls/.Tools, so the plumbing exists " +
+      "— the model itself just doesn't reliably produce the exact output format that template's parser needs " +
+      "to extract a real call, so finanfa never sees one and no file gets written. Zero files were created in " +
+      "a real multi-file test. A larger tier of the same qwen2.5-coder family may behave better; this specific " +
+      "3B one isn't usable for tool-driven tasks as tested.",
+  },
 ] as const;
 
 /** Case-insensitive substring match against a model id — the same convention Ollama/registry model names already use loosely (e.g. "author/name:tag"). */
