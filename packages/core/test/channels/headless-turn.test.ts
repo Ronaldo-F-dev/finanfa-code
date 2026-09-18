@@ -105,4 +105,48 @@ describe("runHeadlessTurn (real local HTTP server, real project directory, real 
     expect(saved.messages.filter((m) => m.role === "user")).toHaveLength(2);
     expect(saved.messages.filter((m) => m.role === "assistant")).toHaveLength(2);
   });
+
+  // Real, reported bug: a channel user (Telegram in the real report) got
+  // total silence instead of a reply when the turn failed — indistinguishable
+  // from the bot being down. runTurn catches its own provider errors
+  // internally and calls ui.writeSystem with a real, actionable message
+  // (see loop.ts's own error branches) instead of throwing, so
+  // runHeadlessTurn never threw either; writeSystem/writeError being no-ops
+  // here meant that message vanished and replyText came back empty, which
+  // every real channel handler (see channels-telegram.ts) then reads as
+  // "nothing to post" and silently returns.
+  it("surfaces a failed turn's error message as real reply text instead of silence", async () => {
+    server.close();
+    const failingServer = http.createServer((_req, res) => {
+      res.writeHead(500, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "boom" }));
+    });
+    await new Promise<void>((resolve) => failingServer.listen(0, "127.0.0.1", resolve));
+    process.env.FINANFA_BASE_URL = `http://127.0.0.1:${(failingServer.address() as AddressInfo).port}`;
+
+    try {
+      const result = await runHeadlessTurn(projectDir, "slack-C123-error-case", "hi there");
+      expect(result.replyText.trim()).not.toBe("");
+      expect(result.replyText).toContain("the model call failed");
+    } finally {
+      failingServer.close();
+      // Restore the shared fake server other tests in this file depend on.
+      server = http.createServer((req, res) => {
+        let raw = "";
+        req.on("data", (c) => (raw += c));
+        req.on("end", () => {
+          const body = JSON.parse(raw) as { messages: { role: string; content: unknown }[] };
+          lastRequestBody = body;
+          requestBodies.push(body);
+          res.writeHead(200, { "content-type": "text/event-stream" });
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: replyText }, finish_reason: "stop" }], usage: { prompt_tokens: 5, completion_tokens: 2 } })}\n\n`);
+          res.write("data: [DONE]\n\n");
+          res.end();
+        });
+      });
+      await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+      baseUrl = `http://127.0.0.1:${(server.address() as AddressInfo).port}`;
+      process.env.FINANFA_BASE_URL = baseUrl;
+    }
+  });
 });

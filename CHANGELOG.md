@@ -10,6 +10,19 @@ first tagged release.
 
 ### Fixed
 
+- **Critical, real reported bug**: every channel (Telegram, Slack, Discord,
+  WhatsApp, ...) silently dropped a failed turn's error message instead of
+  relaying it — `runTurn` catches its own provider errors internally and
+  calls `ui.writeSystem`/`writeError` with a real, actionable message
+  rather than throwing, but the headless channel adapter's `writeSystem`/
+  `writeError` were no-ops, so `replyText` came back empty and the
+  channel handler's own `if (!replyText.trim()) return;` silently posted
+  nothing at all. A user messaging a misconfigured bot got total silence,
+  indistinguishable from the bot being down — reproduced for real via a
+  Telegram bot pointed at a resumed session whose saved model didn't
+  match the current provider's endpoint. Now appended into the same
+  reply buffer as real assistant text, so a channel user always sees
+  something.
 - **Critical, real reported bug**: after the first exchange of a session,
   every interactive surface (CLI repl, custom commands, ACP, the VS Code
   extension) silently blocked on a second, *invisible* provider call

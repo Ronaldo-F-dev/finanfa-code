@@ -28,17 +28,33 @@ import type { NeutralImage } from "../core/types.js";
  * immediately since there's no human here to answer a prompt anyway
  * (PermissionManager's own nonInteractive mode never actually calls it —
  * see runHeadlessTurn below — but a plugin or hook conceivably could).
+ *
+ * Real, reported bug: writeSystem/writeError used to be no-ops here, so
+ * every one of runTurn's own error branches (model-not-found, context
+ * length, tools-unsupported, the fake-tool-call warning, ...) vanished
+ * silently instead of reaching the channel — runTurn catches its own
+ * failures internally and returns normally, so runHeadlessTurn never
+ * threw either, and the caller's own replyText.trim() === "" check (see
+ * e.g. channels-telegram.ts) meant no reply was posted at all. A user
+ * messaging the bot with a misconfigured model got total silence,
+ * indistinguishable from the bot being down. Appending them to the same
+ * buffer as real assistant text means a channel user always sees
+ * something instead of nothing.
  */
 function createBufferingUiAdapter(): UIAdapter & { replyText: () => string } {
   let buffer = "";
+  const appendLine = (text: string): void => {
+    if (buffer.length > 0) buffer += "\n\n";
+    buffer += text;
+  };
   return {
     writeAssistantDelta(text) {
       buffer += text;
     },
     endAssistantMessage() {},
     writeBanner() {},
-    writeSystem() {},
-    writeError() {},
+    writeSystem: appendLine,
+    writeError: appendLine,
     writeToolCall() {},
     setStatus() {},
     getStatus: () => undefined,
