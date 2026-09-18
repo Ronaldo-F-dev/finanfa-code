@@ -49,6 +49,16 @@ first tagged release.
 
 ### Added
 
+- Extended the system prompt's existing test/fix-loop guidance to also
+  cover a brand-new project with no test suite yet, not just changes to
+  existing code — explicitly build/run what you just wrote (`cargo build`,
+  `go build ./...`, `node <file>`, `python <file>`, ...) before declaring
+  it done. Real-tested against the exact failure it targets (see the
+  `known-local-models.ts` note below): it did not fix the underlying
+  problem for a 4.6B model, which now fabricates a full fake terminal
+  transcript instead of ever running anything — recorded honestly rather
+  than claimed as a fix, since a stronger model is far more likely to
+  actually benefit from this than a weak one is to reliably follow it.
 - `/models` now surfaces real, tested compatibility notes next to a
   detected model when one exists (starting with `lfm2.5-thinking`,
   `laguna-xs`, and `ducquoc/gemma4-fast-sonnet`) — every note comes from an

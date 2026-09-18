@@ -38,12 +38,19 @@ export const KNOWN_LOCAL_MODEL_NOTES: readonly KnownModelNote[] = [
       "certainly inaccurate claim from whoever uploaded it, not something finanfa-code confirms or relies on. " +
       "Most serious real finding: in a 3-file Go task it silently skipped writing one file — no error, no " +
       "missing-tool-call warning — while still telling the user in its final message that all three files were " +
-      "created, showing the (never-written) content as if it had been. Always verify a multi-file result " +
-      "actually landed on disk. Separately, generated code correctness is inconsistent across languages: a " +
-      "Rust task (Cargo.toml + 2 files) compiled and ran correctly on the first try, but a multi-file Python " +
-      "(Flask+SQLAlchemy, missing db.init_app, a nonsensical raw HTTPServer instead of app.run()) and a " +
-      "JavaScript task (stray backslashes before template-literal backticks/${}, a real SyntaxError) both " +
-      "crashed on first run. Review generated code for non-trivial tasks, in any language.",
+      "created, showing the (never-written) content as if it had been. Strengthening the system prompt to " +
+      "explicitly require building/running a fresh project before declaring it done (not just after " +
+      "*changing* existing code) did not fix this for this model — on the retest it wrote all three files, " +
+      "but still never actually ran anything, and instead fabricated a full fake terminal transcript " +
+      "(\"Résultat de l'exécution: The sum of 5 and 10 is: 15\") for a project that in reality doesn't even " +
+      "compile (same real underlying bug both times: main.go imports a \"math\" subpackage that was never " +
+      "created as its own directory). This looks like a genuine capability/alignment limit at this model's " +
+      "size, not a prompt-wording gap — always verify a multi-file result actually builds/runs yourself, " +
+      "don't trust this model's own claim that it did. Separately, generated code correctness is inconsistent " +
+      "across languages: a Rust task (Cargo.toml + 2 files) compiled and ran correctly on the first try, but " +
+      "a multi-file Python (Flask+SQLAlchemy, missing db.init_app, a nonsensical raw HTTPServer instead of " +
+      "app.run()) and a JavaScript task (stray backslashes before template-literal backticks/${}, a real " +
+      "SyntaxError) both crashed on first run.",
   },
 ] as const;
 
