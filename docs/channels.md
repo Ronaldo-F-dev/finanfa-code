@@ -37,6 +37,13 @@ Message the bot directly, or in a group it's been added to — each chat
 (or forum topic, in a topics-enabled supergroup) maps to its own
 persistent session.
 
+A tool call needing confirmation (e.g. `bash`) sends the question back
+into the same chat with real tappable Yes/No/Always buttons — reply with
+a button tap, or just type `y`/`n`/`a`/`t`, either works. Without this,
+every such call is auto-denied (the default for every other channel that
+hasn't wired this up yet). A confirmation left unanswered for 5 minutes
+is treated as "no".
+
 ## Matrix
 
 A real [Application Service](https://spec.matrix.org/latest/application-service-api/)
