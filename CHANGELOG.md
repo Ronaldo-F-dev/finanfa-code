@@ -49,6 +49,17 @@ first tagged release.
 
 ### Added
 
+- Flags a real, distinct failure mode found testing several small local
+  models: instead of a real structured tool call, the model writes its
+  intended call as plain assistant text (e.g. `{"name": "bash",
+  "arguments": {...}}` or a made-up `{action: "create_file", ...}` shape)
+  — so nothing actually runs, while the model's own following sentences
+  confidently claim success for something that never happened (verified
+  directly, more than once: "J'ai créé les fichiers via write_file..."
+  with zero files on disk). Rather than silently stripping this text
+  (what a comparable reference agent, OpenClaw, does — risking a false
+  sense that the turn completed normally), finanfa-code now surfaces a
+  clear warning telling the user to verify any claimed result themselves.
 - `localModelLean` config (`auto`/`true`/`false`, same shape/precedence as
   `toolSearch`): trims a curated set of high-latency/credential-gated
   tools (browser automation, scheduling/workflows, image/video/audio

@@ -66,6 +66,68 @@ describe("runTurn: model returns an empty final response", () => {
   });
 });
 
+// Real, reported failure across several small local models tested through
+// this project's own tool pipeline: instead of a real structured
+// tool_calls entry, the model writes its intended call as plain text — and
+// its own following sentences confidently claim success for something
+// that never happened (verified directly more than once: zero files
+// existed on disk despite "J'ai créé les fichiers via write_file...").
+describe("runTurn: a model that writes a fake tool call as plain text instead of a real one", () => {
+  function fakeCallProvider(content: string): LlmProvider {
+    return {
+      async streamTurn(): Promise<StreamTurnResult> {
+        return { assistantMessage: { role: "assistant", content }, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: "end_turn" };
+      },
+    };
+  }
+
+  it.each([
+    // Real, reported wording from qwen2.5-coder:3b via finanfa's raw OpenAI-compatible request.
+    '{"name": "bash", "arguments": {"command":{"type":"string","value":"ls"}}}',
+    // Real, reported wording from qwen2.5-coder:7b — made-up field names, not even the real write_file schema.
+    '{"name": "write_file", "arguments": {"file": "/tmp/go.mod", "contents": "module go_project"}}',
+    // Real, reported wording from qwen2.5-coder:3b through finanfa's actual REPL — a made-up action schema, unquoted keys.
+    '{action: "create_project"} {action: "create_file", path: "/tmp/go.mod", input: "module go_test"}',
+  ])("flags it instead of silently accepting it as a normal response: %s", async (content) => {
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(session, fakeCallProvider(content), ui, new ToolRegistry(), permissions, "hello");
+
+    expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("tried to call a tool by writing it as plain text"));
+  });
+
+  it("does not flag an ordinary text response that happens to mention JSON mid-sentence", async () => {
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(
+      session,
+      fakeCallProvider(
+        'Bien sûr ! Un exemple de réponse JSON ressemble à {"name": "value"} — voulez-vous que je vous explique comment le parser ?',
+      ),
+      ui,
+      new ToolRegistry(),
+      permissions,
+      "hello",
+    );
+
+    expect(ui.writeSystem).not.toHaveBeenCalledWith(expect.stringContaining("tried to call a tool by writing it as plain text"));
+  });
+
+  it("does not flag a real, normal response with no JSON at all", async () => {
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(session, fakeCallProvider("Voici votre réponse : la somme est 8."), ui, new ToolRegistry(), permissions, "hello");
+
+    expect(ui.writeSystem).not.toHaveBeenCalledWith(expect.stringContaining("tried to call a tool by writing it as plain text"));
+  });
+});
+
 describe("runTurn: PostToolUse hook", () => {
   it("runs after a real tool call completes and surfaces the hook's output", async () => {
     let call = 0;

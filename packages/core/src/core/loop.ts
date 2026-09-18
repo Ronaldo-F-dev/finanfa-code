@@ -498,6 +498,27 @@ function isLikelyModelNotFoundError(message: string): boolean {
   return MODEL_NOT_FOUND_ERROR_PATTERN.test(message);
 }
 
+// Real, reported failure found testing several small local models: instead
+// of a real structured tool_calls entry, the model writes its intended call
+// as plain assistant text — either close to the real OpenAI shape (
+// `{"name": "bash", "arguments": {"command": "ls"}}`) or a made-up one
+// (`{action: "create_file", path: "...", input: "..."}`) — so this project
+// never sees a real call and nothing actually runs, while the model's own
+// following sentences (verified directly, more than once) confidently claim
+// success ("J'ai créé les fichiers via write_file...") for something that
+// never happened. Matches either a quoted-or-bare `name` key followed by
+// `arguments`/`input`, or a quoted-or-bare `action` key with a string value
+// — narrow enough that a model legitimately discussing/quoting JSON in the
+// middle of a longer explanation won't trip it, since real cases so far
+// always led with this shape as the very first thing in the message.
+const FAKE_TOOL_CALL_PATTERN =
+  /["']?\bname["']?\s*:\s*["'][\w./-]+["']\s*,\s*["']?\b(?:arguments|input)["']?\s*:|["']?\baction["']?\s*:\s*["'][\w./-]+["']/i;
+
+function looksLikeFakeToolCallText(content: string): boolean {
+  const trimmed = content.trim();
+  return trimmed.startsWith("{") && FAKE_TOOL_CALL_PATTERN.test(trimmed);
+}
+
 // Both LoopGuard messages below start with this — a distinctive marker so
 // callers (task.ts) can tell "the turn was cut off by the guard" apart from
 // "the model naturally finished", without runTurn needing a richer return
@@ -890,8 +911,15 @@ export async function runTurn(
         // project's own providers — but a value this function trusted
         // blindly here is exactly what caused the crash this whole
         // try/catch exists to catch, so it isn't trusted blindly either.
-        if ((result.assistantMessage.content ?? "").trim() === "") {
+        const finalText = result.assistantMessage.content ?? "";
+        if (finalText.trim() === "") {
           ui.writeSystem("(the model returned an empty response — try rephrasing, or check /cost for context size)");
+        } else if (looksLikeFakeToolCallText(finalText)) {
+          ui.writeSystem(
+            "(this looks like the model tried to call a tool by writing it as plain text instead of a real " +
+              "tool call — nothing was actually run. If its message above claims something was created, " +
+              "changed, or run, verify that yourself before trusting it.)",
+          );
         }
         return;
       }
