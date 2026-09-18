@@ -54,7 +54,10 @@ first tagged release.
   `laguna-xs`, and `ducquoc/gemma4-fast-sonnet`) — every note comes from an
   actual reproduced session against that model through finanfa-code's own
   tool pipeline, not a spec sheet or the model's own (sometimes inaccurate)
-  self-description.
+  self-description. The `gemma4-fast-sonnet` note now also covers a real
+  JavaScript test: it crashed on startup from stray backslashes the model
+  inserted before template-literal backticks/`${}` it didn't need to
+  escape.
 - `/config set` now also accepts shell-style `key=value` syntax (e.g.
   `/config set provider=openai-compatible`), not just space-separated —
   a real reported confusion right after using `export FOO=bar` to set env

@@ -38,7 +38,10 @@ export const KNOWN_LOCAL_MODEL_NOTES: readonly KnownModelNote[] = [
       "certainly inaccurate claim from whoever uploaded it, not something finanfa-code confirms or relies on. " +
       "Code correctness for anything beyond a single simple file is not reliable — a real test asking for a " +
       "multi-file Flask+SQLAlchemy API produced code that crashed immediately (missing db.init_app) and used a " +
-      "nonsensical raw HTTPServer instead of app.run(). Review generated code for non-trivial tasks.",
+      "nonsensical raw HTTPServer instead of app.run(). A separate real test in JavaScript (a small Express " +
+      "server) also crashed on startup — the model inserted stray backslashes before template-literal " +
+      "backticks/${} it didn't need to escape (\\`...\\${port}\\`), a real SyntaxError, not a hypothetical one. " +
+      "Review generated code for non-trivial tasks, in any language.",
   },
 ] as const;
 
