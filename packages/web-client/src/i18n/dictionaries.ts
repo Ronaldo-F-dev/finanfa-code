@@ -74,6 +74,8 @@ export const translations: Record<Language, Record<string, string>> = {
     "channels.registerDiscordCommand": "Register /ask command",
     "channels.registering": "Registering…",
     "channels.discordCommandRegistered": "/ask command registered with Discord.",
+    "channels.tunnelOn": "Public tunnel active: {url} — webhook URLs below use it automatically.",
+    "channels.tunnelOff": "No public tunnel — webhook URLs below only work if this server is already reachable from the internet. Set FINANFA_TUNNEL=1 (requires cloudflared) to get one automatically.",
 
     // TodoPanel.tsx
     "todos.title": "Tasks",
@@ -314,6 +316,8 @@ export const translations: Record<Language, Record<string, string>> = {
     "channels.registerDiscordCommand": "Enregistrer la commande /ask",
     "channels.registering": "Enregistrement…",
     "channels.discordCommandRegistered": "Commande /ask enregistrée auprès de Discord.",
+    "channels.tunnelOn": "Tunnel public actif : {url} — les URLs de webhook ci-dessous l'utilisent automatiquement.",
+    "channels.tunnelOff": "Pas de tunnel public — les URLs de webhook ci-dessous ne fonctionnent que si ce serveur est déjà accessible depuis internet. Définissez FINANFA_TUNNEL=1 (nécessite cloudflared) pour en obtenir un automatiquement.",
 
     "todos.title": "Tâches",
     "todos.empty": "Aucune tâche pour l'instant — elles apparaissent ici quand l'agent planifie une tâche à plusieurs étapes.",

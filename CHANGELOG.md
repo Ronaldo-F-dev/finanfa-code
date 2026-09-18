@@ -26,6 +26,15 @@ first tagged release.
   background behind list-style pages (Projects, the new Channels panel),
   rounded cards with a subtle shadow instead of a flat bordered box —
   inspired by a cleaner reference agent UI design shared for the project.
+- `FINANFA_TUNNEL=1`: opens a real `cloudflared` "quick tunnel" on server
+  startup and uses its public HTTPS URL for every webhook URL the
+  Channels panel shows, instead of requiring `cloudflared` to be started
+  by hand in a separate terminal every time (exactly what this session did
+  manually to test the Telegram/Discord channels). Opt-in only, and
+  requires `cloudflared` to already be on PATH — a missing binary logs a
+  clear install instruction instead of this project trying to fetch or
+  run a third-party binary on its own. The tunnel process is stopped on
+  SIGINT/SIGTERM so it doesn't linger as an orphan after the server exits.
 
 ### Fixed
 

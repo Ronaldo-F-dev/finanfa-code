@@ -120,12 +120,17 @@ function ChannelCard({ channel, onSaved }: { channel: ChannelStatus; onSaved: ()
 export function ChannelsPanel({ onClose }: { onClose: () => void }) {
   const { t } = useLanguage();
   const [channels, setChannels] = useState<ChannelStatus[]>([]);
+  const [tunnelUrl, setTunnelUrl] = useState<string | undefined>(undefined);
 
   function refresh() {
     fetch("/api/channels-config")
       .then((r) => r.json())
       .then((data: { channels: ChannelStatus[] }) => setChannels(data.channels))
       .catch(() => setChannels([]));
+    fetch("/api/tunnel-url")
+      .then((r) => r.json())
+      .then((data: { url?: string }) => setTunnelUrl(data.url))
+      .catch(() => setTunnelUrl(undefined));
   }
 
   useEffect(refresh, []);
@@ -141,6 +146,7 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
           </button>
         </div>
         <p className="settings-hint">{t("channels.hint")}</p>
+        <p className="settings-hint">{tunnelUrl ? t("channels.tunnelOn", { url: tunnelUrl }) : t("channels.tunnelOff")}</p>
 
         <div className="project-grid channels-grid">
           {channels.map((c) => (

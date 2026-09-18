@@ -14,6 +14,14 @@ no restart needed, unless a real environment variable for that exact
 field is already set (which always wins, same precedence as the rest of
 this project's config).
 
+Every webhook-based channel here needs a real public HTTPS URL, which
+`localhost` obviously isn't. Set `FINANFA_TUNNEL=1` (requires
+[`cloudflared`](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/downloads/)
+on PATH, e.g. `brew install cloudflared` on macOS — not auto-installed)
+to have the server open a real cloudflared "quick tunnel" on startup and
+use its public URL for every webhook URL shown in the Channels panel —
+no more running `cloudflared` by hand in a separate terminal.
+
 ## Slack
 
 ```bash

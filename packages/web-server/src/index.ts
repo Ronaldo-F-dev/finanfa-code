@@ -75,7 +75,8 @@ import { registerMatrixChannelRoutes } from "./channels-matrix.js";
 import { registerLineChannelRoutes } from "./channels-line.js";
 import { registerFeishuChannelRoutes } from "./channels-feishu.js";
 import { registerTeamsChannelRoutes } from "./channels-teams.js";
-import { registerChannelsConfigRoutes, applyPersistedChannelSecrets } from "./channels-config-api.js";
+import { registerChannelsConfigRoutes, applyPersistedChannelSecrets, setPublicTunnelUrl } from "./channels-config-api.js";
+import { startCloudflareTunnel } from "./cloudflare-tunnel.js";
 import { parseWebUsers, authenticateBearerToken, authenticateQueryToken } from "./auth.js";
 import { SessionTokenStore, defaultSessionStorePath } from "./session-token-store.js";
 import { loadUserStore, createUser, verifyUserPassword } from "./user-store.js";
@@ -1516,4 +1517,29 @@ httpServer.listen(PORT, () => {
   // which port the server actually ended up on.
   const boundPort = (httpServer.address() as { port: number }).port;
   console.log(`finanfa-code-web server listening on http://localhost:${boundPort} (default workspace: ${DEFAULT_CWD})`);
+
+  // Opt-in only (see cloudflare-tunnel.ts's own header comment) — a real
+  // public HTTPS URL is what every webhook-based channel (Telegram,
+  // Discord, ...) actually needs, previously only obtainable by running
+  // `cloudflared` by hand in a separate terminal. Fire-and-forget: the
+  // server is already usable locally regardless of whether/when this
+  // resolves, and channels-config-api.ts's baseUrlFor() falls back to the
+  // request's own host until it does.
+  if (process.env.FINANFA_TUNNEL) {
+    void startCloudflareTunnel(boundPort).then((tunnel) => {
+      if (!tunnel) return;
+      setPublicTunnelUrl(tunnel.url);
+      // Node only exits on SIGINT/SIGTERM by default when nothing is
+      // listening for it — adding this handler to stop the tunnel process
+      // (so it doesn't linger as an orphan, same concern as this project's
+      // other subprocess spawns) means we're now responsible for actually
+      // exiting afterward too.
+      for (const sig of ["SIGINT", "SIGTERM"] as const) {
+        process.on(sig, () => {
+          tunnel.stop();
+          process.exit(0);
+        });
+      }
+    });
+  }
 });

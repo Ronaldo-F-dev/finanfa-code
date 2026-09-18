@@ -1,9 +1,12 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
+import type { AddressInfo } from "node:net";
+import express from "express";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
+import { registerChannelsConfigRoutes, setPublicTunnelUrl } from "../src/channels-config-api.js";
 
 // Real end-to-end test of the web UI's Channels settings API — same real
 // subprocess/real-HOME-dir shape as the other web-server e2e suites, since
@@ -113,5 +116,42 @@ describe("web-server Channels config API (real subprocess, real global config fi
   it("refuses to register Discord's slash command without a saved application id/bot token", async () => {
     const res = await fetch(`http://127.0.0.1:${port}/api/channels-config/discord/register-command`, { method: "POST" });
     expect(res.status).toBe(400);
+  });
+});
+
+// Real, reported feature: FINANFA_TUNNEL lets the server expose itself
+// through a real cloudflared quick tunnel instead of requiring one to be
+// started by hand in a separate terminal — see cloudflare-tunnel.ts. Once
+// it resolves a public URL, every webhook URL this API reports should use
+// it instead of whatever host the request itself happened to arrive on
+// (almost always just localhost, which is useless to paste into Telegram/
+// Discord's own webhook config). Exercised in-process (a bare express app,
+// not the full server subprocess) since setPublicTunnelUrl is a plain
+// exported function, not something reachable over the wire.
+describe("channels-config-api — public tunnel URL takes priority over the request's own host", () => {
+  it("uses the tunnel URL for webhookPaths once one is set, instead of the request's host", async () => {
+    const app = express();
+    registerChannelsConfigRoutes(app);
+    const server = app.listen(0, "127.0.0.1");
+    await new Promise<void>((resolve) => server.once("listening", resolve));
+    const port = (server.address() as AddressInfo).port;
+
+    try {
+      const before = await fetch(`http://127.0.0.1:${port}/api/channels-config`);
+      const beforeData = (await before.json()) as { channels: { id: string; webhookPaths?: { url: string }[] }[] };
+      expect(beforeData.channels.find((c) => c.id === "telegram")?.webhookPaths?.[0]?.url).toBe(`http://127.0.0.1:${port}/api/channels/telegram/webhook`);
+
+      setPublicTunnelUrl("https://real-tunnel.trycloudflare.com");
+
+      const tunnelStatus = await fetch(`http://127.0.0.1:${port}/api/tunnel-url`);
+      const tunnelData = (await tunnelStatus.json()) as { url?: string };
+      expect(tunnelData.url).toBe("https://real-tunnel.trycloudflare.com");
+
+      const after = await fetch(`http://127.0.0.1:${port}/api/channels-config`);
+      const afterData = (await after.json()) as { channels: { id: string; webhookPaths?: { url: string }[] }[] };
+      expect(afterData.channels.find((c) => c.id === "telegram")?.webhookPaths?.[0]?.url).toBe("https://real-tunnel.trycloudflare.com/api/channels/telegram/webhook");
+    } finally {
+      server.close();
+    }
   });
 });
