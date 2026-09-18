@@ -6,6 +6,7 @@ import { MCP_TOOL_PREFIX } from "../mcp/client-manager.js";
 import { loadConfig, saveGlobalConfig, globalConfigPath, type FinanfaConfig } from "../core/config.js";
 import { loadMemories } from "../memory/loader.js";
 import { compactSession } from "../core/loop.js";
+import { findKnownModelNote } from "../core/known-local-models.js";
 import type { CommandContext, CommandOutcome } from "./types.js";
 import type { CommandRegistry } from "./registry.js";
 
@@ -553,9 +554,11 @@ async function handleModels(ctx: CommandContext): Promise<CommandOutcome> {
     if (r.models.length === 0) return [header, "  reachable, but reports no models (pull/load one first)"];
     return [
       header,
-      ...r.models.map(
-        (m) => `  • ${m}\n    FINANFA_PROVIDER=openai-compatible FINANFA_BASE_URL=${r.baseUrl} FINANFA_MODEL=${m}`,
-      ),
+      ...r.models.flatMap((m) => {
+        const line = `  • ${m}\n    FINANFA_PROVIDER=openai-compatible FINANFA_BASE_URL=${r.baseUrl} FINANFA_MODEL=${m}`;
+        const note = findKnownModelNote(m);
+        return note ? [line, `    ⚠ ${note}`] : [line];
+      }),
     ];
   });
   ctx.ui.writeSystem(lines.join("\n"));

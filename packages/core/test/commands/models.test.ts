@@ -73,6 +73,27 @@ describe("/models command", () => {
     expect(result).toBe("continue");
   });
 
+  it("surfaces a real-tested compatibility note next to a model that has one, so the user doesn't rediscover it the hard way", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockImplementation((url: string) => {
+        if (url === "http://localhost:11434/v1/models") {
+          return Promise.resolve(
+            new Response(JSON.stringify({ data: [{ id: "lfm2.5-thinking:latest" }] }), { status: 200 }),
+          );
+        }
+        return Promise.reject(new TypeError("fetch failed"));
+      }),
+    );
+
+    const ctx = baseCtx();
+    await commands.get("models")!(ctx);
+
+    const written = (ctx.ui.writeSystem as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
+    expect(written).toContain("⚠");
+    expect(written).toContain("tool-search indirection");
+  });
+
   it("says plainly when nothing was found on any of the common ports, instead of an empty result", async () => {
     vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new TypeError("fetch failed")));
 

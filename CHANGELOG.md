@@ -49,6 +49,12 @@ first tagged release.
 
 ### Added
 
+- `/models` now surfaces real, tested compatibility notes next to a
+  detected model when one exists (starting with `lfm2.5-thinking`,
+  `laguna-xs`, and `ducquoc/gemma4-fast-sonnet`) — every note comes from an
+  actual reproduced session against that model through finanfa-code's own
+  tool pipeline, not a spec sheet or the model's own (sometimes inaccurate)
+  self-description.
 - `/config set` now also accepts shell-style `key=value` syntax (e.g.
   `/config set provider=openai-compatible`), not just space-separated —
   a real reported confusion right after using `export FOO=bar` to set env
