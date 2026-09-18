@@ -93,6 +93,17 @@ export interface FinanfaConfig {
    * of these slow/credential-gated tools via search_tools.
    */
   localModelLean?: "auto" | "true" | "false";
+  /**
+   * Chat-channel credentials configured from the web UI's Channels panel
+   * (see channel-catalog.ts), keyed by channel id then by the exact
+   * environment variable name each field maps to — applied into
+   * process.env by the web server at startup and on every save (see
+   * channels-config-api.ts) so every existing channels-*.ts route, which
+   * reads process.env directly, picks them up with no code changes and no
+   * restart. A real environment variable already set in the shell that
+   * started the server always wins over a value saved here.
+   */
+  channels?: Record<string, Record<string, string>>;
 }
 
 /** Parses config.thinkingBudgetTokens (a plain string, like every other /config-set value) into the number session.thinkingBudgetTokens actually wants — undefined for unset/non-positive/non-numeric, never NaN or 0, so callers can assign it straight through without their own validation. */

@@ -10,6 +10,18 @@ first tagged release.
 
 ### Added
 
+- Web UI **Channels** panel (sidebar → 📡 Channels): configure every chat
+  channel's credentials (Slack, Telegram, Discord, Matrix, LINE, Feishu,
+  Teams, WhatsApp, Twilio SMS & Voice) directly from a form instead of
+  exporting environment variables by hand. Saves to the server's global
+  config (`~/.finanfa-code/config.json`, same `channels` field as
+  provider/model) and applies into the running server's `process.env`
+  immediately — no restart required — unless a real environment variable
+  for that exact field is already set, which still always wins (same
+  precedence as every other config value in this project). Each channel
+  shows its ready-to-copy webhook/endpoint URL, and Discord gets an extra
+  one-click "Register /ask command" button instead of requiring a manual
+  curl call.
 - Web UI visual refresh: warmer light-theme palette and a soft gradient
   background behind list-style pages (Projects, the new Channels panel),
   rounded cards with a subtle shadow instead of a flat bordered box —

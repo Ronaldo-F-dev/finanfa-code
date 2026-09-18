@@ -7,6 +7,13 @@ everywhere else) and gets a reply posted back. Every channel here 404s
 until its own environment variables are set — there's no unauthenticated
 middle state.
 
+Every field below can also be set from the web UI's own **Channels**
+panel (sidebar → 📡 Channels) instead of exporting environment variables
+by hand — it saves to the server's global config and applies immediately,
+no restart needed, unless a real environment variable for that exact
+field is already set (which always wins, same precedence as the rest of
+this project's config).
+
 ## Slack
 
 ```bash

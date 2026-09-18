@@ -22,6 +22,7 @@ export function Sidebar({
   onOpenModels,
   onOpenTools,
   onOpenTodos,
+  onOpenChannels,
 }: {
   activeSessionId: string | undefined;
   projectId: string | undefined;
@@ -37,6 +38,7 @@ export function Sidebar({
   onOpenModels: () => void;
   onOpenTools: () => void;
   onOpenTodos: () => void;
+  onOpenChannels: () => void;
 }) {
   const { t } = useLanguage();
   const [sessions, setSessions] = useState<SessionListItem[]>([]);
@@ -96,6 +98,9 @@ export function Sidebar({
         </button>
         <button className="sidebar-settings" onClick={onOpenTodos}>
           {t("sidebar.todos")}
+        </button>
+        <button className="sidebar-settings" onClick={onOpenChannels}>
+          {t("sidebar.channels")}
         </button>
         <button className="sidebar-settings" onClick={onOpenSettings}>
           {t("sidebar.settings")}

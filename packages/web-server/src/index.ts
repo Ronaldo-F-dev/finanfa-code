@@ -75,6 +75,7 @@ import { registerMatrixChannelRoutes } from "./channels-matrix.js";
 import { registerLineChannelRoutes } from "./channels-line.js";
 import { registerFeishuChannelRoutes } from "./channels-feishu.js";
 import { registerTeamsChannelRoutes } from "./channels-teams.js";
+import { registerChannelsConfigRoutes, applyPersistedChannelSecrets } from "./channels-config-api.js";
 import { parseWebUsers, authenticateBearerToken, authenticateQueryToken } from "./auth.js";
 import { SessionTokenStore, defaultSessionStorePath } from "./session-token-store.js";
 import { loadUserStore, createUser, verifyUserPassword } from "./user-store.js";
@@ -129,6 +130,8 @@ app.use(
   }),
 );
 
+applyPersistedChannelSecrets(await loadConfig(DEFAULT_CWD));
+registerChannelsConfigRoutes(app);
 registerSlackChannelRoutes(app, DEFAULT_CWD);
 registerTelegramChannelRoutes(app, DEFAULT_CWD);
 registerDiscordChannelRoutes(app, DEFAULT_CWD);

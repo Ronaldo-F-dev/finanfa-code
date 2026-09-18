@@ -12,6 +12,7 @@ import { MemoryPanel } from "./components/MemoryPanel";
 import { ModelsPanel } from "./components/ModelsPanel";
 import { ToolsPanel } from "./components/ToolsPanel";
 import { TodoPanel } from "./components/TodoPanel";
+import { ChannelsPanel } from "./components/ChannelsPanel";
 import { ProjectsListView } from "./components/ProjectsListView";
 import { ProjectDetailView, type StartChatOptions } from "./components/ProjectDetailView";
 import { useLanguage } from "./i18n/LanguageContext";
@@ -61,6 +62,7 @@ export default function App() {
   const [modelsOpen, setModelsOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const [todosOpen, setTodosOpen] = useState(false);
+  const [channelsOpen, setChannelsOpen] = useState(false);
   const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [toolsMenuOpen, setToolsMenuOpen] = useState(false);
@@ -361,6 +363,10 @@ export default function App() {
           setTodosOpen(true);
           setSidebarOpen(false);
         }}
+        onOpenChannels={() => {
+          setChannelsOpen(true);
+          setSidebarOpen(false);
+        }}
       />
 
       {view.kind === "projects" && <ProjectsListView onOpenProject={(id) => setView({ kind: "project", id })} />}
@@ -544,6 +550,7 @@ export default function App() {
         <ToolsPanel tools={toolsStatus} onClose={() => setToolsOpen(false)} onToggle={setToolEnabled} onRefresh={requestToolsStatus} />
       )}
       {todosOpen && <TodoPanel todos={todos} onClose={() => setTodosOpen(false)} />}
+      {channelsOpen && <ChannelsPanel onClose={() => setChannelsOpen(false)} />}
     </div>
   );
 }
