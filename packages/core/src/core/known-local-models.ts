@@ -58,6 +58,20 @@ export const KNOWN_LOCAL_MODEL_NOTES: readonly KnownModelNote[] = [
       "`flutter run` themselves. Don't rely on this model to scaffold+run a new mobile/framework project " +
       "unsupervised; review and likely redo the setup step yourself.",
   },
+  {
+    pattern: "parable/fable",
+    note:
+      'Real tested behavior: actually built on IBM\'s Granite architecture (8.4B, "granite" family per `ollama ' +
+      'show`) — the name evokes "Fable", an unrelated real model codename, which fits the same pattern as ' +
+      "other misleadingly-named community uploads found in testing; treat it as unverified branding, not a " +
+      "real relationship. Understands finanfa's search_tools indirection well when it responds at all (calls " +
+      "it with a sensible query on the first try, unlike most models tested). The real problem: genuinely " +
+      "empty responses partway through a multi-step task — reproduced twice independently, once with " +
+      "toolSearch on and once with it off, so it isn't specific to that indirection. One of those times it " +
+      "also wrote a go.mod with fabricated, invalid syntax (`replace github.com/{name} with .` — not real Go " +
+      "module syntax, and an unfilled `{name}` placeholder). Not reliable enough yet for an unattended " +
+      "multi-file task; expect to need at least one retry.",
+  },
 ] as const;
 
 /** Case-insensitive substring match against a model id — the same convention Ollama/registry model names already use loosely (e.g. "author/name:tag"). */

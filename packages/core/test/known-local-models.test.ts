@@ -16,6 +16,10 @@ describe("findKnownModelNote", () => {
     expect(findKnownModelNote("Laguna-XS-2.1-APEX-I-Balanced")).toContain("content_base64");
   });
 
+  it("matches parable/fable, an author-prefixed id with a slash", () => {
+    expect(findKnownModelNote("parable/fable:latest")).toContain("Granite");
+  });
+
   it("returns undefined for a model with no known note", () => {
     expect(findKnownModelNote("llama3.2:latest")).toBeUndefined();
   });
