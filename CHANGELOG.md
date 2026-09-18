@@ -8,6 +8,13 @@ first tagged release.
 
 ## Unreleased
 
+### Added
+
+- Web UI visual refresh: warmer light-theme palette and a soft gradient
+  background behind list-style pages (Projects, the new Channels panel),
+  rounded cards with a subtle shadow instead of a flat bordered box —
+  inspired by a cleaner reference agent UI design shared for the project.
+
 ### Fixed
 
 - **Critical, real reported bug**: every channel (Telegram, Slack, Discord,

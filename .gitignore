@@ -4,3 +4,5 @@ dist/
 .env
 .finanfa-code/
 /workspace/
+.DS_Store
+/captures/
