@@ -36,6 +36,12 @@ first tagged release.
 
 ### Added
 
+- `/config set` now also accepts shell-style `key=value` syntax (e.g.
+  `/config set provider=openai-compatible`), not just space-separated —
+  a real reported confusion right after using `export FOO=bar` to set env
+  vars. The usage error also now clarifies that config keys don't have a
+  `FINANFA_` prefix, since `FINANFA_PROVIDER=...` (the env var's own name)
+  is a natural next guess and still isn't a valid key.
 - `/models`: scans the common local ports (Ollama, LM Studio, vLLM/MLX/
   llama.cpp, text-generation-webui) for a running OpenAI-compatible server
   and lists its models with the exact `FINANFA_PROVIDER`/`FINANFA_BASE_URL`/

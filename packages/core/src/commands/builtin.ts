@@ -459,10 +459,24 @@ async function handleConfig(ctx: CommandContext): Promise<CommandOutcome> {
   }
 
   if (sub === "set") {
-    const key = parts[1];
-    const value = parts.slice(2).join(" ");
+    let key = parts[1];
+    let value = parts.slice(2).join(" ");
+    // Real reported confusion: right after using shell `export FOO=bar`
+    // syntax to configure env vars, a user naturally reached for
+    // `/config set provider=openai-compatible` (and even
+    // `/config set FINANFA_PROVIDER=openai-compatible`, using the env var's
+    // own name) instead of the space-separated form this command actually
+    // takes — recognized as a convenience instead of just failing on it.
+    if (key?.includes("=") && !value) {
+      const eq = key.indexOf("=");
+      value = key.slice(eq + 1);
+      key = key.slice(0, eq);
+    }
     if (!key || !isConfigKey(key) || !value) {
-      ctx.ui.writeError(`Usage: /config set <${CONFIG_KEYS.join("|")}> <value> (apiKeys: comma-separated)`);
+      ctx.ui.writeError(
+        `Usage: /config set <${CONFIG_KEYS.join("|")}> <value> (apiKeys: comma-separated). Config keys don't ` +
+          "have a FINANFA_ prefix — e.g. /config set provider openai-compatible, not FINANFA_PROVIDER.",
+      );
       return "continue";
     }
     if (key === "toolSearch" && value !== "auto" && value !== "true" && value !== "false") {

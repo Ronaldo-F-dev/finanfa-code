@@ -65,6 +65,23 @@ describe("/config command", () => {
     expect(ctx.ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("No config set"));
   });
 
+  it(
+    "real, reported confusion: accepts shell-style key=value syntax (a user reaches for this right " +
+      "after using `export FOO=bar` to set env vars) as a convenience, not just space-separated",
+    async () => {
+      const setCtx = baseCtx("set provider=openai-compatible");
+      await commands.get("config")!(setCtx);
+      expect(await loadConfig(projectDir)).toEqual({ provider: "openai-compatible" });
+    },
+  );
+
+  it("still rejects FINANFA_PROVIDER=x — the env var name, not the /config key — with a message explaining the difference", async () => {
+    const setCtx = baseCtx("set FINANFA_PROVIDER=openai-compatible");
+    await commands.get("config")!(setCtx);
+    expect(setCtx.ui.writeError).toHaveBeenCalledWith(expect.stringContaining("don't have a FINANFA_ prefix"));
+    expect(await loadConfig(projectDir)).toEqual({});
+  });
+
   it("/config set persists a value that a later /config show reflects", async () => {
     const setCtx = baseCtx("set model claude-opus-5");
     await commands.get("config")!(setCtx);
