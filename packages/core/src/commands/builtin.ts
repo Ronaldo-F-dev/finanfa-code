@@ -430,6 +430,7 @@ export const CONFIG_KEYS = [
   "visionApiKey",
   "thinkingBudgetTokens",
   "toolSearch",
+  "localModelLean",
 ] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
 export const SECRET_KEYS: readonly ConfigKey[] = ["apiKey", "anthropicApiKey", "visionApiKey", "githubCopilotToken"];
@@ -482,6 +483,10 @@ async function handleConfig(ctx: CommandContext): Promise<CommandOutcome> {
     }
     if (key === "toolSearch" && value !== "auto" && value !== "true" && value !== "false") {
       ctx.ui.writeError("Usage: /config set toolSearch <auto|true|false>");
+      return "continue";
+    }
+    if (key === "localModelLean" && value !== "auto" && value !== "true" && value !== "false") {
+      ctx.ui.writeError("Usage: /config set localModelLean <auto|true|false>");
       return "continue";
     }
     const current = await loadConfig(ctx.cwd);

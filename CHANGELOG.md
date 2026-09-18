@@ -49,6 +49,15 @@ first tagged release.
 
 ### Added
 
+- `localModelLean` config (`auto`/`true`/`false`, same shape/precedence as
+  `toolSearch`): trims a curated set of high-latency/credential-gated
+  tools (browser automation, scheduling/workflows, image/video/audio
+  generation, PDF conversion, messaging channels) from what a local model
+  can even discover, on top of Tool Search reducing the per-turn schema
+  count. Real motivation: a code investigation of OpenClaw (a comparable
+  reference agent) found it does the same trimming for local models —
+  Tool Search alone still lets a local model discover and attempt any of
+  these slow/credential-gated tools via search_tools.
 - Extended the system prompt's existing test/fix-loop guidance to also
   cover a brand-new project with no test suite yet, not just changes to
   existing code — explicitly build/run what you just wrote (`cargo build`,

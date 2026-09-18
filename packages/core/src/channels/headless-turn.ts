@@ -16,7 +16,7 @@ import { loadProjectInstructions, formatProjectInstructions } from "../core/proj
 import { loadScopedInstructions, formatScopedInstructions } from "../core/scoped-instructions.js";
 import { loadDesignContract } from "../core/design-contract.js";
 import { BrowserManager } from "../browser/manager.js";
-import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled } from "../core/config.js";
+import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled } from "../core/config.js";
 import { BASE_SYSTEM_PROMPT, selectProvider, selectVisionProvider, isLocalProviderConfig } from "../app.js";
 import type { UIAdapter } from "../ui/adapter.js";
 import type { NeutralImage } from "../core/types.js";
@@ -122,6 +122,7 @@ export async function runHeadlessTurn(cwd: string, sessionId: string, userText: 
   }
   if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
   session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
+  session.localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
 
   const browser = new BrowserManager();
   try {

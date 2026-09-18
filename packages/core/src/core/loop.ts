@@ -16,6 +16,7 @@ import { compactForProvider, CHARS_PER_TOKEN_ESTIMATE } from "./context.js";
 import { mcpToolServerName } from "../mcp/client-manager.js";
 import { withSpan } from "../observability/tracing.js";
 import { CALL_TOOL_NAME, SEARCH_TOOLS_NAME, DESCRIBE_TOOL_NAME, createToolSearchMetaTools, createCallToolMetaTool } from "./tool-search.js";
+import { LOCAL_MODEL_LEAN_EXCLUDED_TOOLS } from "./local-model-lean.js";
 import { OpenAiCompatibleProvider, listAvailableModels } from "../providers/openai-compatible-provider.js";
 
 /**
@@ -62,17 +63,22 @@ function systemPromptWithDate(session: AgentSession): string {
 /**
  * Every tool this session is actually allowed to use — every registered
  * MCP tool whose server is in `session.disabledMcpServers` (toggled via
- * /mcp disable, without disconnecting the server) is left out, and any
- * built-in tool explicitly disabled via `session.disabledTools`. This is
- * the real authority on "what's available right now" — both a direct
- * send (toolsForProvider below) and Tool Search's search_tools/call_tool
- * (tool-search.ts) resolve against exactly this, so a disabled tool stays
- * unreachable either way, not just hidden from the schema list.
+ * /mcp disable, without disconnecting the server) is left out, any
+ * built-in tool explicitly disabled via `session.disabledTools`, and (when
+ * session.localModelLeanEnabled — see local-model-lean.ts) every tool in
+ * LOCAL_MODEL_LEAN_EXCLUDED_TOOLS. This is the real authority on "what's
+ * available right now" — both a direct send (toolsForProvider below) and
+ * Tool Search's search_tools/call_tool (tool-search.ts) resolve against
+ * exactly this, so an excluded tool stays unreachable either way, not
+ * just hidden from the schema list.
  */
 function availableTools(tools: ToolRegistry, session: AgentSession): ToolDefinition[] {
-  if (session.disabledMcpServers.size === 0 && session.disabledTools.size === 0) return tools.list();
+  if (session.disabledMcpServers.size === 0 && session.disabledTools.size === 0 && !session.localModelLeanEnabled) {
+    return tools.list();
+  }
   return tools.list().filter((tool) => {
     if (session.disabledTools.has(tool.name)) return false;
+    if (session.localModelLeanEnabled && LOCAL_MODEL_LEAN_EXCLUDED_TOOLS.has(tool.name)) return false;
     const server = mcpToolServerName(tool.name);
     return !server || !session.disabledMcpServers.has(server);
   });

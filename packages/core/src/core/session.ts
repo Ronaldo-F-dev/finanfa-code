@@ -119,6 +119,16 @@ export class AgentSession {
    */
   toolSearchEnabled = false;
   /**
+   * When true, loop.ts's availableTools() also excludes every tool in
+   * LOCAL_MODEL_LEAN_EXCLUDED_TOOLS (browser, automations, image/video/
+   * audio generation, PDF conversion, messaging channels — see
+   * local-model-lean.ts) — genuinely unreachable, not just hidden from
+   * the schema list, so Tool Search's search_tools can't surface them
+   * either. Same runtime-only, re-derived-on-resume convention as
+   * toolSearchEnabled above.
+   */
+  localModelLeanEnabled = false;
+  /**
    * One entry per currently-running tool call (see runOneToolCall in
    * loop.ts) — a Set, not a single controller, since "safe" tools run
    * concurrently via Promise.all. Runtime-only, never persisted: a fresh

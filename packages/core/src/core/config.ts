@@ -80,6 +80,19 @@ export interface FinanfaConfig {
    * show/set) that every other key here already assumes.
    */
   toolSearch?: "auto" | "true" | "false";
+
+  /**
+   * Same "auto"/"true"/"false" shape and precedence as toolSearch above.
+   * "auto" (default) trims LOCAL_MODEL_LEAN_EXCLUDED_TOOLS (browser,
+   * automations, image/video/audio generation, PDF conversion, messaging
+   * channels — see local-model-lean.ts) whenever the provider looks
+   * local, same heuristic as toolSearch. Real, reported motivation: a
+   * comparable reference agent (OpenClaw) does this same trimming for
+   * local models, on top of Tool Search reducing per-turn schema count —
+   * Tool Search alone still lets a local model discover and attempt any
+   * of these slow/credential-gated tools via search_tools.
+   */
+  localModelLean?: "auto" | "true" | "false";
 }
 
 /** Parses config.thinkingBudgetTokens (a plain string, like every other /config-set value) into the number session.thinkingBudgetTokens actually wants — undefined for unset/non-positive/non-numeric, never NaN or 0, so callers can assign it straight through without their own validation. */
@@ -93,6 +106,13 @@ export function thinkingBudgetTokensFromConfig(config: FinanfaConfig): number | 
 export function resolveToolSearchEnabled(config: FinanfaConfig, isLocalProvider: boolean): boolean {
   if (config.toolSearch === "true") return true;
   if (config.toolSearch === "false") return false;
+  return isLocalProvider;
+}
+
+/** Resolves config.localModelLean the same way resolveToolSearchEnabled resolves config.toolSearch — an explicit "true"/"false" always wins; "auto"/unset falls back to the local-provider heuristic. */
+export function resolveLocalModelLeanEnabled(config: FinanfaConfig, isLocalProvider: boolean): boolean {
+  if (config.localModelLean === "true") return true;
+  if (config.localModelLean === "false") return false;
   return isLocalProvider;
 }
 

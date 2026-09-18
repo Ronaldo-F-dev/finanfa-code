@@ -31,7 +31,7 @@ import { loadScopedInstructions, formatScopedInstructions } from "@finanfa/core/
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import type { LlmProvider } from "@finanfa/core/src/core/types.js";
-import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled } from "@finanfa/core/src/core/config.js";
+import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled } from "@finanfa/core/src/core/config.js";
 import { initTracing, shutdownTracing } from "@finanfa/core/src/observability/tracing.js";
 import {
   BASE_SYSTEM_PROMPT,
@@ -252,6 +252,7 @@ export async function main(argv: string[]): Promise<void> {
   // always starts at the class default and this always applies fresh,
   // unlike thinkingBudgetTokens above.
   session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
+  session.localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
 
   const trusted = await resolveTrust(cwd, ui, opts.nonInteractive);
   const permissionConfig = await loadPermissionConfig(cwd, trusted);
