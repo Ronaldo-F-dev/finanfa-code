@@ -29,6 +29,14 @@ first tagged release.
 
 ### Fixed
 
+- **Real, reported bug**: the web UI's Tools panel only ever requested
+  `tools_status` once, right when it mounted — if the WebSocket wasn't
+  fully `OPEN` at that exact instant (useAgentSocket's `send()` silently
+  no-ops on a non-open socket), that request just vanished with nothing
+  left to retry it, leaving the panel stuck on "Loading…" forever until
+  closed and reopened. The server now pushes `tools_status` proactively
+  right on every connection (same as it already did for `mcp_status`), and
+  the panel also re-requests if it's open while the socket reconnects.
 - **Real, reported bug**: disabling every tool from the Tools panel — to
   use a model with no tool-calling support at all, e.g. `medgemma:4b` —
   still sent a non-empty `tools` request field whenever Tool Search was

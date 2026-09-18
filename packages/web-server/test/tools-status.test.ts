@@ -107,8 +107,12 @@ describe("web-server tools_status / set_tool_enabled (real subprocess, real WebS
     async () => {
       const { ws, events } = await connect();
       try {
+        // #1 is the server's own proactive push right on connect (see
+        // sendToolsStatus() called alongside sendMcpStatus() in index.ts) —
+        // the toggle's own response is #2.
+        await waitForNthToolsStatus(events, 1);
         ws.send(JSON.stringify({ type: "set_tool_enabled", name: "bash", enabled: false }));
-        const status = await waitFor(events, (e) => e.type === "tools_status");
+        const status = await waitForNthToolsStatus(events, 2);
         const bash = (status.tools as { name: string; enabled: boolean }[]).find((t) => t.name === "bash");
         expect(bash?.enabled).toBe(false);
       } finally {
@@ -123,12 +127,35 @@ describe("web-server tools_status / set_tool_enabled (real subprocess, real WebS
     async () => {
       const { ws, events } = await connect();
       try {
+        await waitForNthToolsStatus(events, 1); // the proactive push on connect
         ws.send(JSON.stringify({ type: "set_tool_enabled", name: "bash", enabled: false }));
-        await waitForNthToolsStatus(events, 1);
+        await waitForNthToolsStatus(events, 2);
         ws.send(JSON.stringify({ type: "set_tool_enabled", name: "bash", enabled: true }));
-        const secondStatus = await waitForNthToolsStatus(events, 2);
-        const bash = (secondStatus.tools as { name: string; enabled: boolean }[]).find((t) => t.name === "bash");
+        const thirdStatus = await waitForNthToolsStatus(events, 3);
+        const bash = (thirdStatus.tools as { name: string; enabled: boolean }[]).find((t) => t.name === "bash");
         expect(bash?.enabled).toBe(true);
+      } finally {
+        ws.close();
+      }
+    },
+    15_000,
+  );
+
+  // Real, reported bug this proactive push directly fixes: the web UI's
+  // Tools panel only ever requested tools_status once, right when it
+  // mounted — if the socket wasn't fully open yet at that exact instant,
+  // that request silently vanished (useAgentSocket's send() no-ops on a
+  // non-open socket) and the panel was stuck on "Loading…" forever, since
+  // nothing ever retried it. Now the client already has real tool data
+  // before it could even ask.
+  it(
+    "pushes a tools_status proactively right on connect, with no request needed",
+    async () => {
+      const { ws, events } = await connect();
+      try {
+        const status = await waitForNthToolsStatus(events, 1);
+        const list = status.tools as { name: string; enabled: boolean }[];
+        expect(list.length).toBeGreaterThan(50);
       } finally {
         ws.close();
       }

@@ -23,11 +23,13 @@ const RISK_LABEL_KEYS: Record<string, string> = { safe: "tools.riskSafe", ask: "
  */
 export function ToolsPanel({
   tools,
+  connected,
   onClose,
   onToggle,
   onRefresh,
 }: {
   tools: ToolStatus[];
+  connected: boolean;
   onClose: () => void;
   onToggle: (name: string, enabled: boolean) => void;
   onRefresh: () => void;
@@ -36,13 +38,15 @@ export function ToolsPanel({
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
+  // Re-requests whenever the socket becomes connected while this panel is
+  // open, not just once on mount — the server now also pushes tools_status
+  // proactively right on connect, but this covers the panel being opened
+  // mid-reconnect too, when the earlier explicit request would otherwise
+  // have silently no-op'd (useAgentSocket's send() drops anything sent
+  // while the socket isn't open, with nothing left to retry it later).
   useEffect(() => {
-    onRefresh();
-    // Fetch once when the panel opens — no polling needed, every toggle
-    // (from here or another connection to this session) pushes a fresh
-    // tools_status on its own.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+    if (connected) onRefresh();
+  }, [connected, onRefresh]);
 
   const enabledCount = tools.filter((tl) => tl.enabled).length;
   const q = query.trim().toLowerCase();

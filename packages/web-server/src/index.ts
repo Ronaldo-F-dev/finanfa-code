@@ -1022,6 +1022,15 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
     // whatever was last selected in the UI.
     sendSessionInfo();
     void sendMcpStatus();
+    // Real, reported bug: the Tools panel only ever requested tools_status
+    // once, right when it mounted (see ToolsPanel.tsx) — if the socket
+    // wasn't yet WebSocket.OPEN at that exact instant (useAgentSocket's
+    // send() silently no-ops otherwise), that request just vanished and
+    // nothing ever retried it, leaving the panel stuck on "Loading…"
+    // forever until it was closed and reopened. Pushed here unconditionally
+    // on every connection, same as sendMcpStatus() right above, so the
+    // client already has real tool data by the time anyone opens the panel.
+    sendToolsStatus();
     // Replay past turns for a resumed session — tool activity itself isn't
     // replayed (it isn't stored as display-ready text), only the user/
     // assistant exchange, same as reopening a ChatGPT/Claude.ai thread.

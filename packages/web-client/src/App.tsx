@@ -547,7 +547,7 @@ export default function App() {
       {memoryOpen && <MemoryPanel projectId={activeProjectId} onClose={() => setMemoryOpen(false)} />}
       {modelsOpen && <ModelsPanel onClose={() => setModelsOpen(false)} />}
       {toolsOpen && (
-        <ToolsPanel tools={toolsStatus} onClose={() => setToolsOpen(false)} onToggle={setToolEnabled} onRefresh={requestToolsStatus} />
+        <ToolsPanel tools={toolsStatus} connected={connected} onClose={() => setToolsOpen(false)} onToggle={setToolEnabled} onRefresh={requestToolsStatus} />
       )}
       {todosOpen && <TodoPanel todos={todos} onClose={() => setTodosOpen(false)} />}
       {channelsOpen && <ChannelsPanel onClose={() => setChannelsOpen(false)} />}
