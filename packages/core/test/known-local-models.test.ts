@@ -20,9 +20,9 @@ describe("findKnownModelNote", () => {
     expect(findKnownModelNote("parable/fable:latest")).toContain("Granite");
   });
 
-  it("matches qwen2.5-coder:3b specifically, not a different tag of the same family", () => {
+  it("matches qwen2.5-coder regardless of size tag — the failure was reproduced at both 3b and 7b", () => {
     expect(findKnownModelNote("qwen2.5-coder:3b")).toContain("doesn't reliably use real function/tool calls");
-    expect(findKnownModelNote("qwen2.5-coder:7b")).toBeUndefined();
+    expect(findKnownModelNote("qwen2.5-coder:7b")).toContain("doesn't reliably use real function/tool calls");
   });
 
   it("returns undefined for a model with no known note", () => {

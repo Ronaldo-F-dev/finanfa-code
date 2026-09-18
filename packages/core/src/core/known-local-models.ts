@@ -73,17 +73,17 @@ export const KNOWN_LOCAL_MODEL_NOTES: readonly KnownModelNote[] = [
       "multi-file task; expect to need at least one retry.",
   },
   {
-    pattern: "qwen2.5-coder:3b",
+    pattern: "qwen2.5-coder",
     note:
-      "Real tested behavior: doesn't reliably use real function/tool calls at all, at least at this size/" +
-      "quantization (3.1B, Q4_K_M) — asked to write files, it printed its intended call as plain assistant " +
-      'text (e.g. `{"name": "bash", "arguments": {...}}` or a made-up `{action: "create_file", ...}` shape) ' +
-      "instead of a real structured tool_calls entry, confirmed both through finanfa and with a raw, isolated " +
-      "request. Ollama's own template for this model does reference ToolCalls/.Tools, so the plumbing exists " +
-      "— the model itself just doesn't reliably produce the exact output format that template's parser needs " +
-      "to extract a real call, so finanfa never sees one and no file gets written. Zero files were created in " +
-      "a real multi-file test. A larger tier of the same qwen2.5-coder family may behave better; this specific " +
-      "3B one isn't usable for tool-driven tasks as tested.",
+      "Real tested behavior: doesn't reliably use real function/tool calls at all, on both the 3B (Q4_K_M) and " +
+      '7B tags — asked to write files, it printed its intended calls as plain assistant text (e.g. `{"name": ' +
+      '"bash", "arguments": {...}}`, or with made-up field names like `{"file": ..., "contents": ...}` instead ' +
+      "of the real `path`/`content`) instead of a real structured tool_calls entry, confirmed both through " +
+      "finanfa and with raw, isolated requests at each size. Ollama's own template for this model does " +
+      "reference ToolCalls/.Tools, so the plumbing exists — the model itself just doesn't reliably produce the " +
+      "exact output format that template's parser needs to extract a real call, so finanfa never sees one and " +
+      "no file gets written. Zero files were created in either real multi-file test. Not usable for " +
+      "tool-driven tasks through finanfa as tested, regardless of size.",
   },
 ] as const;
 

@@ -67,7 +67,7 @@ first tagged release.
 - `/models` now surfaces real, tested compatibility notes next to a
   detected model when one exists (starting with `lfm2.5-thinking`,
   `laguna-xs`, `ducquoc/gemma4-fast-sonnet`, `parable/fable`, and
-  `qwen2.5-coder:3b`) — every note comes from an
+  `qwen2.5-coder`) — every note comes from an
   actual reproduced session against that model through finanfa-code's own
   tool pipeline, not a spec sheet or the model's own (sometimes inaccurate)
   self-description. The `gemma4-fast-sonnet` note now also covers two more
