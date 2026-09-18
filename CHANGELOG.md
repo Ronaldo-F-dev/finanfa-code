@@ -58,7 +58,12 @@ first tagged release.
   problem for a 4.6B model, which now fabricates a full fake terminal
   transcript instead of ever running anything — recorded honestly rather
   than claimed as a fix, since a stronger model is far more likely to
-  actually benefit from this than a weak one is to reliably follow it.
+  actually benefit from this than a weak one is to reliably follow it. A
+  further real test (Flutter+SQLite, asked to scaffold and launch on an
+  already-booted iOS simulator) added to the same note: the model never
+  ran `flutter create` at all, gave the project an invalid hyphenated
+  package name, and for the explicit "launch it" instruction just told
+  the user to run `flutter run` themselves instead of using its own tools.
 - `/models` now surfaces real, tested compatibility notes next to a
   detected model when one exists (starting with `lfm2.5-thinking`,
   `laguna-xs`, and `ducquoc/gemma4-fast-sonnet`) — every note comes from an

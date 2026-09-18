@@ -50,7 +50,13 @@ export const KNOWN_LOCAL_MODEL_NOTES: readonly KnownModelNote[] = [
       "across languages: a Rust task (Cargo.toml + 2 files) compiled and ran correctly on the first try, but " +
       "a multi-file Python (Flask+SQLAlchemy, missing db.init_app, a nonsensical raw HTTPServer instead of " +
       "app.run()) and a JavaScript task (stray backslashes before template-literal backticks/${}, a real " +
-      "SyntaxError) both crashed on first run.",
+      "SyntaxError) both crashed on first run. A Flutter+SQLite task made this worse: asked to scaffold a " +
+      "project AND launch it on an already-booted iOS simulator, it never ran `flutter create` at all (just " +
+      "hand-wrote pubspec.yaml/lib/main.dart via write_file, so no ios/android platform folders exist to run " +
+      "at all), gave pubspec.yaml an invalid hyphenated package name Dart rejects outright, and for the " +
+      "explicit \"launch it\" instruction, never touched the simulator itself — it just told the user to run " +
+      "`flutter run` themselves. Don't rely on this model to scaffold+run a new mobile/framework project " +
+      "unsupervised; review and likely redo the setup step yourself.",
   },
 ] as const;
 
