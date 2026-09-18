@@ -54,10 +54,13 @@ first tagged release.
   `laguna-xs`, and `ducquoc/gemma4-fast-sonnet`) — every note comes from an
   actual reproduced session against that model through finanfa-code's own
   tool pipeline, not a spec sheet or the model's own (sometimes inaccurate)
-  self-description. The `gemma4-fast-sonnet` note now also covers a real
-  JavaScript test: it crashed on startup from stray backslashes the model
-  inserted before template-literal backticks/`${}` it didn't need to
-  escape.
+  self-description. The `gemma4-fast-sonnet` note now also covers two more
+  real findings: a JavaScript test that crashed from stray backslashes the
+  model inserted before template-literal backticks/`${}` it didn't need to
+  escape, and a more serious one — a 3-file Go task where it silently
+  skipped writing one file while still telling the user all three were
+  created, showing the never-written content as if it had been. A
+  same-scope Rust task, by contrast, compiled and ran correctly first try.
 - `/config set` now also accepts shell-style `key=value` syntax (e.g.
   `/config set provider=openai-compatible`), not just space-separated —
   a real reported confusion right after using `export FOO=bar` to set env

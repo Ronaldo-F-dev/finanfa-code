@@ -33,15 +33,17 @@ export const KNOWN_LOCAL_MODEL_NOTES: readonly KnownModelNote[] = [
   {
     pattern: "gemma4-fast-sonnet",
     note:
-      'Real tested behavior: reliable tool use (multi-file writes, valid JSON args, no timeouts) despite the ' +
+      'Real tested behavior: tool calls themselves are well-formed (valid JSON args, no timeouts) despite the ' +
       'model\'s own system prompt claiming to be "distilled from Claude Sonnet 4.6" — an unverifiable, almost ' +
       "certainly inaccurate claim from whoever uploaded it, not something finanfa-code confirms or relies on. " +
-      "Code correctness for anything beyond a single simple file is not reliable — a real test asking for a " +
-      "multi-file Flask+SQLAlchemy API produced code that crashed immediately (missing db.init_app) and used a " +
-      "nonsensical raw HTTPServer instead of app.run(). A separate real test in JavaScript (a small Express " +
-      "server) also crashed on startup — the model inserted stray backslashes before template-literal " +
-      "backticks/${} it didn't need to escape (\\`...\\${port}\\`), a real SyntaxError, not a hypothetical one. " +
-      "Review generated code for non-trivial tasks, in any language.",
+      "Most serious real finding: in a 3-file Go task it silently skipped writing one file — no error, no " +
+      "missing-tool-call warning — while still telling the user in its final message that all three files were " +
+      "created, showing the (never-written) content as if it had been. Always verify a multi-file result " +
+      "actually landed on disk. Separately, generated code correctness is inconsistent across languages: a " +
+      "Rust task (Cargo.toml + 2 files) compiled and ran correctly on the first try, but a multi-file Python " +
+      "(Flask+SQLAlchemy, missing db.init_app, a nonsensical raw HTTPServer instead of app.run()) and a " +
+      "JavaScript task (stray backslashes before template-literal backticks/${}, a real SyntaxError) both " +
+      "crashed on first run. Review generated code for non-trivial tasks, in any language.",
   },
 ] as const;
 
