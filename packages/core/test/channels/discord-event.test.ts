@@ -66,8 +66,20 @@ describe("parseDiscordInteraction", () => {
     ).toEqual({ kind: "ignored" });
   });
 
-  it("ignores a message component / modal interaction (type 3/5)", () => {
-    expect(parseDiscordInteraction({ type: 3, data: { custom_id: "button1" } })).toEqual({ kind: "ignored" });
+  it("extracts a message component (button tap) interaction", () => {
+    expect(parseDiscordInteraction({ type: 3, channel_id: "123", data: { custom_id: "confirm_y" } })).toEqual({
+      kind: "component",
+      event: { channelId: "123", customId: "confirm_y" },
+    });
+  });
+
+  it("ignores a malformed component interaction missing channel_id or custom_id", () => {
+    expect(parseDiscordInteraction({ type: 3, data: { custom_id: "confirm_y" } })).toEqual({ kind: "ignored" });
+    expect(parseDiscordInteraction({ type: 3, channel_id: "123", data: {} })).toEqual({ kind: "ignored" });
+  });
+
+  it("ignores a modal submit interaction (type 5)", () => {
+    expect(parseDiscordInteraction({ type: 5, data: { custom_id: "modal1" } })).toEqual({ kind: "ignored" });
   });
 
   it("ignores /ask with no message option", () => {

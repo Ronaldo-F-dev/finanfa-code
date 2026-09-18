@@ -12,24 +12,39 @@ export interface DiscordCommandEvent {
   image?: DiscordImageAttachment;
 }
 
+export interface DiscordComponentEvent {
+  channelId: string;
+  /** This button tap's own custom_id — one of the confirm_y/n/a/t values registerDiscordChannelRoutes attaches (see channels-discord.ts). */
+  customId: string;
+}
+
 export type ParsedDiscordInteraction =
   | { kind: "ping" }
   | { kind: "command"; event: DiscordCommandEvent }
+  | { kind: "component"; event: DiscordComponentEvent }
   | { kind: "ignored" };
 
 /**
  * Discord interactions cover slash commands, buttons, modals, and
  * autocomplete — this project only registers one slash command, `/ask`,
- * so anything else (a different command name, a message component, ...)
- * is ignored. `type: 1` (PING) is Discord's own endpoint-verification
- * handshake, answered the same way every time this app's Interactions
- * Endpoint URL is (re)saved in the Discord dashboard.
+ * plus the confirmation buttons it can attach to a followup message (see
+ * channels-discord.ts), so anything else (a different command name, a
+ * modal, ...) is ignored. `type: 1` (PING) is Discord's own
+ * endpoint-verification handshake, answered the same way every time this
+ * app's Interactions Endpoint URL is (re)saved in the Discord dashboard.
  */
 export function parseDiscordInteraction(body: unknown): ParsedDiscordInteraction {
   if (typeof body !== "object" || body === null) return { kind: "ignored" };
   const interaction = body as Record<string, unknown>;
 
   if (interaction.type === 1) return { kind: "ping" };
+
+  if (interaction.type === 3) {
+    const componentData = interaction.data as Record<string, unknown> | undefined;
+    if (typeof interaction.channel_id !== "string" || typeof componentData?.custom_id !== "string") return { kind: "ignored" };
+    return { kind: "component", event: { channelId: interaction.channel_id, customId: componentData.custom_id } };
+  }
+
   if (interaction.type !== 2) return { kind: "ignored" };
 
   const data = interaction.data as Record<string, unknown> | undefined;

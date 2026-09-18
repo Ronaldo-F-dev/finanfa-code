@@ -2,10 +2,25 @@ import type { Express } from "express";
 import { verifyDiscordSignature } from "@finanfa/core/src/channels/discord-signature.js";
 import { parseDiscordInteraction, type DiscordImageAttachment } from "@finanfa/core/src/channels/discord-event.js";
 import { runHeadlessTurn } from "@finanfa/core/src/channels/headless-turn.js";
-import { patchDiscordInteractionResponse } from "@finanfa/core/src/tools/builtin/send-discord-message.js";
+import { resolvePendingConfirmation } from "@finanfa/core/src/channels/pending-confirmations.js";
+import { patchDiscordInteractionResponse, sendDiscordFollowupMessage, type DiscordButton } from "@finanfa/core/src/tools/builtin/send-discord-message.js";
 import { fetchDiscordFile } from "@finanfa/core/src/channels/discord-file.js";
 import type { NeutralImage } from "@finanfa/core/src/core/types.js";
 import type { RequestWithRawBody } from "./channels-slack.js";
+
+// PermissionManager's own promptUser (permissions/manager.ts) always
+// includes this exact substring in a permission-confirmation prompt —
+// matched here so a Discord confirmation gets real tappable buttons
+// instead of asking the user to type y/n/a/t by hand (see
+// channels-telegram.ts for the same convention).
+const CONFIRMATION_PROMPT_MARKER = "[y]es / [n]o";
+
+const CONFIRMATION_BUTTONS: DiscordButton[] = [
+  { label: "✅ Yes", customId: "confirm_y", style: 3 },
+  { label: "❌ No", customId: "confirm_n", style: 4 },
+  { label: "Always this action", customId: "confirm_a" },
+  { label: "Always allow this tool", customId: "confirm_t" },
+];
 
 async function handleDiscordCommand(
   cwd: string,
@@ -18,6 +33,15 @@ async function handleDiscordCommand(
   // Overridable only for tests against a real local fake Discord API —
   // real deployments always want the real https://discord.com/api/v10 default.
   const apiBaseUrl = process.env.DISCORD_API_BASE_URL;
+  // Real remote-confirmation support: a tool needing "ask" permission can
+  // post its confirmation question back into this channel as a followup
+  // message with real buttons, instead of being auto-denied outright (see
+  // pending-confirmations.ts and headless-turn.ts's own askUser).
+  const sendMessage = async (replyText: string): Promise<void> => {
+    const buttons = replyText.includes(CONFIRMATION_PROMPT_MARKER) ? CONFIRMATION_BUTTONS : undefined;
+    const result = await sendDiscordFollowupMessage(applicationId, interactionToken, replyText, buttons, apiBaseUrl);
+    if (!result.ok) console.error(`Discord channel: failed to post followup message to channel ${channelId}: ${result.error}`);
+  };
   try {
     let images: NeutralImage[] | undefined;
     if (image) {
@@ -25,7 +49,7 @@ async function handleDiscordCommand(
       if (file.ok) images = [{ mimeType: image.mimeType, base64: file.base64 }];
       else console.error(`Discord channel: failed to download an image attachment: ${file.error}`);
     }
-    const { replyText } = await runHeadlessTurn(cwd, `discord:${channelId}`, text, images);
+    const { replyText } = await runHeadlessTurn(cwd, `discord:${channelId}`, text, images, sendMessage);
     const result = await patchDiscordInteractionResponse(applicationId, interactionToken, replyText || "(no reply)", apiBaseUrl);
     if (!result.ok) console.error(`Discord channel: failed to patch deferred response for channel ${channelId}: ${result.error}`);
   } catch (err) {
@@ -33,6 +57,12 @@ async function handleDiscordCommand(
     console.error(`Discord channel: turn failed for channel ${channelId}: ${message}`);
     await patchDiscordInteractionResponse(applicationId, interactionToken, "Sorry, something went wrong handling that.", apiBaseUrl).catch(() => {});
   }
+}
+
+/** Maps a confirmation button's own custom_id back to the y/n/a/t vocabulary PermissionManager's text-answer path already expects. */
+function answerFromCustomId(customId: string): string | undefined {
+  const match = /^confirm_([ynat])$/.exec(customId);
+  return match?.[1];
 }
 
 /**
@@ -68,6 +98,15 @@ export function registerDiscordChannelRoutes(app: Express, cwd: string): void {
     const parsed = parseDiscordInteraction(req.body);
     if (parsed.kind === "ping") {
       res.json({ type: 1 });
+      return;
+    }
+    if (parsed.kind === "component") {
+      // type 6 = DEFERRED_UPDATE_MESSAGE — acks the tap with no visible
+      // change to the message (unlike Telegram's separate
+      // answerCallbackQuery call, Discord's ack IS this response).
+      res.json({ type: 6 });
+      const answer = answerFromCustomId(parsed.event.customId);
+      if (answer) resolvePendingConfirmation(`discord:${parsed.event.channelId}`, answer);
       return;
     }
     if (parsed.kind !== "command") {

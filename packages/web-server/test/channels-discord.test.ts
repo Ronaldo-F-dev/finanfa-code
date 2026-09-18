@@ -1,9 +1,9 @@
-import { describe, expect, it, beforeAll, afterAll } from "vitest";
+import { describe, expect, it, beforeAll, beforeEach, afterAll } from "vitest";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { generateKeyPairSync, sign as cryptoSign } from "node:crypto";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
@@ -206,6 +206,120 @@ describe("web-server Discord inbound channel (real subprocess, real Ed25519-sign
     expect(body).toBe("");
     await new Promise((resolve) => setTimeout(resolve, 300));
     expect(patchRequests).toHaveLength(0);
+  });
+});
+
+// Real, reported feature: a permission-confirmation prompt now goes back
+// out through the Discord channel as a real followup message with real
+// tappable buttons, and a tapped button (a real message_component
+// interaction) resolves the exact same pending confirmation a typed y/n
+// reply would in another channel — own dedicated subprocess/servers so
+// this doesn't touch the plain-text-reply fixtures above at all.
+describe("web-server Discord inbound channel — real remote confirmation via buttons", () => {
+  let projectDir: string;
+  let homeDir: string;
+  let child: ChildProcessWithoutNullStreams;
+  let port: number;
+
+  let llmServer: http.Server;
+  let llmBaseUrl: string;
+  let callCount: number;
+
+  let discordApiServer: http.Server;
+  let discordApiBaseUrl: string;
+  let sentRequests: { url: string; method: string; body: { content: string; components?: { components: { type: number; label: string; custom_id: string; style: number }[] }[] } }[];
+
+  beforeAll(async () => {
+    llmServer = http.createServer((req, res) => {
+      let raw = "";
+      req.on("data", (c) => (raw += c));
+      req.on("end", () => {
+        callCount++;
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        if (callCount === 1) {
+          const events = [
+            JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, id: "call_1", function: { name: "write_file", arguments: "" } }] } }] }),
+            JSON.stringify({ choices: [{ delta: { tool_calls: [{ index: 0, function: { arguments: '{"path":"note.txt","content":"hi"}' } }] } }] }),
+            JSON.stringify({ choices: [{ delta: {}, finish_reason: "tool_calls" }] }),
+          ];
+          for (const e of events) res.write(`data: ${e}\n\n`);
+        } else {
+          res.write(`data: ${JSON.stringify({ choices: [{ delta: { content: "Done." }, finish_reason: "stop" }] })}\n\n`);
+        }
+        res.write("data: [DONE]\n\n");
+        res.end();
+      });
+    });
+    await new Promise<void>((resolve) => llmServer.listen(0, "127.0.0.1", resolve));
+    llmBaseUrl = `http://127.0.0.1:${(llmServer.address() as AddressInfo).port}`;
+
+    discordApiServer = http.createServer((req, res) => {
+      let raw = "";
+      req.on("data", (c) => (raw += c));
+      req.on("end", () => {
+        sentRequests.push({ url: req.url ?? "", method: req.method ?? "", body: raw ? JSON.parse(raw) : {} });
+        res.writeHead(200, { "content-type": "application/json" });
+        res.end(JSON.stringify({ id: "1" }));
+      });
+    });
+    await new Promise<void>((resolve) => discordApiServer.listen(0, "127.0.0.1", resolve));
+    discordApiBaseUrl = `http://127.0.0.1:${(discordApiServer.address() as AddressInfo).port}`;
+
+    projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-discord-confirm-project-"));
+    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-discord-confirm-home-"));
+
+    await mkdir(path.join(projectDir, ".finanfa-code"), { recursive: true });
+    await writeFile(
+      path.join(projectDir, ".finanfa-code", "config.json"),
+      JSON.stringify({ provider: "openai-compatible", baseUrl: llmBaseUrl, model: "test-model", apiKey: "test-key" }),
+    );
+
+    process.env.DISCORD_PUBLIC_KEY = PUBLIC_KEY_HEX;
+    process.env.DISCORD_APPLICATION_ID = "app-confirm";
+    process.env.DISCORD_API_BASE_URL = discordApiBaseUrl;
+
+    ({ child, port } = await spawnWebServer(projectDir, homeDir));
+  }, 30_000);
+
+  afterAll(async () => {
+    killWebServer(child);
+    llmServer.close();
+    discordApiServer.close();
+    await rm(projectDir, { recursive: true, force: true });
+    await rm(homeDir, { recursive: true, force: true });
+    for (const k of ["DISCORD_PUBLIC_KEY", "DISCORD_APPLICATION_ID", "DISCORD_API_BASE_URL"]) delete process.env[k];
+  });
+
+  beforeEach(() => {
+    callCount = 0;
+    sentRequests = [];
+  });
+
+  it("sends the confirmation prompt as a real followup message with real buttons, and a tapped button (message_component) runs the tool", async () => {
+    await postDiscordInteraction(port, {
+      type: 2,
+      channel_id: "999",
+      token: "interaction-token-confirm",
+      data: { name: "ask", options: [{ name: "message", type: 3, value: "write a note" }] },
+    });
+
+    await waitFor(() => sentRequests.some((r) => r.body.content?.includes('wants to run "write_file"')));
+    const confirmationMessage = sentRequests.find((r) => r.body.content?.includes('wants to run "write_file"'));
+    expect(confirmationMessage?.url).toBe("/webhooks/app-confirm/interaction-token-confirm");
+    expect(confirmationMessage?.body.components?.[0]?.components).toEqual([
+      { type: 2, label: "✅ Yes", custom_id: "confirm_y", style: 3 },
+      { type: 2, label: "❌ No", custom_id: "confirm_n", style: 4 },
+      { type: 2, label: "Always this action", custom_id: "confirm_a", style: 2 },
+      { type: 2, label: "Always allow this tool", custom_id: "confirm_t", style: 2 },
+    ]);
+
+    // The real Discord message_component interaction shape for a tap on the "✅ Yes" button.
+    const { status, body } = await postDiscordInteraction(port, { type: 3, channel_id: "999", data: { custom_id: "confirm_y" } });
+    expect(status).toBe(200);
+    expect(JSON.parse(body)).toEqual({ type: 6 });
+
+    await waitFor(() => sentRequests.some((r) => r.method === "PATCH" && r.body.content === "Done."));
+    expect(await readFile(path.join(projectDir, "note.txt"), "utf-8")).toBe("hi");
   });
 });
 

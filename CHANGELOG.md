@@ -77,6 +77,16 @@ first tagged release.
   auto-denied. Verified end-to-end against a real Telegram bot: a real
   `bash: ls -la` confirmation prompt, a real button tap, a real command
   run, and the real result posted back.
+- Extended real remote permission confirmation to the Discord channel:
+  a tool call needing "ask" confirmation is posted back into the same
+  channel as a real followup message with tappable Yes/No/Always buttons
+  (Discord's own Components API), reusing the same `pending-confirmations.ts`
+  mechanism built for Telegram — a tapped button is a real
+  `message_component` interaction, acked in-place (Discord's ack IS the
+  interaction response, no separate call like Telegram's
+  `answerCallbackQuery`). Verified end-to-end against a real fake Discord
+  API server: a real `write_file` confirmation prompt with real buttons, a
+  real button-tap interaction, and the real file written.
 - Flags a real, distinct failure mode found testing several small local
   models: instead of a real structured tool call, the model writes its
   intended call as plain assistant text (e.g. `{"name": "bash",

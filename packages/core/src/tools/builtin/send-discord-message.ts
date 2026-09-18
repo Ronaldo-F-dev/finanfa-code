@@ -120,6 +120,59 @@ export async function patchDiscordInteractionResponse(
   return { ok: true };
 }
 
+export interface DiscordButton {
+  label: string;
+  /** Echoed back verbatim on the resulting message_component interaction (see discord-event.ts) — this project uses it as the answer itself, e.g. "confirm_y". */
+  customId: string;
+  /** Discord's button styles: 1 primary, 2 secondary, 3 success, 4 danger. Defaults to secondary. */
+  style?: 1 | 2 | 3 | 4;
+}
+
+/**
+ * Posts a *new* message on an interaction's webhook (as opposed to
+ * patchDiscordInteractionResponse, which edits the original deferred
+ * reply) — valid for ~15 minutes after the triggering interaction, no bot
+ * token needed. Used to send a real, mid-turn permission-confirmation
+ * question with tappable buttons (see channels-discord.ts), separate from
+ * the turn's own final reply.
+ */
+export async function sendDiscordFollowupMessage(
+  applicationId: string,
+  interactionToken: string,
+  text: string,
+  buttons?: DiscordButton[],
+  apiBaseUrl = "https://discord.com/api/v10",
+): Promise<PostDiscordMessageResult> {
+  const components = buttons?.length ? [{ type: 1, components: buttons.map((b) => ({ type: 2, style: b.style ?? 2, label: b.label, custom_id: b.customId })) }] : undefined;
+  let response: Response;
+  let bodyText: string;
+  try {
+    ({ response, bodyText } = await fetchWithRetry(
+      `${apiBaseUrl}/webhooks/${applicationId}/${interactionToken}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json; charset=utf-8" },
+        body: JSON.stringify({ content: text, components }),
+      },
+      { retryAfterMs: parseDiscordRetryAfterMs },
+    ));
+  } catch (err) {
+    return { ok: false, error: `Failed to reach Discord: ${err instanceof Error ? err.message : String(err)}` };
+  }
+
+  if (!response.ok) {
+    let data: DiscordApiErrorResponse = {};
+    try {
+      data = JSON.parse(bodyText) as DiscordApiErrorResponse;
+    } catch {
+      // Non-JSON error body — fall through with the plain status text below.
+    }
+    return { ok: false, error: data.message ?? `Discord returned HTTP ${response.status}.` };
+  }
+  const data = JSON.parse(bodyText) as { id?: string };
+  return { ok: true, messageId: data.id };
+}
+
 export function createSendDiscordMessageTool(config: DiscordConfig | undefined, apiBaseUrl = "https://discord.com/api/v10"): ToolDefinition<SendDiscordMessageInput> {
   return {
     name: "send_discord_message",

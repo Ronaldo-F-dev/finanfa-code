@@ -144,6 +144,10 @@ npm run dev:web-server
    ```
 3. Invite the bot to a server and run `/ask message:<your question>` in any channel — each channel maps to its own persistent session. Attaching an image via the `image` option routes the turn through the project's configured vision model.
 
+A tool call needing confirmation (e.g. `bash`) is posted back into the
+same channel as a real followup message with tappable Yes/No/Always
+buttons. A confirmation left unanswered for 5 minutes is treated as "no".
+
 ## WhatsApp
 
 Uses the [WhatsApp Cloud API](https://developers.facebook.com/docs/whatsapp/cloud-api)
