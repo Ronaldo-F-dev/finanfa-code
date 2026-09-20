@@ -6,3 +6,6 @@ dist/
 /workspace/
 .DS_Store
 /captures/
+# The user's own separate Flutter native client, developed in parallel in
+# this same working directory — not part of this project's own commits.
+/apps/
