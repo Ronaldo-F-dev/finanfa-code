@@ -9,3 +9,7 @@ dist/
 # The user's own separate Flutter native client, developed in parallel in
 # this same working directory — not part of this project's own commits.
 /apps/
+# Design exports (mockups, logo/icon source files, generated theme tokens)
+# for the apps/ client above — same reasoning, not part of this project's
+# own commits.
+/export/
