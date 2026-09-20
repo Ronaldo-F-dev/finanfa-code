@@ -43,6 +43,14 @@ first tagged release.
   documented JSON shape) wasn't recognized as a fake tool call, so it was
   sent to the user as plain text instead of being caught and corrected —
   `looksLikeFakeToolCallText` only matched JSON-shaped fakes.
+- **Real, reported bug**: `McpClientManager.connect()`'s retry logic
+  reused the same `Client`/transport pair across attempts. The MCP SDK
+  marks a transport as attached as soon as `connect()` starts (before the
+  handshake finishes), so if attempt 1 failed after that point, attempt 2
+  no longer saw the original error — it hit the SDK's own "Already
+  connected to a transport" guard instead (reported as a real failure
+  connecting the `gamma` MCP server). Each retry now builds a fresh client
+  and transport.
 - **Real, reported bug**: the web UI's Tools panel only ever requested
   `tools_status` once, right when it mounted — if the WebSocket wasn't
   fully `OPEN` at that exact instant (useAgentSocket's `send()` silently

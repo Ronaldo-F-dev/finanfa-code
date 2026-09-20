@@ -68,24 +68,48 @@ export class McpClientManager {
    */
   async connect(cfg: McpServerConfig, opts: { allowOAuthPrompt?: boolean } = {}): Promise<void> {
     const allowOAuthPrompt = opts.allowOAuthPrompt ?? true;
-    const { transport, authProvider } = buildTransport(cfg);
-    if (!allowOAuthPrompt && authProvider && !(await authProvider.tokens())) {
-      throw new NeedsAuthorizationError(cfg.name);
-    }
-    const client = new Client({ name: "finanfa-code", version: "0.1.0" }, { capabilities: {} });
+
+    // A real, reported bug: retryWithBackoff previously retried
+    // `client.connect(transport)` on the SAME client+transport pair. The
+    // SDK's Client.connect() records the transport as soon as it starts
+    // (before the initialize handshake finishes), so if attempt 1 fails
+    // *after* that point — a slow remote MCP server timing out its first
+    // request, for instance — attempt 2 no longer sees the original
+    // failure: it hits the SDK's own "Already connected to a transport"
+    // guard instead, since `_transport` was never cleared. A fresh Client
+    // and transport per attempt (built inside the retried closure) makes
+    // every retry a genuinely clean one, and is why lastTransport/
+    // lastAuthProvider are captured here instead of built once up front.
+    let client!: Client;
+    let lastTransport!: StdioClientTransport | RemoteTransport;
+    let lastAuthProvider: FileOAuthClientProvider | undefined;
 
     try {
       // Retries a transient connection failure (a stdio server process not
       // ready yet, a momentary network blip for a remote transport) — but
-      // never retries UnauthorizedError, so the OAuth flow below still
-      // triggers immediately instead of being delayed behind backoff waits.
-      await retryWithBackoff(() => client.connect(transport), {
-        attempts: 3,
-        baseDelayMs: 500,
-        shouldRetry: (err) => !(err instanceof UnauthorizedError),
-      });
+      // never retries UnauthorizedError/NeedsAuthorizationError, so the
+      // OAuth flow below still triggers immediately instead of being
+      // delayed behind backoff waits.
+      await retryWithBackoff(
+        async () => {
+          const { transport, authProvider } = buildTransport(cfg);
+          lastTransport = transport;
+          lastAuthProvider = authProvider;
+          if (!allowOAuthPrompt && authProvider && !(await authProvider.tokens())) {
+            throw new NeedsAuthorizationError(cfg.name);
+          }
+          client = new Client({ name: "finanfa-code", version: "0.1.0" }, { capabilities: {} });
+          await client.connect(transport);
+        },
+        {
+          attempts: 3,
+          baseDelayMs: 500,
+          shouldRetry: (err) => !(err instanceof UnauthorizedError) && !(err instanceof NeedsAuthorizationError),
+        },
+      );
     } catch (err) {
-      if (!(err instanceof UnauthorizedError) || !authProvider) throw err;
+      if (err instanceof NeedsAuthorizationError) throw err;
+      if (!(err instanceof UnauthorizedError) || !lastAuthProvider) throw err;
       // A saved token existed but was rejected (expired/revoked) — with
       // OAuth prompts disabled, surface that as NeedsAuthorizationError too
       // rather than opening a browser the caller didn't ask for.
@@ -101,9 +125,10 @@ export class McpClientManager {
       // fresh transport instead of reusing the one that already ran; a new
       // FileOAuthClientProvider for the same server reads the
       // just-persisted tokens straight from disk, so nothing is lost.
-      const code = await authProvider.waitForCallback();
-      await (transport as RemoteTransport).finishAuth(code);
+      const code = await lastAuthProvider.waitForCallback();
+      await (lastTransport as RemoteTransport).finishAuth(code);
       const { transport: freshTransport } = buildTransport(cfg);
+      client = new Client({ name: "finanfa-code", version: "0.1.0" }, { capabilities: {} });
       await client.connect(freshTransport);
     }
 
