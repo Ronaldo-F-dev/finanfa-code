@@ -88,6 +88,14 @@ describe("runTurn: a model that writes a fake tool call as plain text instead of
     '{"name": "write_file", "arguments": {"file": "/tmp/go.mod", "contents": "module go_project"}}',
     // Real, reported wording from qwen2.5-coder:3b through finanfa's actual REPL — a made-up action schema, unquoted keys.
     '{action: "create_project"} {action: "create_file", path: "/tmp/go.mod", input: "module go_test"}',
+    // Real, reported wording from ducquoc/gemma4-fast-sonnet, through the
+    // mobile client's real WebSocket connection: asked an ordinary question
+    // completely unrelated to any file, the model answered with only this
+    // fenced block and nothing else — a Gemini-style ```tool_code
+    // convention this project never taught it, so the earlier JSON-only
+    // pattern (which requires the trimmed text to start with "{") never
+    // matched a fenced code block at all, and the user saw total silence.
+    '```tool_code\nread_file("/Users/renaldo/Desktop/finanfa-code/packages/web-server/src/app/app.component.ts")\n```',
   ])("flags it instead of silently accepting it as a normal response: %s", async (content) => {
     const ui = makeStubUi();
     const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
@@ -108,6 +116,23 @@ describe("runTurn: a model that writes a fake tool call as plain text instead of
       fakeCallProvider(
         'Bien sûr ! Un exemple de réponse JSON ressemble à {"name": "value"} — voulez-vous que je vous explique comment le parser ?',
       ),
+      ui,
+      new ToolRegistry(),
+      permissions,
+      "hello",
+    );
+
+    expect(ui.writeSystem).not.toHaveBeenCalledWith(expect.stringContaining("tried to call a tool by writing it as plain text"));
+  });
+
+  it("does not flag a real fenced code example that isn't just a single bare function call", async () => {
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(
+      session,
+      fakeCallProvider('Voici un exemple :\n```python\ndef add(a, b):\n    return a + b\n```\nAppelez `add(1, 2)` pour tester.'),
       ui,
       new ToolRegistry(),
       permissions,

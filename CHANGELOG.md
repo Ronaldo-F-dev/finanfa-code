@@ -38,6 +38,11 @@ first tagged release.
 
 ### Fixed
 
+- **Real, reported bug**: a fenced ` ```tool_code ` block (some local models,
+  e.g. gemma4-fast-sonnet, emit tool calls this way instead of the
+  documented JSON shape) wasn't recognized as a fake tool call, so it was
+  sent to the user as plain text instead of being caught and corrected —
+  `looksLikeFakeToolCallText` only matched JSON-shaped fakes.
 - **Real, reported bug**: the web UI's Tools panel only ever requested
   `tools_status` once, right when it mounted — if the WebSocket wasn't
   fully `OPEN` at that exact instant (useAgentSocket's `send()` silently

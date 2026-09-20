@@ -525,9 +525,22 @@ function isLikelyModelNotFoundError(message: string): boolean {
 const FAKE_TOOL_CALL_PATTERN =
   /["']?\bname["']?\s*:\s*["'][\w./-]+["']\s*,\s*["']?\b(?:arguments|input)["']?\s*:|["']?\baction["']?\s*:\s*["'][\w./-]+["']/i;
 
+// Real, reported second shape of the same failure, found on
+// ducquoc/gemma4-fast-sonnet: instead of the JSON-object style above, the
+// model writes a ```tool_code fenced block containing a Python-style call
+// (`read_file("path")`) and nothing else — a format that looks like it was
+// distilled from Gemini's own code-execution tool convention, not this
+// project's. Confirmed directly: asked an ordinary question (unrelated to
+// any file), the model answered only with a read_file() call in this shape
+// and then said nothing further — silent to the user, since the earlier,
+// JSON-only check above never matches a fenced code block at all (it
+// requires the trimmed text to start with "{").
+const FENCED_FAKE_TOOL_CALL_PATTERN = /^```(?:tool_code|python|py)?\s*\n[a-zA-Z_][\w.]*\([^)]*\)\s*\n```$/;
+
 function looksLikeFakeToolCallText(content: string): boolean {
   const trimmed = content.trim();
-  return trimmed.startsWith("{") && FAKE_TOOL_CALL_PATTERN.test(trimmed);
+  if (trimmed.startsWith("{") && FAKE_TOOL_CALL_PATTERN.test(trimmed)) return true;
+  return FENCED_FAKE_TOOL_CALL_PATTERN.test(trimmed);
 }
 
 // Both LoopGuard messages below start with this — a distinctive marker so
