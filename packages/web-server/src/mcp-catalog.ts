@@ -21,7 +21,17 @@ import type { McpServerConfig } from "@finanfa/core/src/mcp/config.js";
 // support exists — until then this catalog entry would just repeat the
 // same misleading "Connected" → later failure for every user.
 export const MCP_CATALOG: McpServerConfig[] = [
-  { name: "github", transport: "stdio", command: "docker", args: ["run", "-i", "--rm", "-e", "GITHUB_PERSONAL_ACCESS_TOKEN", "ghcr.io/github/github-mcp-server"] },
+  // GitHub's own hosted remote server (see github/github-mcp-server's
+  // "Remote MCP Server" docs) — OAuth like notion/canva/supabase below, no
+  // local Docker daemon or manually-issued GITHUB_PERSONAL_ACCESS_TOKEN
+  // required. Replaces a previous entry that ran ghcr.io/github/github-mcp-server
+  // via `docker run`: a real, reported bug — nothing in this project lets a
+  // user set GITHUB_PERSONAL_ACCESS_TOKEN, and connecting failed instantly
+  // with "MCP error -32000: connection closed" whenever Docker Desktop
+  // wasn't already running, which it wasn't. Unverified end-to-end (unlike
+  // notion/canva/supabase below): not yet confirmed this endpoint supports
+  // the same dynamic client registration those do.
+  { name: "github", transport: "http", url: "https://api.githubcopilot.com/mcp/" },
   { name: "notion", transport: "http", url: "https://mcp.notion.com/mcp" },
   { name: "canva", transport: "http", url: "https://mcp.canva.com/mcp" },
   { name: "supabase", transport: "http", url: "https://mcp.supabase.com/mcp" },
