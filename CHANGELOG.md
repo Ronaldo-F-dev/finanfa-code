@@ -38,6 +38,19 @@ first tagged release.
 
 ### Fixed
 
+- **Real, reported bug**: a browser tab authorizing an MCP connector (e.g.
+  Vercel) could pop open completely unprompted — no button clicked —
+  sometimes hours into an unrelated conversation. The MCP SDK calls
+  `redirectToAuthorization()` on *any* 401 it sees, not only during an
+  explicit connect: once a saved token expires (Vercel issues no
+  `refresh_token`, so this happens within the hour), the very next tool
+  call through that connector hit this path from deep inside the SDK,
+  bypassing `allowOAuthPrompt` entirely (it only ever guarded the initial
+  "no token yet" case). `FileOAuthClientProvider` now carries its own
+  `silent` flag that `redirectToAuthorization` itself checks, and
+  `McpClientManager.connect()` silences a provider for good the moment its
+  client connects successfully — a browser only opens again after a fresh,
+  explicit reconnect.
 - **Real, reported bug**: every MCP connector's OAuth flow shares one fixed
   local callback port (baked into each server's cached client registration,
   so it can't vary per-server without breaking already-authorized

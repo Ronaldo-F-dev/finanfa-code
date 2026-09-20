@@ -95,6 +95,30 @@ describe("FileOAuthClientProvider", () => {
     errSpy.mockRestore();
   });
 
+  // Real, reported bug: a browser tab opened for Vercel with nobody
+  // clicking anything, sometimes hours into an unrelated conversation. The
+  // MCP SDK calls redirectToAuthorization() on *any* 401 it sees — not just
+  // during an explicit connect() — so a provider that was silent only at
+  // connect time (the old, insufficient fix) still popped a browser the
+  // next time a routine tool call's token had expired. setSilent(true)
+  // must hold for the provider's whole remaining lifetime.
+  it("redirectToAuthorization throws instead of opening a browser once silenced", () => {
+    const provider = new FileOAuthClientProvider("vercel");
+    provider.setSilent(true);
+    expect(() => provider.redirectToAuthorization(new URL("https://vercel.com/authorize"))).toThrow(
+      /needs authorization/,
+    );
+  });
+
+  it("setSilent(false) restores the interactive (browser-opening) behavior", () => {
+    const provider = new FileOAuthClientProvider("vercel");
+    provider.setSilent(true);
+    provider.setSilent(false);
+    const errSpy = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(() => provider.redirectToAuthorization(new URL("https://vercel.com/authorize"))).not.toThrow();
+    errSpy.mockRestore();
+  });
+
   // Real, reported bug: starting a second connector's OAuth flow (e.g.
   // Vercel) while a first one's (e.g. Supabase) 5-minute callback window was
   // still open opened a second browser tab that could never be answered —

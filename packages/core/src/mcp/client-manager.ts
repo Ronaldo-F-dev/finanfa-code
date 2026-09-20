@@ -5,8 +5,10 @@ import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
 import type { ToolDefinition } from "../core/types.js";
 import type { McpServerConfig } from "./config.js";
-import { FileOAuthClientProvider } from "./oauth-provider.js";
+import { FileOAuthClientProvider, NeedsAuthorizationError } from "./oauth-provider.js";
 import { retryWithBackoff } from "../util/retry.js";
+
+export { NeedsAuthorizationError };
 
 export const MCP_TOOL_PREFIX = "mcp__";
 
@@ -43,13 +45,6 @@ function buildTransport(cfg: McpServerConfig): BuiltTransport {
   return { transport, authProvider };
 }
 
-/** Thrown by connect() when allowOAuthPrompt is false and the server has no saved token yet — distinct from a real connection failure, so callers can report it separately (and without ever opening a browser). */
-export class NeedsAuthorizationError extends Error {
-  constructor(readonly serverName: string) {
-    super(`MCP server "${serverName}" needs authorization — no saved token yet.`);
-  }
-}
-
 export class McpClientManager {
   private readonly clients = new Map<string, Client>();
 
@@ -57,14 +52,21 @@ export class McpClientManager {
    * allowOAuthPrompt (default true): when false, never opens a browser or
    * blocks waiting for one — if the server has no saved token, throws
    * NeedsAuthorizationError immediately instead of attempting to connect.
-   * This has to be checked *before* calling client.connect() at all, not
-   * just by catching UnauthorizedError afterward: the SDK's own internal
-   * auth() flow calls authProvider.redirectToAuthorization() (which opens
-   * the browser) as soon as a connect attempt gets a 401, before the error
-   * ever reaches our catch block. Used at startup so configuring several
-   * OAuth-gated servers doesn't pop several browser tabs and block startup
-   * for up to 5 minutes each on servers nobody has decided to use yet —
-   * explicit user action (/mcp connect) still gets the full interactive flow.
+   * This has to be enforced *on the provider itself* (via setSilent), not
+   * just by a pre-check before calling client.connect(): the MCP SDK's own
+   * internal auth() calls authProvider.redirectToAuthorization() (which
+   * opens the browser) on *any* 401 it sees — not only during this
+   * connect() call, but on every later tool call made through the client
+   * this method returns, for as long as that process lives. A real,
+   * reported bug: a saved-but-expired token (Vercel issues no
+   * refresh_token, so its token dies within the hour) let a browser pop
+   * open with literally nobody clicking anything, sometimes hours into an
+   * unrelated conversation, because only the "no token at all" case was
+   * ever guarded here. Every provider this method hands to a Client is
+   * silenced the moment that Client is safely connected — regardless of
+   * whether *this* connect() was itself interactive — so only a fresh,
+   * explicit reconnect (which builds a brand new provider, silent again
+   * only for its own attempt) can ever open a browser after that.
    */
   async connect(cfg: McpServerConfig, opts: { allowOAuthPrompt?: boolean } = {}): Promise<void> {
     const allowOAuthPrompt = opts.allowOAuthPrompt ?? true;
@@ -95,6 +97,11 @@ export class McpClientManager {
           const { transport, authProvider } = buildTransport(cfg);
           lastTransport = transport;
           lastAuthProvider = authProvider;
+          // Silenced for the connect attempt itself whenever prompts are
+          // disallowed — covers both "no token yet" and "token exists but
+          // is expired/rejected", where the SDK's own auth() would
+          // otherwise redirect straight from inside client.connect().
+          authProvider?.setSilent(!allowOAuthPrompt);
           if (!allowOAuthPrompt && authProvider && !(await authProvider.tokens())) {
             throw new NeedsAuthorizationError(cfg.name);
           }
@@ -127,11 +134,17 @@ export class McpClientManager {
       // just-persisted tokens straight from disk, so nothing is lost.
       const code = await lastAuthProvider.waitForCallback();
       await (lastTransport as RemoteTransport).finishAuth(code);
-      const { transport: freshTransport } = buildTransport(cfg);
+      const { transport: freshTransport, authProvider: freshAuthProvider } = buildTransport(cfg);
+      lastAuthProvider = freshAuthProvider;
       client = new Client({ name: "finanfa-code", version: "0.1.0" }, { capabilities: {} });
       await client.connect(freshTransport);
     }
 
+    // Connected — from here on, a 401 the SDK sees on some later, unrelated
+    // tool call must never pop a browser unprompted. Only a fresh call to
+    // connect() (a new provider, briefly un-silenced for its own attempt
+    // above) gets to do that again.
+    lastAuthProvider?.setSilent(true);
     this.clients.set(cfg.name, client);
   }
 

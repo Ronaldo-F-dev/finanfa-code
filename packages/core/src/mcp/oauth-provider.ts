@@ -12,6 +12,13 @@ import { openUrl } from "../util/open-url.js";
 
 const DEFAULT_CALLBACK_PORT = 51789;
 
+/** Thrown by connect() when allowOAuthPrompt is false and the server has no saved token yet, or by FileOAuthClientProvider.redirectToAuthorization when a *silent* provider hits a 401 mid-session — distinct from a real connection failure, so callers can report it separately (and without ever opening a browser). */
+export class NeedsAuthorizationError extends Error {
+  constructor(readonly serverName: string) {
+    super(`MCP server "${serverName}" needs authorization — no saved token yet.`);
+  }
+}
+
 // Every server uses the same fixed callback port (the redirect_uri is baked
 // into each server's cached OAuth client registration at first connect, so
 // changing it per-server would break already-registered connectors like a
@@ -54,8 +61,26 @@ export class FileOAuthClientProvider implements OAuthClientProvider {
   private readonly port: number;
   private codeVerifierMemo: string | undefined;
 
+  // Real, reported bug: a saved-but-expired token (Vercel issues no
+  // refresh_token, so this happens routinely within an hour) let a browser
+  // tab pop open completely unprompted, with no button ever clicked. The
+  // MCP SDK calls its own internal auth() — which calls
+  // redirectToAuthorization() below — on *any* 401 it sees, not just during
+  // an explicit connect(): a tool call made minutes or hours into a normal
+  // conversation, long after the server silently reconnected this client
+  // at startup, hits this exact path with nobody watching for it.
+  // McpClientManager flips this true right after a connection is
+  // established (see connect()) regardless of how permissive that one
+  // connect() attempt was, so only a fresh, explicit reconnect — which
+  // builds a new provider — ever gets to open a browser again.
+  private silent = false;
+
   constructor(private readonly serverName: string, port = DEFAULT_CALLBACK_PORT) {
     this.port = port;
+  }
+
+  setSilent(silent: boolean): void {
+    this.silent = silent;
   }
 
   get redirectUrl(): string {
@@ -101,6 +126,9 @@ export class FileOAuthClientProvider implements OAuthClientProvider {
   }
 
   redirectToAuthorization(authorizationUrl: URL): void {
+    if (this.silent) {
+      throw new NeedsAuthorizationError(this.serverName);
+    }
     if (callbackServerActive) {
       throw new Error(
         `Another connector's authorization is already in progress — finish that browser tab first, or wait up to 5 minutes for it to time out, then try "${this.serverName}" again.`,
