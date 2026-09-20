@@ -12,6 +12,20 @@ import { openUrl } from "../util/open-url.js";
 
 const DEFAULT_CALLBACK_PORT = 51789;
 
+// Every server uses the same fixed callback port (the redirect_uri is baked
+// into each server's cached OAuth client registration at first connect, so
+// changing it per-server would break already-registered connectors like a
+// previously-authorized supabase/canva/notion). That means only one OAuth
+// flow can be in flight at a time, process-wide — a real, reported bug:
+// starting a second connector's authorization (e.g. Vercel) while a first
+// one's 5-minute callback window was still open opened a second browser tab
+// that could never be answered ("This site can't be reached" on the
+// redirect back), since `waitForCallback()`'s http.createServer().listen()
+// silently failed to (re)bind the already-in-use port. Tracked here so a
+// second attempt fails fast with a clear message instead of opening a
+// doomed browser tab.
+let callbackServerActive = false;
+
 function authDir(serverName: string): string {
   return path.join(os.homedir(), ".finanfa-code", "mcp-auth", serverName);
 }
@@ -87,6 +101,11 @@ export class FileOAuthClientProvider implements OAuthClientProvider {
   }
 
   redirectToAuthorization(authorizationUrl: URL): void {
+    if (callbackServerActive) {
+      throw new Error(
+        `Another connector's authorization is already in progress — finish that browser tab first, or wait up to 5 minutes for it to time out, then try "${this.serverName}" again.`,
+      );
+    }
     console.error(
       `\nOpen this URL to authorize finanfa-code for "${this.serverName}":\n${authorizationUrl.toString()}\n`,
     );
@@ -101,6 +120,12 @@ export class FileOAuthClientProvider implements OAuthClientProvider {
    */
   waitForCallback(timeoutMs = 5 * 60 * 1000): Promise<string> {
     return new Promise((resolve, reject) => {
+      callbackServerActive = true;
+      const finish = (fn: () => void) => {
+        callbackServerActive = false;
+        fn();
+      };
+
       const server = http.createServer((req, res) => {
         const url = new URL(req.url ?? "/", this.redirectUrl);
         const code = url.searchParams.get("code");
@@ -115,14 +140,25 @@ export class FileOAuthClientProvider implements OAuthClientProvider {
 
         clearTimeout(timer);
         server.close();
-        if (error) reject(new Error(`OAuth authorization failed: ${error}`));
-        else if (code) resolve(code);
-        else reject(new Error("OAuth callback received without an authorization code"));
+        if (error) finish(() => reject(new Error(`OAuth authorization failed: ${error}`)));
+        else if (code) finish(() => resolve(code));
+        else finish(() => reject(new Error("OAuth callback received without an authorization code")));
+      });
+
+      // Real, reported bug: without this handler, a failure to bind
+      // (e.g. EADDRINUSE from some unrelated process — the "another flow
+      // already in progress" case is now caught earlier, in
+      // redirectToAuthorization) surfaced as an unhandled 'error' event
+      // instead of rejecting this promise, silently hanging the connect
+      // attempt forever with the browser stuck on a dead callback URL.
+      server.on("error", (err) => {
+        clearTimeout(timer);
+        finish(() => reject(new Error(`Couldn't start the local OAuth callback server on port ${this.port}: ${err.message}`)));
       });
 
       const timer = setTimeout(() => {
         server.close();
-        reject(new Error("Timed out waiting for OAuth authorization in the browser"));
+        finish(() => reject(new Error("Timed out waiting for OAuth authorization in the browser")));
       }, timeoutMs);
 
       server.listen(this.port);

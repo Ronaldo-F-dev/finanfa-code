@@ -38,6 +38,18 @@ first tagged release.
 
 ### Fixed
 
+- **Real, reported bug**: every MCP connector's OAuth flow shares one fixed
+  local callback port (baked into each server's cached client registration,
+  so it can't vary per-server without breaking already-authorized
+  connectors). Starting a second connector's authorization (e.g. Vercel)
+  while a first one's (e.g. Supabase) 5-minute callback window was still
+  open opened a second browser tab that could never be answered — its local
+  callback server failed to bind the already-in-use port, silently, with no
+  error surfaced anywhere — so the redirect back landed on "This site can't
+  be reached" with no explanation. `redirectToAuthorization` now refuses to
+  open a second tab while one is already in progress, with a clear message
+  instead, and `waitForCallback`'s local server now rejects instead of
+  hanging on any other bind failure.
 - **Real, reported bug**: the GitHub connector in the built-in MCP catalog
   ran `ghcr.io/github/github-mcp-server` via `docker run`, requiring a
   local Docker daemon and a manually-issued `GITHUB_PERSONAL_ACCESS_TOKEN`

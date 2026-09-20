@@ -94,4 +94,51 @@ describe("FileOAuthClientProvider", () => {
     expect(errSpy).toHaveBeenCalledWith(expect.stringContaining("https://example.com/authorize?foo=bar"));
     errSpy.mockRestore();
   });
+
+  // Real, reported bug: starting a second connector's OAuth flow (e.g.
+  // Vercel) while a first one's (e.g. Supabase) 5-minute callback window was
+  // still open opened a second browser tab that could never be answered —
+  // every connector shares the same fixed callback port, so the second
+  // flow's local server failed to bind, and the redirect back landed on
+  // "This site can't be reached" with nothing there to explain why.
+  it("redirectToAuthorization refuses to open a second browser tab while one flow is already in progress", async () => {
+    const port = 51796;
+    const first = new FileOAuthClientProvider("supabase", port);
+    const waiting = first.waitForCallback();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const second = new FileOAuthClientProvider("vercel", port);
+    expect(() => second.redirectToAuthorization(new URL("https://vercel.com/authorize"))).toThrow(
+      /already in progress/,
+    );
+
+    // Clean up: complete the first flow so the module-level lock clears
+    // and doesn't leak into other tests.
+    await new Promise<void>((resolve, reject) => {
+      http.get(`http://127.0.0.1:${port}/callback?code=abc123`, (res) => {
+        res.resume();
+        res.on("end", resolve);
+      }).on("error", reject);
+    });
+    await waiting;
+  });
+
+  it("waitForCallback rejects instead of hanging when the callback port can't be bound", async () => {
+    const port = 51795;
+    const first = new FileOAuthClientProvider("supabase", port);
+    const firstWaiting = first.waitForCallback();
+    await new Promise((resolve) => setTimeout(resolve, 50));
+
+    const second = new FileOAuthClientProvider("vercel", port);
+    await expect(second.waitForCallback()).rejects.toThrow(/Couldn't start the local OAuth callback server/);
+
+    // Clean up the first flow's still-open server.
+    await new Promise<void>((resolve, reject) => {
+      http.get(`http://127.0.0.1:${port}/callback?code=abc123`, (res) => {
+        res.resume();
+        res.on("end", resolve);
+      }).on("error", reject);
+    });
+    await firstWaiting;
+  });
 });
