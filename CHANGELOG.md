@@ -64,13 +64,16 @@ first tagged release.
   instead, and `waitForCallback`'s local server now rejects instead of
   hanging on any other bind failure.
 - **Real, reported bug**: the GitHub connector in the built-in MCP catalog
-  ran `ghcr.io/github/github-mcp-server` via `docker run`, requiring a
+  was tried two ways in this project's history, both of which fail for
+  every user: `ghcr.io/github/github-mcp-server` via `docker run` needs a
   local Docker daemon and a manually-issued `GITHUB_PERSONAL_ACCESS_TOKEN`
-  neither the web UI nor the mobile client has any way to configure —
-  connecting always failed with "MCP error -32000: connection closed"
-  whenever Docker Desktop wasn't already running. Switched to GitHub's own
-  hosted remote MCP server (OAuth, same as notion/canva/supabase), so
-  connecting works the same one-click way as those.
+  nothing in this project lets a user configure ("MCP error -32000:
+  connection closed" whenever Docker Desktop wasn't already running); its
+  replacement, `api.githubcopilot.com/mcp/`'s OAuth, fails with
+  "Incompatible auth server: does not support dynamic client
+  registration" — the same RFC7591 gap already documented here for
+  gmail/drive. Removed from the one-click catalog until one of those two
+  gaps is actually closed, rather than leave a guaranteed failure in place.
 - **Real, reported bug**: a fenced ` ```tool_code ` block (some local models,
   e.g. gemma4-fast-sonnet, emit tool calls this way instead of the
   documented JSON shape) wasn't recognized as a fake tool call, so it was

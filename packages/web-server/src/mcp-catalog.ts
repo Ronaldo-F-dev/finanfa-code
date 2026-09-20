@@ -20,18 +20,19 @@ import type { McpServerConfig } from "@finanfa/core/src/mcp/config.js";
 // which finanfa-code has no config surface for yet. Re-add here once that
 // support exists — until then this catalog entry would just repeat the
 // same misleading "Connected" → later failure for every user.
+// github was tried twice in this one-click catalog and removed both times:
+// first `ghcr.io/github/github-mcp-server` via `docker run` (real, reported
+// bug — nothing in this project lets a user set
+// GITHUB_PERSONAL_ACCESS_TOKEN, and it failed instantly with "MCP error
+// -32000: connection closed" whenever Docker Desktop wasn't already
+// running), then api.githubcopilot.com/mcp/'s OAuth (real, reported bug —
+// "Incompatible auth server: does not support dynamic client registration",
+// the exact same RFC7591 gap documented below for gmail/drive: it needs a
+// client_id pre-registered as a real GitHub OAuth App, which finanfa-code
+// has no config surface for yet). Re-add once one of those two gaps is
+// actually closed — until then either option just repeats a guaranteed
+// failure for every user.
 export const MCP_CATALOG: McpServerConfig[] = [
-  // GitHub's own hosted remote server (see github/github-mcp-server's
-  // "Remote MCP Server" docs) — OAuth like notion/canva/supabase below, no
-  // local Docker daemon or manually-issued GITHUB_PERSONAL_ACCESS_TOKEN
-  // required. Replaces a previous entry that ran ghcr.io/github/github-mcp-server
-  // via `docker run`: a real, reported bug — nothing in this project lets a
-  // user set GITHUB_PERSONAL_ACCESS_TOKEN, and connecting failed instantly
-  // with "MCP error -32000: connection closed" whenever Docker Desktop
-  // wasn't already running, which it wasn't. Unverified end-to-end (unlike
-  // notion/canva/supabase below): not yet confirmed this endpoint supports
-  // the same dynamic client registration those do.
-  { name: "github", transport: "http", url: "https://api.githubcopilot.com/mcp/" },
   { name: "notion", transport: "http", url: "https://mcp.notion.com/mcp" },
   { name: "canva", transport: "http", url: "https://mcp.canva.com/mcp" },
   { name: "supabase", transport: "http", url: "https://mcp.supabase.com/mcp" },
