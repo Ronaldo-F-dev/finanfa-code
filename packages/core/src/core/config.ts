@@ -118,6 +118,20 @@ export interface FinanfaConfig {
   textModelBinary?: string;
   /** llama-server's -c/--ctx-size — defaults to 8192 if unset (see local-model-manager.ts). */
   textModelContextSize?: string;
+  /** Hugging Face repo id (e.g. "prism-ml/Ternary-Bonsai-1.7B-gguf") the .gguf at textModelPath comes from — purely informational, used only to print a real `hf download` command when the file is missing (see ensureConfiguredLocalTextModel). Never auto-downloaded without the user running that command themselves. */
+  textModelHfRepo?: string;
+  /** Filename within textModelHfRepo (e.g. "Ternary-Bonsai-1.7B-Q2_0_g64.gguf") — paired with textModelHfRepo for the same download-command message. */
+  textModelHfFile?: string;
+  /**
+   * Maps a model name (as it'd appear picked from /models or the model
+   * picker) to its local .gguf path — lets ensureLocalTextModelForSwitch
+   * (app.ts) restart the local llama.cpp server with the newly-picked
+   * model when switching between several locally-served text models (e.g.
+   * Bonsai 1.7B vs 4B vs 8B, all served one at a time on the same port).
+   * A model not listed here is assumed unrelated to the local text model
+   * slot (a different Anthropic/Ollama/etc. model) and left untouched.
+   */
+  localTextModelPaths?: Record<string, string>;
 }
 
 /** Parses config.thinkingBudgetTokens (a plain string, like every other /config-set value) into the number session.thinkingBudgetTokens actually wants — undefined for unset/non-positive/non-numeric, never NaN or 0, so callers can assign it straight through without their own validation. */

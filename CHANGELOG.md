@@ -10,6 +10,16 @@ first tagged release.
 
 ### Added
 
+- The local text model server now actually restarts with the right model
+  when you switch to a different locally-served one mid-session (the
+  model picker, or an effort tier) — before this, only the very first
+  process-startup check ever ensured the right model was loaded, so
+  picking a different local model (e.g. a different Bonsai size, all
+  served one at a time by the same `llama-server` process) left the old
+  one running and silently talking to the wrong model. `textModelHfRepo`/
+  `textModelHfFile` config fields also turn a missing-model-file error
+  into a real, runnable `hf download <repo> <file> --local-dir <dir>`
+  command instead of a dead end.
 - Auto-starts the local text model instead of requiring `llama-server` to
   already be running by hand: `TEXT_MODEL_PATH` (+ optional
   `TEXT_MODEL_BINARY`/`textModelContextSize`) points at a `.gguf` file, and

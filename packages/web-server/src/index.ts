@@ -41,6 +41,7 @@ import {
   parseApiKeys,
   isLocalProviderConfig,
   ensureConfiguredLocalTextModel,
+  ensureLocalTextModelForSwitch,
 } from "@finanfa/core/src/app.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
 import {
@@ -1284,6 +1285,14 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           session.providerKind = providerKind;
           session.providerBaseUrl = typeof msg.baseUrl === "string" && msg.baseUrl ? msg.baseUrl : undefined;
           session.model = msg.model;
+          // Real, reported gap: picking a different locally-served text
+          // model (e.g. switching between several Bonsai sizes, all served
+          // one at a time by the same llama.cpp process) didn't restart
+          // that server with the newly-picked one — only the very first
+          // process-startup check ever ensured the right model was
+          // loaded. A no-op unless config.localTextModelPaths has an entry
+          // for msg.model.
+          await ensureLocalTextModelForSwitch(config, msg.model, adapter);
           // A manual pick through this plain picker is a distinct action
           // from an effort tier (see set_effort below) — the "effort" badge
           // shouldn't keep claiming Faible/Moyen/Fort once the user has
@@ -1413,6 +1422,10 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           session.providerKind = providerKind;
           session.providerBaseUrl = tier.baseUrl;
           session.model = resolvedModel;
+          // Same local-model-switch check as the plain model picker above —
+          // a no-op unless this tier's model is one of
+          // config.localTextModelPaths's entries.
+          await ensureLocalTextModelForSwitch(config, resolvedModel, adapter);
           session.maxTokens = tier.maxTokens;
           session.effort = tier.id;
           if (tier.toolBudget === "none") {

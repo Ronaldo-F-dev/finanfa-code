@@ -16,7 +16,8 @@ import { McpClientManager, NeedsAuthorizationError } from "./mcp/client-manager.
 import { loadMcpServers } from "./mcp/config.js";
 import type { UIAdapter } from "./ui/adapter.js";
 import { resolveProviderKindAlias } from "./core/model-capabilities.js";
-import { ensureLocalTextModelServer } from "./core/local-model-manager.js";
+import { ensureLocalTextModelServer, type LocalModelStatus } from "./core/local-model-manager.js";
+import path from "node:path";
 
 export const SECURITY_INSTRUCTION =
   "Security: help with authorized security testing, defensive security work, CTF challenges, and security " +
@@ -390,6 +391,58 @@ export function isLocalProviderConfig(config: FinanfaConfig): boolean {
  * "couldn't reach that model" error happens naturally on first use, same as
  * before this existed — this is a convenience, not a new hard requirement.
  */
+/** Reports a LocalModelStatus to the user — shared by the startup check and the model-switch check below, so both give the same guidance (including a real `hf download` command when the file is missing and textModelHfRepo/textModelHfFile are configured, rather than a dead end). */
+function reportLocalModelStatus(
+  result: LocalModelStatus,
+  baseUrl: string,
+  config: FinanfaConfig,
+  ui: Pick<UIAdapter, "writeSystem" | "writeError">,
+): void {
+  switch (result.state) {
+    case "started":
+      ui.writeSystem(`Started llama-server serving ${result.modelId} at ${baseUrl}.`);
+      break;
+    case "restarted":
+      ui.writeSystem(`Switched the local model server from ${result.previousModelId} to ${result.modelId} at ${baseUrl}.`);
+      break;
+    case "already-running-different-model":
+      ui.writeError(
+        `${baseUrl} is already serving "${result.runningModelId}", not the configured "${result.expected}" — ` +
+          `stop that server yourself if you want finanfa-code to load the right model there.`,
+      );
+      break;
+    case "missing-binary":
+      ui.writeError(`Can't auto-start the local text model: "${result.binary}" isn't installed or isn't on PATH.`);
+      break;
+    case "missing-model-file": {
+      const hfRepo = config.textModelHfRepo;
+      const hfFile = config.textModelHfFile;
+      const howToGet =
+        hfRepo && hfFile
+          ? ` Get it with: hf download ${hfRepo} ${hfFile} --local-dir "${path.dirname(result.path)}"`
+          : " (check textModelPath/TEXT_MODEL_PATH, or set textModelHfRepo/textModelHfFile for a download command here).";
+      ui.writeError(`Can't auto-start the local text model: no file at ${result.path}.${howToGet}`);
+      break;
+    }
+    case "start-failed":
+      ui.writeError(`Failed to auto-start the local text model: ${result.message}`);
+      break;
+    case "already-running-correct":
+      break; // Nothing to say — it was already right.
+  }
+}
+
+/**
+ * Called once at process startup (CLI/web-server main, not per-session or
+ * per-turn): if the resolved text provider is local and config.textModelPath
+ * is set, makes sure the right model is actually being served there before
+ * the first real request ever reaches it — see local-model-manager.ts's own
+ * header comment for the real, reported friction this closes (getting
+ * llama.cpp itself running was the hard part, not configuring finanfa-code
+ * to talk to it). Never throws: a failure here just means the normal
+ * "couldn't reach that model" error happens naturally on first use, same as
+ * before this existed — this is a convenience, not a new hard requirement.
+ */
 export async function ensureConfiguredLocalTextModel(
   config: FinanfaConfig,
   ui: Pick<UIAdapter, "writeSystem" | "writeError">,
@@ -410,31 +463,50 @@ export async function ensureConfiguredLocalTextModel(
       binary: process.env.TEXT_MODEL_BINARY ?? config.textModelBinary,
       contextSize: config.textModelContextSize ? Number(config.textModelContextSize) : undefined,
     });
-    switch (result.state) {
-      case "started":
-        ui.writeSystem(`Started llama-server serving ${result.modelId} at ${baseUrl}.`);
-        break;
-      case "already-running-different-model":
-        ui.writeError(
-          `${baseUrl} is already serving "${result.runningModelId}", not the configured "${result.expected}" — ` +
-            `stop that server yourself if you want finanfa-code to load the right model there.`,
-        );
-        break;
-      case "missing-binary":
-        ui.writeError(`Can't auto-start the local text model: "${result.binary}" isn't installed or isn't on PATH.`);
-        break;
-      case "missing-model-file":
-        ui.writeError(`Can't auto-start the local text model: no file at ${result.path} (check textModelPath/TEXT_MODEL_PATH).`);
-        break;
-      case "start-failed":
-        ui.writeError(`Failed to auto-start the local text model: ${result.message}`);
-        break;
-      case "already-running-correct":
-        break; // Nothing to say — it was already right.
-    }
+    reportLocalModelStatus(result, baseUrl, config, ui);
   } catch (err) {
     ui.writeError(`Failed to auto-start the local text model: ${err instanceof Error ? err.message : String(err)}`);
   }
+}
+
+/**
+ * Called when the user deliberately switches to a *different* local model
+ * mid-session (the `/models` command, or the web UI/mobile app's model
+ * picker sending set_model) — see local-model-manager.ts's
+ * restartIfDifferent: unlike the startup check above, a mismatch here is
+ * expected (that's the whole point of switching), so this actively stops
+ * whatever this same module previously started on that port and loads the
+ * newly-picked model instead. Still never touches a server it didn't spawn
+ * itself. A no-op (returns false) unless config.localTextModelPaths has an
+ * entry for the newly-picked model name — most model switches (a different
+ * Anthropic model, a different Ollama model, etc.) have nothing to do with
+ * the llama.cpp-served local text model slot at all.
+ */
+export async function ensureLocalTextModelForSwitch(
+  config: FinanfaConfig,
+  newModelName: string,
+  ui: Pick<UIAdapter, "writeSystem" | "writeError">,
+): Promise<boolean> {
+  const modelPath = config.localTextModelPaths?.[newModelName];
+  if (!modelPath) return false;
+
+  const baseUrl = process.env.TEXT_MODEL_BASE_URL ?? process.env.FINANFA_BASE_URL ?? config.baseUrl;
+  if (!baseUrl) return false;
+
+  try {
+    const result = await ensureLocalTextModelServer({
+      baseUrl,
+      modelPath,
+      modelName: newModelName,
+      binary: process.env.TEXT_MODEL_BINARY ?? config.textModelBinary,
+      contextSize: config.textModelContextSize ? Number(config.textModelContextSize) : undefined,
+      restartIfDifferent: true,
+    });
+    reportLocalModelStatus(result, baseUrl, config, ui);
+  } catch (err) {
+    ui.writeError(`Failed to switch the local text model: ${err instanceof Error ? err.message : String(err)}`);
+  }
+  return true;
 }
 
 /**
