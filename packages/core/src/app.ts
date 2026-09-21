@@ -15,6 +15,7 @@ import type { FinanfaConfig } from "./core/config.js";
 import { McpClientManager, NeedsAuthorizationError } from "./mcp/client-manager.js";
 import { loadMcpServers } from "./mcp/config.js";
 import type { UIAdapter } from "./ui/adapter.js";
+import { resolveProviderKindAlias } from "./core/model-capabilities.js";
 
 export const SECURITY_INSTRUCTION =
   "Security: help with authorized security testing, defensive security work, CTF challenges, and security " +
@@ -232,28 +233,33 @@ export function parseStreamIdleTimeoutMs(raw: string | undefined): number | unde
 }
 
 /**
- * Picks the LLM backend. Priority per setting: environment variable > config
- * file (project-local .finanfa-code/config.json, then global
+ * Picks the LLM backend. Priority per setting: TEXT_MODEL_* environment
+ * variable (the local-first naming — see project memory's model-router
+ * roadmap) > legacy FINANFA_* environment variable > config file
+ * (project-local .finanfa-code/config.json, then global
  * ~/.finanfa-code/config.json, see /config) > built-in default.
  *  - provider "anthropic" (default): uses ANTHROPIC_API_KEY / config.apiKey.
- *  - provider "openai-compatible": any server speaking the OpenAI
- *    chat-completions wire format — Ollama (local, free), OpenRouter,
- *    Poolside, LM Studio, vLLM, etc. — needs baseUrl + model (apiKey optional,
- *    e.g. for a local Ollama server that needs no key).
+ *  - provider "openai-compatible" (or an alias — see resolveProviderKindAlias:
+ *    "llama_cpp", "mlx", "ollama", "vllm", "lmstudio", "openrouter" all mean
+ *    this): any server speaking the OpenAI chat-completions wire format —
+ *    needs baseUrl + model (apiKey optional, e.g. for a local server that
+ *    needs no key).
  */
 export function selectProvider(config: FinanfaConfig): { provider: LlmProvider; defaultModel: string; kind: string } {
-  const kind = process.env.FINANFA_PROVIDER ?? config.provider ?? "anthropic";
+  const kind = resolveProviderKindAlias(
+    process.env.TEXT_MODEL_PROVIDER ?? process.env.FINANFA_PROVIDER ?? config.provider ?? "anthropic",
+  );
 
   if (kind === "openai-compatible") {
-    const baseUrl = process.env.FINANFA_BASE_URL ?? config.baseUrl;
-    const model = process.env.FINANFA_MODEL ?? config.model;
+    const baseUrl = process.env.TEXT_MODEL_BASE_URL ?? process.env.FINANFA_BASE_URL ?? config.baseUrl;
+    const model = process.env.TEXT_MODEL_NAME ?? process.env.FINANFA_MODEL ?? config.model;
     const apiKey = process.env.FINANFA_API_KEY ?? config.apiKey;
     const apiKeys = parseApiKeys(process.env.FINANFA_API_KEYS) ?? config.apiKeys;
     const streamIdleTimeoutMs = parseStreamIdleTimeoutMs(process.env.FINANFA_STREAM_IDLE_TIMEOUT_MS);
     if (!baseUrl || !model) {
       throw new Error(
-        "provider openai-compatible requires a base URL and model — set FINANFA_BASE_URL/FINANFA_MODEL, " +
-          "or /config set baseUrl <url> and /config set model <model>.",
+        "provider openai-compatible requires a base URL and model — set TEXT_MODEL_BASE_URL/TEXT_MODEL_NAME " +
+          "(or the older FINANFA_BASE_URL/FINANFA_MODEL), or /config set baseUrl <url> and /config set model <model>.",
       );
     }
     return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey, apiKeys, streamIdleTimeoutMs }), defaultModel: model, kind };
@@ -359,9 +365,11 @@ const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
  * tool count).
  */
 export function isLocalProviderConfig(config: FinanfaConfig): boolean {
-  const kind = process.env.FINANFA_PROVIDER ?? config.provider ?? "anthropic";
+  const kind = resolveProviderKindAlias(
+    process.env.TEXT_MODEL_PROVIDER ?? process.env.FINANFA_PROVIDER ?? config.provider ?? "anthropic",
+  );
   if (kind !== "openai-compatible") return false;
-  const baseUrl = process.env.FINANFA_BASE_URL ?? config.baseUrl;
+  const baseUrl = process.env.TEXT_MODEL_BASE_URL ?? process.env.FINANFA_BASE_URL ?? config.baseUrl;
   if (!baseUrl) return false;
   try {
     return LOCAL_HOSTNAMES.has(new URL(baseUrl).hostname);
@@ -379,18 +387,20 @@ export function isLocalProviderConfig(config: FinanfaConfig): boolean {
  * different provider kind would send the wrong secret to the wrong API.
  */
 export function selectVisionProvider(config: FinanfaConfig): { provider: LlmProvider; model: string } | undefined {
-  const model = process.env.FINANFA_VISION_MODEL ?? config.visionModel;
+  const model = process.env.VISION_MODEL_NAME ?? process.env.FINANFA_VISION_MODEL ?? config.visionModel;
   if (!model) return undefined;
 
-  const kind = process.env.FINANFA_VISION_PROVIDER ?? config.visionProvider ?? "anthropic";
+  const kind = resolveProviderKindAlias(
+    process.env.VISION_MODEL_PROVIDER ?? process.env.FINANFA_VISION_PROVIDER ?? config.visionProvider ?? "anthropic",
+  );
   if (kind === "openai-compatible") {
-    const baseUrl = process.env.FINANFA_VISION_BASE_URL ?? config.visionBaseUrl;
+    const baseUrl = process.env.VISION_MODEL_BASE_URL ?? process.env.FINANFA_VISION_BASE_URL ?? config.visionBaseUrl;
     const apiKey = process.env.FINANFA_VISION_API_KEY ?? config.visionApiKey;
     const streamIdleTimeoutMs = parseStreamIdleTimeoutMs(process.env.FINANFA_STREAM_IDLE_TIMEOUT_MS);
     if (!baseUrl) {
       throw new Error(
-        "visionProvider openai-compatible requires a base URL — set FINANFA_VISION_BASE_URL, " +
-          "or /config set visionBaseUrl <url>.",
+        "visionProvider openai-compatible requires a base URL — set VISION_MODEL_BASE_URL " +
+          "(or the older FINANFA_VISION_BASE_URL), or /config set visionBaseUrl <url>.",
       );
     }
     return { provider: new OpenAiCompatibleProvider({ baseUrl, apiKey, streamIdleTimeoutMs }), model };

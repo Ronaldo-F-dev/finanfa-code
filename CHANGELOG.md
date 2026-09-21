@@ -10,6 +10,22 @@ first tagged release.
 
 ### Added
 
+- `TEXT_MODEL_PROVIDER`/`TEXT_MODEL_BASE_URL`/`TEXT_MODEL_NAME` and
+  `VISION_MODEL_PROVIDER`/`VISION_MODEL_BASE_URL`/`VISION_MODEL_NAME`
+  environment variables — friendlier, local-first-first naming for
+  `selectProvider`/`selectVisionProvider`'s existing `FINANFA_*`/
+  `FINANFA_VISION_*` variables (which still work, at lower priority).
+  `*_PROVIDER` also accepts `llama_cpp`, `mlx`, `ollama`, `vllm`,
+  `lmstudio`, and `openrouter` as aliases for `openai-compatible` (see
+  `resolveProviderKindAlias` in the new `core/model-capabilities.ts`) —
+  every one of those backends speaks the same OpenAI chat-completions
+  wire format `OpenAiCompatibleProvider` already implements, so this is
+  purely a naming convenience, not a new provider class. First step of a
+  larger local-first multi-model architecture (text/vision/image-
+  generation/embedding as distinct model "capabilities" — this phase only
+  covers text and vision, both of which already had a provider slot to
+  extend rather than build from scratch).
+
 - Web UI **Channels** panel (sidebar → 📡 Channels): configure every chat
   channel's credentials (Slack, Telegram, Discord, Matrix, LINE, Feishu,
   Teams, WhatsApp, Twilio SMS & Voice) directly from a form instead of

@@ -1,7 +1,7 @@
 import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { isLocalProviderConfig } from "../src/app.js";
 
-const ENV_KEYS = ["FINANFA_PROVIDER", "FINANFA_BASE_URL"] as const;
+const ENV_KEYS = ["FINANFA_PROVIDER", "FINANFA_BASE_URL", "TEXT_MODEL_PROVIDER", "TEXT_MODEL_BASE_URL"] as const;
 
 describe("isLocalProviderConfig", () => {
   beforeEach(() => {
@@ -44,5 +44,18 @@ describe("isLocalProviderConfig", () => {
 
   it("defaults to anthropic (never local) when nothing is configured", () => {
     expect(isLocalProviderConfig({})).toBe(false);
+  });
+
+  it("TEXT_MODEL_PROVIDER/TEXT_MODEL_BASE_URL take precedence over the older FINANFA_* names", () => {
+    process.env.FINANFA_PROVIDER = "anthropic";
+    process.env.TEXT_MODEL_PROVIDER = "openai-compatible";
+    process.env.TEXT_MODEL_BASE_URL = "http://127.0.0.1:8080/v1";
+    expect(isLocalProviderConfig({})).toBe(true);
+  });
+
+  it("recognizes llama_cpp/mlx as aliases for openai-compatible, not as their own unrecognized kind", () => {
+    process.env.TEXT_MODEL_PROVIDER = "llama_cpp";
+    process.env.TEXT_MODEL_BASE_URL = "http://127.0.0.1:8080/v1";
+    expect(isLocalProviderConfig({})).toBe(true);
   });
 });
