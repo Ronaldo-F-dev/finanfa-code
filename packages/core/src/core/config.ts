@@ -104,6 +104,20 @@ export interface FinanfaConfig {
    * started the server always wins over a value saved here.
    */
   channels?: Record<string, Record<string, string>>;
+  /**
+   * Path to a local .gguf model file — when set, ensureLocalTextModelServer
+   * (core/local-model-manager.ts) uses it to auto-start a llama.cpp server
+   * (or confirm one already running there is serving this exact model) so
+   * the local-first default text model doesn't require the user to launch
+   * llama-server by hand every time. Only meaningful alongside
+   * provider: "openai-compatible"/TEXT_MODEL_PROVIDER pointed at a
+   * localhost baseUrl — a remote or non-local provider ignores it.
+   */
+  textModelPath?: string;
+  /** Overrides the "llama-server" binary name/path ensureLocalTextModelServer spawns — set this if it's not on PATH under its default name. */
+  textModelBinary?: string;
+  /** llama-server's -c/--ctx-size — defaults to 8192 if unset (see local-model-manager.ts). */
+  textModelContextSize?: string;
 }
 
 /** Parses config.thinkingBudgetTokens (a plain string, like every other /config-set value) into the number session.thinkingBudgetTokens actually wants — undefined for unset/non-positive/non-numeric, never NaN or 0, so callers can assign it straight through without their own validation. */

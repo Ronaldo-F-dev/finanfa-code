@@ -431,6 +431,9 @@ export const CONFIG_KEYS = [
   "thinkingBudgetTokens",
   "toolSearch",
   "localModelLean",
+  "textModelPath",
+  "textModelBinary",
+  "textModelContextSize",
 ] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
 export const SECRET_KEYS: readonly ConfigKey[] = ["apiKey", "anthropicApiKey", "visionApiKey", "githubCopilotToken"];

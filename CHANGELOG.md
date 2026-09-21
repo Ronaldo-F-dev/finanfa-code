@@ -10,6 +10,17 @@ first tagged release.
 
 ### Added
 
+- Auto-starts the local text model instead of requiring `llama-server` to
+  already be running by hand: `TEXT_MODEL_PATH` (+ optional
+  `TEXT_MODEL_BINARY`/`textModelContextSize`) points at a `.gguf` file, and
+  `ensureConfiguredLocalTextModel` (called once at CLI/web-server startup)
+  checks what's actually being served at `TEXT_MODEL_BASE_URL`: starts
+  `llama-server` with that file if nothing's there yet, leaves it alone
+  and reports the mismatch if a *different* model is already serving that
+  port (never kills a server it didn't start itself), and does nothing if
+  the right model is already up. Real, reported friction: getting
+  llama.cpp itself running was the hard part, not configuring
+  finanfa-code to talk to it once it was up.
 - `TEXT_MODEL_PROVIDER`/`TEXT_MODEL_BASE_URL`/`TEXT_MODEL_NAME` and
   `VISION_MODEL_PROVIDER`/`VISION_MODEL_BASE_URL`/`VISION_MODEL_NAME`
   environment variables — friendlier, local-first-first naming for

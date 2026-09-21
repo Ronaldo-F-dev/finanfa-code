@@ -40,6 +40,7 @@ import {
   selectVisionProvider,
   connectMcpServers,
   isLocalProviderConfig,
+  ensureConfiguredLocalTextModel,
 } from "@finanfa/core/src/app.js";
 
 export { BASE_SYSTEM_PROMPT, SECURITY_INSTRUCTION, connectMcpServers };
@@ -209,6 +210,7 @@ export async function main(argv: string[]): Promise<void> {
   if (!opts.prompt) ui.writeBanner(PACKAGE_VERSION);
 
   const config = await loadConfig(cwd);
+  await ensureConfiguredLocalTextModel(config, ui);
   const { provider, defaultModel, kind: providerKind } = selectProvider(config);
   const model = opts.model ?? defaultModel;
   const visionRoute = selectVisionProvider(config);

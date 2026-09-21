@@ -34,7 +34,14 @@ import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import { loadConfig, saveGlobalConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
 import { CONFIG_KEYS, SECRET_KEYS, maskSecret } from "@finanfa/core/src/commands/builtin.js";
-import { BASE_SYSTEM_PROMPT, selectProvider, connectMcpServers, parseApiKeys, isLocalProviderConfig } from "@finanfa/core/src/app.js";
+import {
+  BASE_SYSTEM_PROMPT,
+  selectProvider,
+  connectMcpServers,
+  parseApiKeys,
+  isLocalProviderConfig,
+  ensureConfiguredLocalTextModel,
+} from "@finanfa/core/src/app.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
 import {
   isDockerModelRunnerAvailable,
@@ -131,7 +138,11 @@ app.use(
   }),
 );
 
-applyPersistedChannelSecrets(await loadConfig(DEFAULT_CWD));
+const startupConfig = await loadConfig(DEFAULT_CWD);
+applyPersistedChannelSecrets(startupConfig);
+// Once per process, not per-connection/per-session — see
+// ensureConfiguredLocalTextModel's own header comment.
+await ensureConfiguredLocalTextModel(startupConfig, { writeSystem: (s) => console.log(s), writeError: (s) => console.error(s) });
 registerChannelsConfigRoutes(app);
 registerSlackChannelRoutes(app, DEFAULT_CWD);
 registerTelegramChannelRoutes(app, DEFAULT_CWD);

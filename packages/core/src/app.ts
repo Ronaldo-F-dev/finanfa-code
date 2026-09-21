@@ -16,6 +16,7 @@ import { McpClientManager, NeedsAuthorizationError } from "./mcp/client-manager.
 import { loadMcpServers } from "./mcp/config.js";
 import type { UIAdapter } from "./ui/adapter.js";
 import { resolveProviderKindAlias } from "./core/model-capabilities.js";
+import { ensureLocalTextModelServer } from "./core/local-model-manager.js";
 
 export const SECURITY_INSTRUCTION =
   "Security: help with authorized security testing, defensive security work, CTF challenges, and security " +
@@ -375,6 +376,64 @@ export function isLocalProviderConfig(config: FinanfaConfig): boolean {
     return LOCAL_HOSTNAMES.has(new URL(baseUrl).hostname);
   } catch {
     return false;
+  }
+}
+
+/**
+ * Called once at process startup (CLI/web-server main, not per-session or
+ * per-turn): if the resolved text provider is local and config.textModelPath
+ * is set, makes sure the right model is actually being served there before
+ * the first real request ever reaches it — see local-model-manager.ts's own
+ * header comment for the real, reported friction this closes (getting
+ * llama.cpp itself running was the hard part, not configuring finanfa-code
+ * to talk to it). Never throws: a failure here just means the normal
+ * "couldn't reach that model" error happens naturally on first use, same as
+ * before this existed — this is a convenience, not a new hard requirement.
+ */
+export async function ensureConfiguredLocalTextModel(
+  config: FinanfaConfig,
+  ui: Pick<UIAdapter, "writeSystem" | "writeError">,
+): Promise<void> {
+  if (!isLocalProviderConfig(config)) return;
+  const modelPath = process.env.TEXT_MODEL_PATH ?? config.textModelPath;
+  if (!modelPath) return;
+
+  const baseUrl = process.env.TEXT_MODEL_BASE_URL ?? process.env.FINANFA_BASE_URL ?? config.baseUrl;
+  const modelName = process.env.TEXT_MODEL_NAME ?? process.env.FINANFA_MODEL ?? config.model;
+  if (!baseUrl || !modelName) return;
+
+  try {
+    const result = await ensureLocalTextModelServer({
+      baseUrl,
+      modelPath,
+      modelName,
+      binary: process.env.TEXT_MODEL_BINARY ?? config.textModelBinary,
+      contextSize: config.textModelContextSize ? Number(config.textModelContextSize) : undefined,
+    });
+    switch (result.state) {
+      case "started":
+        ui.writeSystem(`Started llama-server serving ${result.modelId} at ${baseUrl}.`);
+        break;
+      case "already-running-different-model":
+        ui.writeError(
+          `${baseUrl} is already serving "${result.runningModelId}", not the configured "${result.expected}" — ` +
+            `stop that server yourself if you want finanfa-code to load the right model there.`,
+        );
+        break;
+      case "missing-binary":
+        ui.writeError(`Can't auto-start the local text model: "${result.binary}" isn't installed or isn't on PATH.`);
+        break;
+      case "missing-model-file":
+        ui.writeError(`Can't auto-start the local text model: no file at ${result.path} (check textModelPath/TEXT_MODEL_PATH).`);
+        break;
+      case "start-failed":
+        ui.writeError(`Failed to auto-start the local text model: ${result.message}`);
+        break;
+      case "already-running-correct":
+        break; // Nothing to say — it was already right.
+    }
+  } catch (err) {
+    ui.writeError(`Failed to auto-start the local text model: ${err instanceof Error ? err.message : String(err)}`);
   }
 }
 
