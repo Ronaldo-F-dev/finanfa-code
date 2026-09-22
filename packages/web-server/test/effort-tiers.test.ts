@@ -208,7 +208,7 @@ describe("web-server set_effort (real subprocess, real Ollama server when presen
     const { ws, events } = await connect(port);
     ws.send(JSON.stringify({ type: "set_effort", level: "ultra-mega" }));
     const err = await waitFor(events, (e) => e.type === "error");
-    expect(String(err.message)).toContain("ultra-mega");
+    expect(String(err.text)).toContain("ultra-mega");
     ws.close();
   });
 });

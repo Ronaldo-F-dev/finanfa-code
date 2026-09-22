@@ -35,7 +35,7 @@ import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import { loadConfig, saveGlobalConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
 import { CONFIG_KEYS, SECRET_KEYS, maskSecret } from "@finanfa/core/src/commands/builtin.js";
 import {
-  BASE_SYSTEM_PROMPT,
+  baseSystemPromptFor,
   selectProvider,
   connectMcpServers,
   parseApiKeys,
@@ -368,6 +368,17 @@ app.get("/api/models", async (req, res) => {
       : []),
     ...localModels.map((m) => ({ id: `${m.source}: ${m.id}`, family: "openai-compatible" as const, configured: true, baseUrl: m.baseUrl, localModelId: m.id })),
   ];
+  // localTextModelPaths lists models the user has downloaded on disk, whether
+  // or not a server currently happens to be serving one — detectLocalProviders()
+  // above only reports what's live right now, so a configured-but-not-running
+  // model (e.g. switching from the 1.7B default to the 4B) would otherwise never
+  // appear for the user to pick. Skip any already surfaced by the live probe or
+  // as the active default so the same model isn't listed twice.
+  const alreadyListed = new Set(models.map((m) => m.id));
+  for (const modelName of Object.keys(config.localTextModelPaths ?? {})) {
+    if (alreadyListed.has(modelName)) continue;
+    models.push({ id: modelName, family: "openai-compatible" as const, configured: true, local: true, running: false } as (typeof models)[number] & { local: boolean; running: boolean });
+  }
   res.json({ activeProviderKind: kind, defaultModel, models });
 });
 
@@ -875,8 +886,9 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
     const projectInstructions = await loadProjectInstructions(CWD);
     const scopedInstructions = await loadScopedInstructions(CWD);
     const designContract = await loadDesignContract(CWD);
+    const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
     const systemPrompt =
-      BASE_SYSTEM_PROMPT +
+      baseSystemPromptFor(localModelLeanEnabled) +
       formatSkillIndex(skills) +
       formatMemoryIndex(memories) +
       formatProjectInstructions(projectInstructions) +
@@ -911,7 +923,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
     if (GATEWAY_ENABLED) session.ownerUser = user;
     if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
     session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
-    session.localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
+    session.localModelLeanEnabled = localModelLeanEnabled;
     const model = session.model;
 
     // Reconstructs the provider/endpoint this session actually last talked
@@ -1230,6 +1242,18 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
             turnInFlight = false;
           }
         } else if (msg.type === "set_model" && typeof msg.model === "string" && msg.model) {
+          // Snapshot of everything this handler is about to overwrite, so a
+          // local-server switch that ensureLocalTextModelForSwitch reports as
+          // failed (a different local model already serving that baseUrl,
+          // missing binary/model file, start-failed) can be rolled back
+          // below instead of leaving the session/UI claiming the new model is
+          // active while the old local server is still the one actually
+          // answering — the real, reported bug this closes.
+          const previousModel = session.model;
+          const previousProviderKind = providerKind;
+          const previousProviderBaseUrl = session.providerBaseUrl;
+          const previousProvider = provider;
+          const previousEffort = session.effort;
           const family: ProviderFamily = msg.family === "openai-compatible" ? "openai-compatible" : "anthropic";
           // Real, reported bug: switching FROM a local model (a specific
           // baseUrl override, e.g. Ollama) back TO a normal same-family
@@ -1292,7 +1316,41 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           // process-startup check ever ensured the right model was
           // loaded. A no-op unless config.localTextModelPaths has an entry
           // for msg.model.
-          await ensureLocalTextModelForSwitch(config, msg.model, adapter);
+          const localSwitch = await ensureLocalTextModelForSwitch(config, msg.model, adapter);
+          if (localSwitch.handled && !localSwitch.ok) {
+            // The local server switch was attempted and refused/failed —
+            // whatever's actually running at that baseUrl is still the OLD
+            // model, so committing session.model/providerKind here would
+            // make the UI show the new model as active while every message
+            // keeps getting answered by the old one underneath it. Roll the
+            // session back to what was actually working before this message
+            // arrived, and tell the client the switch didn't happen instead
+            // of silently acking it.
+            session.model = previousModel;
+            providerKind = previousProviderKind;
+            session.providerKind = previousProviderKind;
+            session.providerBaseUrl = previousProviderBaseUrl;
+            provider = previousProvider;
+            session.effort = previousEffort;
+            ws.send(
+              JSON.stringify({
+                type: "error",
+                text: `Couldn't switch to ${msg.model}: ${
+                  localSwitch.status.state === "already-running-different-model"
+                    ? `${config.baseUrl ?? "the local server"} is already serving "${localSwitch.status.runningModelId}" — stop that server yourself, then try again.`
+                    : localSwitch.status.state === "missing-binary"
+                      ? `"${localSwitch.status.binary}" isn't installed or isn't on PATH.`
+                      : localSwitch.status.state === "missing-model-file"
+                        ? `no model file at ${localSwitch.status.path}.`
+                        : localSwitch.status.state === "start-failed"
+                          ? localSwitch.status.message
+                          : "the local model server switch failed."
+                }`,
+              }),
+            );
+            sendSessionInfo();
+            return;
+          }
           // A manual pick through this plain picker is a distinct action
           // from an effort tier (see set_effort below) — the "effort" badge
           // shouldn't keep claiming Faible/Moyen/Fort once the user has
@@ -1364,9 +1422,18 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           // each tier's exact settings are what they are).
           const tier = getEffortTier(msg.level);
           if (!tier) {
-            ws.send(JSON.stringify({ type: "error", message: `Unknown effort level: ${msg.level}` }));
+            ws.send(JSON.stringify({ type: "error", text: `Unknown effort level: ${msg.level}` }));
             return;
           }
+          // Same rollback snapshot as set_model above, for the same reason —
+          // a tier whose model is local-server-served can fail the switch at
+          // ensureLocalTextModelForSwitch below just as easily as the plain
+          // picker can.
+          const previousModel = session.model;
+          const previousProviderKind = providerKind;
+          const previousProviderBaseUrl = session.providerBaseUrl;
+          const previousProvider = provider;
+          const previousEffort = session.effort;
           if (tier.ollamaModel) {
             const available = await isOllamaAvailable().catch(() => false);
             const installed = available && (await listOllamaModels().catch(() => [])).some((m) => m.name === tier.ollamaModel);
@@ -1425,7 +1492,36 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           // Same local-model-switch check as the plain model picker above —
           // a no-op unless this tier's model is one of
           // config.localTextModelPaths's entries.
-          await ensureLocalTextModelForSwitch(config, resolvedModel, adapter);
+          const localSwitch = await ensureLocalTextModelForSwitch(config, resolvedModel, adapter);
+          if (localSwitch.handled && !localSwitch.ok) {
+            // Same rollback as set_model above: don't let the session/UI
+            // claim this effort tier's model is active when the local server
+            // switch it depends on actually failed.
+            session.model = previousModel;
+            providerKind = previousProviderKind;
+            session.providerKind = previousProviderKind;
+            session.providerBaseUrl = previousProviderBaseUrl;
+            provider = previousProvider;
+            session.effort = previousEffort;
+            ws.send(
+              JSON.stringify({
+                type: "error",
+                text: `Couldn't switch to effort level ${msg.level} (${resolvedModel}): ${
+                  localSwitch.status.state === "already-running-different-model"
+                    ? `${config.baseUrl ?? "the local server"} is already serving "${localSwitch.status.runningModelId}" — stop that server yourself, then try again.`
+                    : localSwitch.status.state === "missing-binary"
+                      ? `"${localSwitch.status.binary}" isn't installed or isn't on PATH.`
+                      : localSwitch.status.state === "missing-model-file"
+                        ? `no model file at ${localSwitch.status.path}.`
+                        : localSwitch.status.state === "start-failed"
+                          ? localSwitch.status.message
+                          : "the local model server switch failed."
+                }`,
+              }),
+            );
+            sendSessionInfo();
+            return;
+          }
           session.maxTokens = tier.maxTokens;
           session.effort = tier.id;
           if (tier.toolBudget === "none") {
