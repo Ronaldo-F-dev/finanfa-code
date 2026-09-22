@@ -22,10 +22,37 @@ export type LocalModelStatus =
   | { state: "missing-model-file"; path: string }
   | { state: "start-failed"; message: string };
 
+/**
+ * Which server binary's CLI convention to use. Detected from the binary's
+ * basename (see detectRuntime) rather than a separate config field — the
+ * binary path is already required config (textModelBinary/TEXT_MODEL_BINARY),
+ * so deriving the runtime from it avoids one more setting the user has to
+ * remember to keep in sync with it.
+ */
+export type TextModelRuntime = "llama.cpp" | "mlx";
+
+/**
+ * mlx_lm.server's installed script is literally named "mlx_lm.server"
+ * (checked via `ls <venv>/bin | grep -i mlx`) — but a test stand-in for it,
+ * or another build, may not share that exact name, so this matches on "mlx"
+ * anywhere in the basename rather than the literal full name. Nothing in
+ * llama.cpp's own naming (llama-server, or a differently-named build of it)
+ * plausibly contains "mlx", so this is unambiguous in practice.
+ */
+function detectRuntime(binary: string): TextModelRuntime {
+  const base = path.basename(binary).toLowerCase();
+  return base.includes("mlx") ? "mlx" : "llama.cpp";
+}
+
+/** A bare HF-repo-id-shaped string ("org/repo-name") vs. an actual filesystem path — the latter starts with "/", "./", "../", or "~". mlx_lm.server accepts either as --model and resolves/downloads a repo id itself, so only path-shaped values are worth stat-ing here. */
+function looksLikeLocalPath(p: string): boolean {
+  return p.startsWith("/") || p.startsWith("./") || p.startsWith("../") || p.startsWith("~");
+}
+
 export interface EnsureLocalTextModelOptions {
   /** The OpenAI-compatible base URL to reach it at, e.g. "http://127.0.0.1:8080/v1". */
   baseUrl: string;
-  /** Absolute path to the .gguf file to load if nothing is already serving it. */
+  /** Absolute path to the .gguf file (llama.cpp) to load, or an MLX model — an HF repo id (e.g. "mlx-community/LFM2.5-2.6B-OptiQ-4bit") or a local directory path — if nothing is already serving it. */
   modelPath: string;
   /** Expected model id/name — compared (case-insensitively, substring either way) against whatever a running server actually reports, since llama-server may report a bare filename, a stem, or a full path depending on how it was launched. */
   modelName: string;
@@ -58,12 +85,15 @@ async function fileExists(p: string): Promise<boolean> {
   }
 }
 
-async function binaryIsAvailable(binary: string): Promise<boolean> {
+async function binaryIsAvailable(binary: string, runtime: TextModelRuntime): Promise<boolean> {
+  // llama-server (and every stand-in used in tests) prints its version and
+  // exits 0 for --version. mlx_lm.server has no --version at all (exits 2,
+  // "unrecognized arguments") but --help exits 0 — so the two runtimes need
+  // different probes. Neither ever starts serving, so both are safe, fast
+  // checks rather than an accidental real launch.
+  const probeArg = runtime === "mlx" ? "--help" : "--version";
   try {
-    // llama-server (and every stand-in used in tests) prints its version
-    // and exits immediately for --version — never starts serving, so this
-    // is a safe, fast check rather than an accidental real launch.
-    await execFileAsync(binary, ["--version"], { timeout: 5000 });
+    await execFileAsync(binary, [probeArg], { timeout: 5000 });
     return true;
   } catch {
     return false;
@@ -144,22 +174,34 @@ async function spawnAndWait(
   contextSize: number,
   startupTimeoutMs: number,
 ): Promise<LocalModelStatus> {
-  if (!(await binaryIsAvailable(binary))) {
+  const runtime = detectRuntime(binary);
+  if (!(await binaryIsAvailable(binary, runtime))) {
     return { state: "missing-binary", binary };
   }
-  if (!(await fileExists(opts.modelPath))) {
-    return { state: "missing-model-file", path: opts.modelPath };
+  if (runtime === "llama.cpp") {
+    if (!(await fileExists(opts.modelPath))) {
+      return { state: "missing-model-file", path: opts.modelPath };
+    }
+  } else if (looksLikeLocalPath(opts.modelPath)) {
+    // Only a path-shaped modelPath is checkable here — a bare "org/repo"
+    // HF repo id is trusted as-is and handed to mlx_lm.server, which does
+    // its own cache lookup/download.
+    const exists = await fileExists(opts.modelPath);
+    if (!exists) {
+      return { state: "missing-model-file", path: opts.modelPath };
+    }
   }
 
   const url = new URL(opts.baseUrl);
   const host = url.hostname;
   const port = url.port || "80";
 
-  const child = spawn(
-    binary,
-    ["-m", opts.modelPath, "--host", host, "--port", port, "-c", String(contextSize)],
-    { detached: true, stdio: "ignore" },
-  );
+  const args =
+    runtime === "mlx"
+      ? ["--model", opts.modelPath, "--host", host, "--port", port]
+      : ["-m", opts.modelPath, "--host", host, "--port", port, "-c", String(contextSize)];
+
+  const child = spawn(binary, args, { detached: true, stdio: "ignore" });
   child.unref();
 
   if (typeof child.pid === "number") {

@@ -114,14 +114,14 @@ describe("ensureConfiguredLocalTextModel / ensureLocalTextModelForSwitch (real s
     expect(ui.errors[0]).toContain("hf download prism-ml/Ternary-Bonsai-1.7B-gguf Ternary-Bonsai-1.7B-Q2_0_g64.gguf");
   });
 
-  it("ensureLocalTextModelForSwitch is a no-op (returns false) when the newly-picked model isn't in localTextModelPaths", async () => {
+  it("ensureLocalTextModelForSwitch is a no-op (handled: false, ok: true) when the newly-picked model isn't in localTextModelPaths", async () => {
     const ui = fakeUi();
-    const handled = await ensureLocalTextModelForSwitch(
+    const result = await ensureLocalTextModelForSwitch(
       { provider: "openai-compatible", baseUrl: "http://127.0.0.1:1/v1" },
       "claude-opus-5",
       ui,
     );
-    expect(handled).toBe(false);
+    expect(result).toEqual({ handled: false, ok: true });
     expect(ui.system).toEqual([]);
     expect(ui.errors).toEqual([]);
   });
@@ -151,10 +151,51 @@ describe("ensureConfiguredLocalTextModel / ensureLocalTextModelForSwitch (real s
     expect(ui.system.some((s) => s.includes("Started"))).toBe(true);
 
     // Now switch to the 1.7B.
-    const handled = await ensureLocalTextModelForSwitch(config, "Ternary-Bonsai-1.7B-Q2_0_g64", ui);
-    expect(handled).toBe(true);
+    const result = await ensureLocalTextModelForSwitch(config, "Ternary-Bonsai-1.7B-Q2_0_g64", ui);
+    expect(result.handled).toBe(true);
+    expect(result.ok).toBe(true);
+    expect(result.status?.state).toBe("restarted");
     expect(ui.system.some((s) => s.includes("Switched the local model server"))).toBe(true);
 
     await stopManagedLocalModel(baseUrl);
+  }, 15_000);
+
+  it("ensureLocalTextModelForSwitch reports ok: false when a different local model is already running and refuses to be killed", async () => {
+    const port = freshPort();
+    const baseUrl = `http://127.0.0.1:${port}/v1`;
+    const fourB = path.join(modelsDir, "Ternary-Bonsai-4B-Q2_0_g64.gguf");
+    const oneSevenB = path.join(modelsDir, "Ternary-Bonsai-1.7B-Q2_0_g64.gguf");
+    await writeFile(fourB, "placeholder");
+    await writeFile(oneSevenB, "placeholder");
+    const ui = fakeUi();
+
+    const config = {
+      provider: "openai-compatible" as const,
+      baseUrl,
+      model: "Ternary-Bonsai-4B-Q2_0_g64",
+      textModelBinary: FAKE_LLAMA_SERVER,
+      localTextModelPaths: {
+        "Ternary-Bonsai-4B-Q2_0_g64": fourB,
+        "Ternary-Bonsai-1.7B-Q2_0_g64": oneSevenB,
+      },
+    };
+
+    // Start the 4B directly (NOT through ensureConfiguredLocalTextModel/
+    // ensureLocalTextModelForSwitch), simulating a server this project never
+    // started itself and therefore refuses to kill.
+    const { spawn } = await import("node:child_process");
+    const child = spawn(FAKE_LLAMA_SERVER, ["-m", fourB, "--port", String(port)], { stdio: "ignore" });
+    try {
+      // Give the fake server a moment to start listening.
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+      const result = await ensureLocalTextModelForSwitch(config, "Ternary-Bonsai-1.7B-Q2_0_g64", ui);
+      expect(result.handled).toBe(true);
+      expect(result.ok).toBe(false);
+      expect(result.status?.state).toBe("already-running-different-model");
+      expect(ui.errors.some((e) => e.includes("stop that server yourself"))).toBe(true);
+    } finally {
+      child.kill();
+    }
   }, 15_000);
 });
