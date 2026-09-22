@@ -38,6 +38,10 @@ export const SECURITY_INSTRUCTION =
 /** Identity, the UI-mockup screenshot loop, git/GitHub workflow, the test/fix loop, write_memory. */
 export const CORE_BEHAVIOR_PROMPT =
   " You are finanfa-code, a helpful coding assistant with access to file and shell tools. " +
+  "Plain conversation — a greeting, a question about something unrelated to the project, chit-chat — gets a " +
+  "normal reply with no tool calls, exactly like you'd answer without any of these tools available. Only look " +
+  "at the project (list files, read something, check git status) when the user's actual request needs that " +
+  "context to answer — never proactively, and never just because a project directory happens to be open. " +
   "Prefer edit_file over write_file for existing files. When a single file needs several separate changes, use " +
   "multi_edit_file instead of several edit_file calls — it applies them atomically (all or none) and needs only " +
   "one confirmation. Always explain what you're about to do before calling a tool. " +
@@ -205,6 +209,48 @@ export const DEV_TOOLS_PROMPT =
 
 export const BASE_SYSTEM_PROMPT =
   SECURITY_INSTRUCTION + CORE_BEHAVIOR_PROMPT + PATH_GUIDANCE_PROMPT + PROCESS_GUIDANCE_PROMPT + DOCUMENT_TOOLS_PROMPT + DEV_TOOLS_PROMPT;
+
+/**
+ * Real, reported symptom: a tiny local model (Ternary-Bonsai 1.7B/4B via
+ * llama.cpp) given the full BASE_SYSTEM_PROMPT above answered a plain
+ * "bonjour" with an off-topic, incoherent refusal fixated on the security
+ * paragraph — the same overwhelmed-by-prompt-size problem
+ * LOCAL_MODEL_LEAN_EXCLUDED_TOOLS already addresses for the tool list, but
+ * for the system prompt text itself, which tool trimming alone doesn't
+ * touch. Used only when the same local-model gate that drives
+ * session.localModelLeanEnabled (resolveLocalModelLeanEnabled +
+ * isLocalProviderConfig — see the four call sites that build a system
+ * prompt) says so; every non-local/remote session keeps BASE_SYSTEM_PROMPT
+ * byte-for-byte. Keeps only what's load-bearing: identity, one condensed
+ * security-refusal sentence, and the test/fix loop discipline (existing
+ * tests assert the agent actually runs tests before claiming success, and
+ * that applies to local-model sessions too, not a separate code path) —
+ * drops the UI-mockup/browser-screenshot loop, the GitHub PR workflow, path
+ * localization edge cases, and the whole document/dev-tools tool tour,
+ * since a small model is unlikely to reliably use those anyway and every
+ * word here is prefill cost paid on every single turn.
+ */
+export const LOCAL_MODEL_LEAN_SYSTEM_PROMPT =
+  " You are finanfa-code, a coding assistant with file and shell tools (read_file, write_file, edit_file, " +
+  "multi_edit_file, bash, and git_status/git_diff/git_add/git_commit/git_push/etc.). Plain conversation — a " +
+  "greeting, chit-chat, a question unrelated to the project — gets a normal reply with no tool calls; only look " +
+  "at the project when the user's request actually needs that context, never proactively. Prefer edit_file over " +
+  "write_file for an existing file; use multi_edit_file instead of several edit_file calls when one file needs " +
+  "several separate changes. " +
+  "Security: help with authorized security testing, defensive security work, CTFs, and security education; " +
+  "decline destructive attack techniques, malicious targeting of systems the user doesn't control, or evading " +
+  "detection for malicious purposes. " +
+  "After changing code, run the tests (run_tests, or build/run it if there's no test suite yet) and read any " +
+  "failure carefully — fix the actual cause and re-run rather than assuming a clean write means it works. If the " +
+  "same failure survives about 3 fix attempts, stop and explain what's blocking you instead of continuing to " +
+  "guess. " +
+  "When the user states a lasting preference or shares project context that isn't obvious from the code, use " +
+  "write_memory so the next session starts with it. ";
+
+/** Picks BASE_SYSTEM_PROMPT vs LOCAL_MODEL_LEAN_SYSTEM_PROMPT — pass the exact same value already computed for session.localModelLeanEnabled (resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config))) so the prompt and the tool-trimming gate never disagree about whether a session is "local". */
+export function baseSystemPromptFor(localModelLeanEnabled: boolean): string {
+  return localModelLeanEnabled ? LOCAL_MODEL_LEAN_SYSTEM_PROMPT : BASE_SYSTEM_PROMPT;
+}
 
 const DEFAULT_ANTHROPIC_MODEL = "claude-sonnet-5";
 const DEFAULT_GEMINI_MODEL = "gemini-2.5-flash";
@@ -470,6 +516,26 @@ export async function ensureConfiguredLocalTextModel(
 }
 
 /**
+ * Result of ensureLocalTextModelForSwitch: `handled` is "this model name was
+ * in config.localTextModelPaths so a local-server switch was actually
+ * attempted" (the old boolean return); `ok` is the real, reported gap this
+ * type closes — whether that attempt actually succeeded. A caller that only
+ * checked `handled` (or the old bare boolean) couldn't tell an
+ * "already-running-different-model"/"missing-binary"/"missing-model-file"/
+ * "start-failed" refusal apart from a real success, since both left
+ * `handled` true — see the set_model bug this was reported against: the
+ * server refused to switch (a different local model was already running and
+ * finanfa-code wouldn't kill a process it didn't start) yet the caller still
+ * committed the new model as active, so the UI showed the picked model while
+ * every request kept going to the old one underneath it. `handled` is false
+ * (and `ok` true — nothing was attempted, so nothing failed) when this model
+ * name isn't a local-server switch at all.
+ */
+export type EnsureLocalTextModelForSwitchResult =
+  | { handled: false; ok: true; status?: undefined }
+  | { handled: true; ok: boolean; status: LocalModelStatus };
+
+/**
  * Called when the user deliberately switches to a *different* local model
  * mid-session (the `/models` command, or the web UI/mobile app's model
  * picker sending set_model) — see local-model-manager.ts's
@@ -477,21 +543,23 @@ export async function ensureConfiguredLocalTextModel(
  * expected (that's the whole point of switching), so this actively stops
  * whatever this same module previously started on that port and loads the
  * newly-picked model instead. Still never touches a server it didn't spawn
- * itself. A no-op (returns false) unless config.localTextModelPaths has an
+ * itself. A no-op (`handled: false`) unless config.localTextModelPaths has an
  * entry for the newly-picked model name — most model switches (a different
  * Anthropic model, a different Ollama model, etc.) have nothing to do with
- * the llama.cpp-served local text model slot at all.
+ * the llama.cpp-served local text model slot at all. When `handled` is true,
+ * check `ok` before treating the switch as having actually happened — see
+ * EnsureLocalTextModelForSwitchResult's doc for why.
  */
 export async function ensureLocalTextModelForSwitch(
   config: FinanfaConfig,
   newModelName: string,
   ui: Pick<UIAdapter, "writeSystem" | "writeError">,
-): Promise<boolean> {
+): Promise<EnsureLocalTextModelForSwitchResult> {
   const modelPath = config.localTextModelPaths?.[newModelName];
-  if (!modelPath) return false;
+  if (!modelPath) return { handled: false, ok: true };
 
   const baseUrl = process.env.TEXT_MODEL_BASE_URL ?? process.env.FINANFA_BASE_URL ?? config.baseUrl;
-  if (!baseUrl) return false;
+  if (!baseUrl) return { handled: false, ok: true };
 
   try {
     const result = await ensureLocalTextModelServer({
@@ -503,10 +571,13 @@ export async function ensureLocalTextModelForSwitch(
       restartIfDifferent: true,
     });
     reportLocalModelStatus(result, baseUrl, config, ui);
+    const ok = result.state === "started" || result.state === "restarted" || result.state === "already-running-correct";
+    return { handled: true, ok, status: result };
   } catch (err) {
-    ui.writeError(`Failed to switch the local text model: ${err instanceof Error ? err.message : String(err)}`);
+    const message = err instanceof Error ? err.message : String(err);
+    ui.writeError(`Failed to switch the local text model: ${message}`);
+    return { handled: true, ok: false, status: { state: "start-failed", message } };
   }
-  return true;
 }
 
 /**

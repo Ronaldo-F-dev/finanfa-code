@@ -17,7 +17,7 @@ import { loadScopedInstructions, formatScopedInstructions } from "../core/scoped
 import { loadDesignContract } from "../core/design-contract.js";
 import { BrowserManager } from "../browser/manager.js";
 import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled } from "../core/config.js";
-import { BASE_SYSTEM_PROMPT, selectProvider, selectVisionProvider, isLocalProviderConfig } from "../app.js";
+import { baseSystemPromptFor, selectProvider, selectVisionProvider, isLocalProviderConfig } from "../app.js";
 import { waitForRemoteConfirmation } from "./pending-confirmations.js";
 import type { UIAdapter } from "../ui/adapter.js";
 import type { NeutralImage } from "../core/types.js";
@@ -158,8 +158,9 @@ export async function runHeadlessTurn(
   const projectInstructions = await loadProjectInstructions(cwd);
   const scopedInstructions = await loadScopedInstructions(cwd);
   const designContract = await loadDesignContract(cwd);
+  const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
   const systemPrompt =
-    BASE_SYSTEM_PROMPT +
+    baseSystemPromptFor(localModelLeanEnabled) +
     formatSkillIndex(skills) +
     formatMemoryIndex(memories) +
     formatProjectInstructions(projectInstructions) +
@@ -173,7 +174,7 @@ export async function runHeadlessTurn(
   }
   if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
   session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
-  session.localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
+  session.localModelLeanEnabled = localModelLeanEnabled;
 
   const browser = new BrowserManager();
   try {

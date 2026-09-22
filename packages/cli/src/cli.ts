@@ -36,6 +36,7 @@ import { initTracing, shutdownTracing } from "@finanfa/core/src/observability/tr
 import {
   BASE_SYSTEM_PROMPT,
   SECURITY_INSTRUCTION,
+  baseSystemPromptFor,
   selectProvider,
   selectVisionProvider,
   connectMcpServers,
@@ -237,8 +238,9 @@ export async function main(argv: string[]): Promise<void> {
   const scopedInstructions = await loadScopedInstructions(cwd);
   const designContract = await loadDesignContract(cwd);
 
+  const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
   const systemPrompt =
-    BASE_SYSTEM_PROMPT +
+    baseSystemPromptFor(localModelLeanEnabled) +
     formatSkillIndex(skills) +
     formatMemoryIndex(memories) +
     formatProjectInstructions(projectInstructions) +
@@ -254,7 +256,7 @@ export async function main(argv: string[]): Promise<void> {
   // always starts at the class default and this always applies fresh,
   // unlike thinkingBudgetTokens above.
   session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
-  session.localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
+  session.localModelLeanEnabled = localModelLeanEnabled;
 
   const trusted = await resolveTrust(cwd, ui, opts.nonInteractive);
   const permissionConfig = await loadPermissionConfig(cwd, trusted);

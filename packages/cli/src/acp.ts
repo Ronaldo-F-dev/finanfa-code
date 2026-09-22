@@ -19,7 +19,7 @@ import { loadScopedInstructions, formatScopedInstructions } from "@finanfa/core/
 import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled } from "@finanfa/core/src/core/config.js";
-import { BASE_SYSTEM_PROMPT, selectProvider, isLocalProviderConfig } from "@finanfa/core/src/app.js";
+import { baseSystemPromptFor, selectProvider, isLocalProviderConfig } from "@finanfa/core/src/app.js";
 import type { LlmProvider } from "@finanfa/core/src/core/types.js";
 import type { UIAdapter, ToolCallAnnouncement, ToolResultAnnouncement } from "@finanfa/core/src/ui/adapter.js";
 
@@ -165,8 +165,9 @@ async function createAcpSession(cwd: string, cx: { notify: typeof acp.AgentSideC
   const projectInstructions = await loadProjectInstructions(cwd);
   const scopedInstructions = await loadScopedInstructions(cwd);
   const designContract = await loadDesignContract(cwd);
+  const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
   const systemPrompt =
-    BASE_SYSTEM_PROMPT +
+    baseSystemPromptFor(localModelLeanEnabled) +
     formatSkillIndex(skills) +
     formatMemoryIndex(memories) +
     formatProjectInstructions(projectInstructions) +
@@ -175,7 +176,7 @@ async function createAcpSession(cwd: string, cx: { notify: typeof acp.AgentSideC
   const session = new AgentSession({ cwd, model: defaultModel, systemPrompt });
   session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
   session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
-  session.localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
+  session.localModelLeanEnabled = localModelLeanEnabled;
   const ui = createAcpUiAdapter(session.id, cx);
 
   // Same folder-trust gate every other entry point applies (CLI, web
