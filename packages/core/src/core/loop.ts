@@ -543,6 +543,82 @@ function looksLikeFakeToolCallText(content: string): boolean {
   return FENCED_FAKE_TOOL_CALL_PATTERN.test(trimmed);
 }
 
+const TOOL_CALL_OPEN_TAG = "<tool_call>";
+const TOOL_CALL_CLOSE_TAG = "</tool_call>";
+
+/** A real tool-call intent recovered from text a model wrote instead of a real structured `tool_calls` entry — see extractTextEmbeddedToolCall. */
+interface TextEmbeddedToolCall {
+  name: string;
+  arguments: unknown;
+  /** `content` with the matched tag(s)+JSON removed, so the raw wire-format text never reaches the user. */
+  strippedContent: string;
+}
+
+/**
+ * Real, reported failure: instead of a real structured `tool_calls` entry, a
+ * local model (llama.cpp-served Ternary-Bonsai 1.7B/4B, confirmed directly)
+ * sometimes writes its tool-call intent as ChatML-style text — either a full
+ * `<tool_call>{"name": ..., "arguments": {...}}</tool_call>` block, or (seen
+ * just as often) a bare JSON object with no opening tag at all, immediately
+ * followed by a stray `</tool_call>`. Unlike FAKE_TOOL_CALL_PATTERN above
+ * (which only ever flags the text as unusable, since it has no reliable way
+ * to recover a well-formed call from a made-up shape like `{action: ...}`),
+ * this is a REAL, correctly-shaped call — `name`/`arguments` match this
+ * project's own tool-call schema exactly — just expressed in the wrong wire
+ * format, so it's recovered here and turned into an actual call instead of
+ * being shown to the user as literal text.
+ *
+ * Anchored specifically on the `</tool_call>` tag (required) rather than any
+ * bare `{"name": ..., "arguments": ...}` found in a message: a model
+ * legitimately showing the user JSON for some other reason has no reason to
+ * ever emit that exact closing tag, so requiring it keeps this from
+ * misfiring on ordinary prose.
+ */
+function extractTextEmbeddedToolCall(content: string): TextEmbeddedToolCall | undefined {
+  const closeIdx = content.indexOf(TOOL_CALL_CLOSE_TAG);
+  if (closeIdx === -1) return undefined;
+
+  const before = content.slice(0, closeIdx);
+  const openIdx = before.lastIndexOf(TOOL_CALL_OPEN_TAG);
+  const jsonRegionStart = openIdx !== -1 ? openIdx + TOOL_CALL_OPEN_TAG.length : 0;
+  const jsonRegion = before.slice(jsonRegionStart).trimEnd();
+  if (!jsonRegion.endsWith("}")) return undefined;
+
+  // Scan backward from the trailing "}" to find its matching "{" — the JSON
+  // object may be preceded by other prose in the same region (e.g. "Sure,
+  // I'll search for that:\n{...}"), so this deliberately finds the last
+  // balanced object rather than assuming the region is only ever the object.
+  let depth = 0;
+  let objStart = -1;
+  for (let i = jsonRegion.length - 1; i >= 0; i--) {
+    const ch = jsonRegion[i];
+    if (ch === "}") depth++;
+    else if (ch === "{") {
+      depth--;
+      if (depth === 0) {
+        objStart = i;
+        break;
+      }
+    }
+  }
+  if (objStart === -1) return undefined;
+
+  let parsed: unknown;
+  try {
+    parsed = JSON.parse(jsonRegion.slice(objStart));
+  } catch {
+    return undefined;
+  }
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return undefined;
+  const obj = parsed as Record<string, unknown>;
+  if (typeof obj.name !== "string" || typeof obj.arguments !== "object" || obj.arguments === null) return undefined;
+
+  const matchStart = openIdx !== -1 ? openIdx : jsonRegionStart + objStart;
+  const strippedContent = (content.slice(0, matchStart) + content.slice(closeIdx + TOOL_CALL_CLOSE_TAG.length)).trim();
+
+  return { name: obj.name, arguments: obj.arguments, strippedContent };
+}
+
 // Both LoopGuard messages below start with this — a distinctive marker so
 // callers (task.ts) can tell "the turn was cut off by the guard" apart from
 // "the model naturally finished", without runTurn needing a richer return
@@ -916,6 +992,33 @@ export async function runTurn(
     try {
       ui.setBusy(false);
       ui.endAssistantMessage();
+
+      // Repair a text-embedded tool call (see extractTextEmbeddedToolCall)
+      // into a real one before anything else touches this turn's assistant
+      // message — done here, ahead of the push below, so the version that
+      // actually gets shown to the user and persisted to session history
+      // never contains the raw JSON+tag text. Scoped to the openai-compatible
+      // path (the same gate the 404 model-not-found handling above already
+      // uses) since this is specifically a local small-model quirk — direct
+      // Anthropic/other providers' structured tool-calling is reliable and
+      // has never been seen doing this. Only applies when this turn has no
+      // real structured tool call already; a model that produced one doesn't
+      // also need one guessed out of its accompanying text.
+      if (active.provider instanceof OpenAiCompatibleProvider && !result.assistantMessage.toolCalls?.length) {
+        const repaired = extractTextEmbeddedToolCall(result.assistantMessage.content);
+        if (repaired) {
+          result = {
+            ...result,
+            stopReason: "tool_use",
+            assistantMessage: {
+              ...result.assistantMessage,
+              content: repaired.strippedContent,
+              toolCalls: [{ id: `text-embedded-${session.messages.length}`, name: repaired.name, input: repaired.arguments }],
+            },
+          };
+        }
+      }
+
       session.messages.push(result.assistantMessage);
       session.recordUsage(result.usage.inputTokens, result.usage.outputTokens);
       if (wasShowingImage) consumeImageMessage(session, "already shown to the model above");
