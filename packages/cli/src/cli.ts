@@ -255,7 +255,7 @@ export async function main(argv: string[]): Promise<void> {
   // Runtime-only (never persisted — see session.ts), so a resumed session
   // always starts at the class default and this always applies fresh,
   // unlike thinkingBudgetTokens above.
-  session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
+  session.toolSearchEnabled = resolveToolSearchEnabled(config);
   session.localModelLeanEnabled = localModelLeanEnabled;
 
   const trusted = await resolveTrust(cwd, ui, opts.nonInteractive);
