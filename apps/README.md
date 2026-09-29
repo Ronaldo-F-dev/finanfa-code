@@ -1,17 +1,46 @@
-# apps
+# finanfa-code mobile & desktop app
 
-A new Flutter project.
+The native Flutter client for finanfa-code — a chat UI (sessions,
+connectors, settings) that talks to a running finanfa-code **web
+server** over HTTP/WebSocket, instead of embedding the agent itself.
+Same agent, same tools/config as the terminal UI or browser web client;
+this app is just another frontend for it.
 
-## Getting Started
+Ships to iOS, Android, macOS, Windows, and Linux from the one Flutter
+codebase.
 
-This project is a starting point for a Flutter application.
+## Point it at a server
 
-A few resources to get you started if this is your first Flutter project:
+Start a finanfa-code web server first (see the root
+[README.md](../README.md#browser) / [docs/deployment.md](../docs/deployment.md)):
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+```bash
+npm run dev:web-server   # http://localhost:4600 by default
+```
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+Then, in the app's connect screen, enter that server's base URL (e.g.
+`http://localhost:4600`, or a deployed server's `https://...` URL) and
+connect. If the server requires auth (`FINANFA_WEB_USERS`/
+`FINANFA_WEB_ACCOUNTS`/OIDC — see
+[docs/deployment.md](../docs/deployment.md#multi-user-access-gateway)),
+the connect screen will prompt for credentials after it reaches the
+server.
+
+## Run it locally
+
+```bash
+cd apps
+flutter pub get
+flutter run              # picks a connected device/simulator, or pass -d <device>
+```
+
+Requires a working Flutter install (`flutter doctor`) for whichever
+target platform you're building for.
+
+## Windows / Linux builds
+
+Desktop builds for Windows (zipped release build) and Linux (a real
+`.deb`) are produced by CI, not built locally by default — see
+[.github/workflows/desktop-build.yml](../.github/workflows/desktop-build.yml),
+triggered manually (`workflow_dispatch`) or by pushing a `v*` tag.
+Artifacts are attached to that workflow run.
