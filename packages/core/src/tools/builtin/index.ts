@@ -28,6 +28,7 @@ import { createFirmwareFlashTools } from "./firmware-flash.js";
 import { createEmbeddedDevTools } from "./embedded-dev.js";
 import { createContainerTools } from "./containers.js";
 import { createArgocdTools } from "./argocd.js";
+import { createDockerComposeUpDownTool, createDockerComposeStatusTool, createDockerRegistryLoginTool } from "./docker-registry.js";
 import { createRecallSessionsTool } from "./recall-sessions.js";
 import { embeddingsConfigFromEnv } from "../../core/embeddings.js";
 import { readTracesTool } from "./read-traces.js";
@@ -196,9 +197,14 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
     registry.register(registerFleetHostTool);
     registry.register(removeFleetHostTool);
     registry.register(listFleetHostsTool);
+    registry.register(createDockerRegistryLoginTool());
   }
   if (isCommandAvailable("kubectl")) registry.register(kubectlTool!);
   if (isCommandAvailable("argocd")) for (const tool of createArgocdTools()) registry.register(tool);
+  if (isCommandAvailable("docker") || isCommandAvailable("docker-compose")) {
+    registry.register(createDockerComposeUpDownTool());
+    registry.register(createDockerComposeStatusTool());
+  }
   registry.register(createListUsbDevicesTool());
   if (isCommandAvailable("adb")) registry.register(createRunAdbCommandTool());
   if (isCommandAvailable("iproxy")) registry.register(createRunIosSshCommandTool());
