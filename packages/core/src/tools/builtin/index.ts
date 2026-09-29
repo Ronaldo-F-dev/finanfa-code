@@ -27,6 +27,10 @@ import { createReadVaultSecretTool } from "./vault.js";
 import { createFirmwareFlashTools } from "./firmware-flash.js";
 import { createEmbeddedDevTools } from "./embedded-dev.js";
 import { createContainerTools } from "./containers.js";
+import { createArgocdTools } from "./argocd.js";
+import { createDockerComposeUpDownTool, createDockerComposeStatusTool, createDockerRegistryLoginTool } from "./docker-registry.js";
+import { readEnvFileTool, setEnvValueTool, listEnvFilesTool } from "./env-secrets.js";
+import { createMonitoringStackTools } from "./monitoring-stack.js";
 import { createRecallSessionsTool } from "./recall-sessions.js";
 import { embeddingsConfigFromEnv } from "../../core/embeddings.js";
 import { readTracesTool } from "./read-traces.js";
@@ -140,6 +144,8 @@ import { createSecurityWifiActiveHandshakeCaptureTool } from "./security/wifi-ac
 import { createSecurityAnalyzeBluetoothCaptureTool } from "./security/bluetooth-capture.js";
 import { createSecurityBluetoothGattActiveWriteTool } from "./security/bluetooth-gatt-active-write.js";
 import { createSecurityRunNmapTool } from "./security/nmap.js";
+import { generateGithubActionsWorkflowTool, generateGitlabCiConfigTool } from "./cicd-generate.js";
+import { generateNginxConfigTool, createTestNginxConfigTool } from "./nginx-config.js";
 import { createSecurityRunMetasploitTool } from "./security/metasploit.js";
 import { securityScanParamFuzzingTool } from "./security/param-fuzzing.js";
 import { securityScanWebsocketTool } from "./security/websocket.js";
@@ -168,6 +174,11 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(multiEditFileTool);
   registry.register(globTool);
   registry.register(repoMapTool);
+  // Pure file I/O, no external binary dependency — always registered, unlike
+  // the isCommandAvailable-gated CLI wrappers below.
+  registry.register(readEnvFileTool);
+  registry.register(setEnvValueTool);
+  registry.register(listEnvFilesTool);
   // Optional external-CLI wrappers: only registered when the underlying
   // binary is actually installed — otherwise the model would see a tool
   // that can never work on this machine and waste a turn discovering
@@ -195,8 +206,15 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
     registry.register(registerFleetHostTool);
     registry.register(removeFleetHostTool);
     registry.register(listFleetHostsTool);
+    registry.register(createDockerRegistryLoginTool());
+    for (const tool of createMonitoringStackTools()) registry.register(tool);
   }
   if (isCommandAvailable("kubectl")) registry.register(kubectlTool!);
+  if (isCommandAvailable("argocd")) for (const tool of createArgocdTools()) registry.register(tool);
+  if (isCommandAvailable("docker") || isCommandAvailable("docker-compose")) {
+    registry.register(createDockerComposeUpDownTool());
+    registry.register(createDockerComposeStatusTool());
+  }
   registry.register(createListUsbDevicesTool());
   if (isCommandAvailable("adb")) registry.register(createRunAdbCommandTool());
   if (isCommandAvailable("iproxy")) registry.register(createRunIosSshCommandTool());
@@ -334,6 +352,10 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(securityScanStorageTool);
   registry.register(securityScanAccountCreationTool);
   registry.register(securityScanCrawlerTool);
+  registry.register(generateGithubActionsWorkflowTool);
+  registry.register(generateGitlabCiConfigTool);
+  registry.register(generateNginxConfigTool);
+  if (isCommandAvailable("nginx")) registry.register(createTestNginxConfigTool());
   for (const tool of gitTools) registry.register(tool);
   for (const tool of createRagTools(opts?.config ?? {})) registry.register(tool);
 }
