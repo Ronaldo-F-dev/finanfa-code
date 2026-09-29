@@ -93,10 +93,18 @@ export function runSubprocess(command: string, opts: RunSubprocessOptions): Prom
     // command, would survive). Instead, listen for the abort ourselves and
     // route it through the exact same killProcessGroup call the timeout
     // path already uses below.
+    // opts.args means "run this exact argv, no shell involved" (every caller
+    // except bash.ts, which passes a raw shell command string with no args)
+    // — spawn's shell option concatenates command+args into ONE shell command
+    // line with NO escaping (Node's own DEP0190 warning says as much), so an
+    // args element containing `; rm -rf /` or `$(...)` would actually run.
+    // Confirmed real via a local repro before this fix. spawnSandboxed above
+    // already got this distinction right (args → direct exec under bwrap, no
+    // "-c"); this mirrors it for the unsandboxed path.
     const child = shouldSandbox(opts.sandbox)
       ? spawnSandboxed(command, opts)
       : opts.args
-        ? spawn(command, opts.args, { cwd: opts.cwd, shell: SHELL, detached: true })
+        ? spawn(command, opts.args, { cwd: opts.cwd, detached: true })
         : spawn(command, { cwd: opts.cwd, shell: SHELL, detached: true });
     let stdout = "";
     let stderr = "";
@@ -136,10 +144,15 @@ export function runSubprocess(command: string, opts: RunSubprocessOptions): Prom
       })();
     });
 
-    child.on("error", (err) => {
+    child.on("error", (err: NodeJS.ErrnoException) => {
       clearTimeout(timer);
       opts.signal?.removeEventListener("abort", onAbort);
-      resolve({ content: `Failed to start "${command}": ${err.message}`, isError: true });
+      // Now that this runs without a shell (see above), a missing binary
+      // surfaces as Node's own terse "spawn X ENOENT" instead of the shell's
+      // "X: command not found" — spell that out plainly so it's just as
+      // clear to whoever (or whatever model) reads it.
+      const detail = err.code === "ENOENT" ? `command not found: ${command}` : err.message;
+      resolve({ content: `Failed to start "${command}": ${detail}`, isError: true });
     });
   });
 }
