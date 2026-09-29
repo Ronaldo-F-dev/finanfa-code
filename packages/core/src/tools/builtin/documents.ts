@@ -26,7 +26,10 @@ async function xlsxWorkbookToBuffer(workbook: ExcelJS.Workbook): Promise<Buffer>
   return (await workbook.xlsx.writeBuffer()) as unknown as Buffer;
 }
 
-async function extractPdf(buffer: Buffer): Promise<string> {
+// Exported (in addition to being used by the tools below) so
+// core/rag/document-loader.ts can extract text the exact same way for
+// arbitrary project documents, rather than reimplementing extraction.
+export async function extractPdf(buffer: Buffer): Promise<string> {
   const parser = new PDFParse({ data: buffer });
   try {
     const result = await parser.getText();
@@ -39,7 +42,7 @@ async function extractPdf(buffer: Buffer): Promise<string> {
   }
 }
 
-async function extractDocx(buffer: Buffer): Promise<string> {
+export async function extractDocx(buffer: Buffer): Promise<string> {
   const result = await mammoth.extractRawText({ buffer });
   return result.value.trim();
 }
@@ -58,7 +61,7 @@ function cellToString(value: unknown): string {
   return String(value);
 }
 
-async function extractXlsx(buffer: Buffer): Promise<string> {
+export async function extractXlsx(buffer: Buffer): Promise<string> {
   const workbook = await loadXlsxWorkbook(buffer);
   const sections: string[] = [];
   for (const sheet of workbook.worksheets) {
@@ -72,7 +75,7 @@ async function extractXlsx(buffer: Buffer): Promise<string> {
   return sections.join("\n\n").trim();
 }
 
-async function extractCsv(filePath: string): Promise<string> {
+export async function extractCsv(filePath: string): Promise<string> {
   // exceljs's csv reader only takes a path, not a buffer, but it's the same
   // proper quote/escape-aware CSV parser used elsewhere in the project, so
   // it's worth the extra readFile-by-path rather than hand-rolling one.
@@ -86,7 +89,7 @@ async function extractCsv(filePath: string): Promise<string> {
   return lines.join("\n").trim();
 }
 
-async function extractDoc(buffer: Buffer): Promise<string> {
+export async function extractDoc(buffer: Buffer): Promise<string> {
   const extractor = new WordExtractor();
   const doc = await extractor.extract(buffer);
   return doc.getBody().trim();
