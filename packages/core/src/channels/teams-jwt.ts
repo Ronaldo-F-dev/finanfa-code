@@ -1,4 +1,4 @@
-import { createPublicKey, verify as cryptoVerify, type JsonWebKey } from "node:crypto";
+import { createPublicKey, verify as cryptoVerify, webcrypto } from "node:crypto";
 
 // Microsoft Teams (via Azure Bot Service/Bot Framework) authenticates
 // its own inbound webhook calls with a real JWT
@@ -25,7 +25,7 @@ const EXPECTED_ISSUER = "https://api.botframework.com";
 const JWKS_CACHE_TTL_MS = 24 * 60 * 60 * 1000; // keys rotate rarely; a legitimate rotation is handled by the force-refresh-on-unknown-kid path below, not by a short TTL
 const CLOCK_SKEW_SECONDS = 5 * 60;
 
-interface Jwk extends JsonWebKey {
+interface Jwk extends webcrypto.JsonWebKey {
   kid?: string;
 }
 
