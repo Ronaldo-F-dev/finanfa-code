@@ -6,6 +6,7 @@ import '../core/models/timeline_item.dart';
 import '../state/agent_session_provider.dart';
 import '../state/language_provider.dart';
 import '../theme.dart';
+import '../widgets/content_width.dart';
 
 final _writeOrEditPattern = RegExp(r'^(write|edit) (.+?)(?: \(|$)');
 
@@ -50,43 +51,45 @@ class ArtifactsScreen extends ConsumerWidget {
 
     return Scaffold(
       appBar: AppBar(title: Text(t(ref, 'artifacts.title'))),
-      body: artifacts.isEmpty
-          ? Center(
-              child: Text(
-                t(ref, 'artifacts.none'),
-                style: TextStyle(color: c.textMuted),
+      body: ContentWidth(
+        child: artifacts.isEmpty
+            ? Center(
+                child: Text(
+                  t(ref, 'artifacts.none'),
+                  style: TextStyle(color: c.textMuted),
+                ),
+              )
+            : ListView.builder(
+                itemCount: artifacts.length,
+                itemBuilder: (context, i) {
+                  final a = artifacts[i];
+                  return ListTile(
+                    leading: Icon(
+                      a.action == 'write'
+                          ? Icons.note_add_outlined
+                          : Icons.edit_note,
+                      color: c.textMuted,
+                    ),
+                    title: Text(
+                      a.path.split('/').last,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                    subtitle: Text(
+                      a.path,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(color: c.textMuted, fontSize: 12),
+                    ),
+                    trailing: IconButton(
+                      icon: const Icon(Icons.copy_outlined, size: 18),
+                      tooltip: t(ref, 'artifacts.copyPath'),
+                      onPressed: () =>
+                          Clipboard.setData(ClipboardData(text: a.path)),
+                    ),
+                  );
+                },
               ),
-            )
-          : ListView.builder(
-              itemCount: artifacts.length,
-              itemBuilder: (context, i) {
-                final a = artifacts[i];
-                return ListTile(
-                  leading: Icon(
-                    a.action == 'write'
-                        ? Icons.note_add_outlined
-                        : Icons.edit_note,
-                    color: c.textMuted,
-                  ),
-                  title: Text(
-                    a.path.split('/').last,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  subtitle: Text(
-                    a.path,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(color: c.textMuted, fontSize: 12),
-                  ),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.copy_outlined, size: 18),
-                    tooltip: t(ref, 'artifacts.copyPath'),
-                    onPressed: () =>
-                        Clipboard.setData(ClipboardData(text: a.path)),
-                  ),
-                );
-              },
-            ),
+      ),
     );
   }
 }
