@@ -278,6 +278,7 @@ export async function main(argv: string[]): Promise<void> {
     yolo: opts.yolo,
     nonInteractive: opts.nonInteractive,
     hooksConfig,
+    provider,
   });
 
   const mcp = new McpClientManager();
