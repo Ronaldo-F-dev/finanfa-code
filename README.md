@@ -4,7 +4,7 @@
 
 A from-scratch AI coding agent, in TypeScript, with a terminal UI, a
 browser UI, a VS Code extension, a native mobile/desktop client, and
-editor integration via ACP. 90+
+editor integration via ACP. 188
 builtin tools (files, shell, git, browser, documents, IoT, DevOps,
 security scanning, and more), a pluggable LLM backend (Anthropic, Azure
 OpenAI, Gemini, Cohere, GitHub Copilot, Amazon Bedrock, Google Vertex AI,
@@ -66,7 +66,7 @@ A running local server on a well-known port (Ollama, LM Studio,
 llama.cpp, vLLM, Docker Model Runner) is auto-detected — the web UI's
 model picker lists what's actually available with no configuration at
 all. Every provider, local or cloud, also gets [Tool Search](docs/tool-search.md)
-by default, so a handful of tools are sent per turn instead of all 90+.
+by default, so a handful of tools are sent per turn instead of all 188.
 
 **A remote OpenAI-compatible endpoint** (OpenRouter, Poolside, ...):
 
@@ -198,7 +198,7 @@ Ctrl+C persists the session and closes connections cleanly before exit.
 | Doc | Covers |
 |---|---|
 | [docs/providers.md](docs/providers.md) | Every model provider (local and remote), persistent config, vision routing |
-| [docs/tool-search.md](docs/tool-search.md) | How every provider (on by default) avoids paying for all 90+ tool schemas every turn |
+| [docs/tool-search.md](docs/tool-search.md) | How every provider (on by default) avoids paying for all 188 tool schemas every turn |
 | [docs/tools.md](docs/tools.md) | The full builtin tool catalog by category |
 | [docs/rag.md](docs/rag.md) | Project document indexing/search/grounding-check (RAG) |
 | [docs/channels.md](docs/channels.md) | Slack, Telegram, Matrix, LINE, Feishu, Microsoft Teams, Discord, WhatsApp, SMS, Voice |

@@ -1,6 +1,6 @@
 # Tools
 
-90+ builtin tools, each gated by a risk level (`safe` / `ask` / `dangerous`)
+188 builtin tools, each gated by a risk level (`safe` / `ask` / `dangerous`)
 enforced through the permission system. A tool that needs an external CLI
 or credential is only registered when that dependency is actually
 present — see each entry below for what's needed.
