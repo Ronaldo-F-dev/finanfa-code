@@ -53,6 +53,7 @@ import { createGetSpotifyNowPlayingTool, createControlSpotifyPlaybackTool, spoti
 import { createGetSmartHomeStateTool, createControlSmartHomeDeviceTool, homeAssistantConfigFromEnv } from "./home-assistant.js";
 import { createRunRemoteCommandTool } from "./remote-exec.js";
 import { createRegisterRemoteHostTool, createRemoveRemoteHostTool, createListRemoteHostsTool, createCheckRemoteHostHealthTool } from "./remote-hosts-tools.js";
+import { createRemoteDeployTools } from "./remote-deploy.js";
 import { exportBundleTool, installBundleTool, listBundleSnapshotsTool, rollbackBundleTool } from "./claw-bundle-tools.js";
 import { createPublishBundleToRegistryTool, createListRegistryBundlesTool, createListRegistryBundleVersionsTool, createInstallBundleFromRegistryTool } from "./claws-registry-tools.js";
 import { registryConfigFromEnv } from "../../core/claws-registry.js";
@@ -253,6 +254,9 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
     registry.register(createRemoveRemoteHostTool());
     registry.register(createListRemoteHostsTool());
     registry.register(createCheckRemoteHostHealthTool());
+  }
+  if (isCommandAvailable("ssh") && isCommandAvailable("rsync")) {
+    for (const tool of createRemoteDeployTools()) registry.register(tool);
   }
   registry.register(exportBundleTool);
   registry.register(installBundleTool);
