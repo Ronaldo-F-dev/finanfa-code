@@ -50,6 +50,15 @@ function getDb(cwd: string): NodeSqlite.DatabaseSync {
       PRIMARY KEY (source_path, chunk_index)
     );
   `);
+  // Phase 6 addition: a document's Markdown frontmatter (title, tags, ...)
+  // wasn't persisted by Phase 5 at all, but Retriever needs it to hand back
+  // on every chunk. Added as a migration (not baked into the CREATE TABLE
+  // above) so a rag-index.sqlite file created by Phase 5 still opens.
+  try {
+    db.exec(`ALTER TABLE documents ADD COLUMN frontmatter_json TEXT;`);
+  } catch (err) {
+    if (!(err instanceof Error) || !/duplicate column name/i.test(err.message)) throw err;
+  }
   openDbs.set(filePath, db);
   return db;
 }
@@ -68,6 +77,8 @@ export interface VectorSearchHit {
   endOffset: number;
   /** Cosine similarity to the query — higher is a better match. */
   similarity: number;
+  /** The source document's Markdown frontmatter (title, tags, ...), if any was recorded at index time. */
+  frontmatter?: Record<string, unknown>;
 }
 
 export interface VectorStoreDocument {
@@ -110,13 +121,15 @@ export class VectorStore {
     if (existing && existing.content_hash === document.contentHash) return; // unchanged — nothing to invalidate or re-embed
 
     const deleteChunks = this.db.prepare("DELETE FROM chunks WHERE source_path = ?");
-    const upsertDoc = this.db.prepare("INSERT OR REPLACE INTO documents (source_path, content_hash) VALUES (?, ?)");
+    const upsertDoc = this.db.prepare(
+      "INSERT OR REPLACE INTO documents (source_path, content_hash, frontmatter_json) VALUES (?, ?, ?)",
+    );
     const insertChunk = this.db.prepare(
       "INSERT OR REPLACE INTO chunks (source_path, chunk_index, content_hash, text, start_offset, end_offset, embedding_json) VALUES (?, ?, ?, ?, ?, ?, ?)",
     );
 
     deleteChunks.run(document.sourcePath);
-    upsertDoc.run(document.sourcePath, document.contentHash);
+    upsertDoc.run(document.sourcePath, document.contentHash, document.frontmatter ? JSON.stringify(document.frontmatter) : null);
     chunks.forEach((chunk, i) => {
       insertChunk.run(
         document.sourcePath,
@@ -148,20 +161,54 @@ export class VectorStore {
     return rows;
   }
 
-  /** Ranks every stored chunk against `queryEmbedding` by cosine similarity, highest first. */
+  /**
+   * Ranks every stored chunk against `queryEmbedding` by cosine similarity,
+   * highest first. Throws if a stored embedding's dimensionality doesn't
+   * match `queryEmbedding`'s — this happens when a user switches embedding
+   * provider/model after already indexing documents with a different one.
+   * Cosine similarity between vectors of different lengths is meaningless
+   * (or throws deep inside the math, depending on which is longer/shorter),
+   * so this is caught up front with a message that tells the caller what
+   * actually happened, rather than surfacing as a confusing NaN/undefined
+   * downstream or a silently-wrong ranking.
+   */
   search(queryEmbedding: number[], topK: number): VectorSearchHit[] {
     const rows = this.db
-      .prepare("SELECT source_path as sourcePath, chunk_index as chunkIndex, text, start_offset as startOffset, end_offset as endOffset, embedding_json as embeddingJson FROM chunks")
-      .all() as { sourcePath: string; chunkIndex: number; text: string; startOffset: number; endOffset: number; embeddingJson: string }[];
+      .prepare(
+        `SELECT c.source_path as sourcePath, c.chunk_index as chunkIndex, c.text as text,
+                c.start_offset as startOffset, c.end_offset as endOffset, c.embedding_json as embeddingJson,
+                d.frontmatter_json as frontmatterJson
+         FROM chunks c JOIN documents d ON d.source_path = c.source_path`,
+      )
+      .all() as {
+      sourcePath: string;
+      chunkIndex: number;
+      text: string;
+      startOffset: number;
+      endOffset: number;
+      embeddingJson: string;
+      frontmatterJson: string | null;
+    }[];
 
-    const scored: VectorSearchHit[] = rows.map((row) => ({
-      sourcePath: row.sourcePath,
-      chunkIndex: row.chunkIndex,
-      text: row.text,
-      startOffset: row.startOffset,
-      endOffset: row.endOffset,
-      similarity: cosineSimilarity(queryEmbedding, JSON.parse(row.embeddingJson) as number[]),
-    }));
+    const scored: VectorSearchHit[] = rows.map((row) => {
+      const embedding = JSON.parse(row.embeddingJson) as number[];
+      if (embedding.length !== queryEmbedding.length) {
+        throw new Error(
+          `Embedding dimension mismatch: query embedding has ${queryEmbedding.length} dimensions but the stored chunk ` +
+            `at ${row.sourcePath} (chunk ${row.chunkIndex}) has ${embedding.length}. This usually means the embedding ` +
+            `provider/model changed since this project was indexed — re-run indexing with the current provider to fix it.`,
+        );
+      }
+      return {
+        sourcePath: row.sourcePath,
+        chunkIndex: row.chunkIndex,
+        text: row.text,
+        startOffset: row.startOffset,
+        endOffset: row.endOffset,
+        similarity: cosineSimilarity(queryEmbedding, embedding),
+        frontmatter: row.frontmatterJson ? (JSON.parse(row.frontmatterJson) as Record<string, unknown>) : undefined,
+      };
+    });
     scored.sort((a, b) => b.similarity - a.similarity);
     return scored.slice(0, topK);
   }
