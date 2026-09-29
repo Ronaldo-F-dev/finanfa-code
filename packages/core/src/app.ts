@@ -16,8 +16,7 @@ import { McpClientManager, NeedsAuthorizationError } from "./mcp/client-manager.
 import { loadMcpServers } from "./mcp/config.js";
 import type { UIAdapter } from "./ui/adapter.js";
 import { resolveProviderKindAlias } from "./core/model-capabilities.js";
-import { ensureLocalTextModelServer, type LocalModelStatus } from "./core/local-model-manager.js";
-import path from "node:path";
+import { ensureLocalService, type LocalServiceStatus } from "./core/local-model-manager.js";
 
 export const SECURITY_INSTRUCTION =
   "Security: help with authorized security testing, defensive security work, CTF challenges, and security " +
@@ -426,156 +425,103 @@ export function isLocalProviderConfig(config: FinanfaConfig): boolean {
   }
 }
 
-/**
- * Called once at process startup (CLI/web-server main, not per-session or
- * per-turn): if the resolved text provider is local and config.textModelPath
- * is set, makes sure the right model is actually being served there before
- * the first real request ever reaches it — see local-model-manager.ts's own
- * header comment for the real, reported friction this closes (getting
- * llama.cpp itself running was the hard part, not configuring finanfa-code
- * to talk to it). Never throws: a failure here just means the normal
- * "couldn't reach that model" error happens naturally on first use, same as
- * before this existed — this is a convenience, not a new hard requirement.
- */
-/** Reports a LocalModelStatus to the user — shared by the startup check and the model-switch check below, so both give the same guidance (including a real `hf download` command when the file is missing and textModelHfRepo/textModelHfFile are configured, rather than a dead end). */
-function reportLocalModelStatus(
-  result: LocalModelStatus,
+/** Reports a LocalServiceStatus to the user — shared by the startup check and the model-switch check below, so both give the same guidance. */
+function reportLocalServiceStatus(
+  result: LocalServiceStatus,
   baseUrl: string,
-  config: FinanfaConfig,
+  modelName: string,
   ui: Pick<UIAdapter, "writeSystem" | "writeError">,
 ): void {
   switch (result.state) {
     case "started":
-      ui.writeSystem(`Started llama-server serving ${result.modelId} at ${baseUrl}.`);
+      ui.writeSystem(`Started the local service for ${modelName} at ${baseUrl}.`);
       break;
-    case "restarted":
-      ui.writeSystem(`Switched the local model server from ${result.previousModelId} to ${result.modelId} at ${baseUrl}.`);
-      break;
-    case "already-running-different-model":
-      ui.writeError(
-        `${baseUrl} is already serving "${result.runningModelId}", not the configured "${result.expected}" — ` +
-          `stop that server yourself if you want finanfa-code to load the right model there.`,
-      );
-      break;
-    case "missing-binary":
-      ui.writeError(`Can't auto-start the local text model: "${result.binary}" isn't installed or isn't on PATH.`);
-      break;
-    case "missing-model-file": {
-      const hfRepo = config.textModelHfRepo;
-      const hfFile = config.textModelHfFile;
-      const howToGet =
-        hfRepo && hfFile
-          ? ` Get it with: hf download ${hfRepo} ${hfFile} --local-dir "${path.dirname(result.path)}"`
-          : " (check textModelPath/TEXT_MODEL_PATH, or set textModelHfRepo/textModelHfFile for a download command here).";
-      ui.writeError(`Can't auto-start the local text model: no file at ${result.path}.${howToGet}`);
-      break;
-    }
     case "start-failed":
-      ui.writeError(`Failed to auto-start the local text model: ${result.message}`);
+      ui.writeError(`Failed to start the local service: ${result.message}.`);
       break;
-    case "already-running-correct":
+    case "already-running":
       break; // Nothing to say — it was already right.
   }
 }
 
 /**
  * Called once at process startup (CLI/web-server main, not per-session or
- * per-turn): if the resolved text provider is local and config.textModelPath
- * is set, makes sure the right model is actually being served there before
- * the first real request ever reaches it — see local-model-manager.ts's own
- * header comment for the real, reported friction this closes (getting
- * llama.cpp itself running was the hard part, not configuring finanfa-code
- * to talk to it). Never throws: a failure here just means the normal
- * "couldn't reach that model" error happens naturally on first use, same as
- * before this existed — this is a convenience, not a new hard requirement.
+ * per-turn): if the resolved text provider is local and config.localService
+ * is set, makes sure something is actually answering at baseUrl before the
+ * first real request ever reaches it. Never throws: a failure here just
+ * means the normal "couldn't reach that model" error happens naturally on
+ * first use, same as before this existed — this is a convenience, not a new
+ * hard requirement. A no-op (no attempt, no message) when localService isn't
+ * configured — the new default is "just point at an already-running server".
  */
 export async function ensureConfiguredLocalTextModel(
   config: FinanfaConfig,
   ui: Pick<UIAdapter, "writeSystem" | "writeError">,
 ): Promise<void> {
   if (!isLocalProviderConfig(config)) return;
-  const modelPath = process.env.TEXT_MODEL_PATH ?? config.textModelPath;
-  if (!modelPath) return;
+  // Nothing configured to auto-start — the new default ("just point at an
+  // already-running server"). A genuine no-op: no probe, no message, same
+  // as before this existed — any real reachability problem surfaces
+  // naturally as the normal "couldn't reach that model" error on first use.
+  if (!config.localService) return;
 
   const baseUrl = process.env.TEXT_MODEL_BASE_URL ?? process.env.FINANFA_BASE_URL ?? config.baseUrl;
   const modelName = process.env.TEXT_MODEL_NAME ?? process.env.FINANFA_MODEL ?? config.model;
   if (!baseUrl || !modelName) return;
 
   try {
-    const result = await ensureLocalTextModelServer({
-      baseUrl,
-      modelPath,
-      modelName,
-      binary: process.env.TEXT_MODEL_BINARY ?? config.textModelBinary,
-      contextSize: config.textModelContextSize ? Number(config.textModelContextSize) : undefined,
-    });
-    reportLocalModelStatus(result, baseUrl, config, ui);
+    const result = await ensureLocalService({ baseUrl }, config.localService);
+    reportLocalServiceStatus(result, baseUrl, modelName, ui);
   } catch (err) {
-    ui.writeError(`Failed to auto-start the local text model: ${err instanceof Error ? err.message : String(err)}`);
+    ui.writeError(`Failed to start the local service: ${err instanceof Error ? err.message : String(err)}.`);
   }
 }
 
 /**
  * Result of ensureLocalTextModelForSwitch: `handled` is "this model name was
- * in config.localTextModelPaths so a local-server switch was actually
- * attempted" (the old boolean return); `ok` is the real, reported gap this
- * type closes — whether that attempt actually succeeded. A caller that only
- * checked `handled` (or the old bare boolean) couldn't tell an
- * "already-running-different-model"/"missing-binary"/"missing-model-file"/
- * "start-failed" refusal apart from a real success, since both left
- * `handled` true — see the set_model bug this was reported against: the
- * server refused to switch (a different local model was already running and
- * finanfa-code wouldn't kill a process it didn't start) yet the caller still
+ * in config.localServices so a local-service switch was actually attempted";
+ * `ok` is whether that attempt actually succeeded. A caller that only
+ * checked `handled` couldn't tell a "start-failed" refusal apart from a real
+ * success, since both left `handled` true — see the set_model bug this was
+ * reported against: the service failed to start yet the caller still
  * committed the new model as active, so the UI showed the picked model while
  * every request kept going to the old one underneath it. `handled` is false
  * (and `ok` true — nothing was attempted, so nothing failed) when this model
- * name isn't a local-server switch at all.
+ * name isn't a local-service switch at all.
  */
 export type EnsureLocalTextModelForSwitchResult =
   | { handled: false; ok: true; status?: undefined }
-  | { handled: true; ok: boolean; status: LocalModelStatus };
+  | { handled: true; ok: boolean; status: LocalServiceStatus };
 
 /**
  * Called when the user deliberately switches to a *different* local model
  * mid-session (the `/models` command, or the web UI/mobile app's model
- * picker sending set_model) — see local-model-manager.ts's
- * restartIfDifferent: unlike the startup check above, a mismatch here is
- * expected (that's the whole point of switching), so this actively stops
- * whatever this same module previously started on that port and loads the
- * newly-picked model instead. Still never touches a server it didn't spawn
- * itself. A no-op (`handled: false`) unless config.localTextModelPaths has an
- * entry for the newly-picked model name — most model switches (a different
- * Anthropic model, a different Ollama model, etc.) have nothing to do with
- * the llama.cpp-served local text model slot at all. When `handled` is true,
- * check `ok` before treating the switch as having actually happened — see
- * EnsureLocalTextModelForSwitchResult's doc for why.
+ * picker sending set_model). A no-op (`handled: false`) unless
+ * config.localServices has an entry for the newly-picked model name — most
+ * model switches (a different Anthropic model, a different Ollama model,
+ * etc.) have nothing to do with a locally-launched service at all. When
+ * `handled` is true, check `ok` before treating the switch as having
+ * actually happened — see EnsureLocalTextModelForSwitchResult's doc for why.
  */
 export async function ensureLocalTextModelForSwitch(
   config: FinanfaConfig,
   newModelName: string,
   ui: Pick<UIAdapter, "writeSystem" | "writeError">,
 ): Promise<EnsureLocalTextModelForSwitchResult> {
-  const modelPath = config.localTextModelPaths?.[newModelName];
-  if (!modelPath) return { handled: false, ok: true };
+  const service = config.localServices?.[newModelName];
+  if (!service) return { handled: false, ok: true };
 
   const baseUrl = process.env.TEXT_MODEL_BASE_URL ?? process.env.FINANFA_BASE_URL ?? config.baseUrl;
   if (!baseUrl) return { handled: false, ok: true };
 
   try {
-    const result = await ensureLocalTextModelServer({
-      baseUrl,
-      modelPath,
-      modelName: newModelName,
-      binary: process.env.TEXT_MODEL_BINARY ?? config.textModelBinary,
-      contextSize: config.textModelContextSize ? Number(config.textModelContextSize) : undefined,
-      restartIfDifferent: true,
-    });
-    reportLocalModelStatus(result, baseUrl, config, ui);
-    const ok = result.state === "started" || result.state === "restarted" || result.state === "already-running-correct";
+    const result = await ensureLocalService({ baseUrl }, service);
+    reportLocalServiceStatus(result, baseUrl, newModelName, ui);
+    const ok = result.state === "started" || result.state === "already-running";
     return { handled: true, ok, status: result };
   } catch (err) {
     const message = err instanceof Error ? err.message : String(err);
-    ui.writeError(`Failed to switch the local text model: ${message}`);
+    ui.writeError(`Failed to start the local service: ${message}.`);
     return { handled: true, ok: false, status: { state: "start-failed", message } };
   }
 }
