@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>com.apple.security.app-sandbox</key>
+	<true/>
+	<key>com.apple.security.cs.allow-jit</key>
+	<true/>
+	<key>com.apple.security.network.server</key>
+	<true/>
+	<key>com.apple.security.network.client</key>
+	<true/>
+	<!-- Required under App Sandbox for file_picker's native open-panel to
+	     hand back a usable file (attach-file feature) — without it, picking
+	     any file throws PlatformException(ENTITLEMENT_NOT_FOUND), confirmed
+	     for real. -->
+	<key>com.apple.security.files.user-selected.read-only</key>
+	<true/>
+	<!-- Required for speech_to_text's mic dictation feature under App
+	     Sandbox — without it, starting to listen fails silently. -->
+	<key>com.apple.security.device.microphone</key>
+	<true/>
+</dict>
+</plist>
