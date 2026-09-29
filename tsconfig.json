@@ -12,9 +12,8 @@
     "resolveJsonModule": true,
     "outDir": "dist",
     "declaration": true,
-    "baseUrl": ".",
     "paths": {
-      "@finanfa/core/*": ["packages/core/*"]
+      "@finanfa/core/*": ["./packages/core/*"]
     }
   },
   "include": [
