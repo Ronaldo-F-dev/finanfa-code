@@ -155,7 +155,11 @@ export const DOCUMENT_TOOLS_PROMPT =
   "a PDF — it renders through a real headless browser, so tables/code blocks/formatting come through, unlike " +
   "read_document's plain-text extraction. Use convert_spreadsheet for .xlsx <-> .csv — direction is automatic " +
   "from the source extension; converting from .xlsx exports one sheet (default the first) since CSV has no " +
-  "concept of multiple sheets. ";
+  "concept of multiple sheets. " +
+  "If a project has documents (specs, notes, READMEs, anything the user mentions or that's visible in the " +
+  "project) that might answer a question, index_project_documents once and then search_project_documents rather " +
+  "than reading every file by hand or guessing — cheap after the first index, and it matches by meaning, not " +
+  "just filename or exact wording. ";
 
 /** Static analysis, image resizing, the Python REPL, databases, HTTP testing, JS/TS lint+typecheck. */
 export const DEV_TOOLS_PROMPT =
