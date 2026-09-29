@@ -87,14 +87,20 @@ export interface FinanfaConfig {
   sandbox?: SandboxConfig;
   /**
    * "auto" (default, unset also means this): Tool Search (see
-   * tool-search.ts) turns on automatically when the resolved provider
-   * looks local (see isLocalProviderConfig in app.ts), off otherwise.
-   * "true"/"false" force it on/off regardless of provider — an explicit
-   * choice always wins over the automatic one. A plain string, like
-   * every other /config-set value (see thinkingBudgetTokens above) —
-   * not a real boolean, so this stays a normal string-valued field for
-   * the generic config plumbing (the web UI's /api/config, /config
-   * show/set) that every other key here already assumes.
+   * tool-search.ts) turns on. The cost problem it closes — sending every
+   * registered tool's full schema on every turn — scales with the total
+   * registered tool count, not with whether the provider is local, so
+   * "auto" no longer gates on isLocalProviderConfig (app.ts): a capable
+   * cloud model (Claude/Poolside) pays the same real per-turn token cost
+   * for ~180 tool schemas a small local model does, even though it
+   * handles that cost fine from a correctness standpoint. "false" is the
+   * explicit opt-out for anyone who wants every turn to carry the full
+   * tool list regardless; "true" is redundant with "auto" now but kept
+   * for explicitness/back-compat. A plain string, like every other
+   * /config-set value (see thinkingBudgetTokens above) — not a real
+   * boolean, so this stays a normal string-valued field for the generic
+   * config plumbing (the web UI's /api/config, /config show/set) that
+   * every other key here already assumes.
    */
   toolSearch?: "auto" | "true" | "false";
 
@@ -161,11 +167,19 @@ export function thinkingBudgetTokensFromConfig(config: FinanfaConfig): number | 
   return Number.isFinite(parsed) && parsed > 0 ? parsed : undefined;
 }
 
-/** Resolves config.toolSearch against whether the provider actually looks local (isLocalProviderConfig in app.ts) into the plain boolean session.toolSearchEnabled wants — an explicit "true"/"false" always wins; "auto"/unset falls back to the local-provider heuristic. */
-export function resolveToolSearchEnabled(config: FinanfaConfig, isLocalProvider: boolean): boolean {
-  if (config.toolSearch === "true") return true;
-  if (config.toolSearch === "false") return false;
-  return isLocalProvider;
+/**
+ * Resolves config.toolSearch into the plain boolean session.toolSearchEnabled
+ * wants. Only an explicit "false" disables it now — "auto"/unset/"true" all
+ * enable it regardless of provider kind, local or cloud: the per-turn cost
+ * Tool Search closes (the full ~180-tool schema list) is a function of the
+ * registered tool count, not of whether the provider happens to be local
+ * (previously "auto" only enabled it for a provider isLocalProviderConfig
+ * judged local, leaving every cloud session paying full price on every
+ * turn for no correctness reason — see tool-search.ts's header comment).
+ * No isLocalProvider parameter anymore: nothing left in here depends on it.
+ */
+export function resolveToolSearchEnabled(config: FinanfaConfig): boolean {
+  return config.toolSearch !== "false";
 }
 
 /** Resolves config.localModelLean the same way resolveToolSearchEnabled resolves config.toolSearch — an explicit "true"/"false" always wins; "auto"/unset falls back to the local-provider heuristic. */

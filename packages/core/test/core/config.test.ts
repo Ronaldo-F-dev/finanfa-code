@@ -95,21 +95,29 @@ describe("thinkingBudgetTokensFromConfig", () => {
 });
 
 describe("resolveToolSearchEnabled", () => {
-  it("follows the local-provider heuristic when unset ('auto')", () => {
-    expect(resolveToolSearchEnabled({}, true)).toBe(true);
-    expect(resolveToolSearchEnabled({}, false)).toBe(false);
+  it("defaults to enabled when unset ('auto') — regardless of provider kind", () => {
+    expect(resolveToolSearchEnabled({})).toBe(true);
   });
 
-  it("an explicit true always wins, even against a non-local provider", () => {
-    expect(resolveToolSearchEnabled({ toolSearch: "true" }, false)).toBe(true);
+  it("a plain Anthropic-kind config with toolSearch 'auto' (or unset) now resolves to enabled — the cost this closes isn't local-only", () => {
+    // No provider/baseUrl set at all — the old isLocalProviderConfig heuristic
+    // would have judged this "not local" and left toolSearch off; "auto" no
+    // longer depends on that judgement at all.
+    expect(resolveToolSearchEnabled({ provider: "anthropic" })).toBe(true);
+    expect(resolveToolSearchEnabled({ provider: "anthropic", toolSearch: "auto" })).toBe(true);
   });
 
-  it("an explicit false always wins, even against a local provider", () => {
-    expect(resolveToolSearchEnabled({ toolSearch: "false" }, true)).toBe(false);
+  it("an explicit true enables it", () => {
+    expect(resolveToolSearchEnabled({ toolSearch: "true" })).toBe(true);
+  });
+
+  it("an explicit false disables it — for both a local-shaped and a cloud-shaped config", () => {
+    expect(resolveToolSearchEnabled({ toolSearch: "false" })).toBe(false);
+    expect(resolveToolSearchEnabled({ provider: "openai-compatible", baseUrl: "http://localhost:11434/v1", toolSearch: "false" })).toBe(false);
+    expect(resolveToolSearchEnabled({ provider: "anthropic", toolSearch: "false" })).toBe(false);
   });
 
   it("the string 'auto' behaves the same as unset", () => {
-    expect(resolveToolSearchEnabled({ toolSearch: "auto" }, true)).toBe(true);
-    expect(resolveToolSearchEnabled({ toolSearch: "auto" }, false)).toBe(false);
+    expect(resolveToolSearchEnabled({ toolSearch: "auto" })).toBe(true);
   });
 });
