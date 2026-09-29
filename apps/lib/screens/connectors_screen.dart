@@ -5,6 +5,7 @@ import '../core/models/timeline_item.dart';
 import '../state/agent_session_provider.dart';
 import '../state/language_provider.dart';
 import '../theme.dart';
+import '../widgets/content_width.dart';
 
 /// Mirrors packages/web-client/src/components/McpPanel.tsx — live over the
 /// same WebSocket messages (mcp_connect/mcp_enable/mcp_disable/mcp_reload)
@@ -89,123 +90,149 @@ class _ConnectorsScreenState extends ConsumerState<ConnectorsScreen> {
           ),
         ],
       ),
-      body: !controller.mcpLoaded
-          ? const Center(child: CircularProgressIndicator())
-          : servers.isEmpty
-          ? Center(
-              child: Text(
-                t(ref, 'connectors.none'),
-                style: TextStyle(color: c.textMuted),
-              ),
-            )
-          : Column(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(
-                    FinanfaSpace.md,
-                    FinanfaSpace.md,
-                    FinanfaSpace.md,
-                    FinanfaSpace.sm,
-                  ),
-                  child: Row(
-                    children: [
-                      _FilterTab(
-                        label: '${t(ref, 'connectors.filterAll')} · ${servers.length}',
-                        selected: _filter == _Filter.all,
-                        onTap: () => setState(() => _filter = _Filter.all),
-                      ),
-                      const SizedBox(width: 8),
-                      _FilterTab(
-                        label: '${t(ref, 'connectors.filterConnected')} · $connectedCount',
-                        selected: _filter == _Filter.connected,
-                        onTap: () => setState(() => _filter = _Filter.connected),
-                      ),
-                      const SizedBox(width: 8),
-                      _FilterTab(
-                        label: '${t(ref, 'connectors.filterNeedsSetup')} · $needsSetupCount',
-                        selected: _filter == _Filter.needsSetup,
-                        onTap: () => setState(() => _filter = _Filter.needsSetup),
-                      ),
-                    ],
-                  ),
+      body: ContentWidth(
+        child: !controller.mcpLoaded
+            ? const Center(child: CircularProgressIndicator())
+            : servers.isEmpty
+            ? Center(
+                child: Text(
+                  t(ref, 'connectors.none'),
+                  style: TextStyle(color: c.textMuted),
                 ),
-                Expanded(
-                  child: ListView.builder(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: FinanfaSpace.md,
-                      vertical: FinanfaSpace.sm,
+              )
+            : Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(
+                      FinanfaSpace.md,
+                      FinanfaSpace.md,
+                      FinanfaSpace.md,
+                      FinanfaSpace.sm,
                     ),
-                    itemCount: visibleServers.length,
-                    itemBuilder: (context, i) {
-                      final s = visibleServers[i];
-                      final connecting = _connecting.contains(s.name);
-                      final statusLabel = s.connected
-                          ? (s.disabled ? t(ref, 'connectors.disabled') : t(ref, 'connectors.connected'))
-                          : (s.needsAuth ? t(ref, 'connectors.needsAuth') : t(ref, 'connectors.notAdded'));
-                      final statusColor = s.connected && !s.disabled
-                          ? c.success
-                          : (s.needsAuth ? const Color(0xFFCE9B2E) : c.textMuted);
-                      return Card(
-                        margin: const EdgeInsets.only(bottom: FinanfaSpace.md),
-                        child: Padding(
-                          padding: const EdgeInsets.all(FinanfaSpace.lg),
-                          child: Row(
-                            children: [
-                              _ConnectorAvatar(name: s.name),
-                              const SizedBox(width: FinanfaSpace.md),
-                              Expanded(
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    // The connector's own name is the most
-                                    // important thing in this row — it used
-                                    // to share the same mono/13px treatment
-                                    // as the transport line under it, so
-                                    // nothing visually dominated. itemTitle
-                                    // is deliberately bigger/heavier/non-mono
-                                    // (mono is for tool/code names, not this).
-                                    Text(s.name, style: context.textStyles.itemTitle),
-                                    const SizedBox(height: FinanfaSpace.xs),
-                                    Text(s.transport, style: context.textStyles.caption),
-                                    const SizedBox(height: FinanfaSpace.sm),
-                                    _StatusPill(label: statusLabel, color: statusColor),
-                                  ],
-                                ),
-                              ),
-                              const SizedBox(width: FinanfaSpace.sm),
-                              !s.connected
-                                  ? FilledButton(
-                                      onPressed: connecting ? null : () => _connect(s.name),
-                                      child: connecting
-                                          ? const SizedBox(
-                                              width: 16,
-                                              height: 16,
-                                              child: CircularProgressIndicator(
-                                                strokeWidth: 2,
-                                                color: Colors.white,
-                                              ),
-                                            )
-                                          : Text(t(ref, 'connectors.add')),
-                                    )
-                                  : OutlinedButton(
-                                      onPressed: () => ref
-                                          .read(agentSessionProvider)
-                                          .mcpToggle(s.name, s.disabled),
-                                      child: Text(
-                                        s.disabled
-                                            ? t(ref, 'connectors.enable')
-                                            : t(ref, 'connectors.disable'),
-                                      ),
-                                    ),
-                            ],
-                          ),
+                    child: Row(
+                      children: [
+                        _FilterTab(
+                          label:
+                              '${t(ref, 'connectors.filterAll')} · ${servers.length}',
+                          selected: _filter == _Filter.all,
+                          onTap: () => setState(() => _filter = _Filter.all),
                         ),
-                      );
-                    },
+                        const SizedBox(width: 8),
+                        _FilterTab(
+                          label:
+                              '${t(ref, 'connectors.filterConnected')} · $connectedCount',
+                          selected: _filter == _Filter.connected,
+                          onTap: () =>
+                              setState(() => _filter = _Filter.connected),
+                        ),
+                        const SizedBox(width: 8),
+                        _FilterTab(
+                          label:
+                              '${t(ref, 'connectors.filterNeedsSetup')} · $needsSetupCount',
+                          selected: _filter == _Filter.needsSetup,
+                          onTap: () =>
+                              setState(() => _filter = _Filter.needsSetup),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
-            ),
+                  Expanded(
+                    child: ListView.builder(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: FinanfaSpace.md,
+                        vertical: FinanfaSpace.sm,
+                      ),
+                      itemCount: visibleServers.length,
+                      itemBuilder: (context, i) {
+                        final s = visibleServers[i];
+                        final connecting = _connecting.contains(s.name);
+                        final statusLabel = s.connected
+                            ? (s.disabled
+                                  ? t(ref, 'connectors.disabled')
+                                  : t(ref, 'connectors.connected'))
+                            : (s.needsAuth
+                                  ? t(ref, 'connectors.needsAuth')
+                                  : t(ref, 'connectors.notAdded'));
+                        final statusColor = s.connected && !s.disabled
+                            ? c.success
+                            : (s.needsAuth ? c.warning : c.textMuted);
+                        return Card(
+                          margin: const EdgeInsets.only(
+                            bottom: FinanfaSpace.md,
+                          ),
+                          child: Padding(
+                            padding: const EdgeInsets.all(FinanfaSpace.lg),
+                            child: Row(
+                              children: [
+                                _ConnectorAvatar(name: s.name),
+                                const SizedBox(width: FinanfaSpace.md),
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      // The connector's own name is the most
+                                      // important thing in this row — it used
+                                      // to share the same mono/13px treatment
+                                      // as the transport line under it, so
+                                      // nothing visually dominated. itemTitle
+                                      // is deliberately bigger/heavier/non-mono
+                                      // (mono is for tool/code names, not this).
+                                      Text(
+                                        s.name,
+                                        style: context.textStyles.itemTitle,
+                                      ),
+                                      const SizedBox(height: FinanfaSpace.xs),
+                                      Text(
+                                        s.transport,
+                                        style: context.textStyles.caption,
+                                      ),
+                                      const SizedBox(height: FinanfaSpace.sm),
+                                      _StatusPill(
+                                        label: statusLabel,
+                                        color: statusColor,
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                                const SizedBox(width: FinanfaSpace.sm),
+                                !s.connected
+                                    ? FilledButton(
+                                        onPressed: connecting
+                                            ? null
+                                            : () => _connect(s.name),
+                                        child: connecting
+                                            ? const SizedBox(
+                                                width: 16,
+                                                height: 16,
+                                                child:
+                                                    CircularProgressIndicator(
+                                                      strokeWidth: 2,
+                                                      color: Colors.white,
+                                                    ),
+                                              )
+                                            : Text(t(ref, 'connectors.add')),
+                                      )
+                                    : OutlinedButton(
+                                        onPressed: () => ref
+                                            .read(agentSessionProvider)
+                                            .mcpToggle(s.name, s.disabled),
+                                        child: Text(
+                                          s.disabled
+                                              ? t(ref, 'connectors.enable')
+                                              : t(ref, 'connectors.disable'),
+                                        ),
+                                      ),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+                  ),
+                ],
+              ),
+      ),
     );
   }
 }
@@ -214,7 +241,11 @@ class _FilterTab extends StatelessWidget {
   final String label;
   final bool selected;
   final VoidCallback onTap;
-  const _FilterTab({required this.label, required this.selected, required this.onTap});
+  const _FilterTab({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -265,12 +296,21 @@ class _ConnectorAvatar extends StatelessWidget {
   Widget build(BuildContext context) {
     final initials = name.length >= 2 ? name.substring(0, 2) : name;
     final color = _palette[name.hashCode.abs() % _palette.length];
-    return CircleAvatar(
-      radius: 18,
-      backgroundColor: color.withValues(alpha: 0.15),
+    // Rounded square (squircle), not a circle — matches the sharper
+    // "Opérateur terminal" aesthetic used elsewhere (drawer icon chips,
+    // FinanfaRadii-based corners generally).
+    return Container(
+      width: 36,
+      height: 36,
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.15),
+        borderRadius: BorderRadius.circular(FinanfaRadii.md),
+      ),
+      alignment: Alignment.center,
       child: Text(
         initials,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: color, fontSize: 12.5),
+        style: Theme.of(context).textTheme.labelMedium
+            ?.copyWith(color: color, fontSize: 12.5),
       ),
     );
   }
@@ -292,9 +332,20 @@ class _StatusPill extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Container(width: 6, height: 6, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+          ),
           const SizedBox(width: 5),
-          Text(label, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w600)),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
         ],
       ),
     );

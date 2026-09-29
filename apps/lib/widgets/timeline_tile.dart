@@ -94,7 +94,9 @@ class _Bubble extends StatelessWidget {
     // User messages never carry a fenced code block worth parsing (they're
     // typed by hand); only an assistant reply's real markdown-ish fences —
     // e.g. a proposed diff — get split into separate prose/code segments.
-    final segments = isUser ? [_TextSegment(text)] : _splitMessageSegments(text);
+    final segments = isUser
+        ? [_TextSegment(text)]
+        : _splitMessageSegments(text);
     final maxWidth = MediaQuery.of(context).size.width * 0.78;
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -113,21 +115,41 @@ class _Bubble extends StatelessWidget {
             else if (segment is _TextSegment && segment.text.trim().isNotEmpty)
               Container(
                 margin: const EdgeInsets.only(top: 4),
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 12,
+                ),
                 constraints: BoxConstraints(maxWidth: maxWidth),
                 decoration: BoxDecoration(
                   color: isUser ? c.userBubble : c.bgCard,
+                  // Tighter, more asymmetric "Opérateur terminal" shape —
+                  // 6 on the three non-tail corners, 2 on the tail corner
+                  // (was 18/4).
                   borderRadius: BorderRadius.only(
-                    topLeft: const Radius.circular(18),
-                    topRight: const Radius.circular(18),
-                    bottomLeft: Radius.circular(isUser ? 18 : 4),
-                    bottomRight: Radius.circular(isUser ? 4 : 18),
+                    topLeft: const Radius.circular(6),
+                    topRight: const Radius.circular(6),
+                    bottomLeft: Radius.circular(isUser ? 6 : 2),
+                    bottomRight: Radius.circular(isUser ? 2 : 6),
                   ),
                   border: isUser ? null : Border.all(color: c.border),
                 ),
                 child: SelectableText(
                   segment.text.trim(),
-                  style: context.textStyles.body.copyWith(height: 1.35),
+                  // In dark mode the user bubble is now a bold solid fill
+                  // (`c.userBubble` == `c.accentFill`) rather than a soft
+                  // tint — `c.text` only reaches ~4.24:1 contrast against
+                  // it (just under the 4.5:1 target), so dark-mode user
+                  // bubbles use pure white text instead. Light mode's user
+                  // bubble is still a pale tint, where `c.text` (near-black)
+                  // already has ample contrast, so it's left alone.
+                  style: context.textStyles.body.copyWith(
+                    height: 1.35,
+                    color:
+                        isUser &&
+                            Theme.of(context).brightness == Brightness.dark
+                        ? Colors.white
+                        : null,
+                  ),
                 ),
               ),
           if (showCopy)
@@ -290,7 +312,11 @@ class _CodeBlockState extends ConsumerState<_CodeBlock> {
     final isDiff = widget.lang.toLowerCase() == 'diff';
     final lines = widget.code.split('\n');
     if (lines.isNotEmpty && lines.last.isEmpty) lines.removeLast();
-    final mono = GoogleFonts.ibmPlexMono(fontSize: 12.5, height: 1.5, color: const Color(0xFFE9ECF4));
+    final mono = GoogleFonts.ibmPlexMono(
+      fontSize: 12.5,
+      height: 1.5,
+      color: const Color(0xFFE9ECF4),
+    );
 
     return Container(
       decoration: BoxDecoration(
@@ -311,22 +337,35 @@ class _CodeBlockState extends ConsumerState<_CodeBlock> {
                 Expanded(
                   child: Text(
                     widget.lang.isEmpty ? 'code' : widget.lang,
-                    style: GoogleFonts.ibmPlexMono(fontSize: 11, color: const Color(0xFF8D96AC)),
+                    style: GoogleFonts.ibmPlexMono(
+                      fontSize: 11,
+                      color: const Color(0xFF8D96AC),
+                    ),
                   ),
                 ),
                 InkWell(
                   onTap: _copy,
                   borderRadius: BorderRadius.circular(6),
                   child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 4,
+                      vertical: 2,
+                    ),
                     child: Row(
                       mainAxisSize: MainAxisSize.min,
                       children: [
-                        Icon(_copied ? Icons.check : Icons.copy_outlined, size: 12, color: const Color(0xFF8D96AC)),
+                        Icon(
+                          _copied ? Icons.check : Icons.copy_outlined,
+                          size: 12,
+                          color: const Color(0xFF8D96AC),
+                        ),
                         const SizedBox(width: 4),
                         Text(
                           _copied ? t(ref, 'chat.copied') : t(ref, 'chat.copy'),
-                          style: GoogleFonts.ibmPlexMono(fontSize: 11, color: const Color(0xFF8D96AC)),
+                          style: GoogleFonts.ibmPlexMono(
+                            fontSize: 11,
+                            color: const Color(0xFF8D96AC),
+                          ),
                         ),
                       ],
                     ),
@@ -408,7 +447,7 @@ class _ToolChip extends StatelessWidget {
     // reads as "how much trust this call needed", not "it succeeded".
     final (icon, iconColor) = switch (riskLevel) {
       ToolRiskLevel.dangerous => (Icons.warning_rounded, c.danger),
-      ToolRiskLevel.ask => (Icons.pan_tool_alt_rounded, const Color(0xFFCE9B2E)),
+      ToolRiskLevel.ask => (Icons.pan_tool_alt_rounded, c.warning),
       ToolRiskLevel.safe => (Icons.check_rounded, c.success),
     };
     return Container(
@@ -429,7 +468,10 @@ class _ToolChip extends StatelessWidget {
             width: 20,
             height: 20,
             margin: const EdgeInsets.only(top: 1),
-            decoration: BoxDecoration(color: iconColor.withValues(alpha: 0.15), shape: BoxShape.circle),
+            decoration: BoxDecoration(
+              color: iconColor.withValues(alpha: 0.15),
+              shape: BoxShape.circle,
+            ),
             child: Icon(icon, size: 13, color: iconColor),
           ),
           const SizedBox(width: 10),

@@ -7,6 +7,7 @@ import '../state/language_provider.dart';
 import '../state/server_connection_provider.dart';
 import '../state/theme_provider.dart';
 import '../theme.dart';
+import '../widgets/content_width.dart';
 import '../widgets/labeled_field.dart';
 import 'about_screen.dart';
 
@@ -93,186 +94,268 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     return Scaffold(
       appBar: AppBar(title: Text(t(ref, 'settings.title'))),
-      body: ListView(
-        children: [
-          _SectionLabel(t(ref, 'settings.appearance')),
-          RadioGroup<ThemeMode>(
-            groupValue: themeMode,
-            onChanged: (mode) {
-              if (mode != null) {
-                ref.read(themeModeProvider.notifier).setMode(mode);
-              }
-            },
-            child: Column(
-              children: [
-                RadioListTile<ThemeMode>(
-                  value: ThemeMode.system,
-                  title: Text(t(ref, 'settings.system')),
-                ),
-                RadioListTile<ThemeMode>(
-                  value: ThemeMode.light,
-                  title: Text(t(ref, 'settings.light')),
-                ),
-                RadioListTile<ThemeMode>(
-                  value: ThemeMode.dark,
-                  title: Text(t(ref, 'settings.dark')),
-                ),
+      body: ContentWidth(
+        child: ListView(
+          children: [
+            _SectionLabel(t(ref, 'settings.appearance')),
+            _OptionGroup<ThemeMode>(
+              value: themeMode,
+              onChanged: (mode) =>
+                  ref.read(themeModeProvider.notifier).setMode(mode),
+              options: [
+                (ThemeMode.system, t(ref, 'settings.system')),
+                (ThemeMode.light, t(ref, 'settings.light')),
+                (ThemeMode.dark, t(ref, 'settings.dark')),
               ],
             ),
-          ),
-          const Divider(),
-          _SectionLabel(t(ref, 'settings.language')),
-          RadioGroup<String>(
-            groupValue: language,
-            onChanged: (code) {
-              if (code != null) {
-                ref.read(languageProvider.notifier).setLanguage(code);
-              }
-            },
-            child: Column(
-              children: [
+            const Divider(),
+            _SectionLabel(t(ref, 'settings.language')),
+            _OptionGroup<String>(
+              value: language,
+              onChanged: (code) =>
+                  ref.read(languageProvider.notifier).setLanguage(code),
+              options: [
                 for (final code in supportedLanguages)
-                  RadioListTile<String>(
-                    value: code,
-                    title: Text(_languageNames[code] ?? code),
-                  ),
+                  (code, _languageNames[code] ?? code),
               ],
             ),
-          ),
-          const Divider(),
-          _SectionLabel(t(ref, 'settings.providers')),
-          if (!_loaded)
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Center(child: CircularProgressIndicator()),
-            )
-          else ...[
-            _ProviderCard(
-              title: t(ref, 'settings.anthropicTitle'),
-              configured: _saved['anthropicApiKey'] != null,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_saved['anthropicApiKey'] != null)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 8),
-                      child: Text(
-                        _saved['anthropicApiKey']!,
-                        style: TextStyle(color: c.textMuted, fontSize: 12),
-                      ),
-                    ),
-                  Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _anthropicKeyController,
-                          obscureText: true,
-                          decoration: const InputDecoration(
-                            hintText: 'sk-ant-…',
-                          ),
+            const Divider(),
+            _SectionLabel(t(ref, 'settings.providers')),
+            if (!_loaded)
+              const Padding(
+                padding: EdgeInsets.all(16),
+                child: Center(child: CircularProgressIndicator()),
+              )
+            else ...[
+              _ProviderCard(
+                title: t(ref, 'settings.anthropicTitle'),
+                configured: _saved['anthropicApiKey'] != null,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_saved['anthropicApiKey'] != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 8),
+                        child: Text(
+                          _saved['anthropicApiKey']!,
+                          style: TextStyle(color: c.textMuted, fontSize: 12),
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      FilledButton(
-                        onPressed: _saveAnthropic,
-                        child: Text(t(ref, 'settings.save')),
-                      ),
-                    ],
-                  ),
-                ],
-              ),
-            ),
-            _ProviderCard(
-              title: t(ref, 'settings.otherProviderTitle'),
-              configured: _saved['baseUrl'] != null,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  LabeledField(
-                    label: t(ref, 'settings.baseUrl'),
-                    child: TextField(
-                      controller: _baseUrlController,
-                      decoration: InputDecoration(hintText: _saved['baseUrl'] ?? 'https://…/v1'),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _anthropicKeyController,
+                            obscureText: true,
+                            decoration: const InputDecoration(
+                              hintText: 'sk-ant-…',
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        FilledButton(
+                          onPressed: _saveAnthropic,
+                          child: Text(t(ref, 'settings.save')),
+                        ),
+                      ],
                     ),
-                  ),
-                  const SizedBox(height: 8),
-                  LabeledField(
-                    label: t(ref, 'settings.model'),
-                    child: TextField(
-                      controller: _modelController,
-                      decoration: InputDecoration(hintText: _saved['model'] ?? 'e.g. llama3.1'),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  LabeledField(
-                    label: t(ref, 'settings.apiKeyOptional'),
-                    child: TextField(
-                      controller: _apiKeyController,
-                      obscureText: true,
-                      decoration: InputDecoration(hintText: _saved['apiKey'] ?? ''),
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  FilledButton(
-                    onPressed: _saveOther,
-                    child: Text(t(ref, 'settings.save')),
-                  ),
-                ],
-              ),
-            ),
-            if (_status != null)
-              Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 4,
+                  ],
                 ),
-                child: Text(_status!, style: TextStyle(color: c.textMuted)),
               ),
+              _ProviderCard(
+                title: t(ref, 'settings.otherProviderTitle'),
+                configured: _saved['baseUrl'] != null,
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    LabeledField(
+                      label: t(ref, 'settings.baseUrl'),
+                      child: TextField(
+                        controller: _baseUrlController,
+                        decoration: InputDecoration(
+                          hintText: _saved['baseUrl'] ?? 'https://…/v1',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    LabeledField(
+                      label: t(ref, 'settings.model'),
+                      child: TextField(
+                        controller: _modelController,
+                        decoration: InputDecoration(
+                          hintText: _saved['model'] ?? 'e.g. llama3.1',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    LabeledField(
+                      label: t(ref, 'settings.apiKeyOptional'),
+                      child: TextField(
+                        controller: _apiKeyController,
+                        obscureText: true,
+                        decoration: InputDecoration(
+                          hintText: _saved['apiKey'] ?? '',
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    FilledButton(
+                      onPressed: _saveOther,
+                      child: Text(t(ref, 'settings.save')),
+                    ),
+                  ],
+                ),
+              ),
+              if (_status != null)
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 4,
+                  ),
+                  child: Text(_status!, style: TextStyle(color: c.textMuted)),
+                ),
+            ],
+            const Divider(),
+            _SectionLabel(t(ref, 'settings.server')),
+            ListTile(
+              leading: Icon(Icons.dns_outlined, color: c.textMuted),
+              title: Text(t(ref, 'settings.connectedTo')),
+              subtitle: Text(widget.connection.baseUrl),
+            ),
+            ListTile(
+              leading: Icon(Icons.key_outlined, color: c.textMuted),
+              title: Text(t(ref, 'settings.login')),
+              subtitle: Text(
+                widget.connection.token != null
+                    ? t(ref, 'settings.signedIn')
+                    : t(ref, 'settings.noLoginRequired'),
+              ),
+            ),
+            ListTile(
+              leading: Icon(Icons.info_outline, color: c.textMuted),
+              title: Text(t(ref, 'about.title')),
+              onTap: () => Navigator.of(context).push(
+                MaterialPageRoute(
+                  builder: (_) => AboutScreen(connection: widget.connection),
+                ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: OutlinedButton.icon(
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: c.danger,
+                  side: BorderSide(color: c.danger),
+                ),
+                icon: const Icon(Icons.logout),
+                label: Text(t(ref, 'settings.disconnect')),
+                onPressed: () async {
+                  await ref.read(serverConnectionProvider.notifier).forget();
+                  if (context.mounted) {
+                    Navigator.of(context).popUntil((route) => route.isFirst);
+                  }
+                },
+              ),
+            ),
           ],
-          const Divider(),
-          _SectionLabel(t(ref, 'settings.server')),
-          ListTile(
-            leading: Icon(Icons.dns_outlined, color: c.textMuted),
-            title: Text(t(ref, 'settings.connectedTo')),
-            subtitle: Text(widget.connection.baseUrl),
+        ),
+      ),
+    );
+  }
+}
+
+/// A compact, bespoke replacement for `RadioGroup`/`RadioListTile` — those
+/// rendered as generic Material list rows (default ripple-circle radio,
+/// full-width tile) that clashed with the flatter "Opérateur terminal"
+/// direction elsewhere on this screen. Hand-rolled instead of a reskinned
+/// `RadioListTile` because `RadioListTile`'s own styling hooks (`shape`,
+/// `activeColor`/`fillColor`) can recolor the tile and the radio glyph but
+/// can't reshape the indicator itself into the flat ring/filled-ring dot the
+/// approved mockup uses — the built-in Radio always draws Material's own
+/// circular check glyph. `Semantics` reproduces exactly what `RadioListTile`
+/// would have given a screen reader (`button`, `selected`, and a label),
+/// so this loses no accessibility versus the widget it replaces.
+class _OptionGroup<T> extends StatelessWidget {
+  final T value;
+  final ValueChanged<T> onChanged;
+  final List<(T, String)> options;
+  const _OptionGroup({
+    required this.value,
+    required this.onChanged,
+    required this.options,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (final (optionValue, label) in options)
+          _OptionRow<T>(
+            label: label,
+            selected: optionValue == value,
+            onTap: () => onChanged(optionValue),
           ),
-          ListTile(
-            leading: Icon(Icons.key_outlined, color: c.textMuted),
-            title: Text(t(ref, 'settings.login')),
-            subtitle: Text(
-              widget.connection.token != null
-                  ? t(ref, 'settings.signedIn')
-                  : t(ref, 'settings.noLoginRequired'),
-            ),
+      ],
+    );
+  }
+}
+
+class _OptionRow<T> extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _OptionRow({
+    required this.label,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(FinanfaRadii.md),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(
+            horizontal: FinanfaSpace.lg,
+            vertical: FinanfaSpace.sm + 2,
           ),
-          ListTile(
-            leading: Icon(Icons.info_outline, color: c.textMuted),
-            title: Text(t(ref, 'about.title')),
-            onTap: () => Navigator.of(context).push(
-              MaterialPageRoute(
-                builder: (_) => AboutScreen(connection: widget.connection),
+          child: Row(
+            children: [
+              // Unfilled ring in `c.border` when unselected, accent-filled
+              // ring when selected — a flatter, sharper-edged stand-in for
+              // the default Material radio glyph.
+              Container(
+                width: 18,
+                height: 18,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  border: Border.all(
+                    color: selected ? c.accent : c.border,
+                    width: 1.5,
+                  ),
+                ),
+                padding: const EdgeInsets.all(3),
+                child: selected
+                    ? DecoratedBox(
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: c.accent,
+                        ),
+                      )
+                    : null,
               ),
-            ),
+              const SizedBox(width: FinanfaSpace.md),
+              Text(label, style: context.textStyles.body),
+            ],
           ),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            child: OutlinedButton.icon(
-              style: OutlinedButton.styleFrom(
-                foregroundColor: c.danger,
-                side: BorderSide(color: c.danger),
-              ),
-              icon: const Icon(Icons.logout),
-              label: Text(t(ref, 'settings.disconnect')),
-              onPressed: () async {
-                await ref.read(serverConnectionProvider.notifier).forget();
-                if (context.mounted) {
-                  Navigator.of(context).popUntil((route) => route.isFirst);
-                }
-              },
-            ),
-          ),
-        ],
+        ),
       ),
     );
   }
@@ -292,7 +375,10 @@ class _ProviderCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = context.colors;
     return Card(
-      margin: const EdgeInsets.symmetric(horizontal: FinanfaSpace.lg, vertical: FinanfaSpace.sm),
+      margin: const EdgeInsets.symmetric(
+        horizontal: FinanfaSpace.lg,
+        vertical: FinanfaSpace.sm,
+      ),
       child: Padding(
         padding: const EdgeInsets.all(FinanfaSpace.lg),
         child: Column(
