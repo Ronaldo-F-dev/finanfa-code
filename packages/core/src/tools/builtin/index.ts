@@ -132,6 +132,7 @@ import { securityScanXssTool } from "./security/xss.js";
 import { securityScanInfraExposureTool } from "./security/infra-exposure.js";
 import { securityScanPortsTool } from "./security/port-scan.js";
 import { createSecurityScanWifiTool } from "./security/wifi-scan.js";
+import { createSecurityScanBluetoothTool } from "./security/bluetooth-scan.js";
 import { securityScanParamFuzzingTool } from "./security/param-fuzzing.js";
 import { securityScanWebsocketTool } from "./security/websocket.js";
 import { securityScanSqliTool } from "./security/sqli.js";
@@ -304,6 +305,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(securityScanInfraExposureTool);
   registry.register(securityScanPortsTool);
   registry.register(createSecurityScanWifiTool());
+  registry.register(createSecurityScanBluetoothTool());
   registry.register(securityScanParamFuzzingTool);
   registry.register(securityScanWebsocketTool);
   registry.register(securityScanSqliTool);
