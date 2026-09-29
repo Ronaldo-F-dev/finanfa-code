@@ -1179,7 +1179,7 @@ async function buildTurnContext(
   }
   if (GATEWAY_ENABLED) session.ownerUser = opts.user;
   if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
-  session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
+  session.toolSearchEnabled = resolveToolSearchEnabled(config);
   session.localModelLeanEnabled = localModelLeanEnabled;
   const model = session.model;
 
