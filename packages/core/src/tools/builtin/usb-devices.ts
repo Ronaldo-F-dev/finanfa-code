@@ -1,6 +1,10 @@
 import { spawn } from "node:child_process";
+import net from "node:net";
 import type { ToolDefinition } from "../../core/types.js";
 import { isCommandAvailable } from "../../util/command-availability.js";
+import { killProcessGroup } from "../../util/process.js";
+import { waitForPort } from "./wait-for-port.js";
+import { buildSshArgs, runSshWithRetry } from "./remote-exec.js";
 
 // Real gap this fills: the IoT tool category (gpio/mqtt/coap/serial) talks
 // to microcontrollers over USB/serial/GPIO, but nothing here detects a
@@ -240,8 +244,8 @@ export function createListUsbDevicesTool(options: ListUsbDevicesOptions = {}): T
       "serial. Windows support is best-effort (PowerShell Get-PnpDevice) and unverified on real hardware. " +
       "None of these external tools need to be installed — the result reports which detection methods " +
       "actually ran vs were skipped (not installed) rather than failing outright. An identified phone's id " +
-      "(an adb serial or iOS UDID) is what run_adb_command targets — note that only Android devices can " +
-      "have commands run against them (see run_adb_command's description for why).",
+      "(an adb serial or iOS UDID) is what run_adb_command/run_ios_ssh_command target — note that iOS command " +
+      "execution only works on a JAILBROKEN device running an SSH server (see run_ios_ssh_command).",
     riskLevel: "safe",
     inputSchema: { type: "object", properties: {} },
     describeCall: () => "list connected USB devices",
@@ -302,9 +306,9 @@ export function createRunAdbCommandTool(options: RunAdbCommandOptions = {}): Too
       "['pull', '/sdcard/file.txt', 'local.txt']. " +
       "IMPORTANT: this runs a real command against real physical hardware over USB — install/push/pull/shell " +
       "can modify the device's real filesystem or installed apps, so confirm with the user before running " +
-      "anything destructive. Android only: there is deliberately no iOS equivalent of this tool — iOS does " +
-      "not allow arbitrary shell command execution over USB without jailbreaking, so list_usb_devices can " +
-      "identify a connected iOS device by UDID but nothing in this codebase can run commands on one.",
+      "anything destructive. Android only: stock iOS does not allow arbitrary shell command execution over " +
+      "USB without jailbreaking — for a JAILBROKEN iOS device with an SSH server installed, see " +
+      "run_ios_ssh_command instead.",
     riskLevel: "dangerous",
     inputSchema: {
       type: "object",
@@ -330,6 +334,154 @@ export function createRunAdbCommandTool(options: RunAdbCommandOptions = {}): Too
       }
       const content = result.stdout.trim() || result.stderr.trim() || "(no output)";
       return { content, isError: result.code !== 0 };
+    },
+  };
+}
+
+// --- iOS: run_ios_ssh_command (jailbroken devices only) -----------------
+//
+// Stock iOS has no adb equivalent (see run_adb_command's description), but
+// a JAILBROKEN device can run a real SSH server (OpenSSH via Cydia/Sileo)
+// reachable over USB by tunneling a local TCP port to the device's SSH
+// port via `iproxy` (part of libimobiledevice — already a dependency of
+// list_usb_devices' iOS detection above, via idevice_id/ideviceinfo).
+//
+// This deliberately reuses remote-exec.ts's SSH execution path
+// (buildSshArgs/runSshWithRetry — the real, already-installed `ssh`
+// binary run with BatchMode=yes) rather than adding a new SSH client
+// dependency: there is no ssh2 (or similar) library anywhere in this
+// monorepo, and remote-exec.ts's "shell out to the user's real ssh,
+// non-interactively" IS this codebase's one real SSH execution path.
+// Called directly with an ephemeral SshTarget pointed at
+// localhost:<localPort> rather than going through register_remote_host's
+// persistent named-host registry — that registry exists for hosts worth
+// remembering across calls (list_remote_hosts, health history), which a
+// one-off tunnel through a specific USB-connected device's UDID is not;
+// forcing a register/exec/remove round trip here would just be registry
+// churn for a target that's only ever valid while this one call runs.
+//
+// Same credential convention as run_remote_command/register_remote_host:
+// no password field. BatchMode=yes (baked into buildSshArgs) means
+// password auth fails closed rather than prompting — auth is by SSH key
+// (ssh-agent, or an explicit identity_file), never a password passed as a
+// tool argument. A freshly jailbroken device's SSH server commonly still
+// has the well-known default root password ("alpine") — the user should
+// disable password auth or change it, not rely on this tool to keep it
+// safe.
+
+const IPROXY_BIND_TIMEOUT_MS = 15_000;
+const IOS_SSH_DEFAULT_TIMEOUT_MS = 60_000;
+
+/** Binds an ephemeral local port just to learn which one the OS handed out, then frees it — same "ask the OS" trick as a lot of test-server setups, and the standard way to auto-pick a free TCP port from Node without a helper library. */
+function pickFreePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = net.createServer();
+    server.on("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = address && typeof address === "object" ? address.port : undefined;
+      server.close(() => (port ? resolve(port) : reject(new Error("Failed to allocate a free local port."))));
+    });
+  });
+}
+
+export interface RunIosSshCommandOptions {
+  iproxyBinary?: string;
+  sshBinary?: string;
+}
+
+interface RunIosSshCommandInput {
+  udid: string;
+  command: string;
+  user?: string;
+  device_port?: number;
+  local_port?: number;
+  identity_file?: string;
+  timeout_ms?: number;
+}
+
+export function createRunIosSshCommandTool(options: RunIosSshCommandOptions = {}): ToolDefinition<RunIosSshCommandInput> {
+  const iproxyBin = options.iproxyBinary ?? "iproxy";
+  const sshBin = options.sshBinary ?? "ssh";
+
+  return {
+    name: "run_ios_ssh_command",
+    description:
+      "Run a real shell command on a connected iOS device over USB, via SSH tunneled through `iproxy` " +
+      "(libimobiledevice). ONLY works on a JAILBROKEN device — stock iOS has no SSH server at all, so this " +
+      "will fail on any non-jailbroken device even if list_usb_devices detects it by UDID. Requires: (1) " +
+      "`iproxy` installed locally (part of libimobiledevice, e.g. `brew install libimobiledevice`), and (2) " +
+      "the device's own SSH server (OpenSSH via Cydia/Sileo) actually running — this tool does not install " +
+      "or start one. Targets the device by UDID (see list_usb_devices). Auth is key-based only (ssh-agent or " +
+      "identity_file) — like run_remote_command, this never takes a password as input; a device still using " +
+      "the well-known default jailbreak root password ('alpine') should have that changed. " +
+      "IMPORTANT: this runs a real command against real physical hardware, typically as root — confirm with " +
+      "the user before running anything destructive.",
+    riskLevel: "dangerous",
+    inputSchema: {
+      type: "object",
+      properties: {
+        udid: { type: "string", description: "Device UDID from list_usb_devices' output" },
+        command: { type: "string", description: "Command to run on the device — interpreted by the device's remote shell" },
+        user: { type: "string", description: "SSH username (default 'root' — jailbroken iOS's SSH default)" },
+        device_port: { type: "number", description: "SSH port on the device itself (default 22)" },
+        local_port: { type: "number", description: "Local port to tunnel through. Omit to auto-pick a free one." },
+        identity_file: { type: "string", description: "Path to a specific private key, if not already resolved via ssh-agent" },
+        timeout_ms: { type: "number", description: `Timeout in milliseconds for the SSH command itself (default ${IOS_SSH_DEFAULT_TIMEOUT_MS})` },
+      },
+      required: ["udid", "command"],
+    },
+    riskKey: (input) => `run_ios_ssh_command:${input.udid}`,
+    describeCall: (input) => `ssh (via iproxy) ${input.user ?? "root"}@<iOS ${input.udid}>: ${input.command}`,
+    async handler(input) {
+      if (!isCommandAvailable(iproxyBin)) {
+        return { content: "iproxy not found — install libimobiledevice (e.g. `brew install libimobiledevice`).", isError: true };
+      }
+
+      const devicePort = input.device_port ?? 22;
+      let localPort: number;
+      try {
+        localPort = input.local_port ?? (await pickFreePort());
+      } catch (err) {
+        return { content: `Failed to pick a local port for the tunnel: ${err instanceof Error ? err.message : String(err)}`, isError: true };
+      }
+
+      let iproxyStderr = "";
+      let iproxyExited = false;
+      let spawnErrorMessage: string | undefined;
+      const iproxy = spawn(iproxyBin, [String(localPort), String(devicePort), input.udid], { detached: true });
+      iproxy.stderr?.on("data", (d) => (iproxyStderr += d));
+      iproxy.once("error", (err) => {
+        spawnErrorMessage = err.message;
+      });
+      iproxy.once("exit", () => {
+        iproxyExited = true;
+      });
+
+      try {
+        // Wait for the tunnel to actually bind rather than guessing a fixed
+        // sleep — shouldAbort stops the poll early if iproxy dies outright
+        // (bad UDID, device unplugged, iproxy itself missing a runtime dep)
+        // instead of waiting out the full bind timeout for a tunnel that
+        // will never come up.
+        const bindResult = await waitForPort("127.0.0.1", localPort, IPROXY_BIND_TIMEOUT_MS, { shouldAbort: () => iproxyExited || spawnErrorMessage !== undefined });
+        if (spawnErrorMessage) {
+          return { content: `Failed to start iproxy: ${spawnErrorMessage}`, isError: true };
+        }
+        if (!bindResult.ready) {
+          const detail = iproxyStderr.trim() || (iproxyExited ? "iproxy exited before the tunnel came up" : "timed out waiting for the tunnel to bind");
+          return { content: `iproxy tunnel to ${input.udid}:${devicePort} never came up: ${detail}`, isError: true };
+        }
+
+        const args = buildSshArgs({ host: "127.0.0.1", port: localPort, user: input.user ?? "root", identityFile: input.identity_file, command: input.command });
+        const result = await runSshWithRetry(sshBin, args, input.timeout_ms ?? IOS_SSH_DEFAULT_TIMEOUT_MS);
+        const header = result.isError ? "(failed)\n" : "(exit code 0)\n";
+        return { content: `${header}--- stdout ---\n${result.stdout}\n--- stderr ---\n${result.stderr}`, isError: result.isError };
+      } finally {
+        // Tear down the tunnel unconditionally (success or failure) so it
+        // never leaks a lingering iproxy process across calls.
+        killProcessGroup(iproxy);
+      }
     },
   };
 }

@@ -1,11 +1,14 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, beforeAll } from "vitest";
+import { chmod } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
-import { createListUsbDevicesTool, createRunAdbCommandTool } from "../../src/tools/builtin/usb-devices.js";
+import { createListUsbDevicesTool, createRunAdbCommandTool, createRunIosSshCommandTool } from "../../src/tools/builtin/usb-devices.js";
 import { resetCommandAvailabilityCacheForTests } from "../../src/util/command-availability.js";
 
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
 const FAKE_ADB = fileURLToPath(new URL("../fixtures/fake-adb.mjs", import.meta.url));
 const FAKE_SYSTEM_PROFILER = fileURLToPath(new URL("../fixtures/fake-system-profiler.mjs", import.meta.url));
+const FAKE_IPROXY = fileURLToPath(new URL("../fixtures/fake-iproxy.mjs", import.meta.url));
+const FAKE_SSH = fileURLToPath(new URL("../fixtures/fake-ssh.mjs", import.meta.url));
 const MISSING_BIN = "/nonexistent/definitely-not-a-real-binary-xyz";
 
 describe("list_usb_devices (real subprocess, fake system_profiler/adb stand-ins)", () => {
@@ -98,4 +101,77 @@ describe("run_adb_command (real subprocess, fake adb stand-in)", () => {
     expect(result.content).toContain("Android Platform Tools");
     expect(result.content).not.toContain("ENOENT");
   });
+});
+
+describe("run_ios_ssh_command (real subprocess, fake iproxy + ssh stand-ins)", () => {
+  beforeAll(async () => {
+    await chmod(FAKE_IPROXY, 0o755);
+    await chmod(FAKE_SSH, 0o755);
+  });
+
+  it("has 'dangerous' risk level, scoped riskKey by udid", () => {
+    const tool = createRunIosSshCommandTool({ iproxyBinary: FAKE_IPROXY, sshBinary: FAKE_SSH });
+    expect(tool.riskLevel).toBe("dangerous");
+    expect(tool.riskKey?.({ udid: "abc-123", command: "whoami" })).toBe("run_ios_ssh_command:abc-123");
+  });
+
+  it("starts the iproxy tunnel, runs the SSH command against the tunneled local port, and returns real output", async () => {
+    resetCommandAvailabilityCacheForTests();
+    const tool = createRunIosSshCommandTool({ iproxyBinary: FAKE_IPROXY, sshBinary: FAKE_SSH });
+    const result = await tool.handler({ udid: "00008030-000ABC123", command: "whoami", local_port: 39201 }, ctx);
+    expect(result.isError).toBe(false);
+    // fake-ssh.mjs echoes its own real argv for the "whoami" command — confirms
+    // the tunnel's local port and default root user actually made it into the
+    // real ssh argv, not just some hardcoded/skipped value.
+    expect(result.content).toContain('"-p","39201"');
+    expect(result.content).toContain('"root@127.0.0.1"');
+  }, 15_000);
+
+  it("respects an overridden user", async () => {
+    resetCommandAvailabilityCacheForTests();
+    const tool = createRunIosSshCommandTool({ iproxyBinary: FAKE_IPROXY, sshBinary: FAKE_SSH });
+    const result = await tool.handler({ udid: "00008030-000ABC124", command: "whoami", local_port: 39202, user: "mobile" }, ctx);
+    expect(result.isError).toBe(false);
+    expect(result.content).toContain('"mobile@127.0.0.1"');
+  }, 15_000);
+
+  it("gives a clear 'iproxy not found' error, not a cryptic ENOENT, when iproxy is missing", async () => {
+    resetCommandAvailabilityCacheForTests();
+    const tool = createRunIosSshCommandTool({ iproxyBinary: MISSING_BIN, sshBinary: FAKE_SSH });
+    const result = await tool.handler({ udid: "00008030-000ABC125", command: "whoami" }, ctx);
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain("iproxy not found");
+    expect(result.content).toContain("libimobiledevice");
+    expect(result.content).not.toContain("ENOENT");
+  });
+
+  it("tears down the iproxy process after the command completes — the local port is free again afterwards", async () => {
+    resetCommandAvailabilityCacheForTests();
+    const tool = createRunIosSshCommandTool({ iproxyBinary: FAKE_IPROXY, sshBinary: FAKE_SSH });
+    const port = 39203;
+    const result = await tool.handler({ udid: "00008030-000ABC126", command: "whoami", local_port: port }, ctx);
+    expect(result.isError).toBe(false);
+
+    // If the fake iproxy process were still alive, this port would still be
+    // bound and a fresh listen() on it would fail with EADDRINUSE.
+    const net = await import("node:net");
+    await new Promise<void>((resolve, reject) => {
+      const probe = net.createServer();
+      probe.once("error", reject);
+      probe.listen(port, "127.0.0.1", () => probe.close(() => resolve()));
+    });
+  }, 15_000);
+
+  it("reports a clear error (not a hang) when the tunnel comes up but nothing SSH-like is listening on the other end", async () => {
+    resetCommandAvailabilityCacheForTests();
+    // No sshBinary override here — this exercises the REAL system `ssh`
+    // client against fake-iproxy's "refused" mode, which accepts the local
+    // TCP connection (so the tunnel itself looks up) and then immediately
+    // resets it, exactly like a real iproxy forwarding to a device whose SSH
+    // server isn't running. Real ssh fails the handshake fast (exit 255),
+    // it doesn't hang.
+    const tool = createRunIosSshCommandTool({ iproxyBinary: FAKE_IPROXY });
+    const result = await tool.handler({ udid: "00008030-refused-device", command: "whoami", local_port: 39204, timeout_ms: 8_000 }, ctx);
+    expect(result.isError).toBe(true);
+  }, 20_000);
 });

@@ -87,7 +87,7 @@ import { createWorkflowTools } from "./workflow.js";
 import { createBrowserTools } from "./browser.js";
 import { createSerialTools } from "./serial.js";
 import { SerialManager } from "../../serial/manager.js";
-import { createListUsbDevicesTool, createRunAdbCommandTool } from "./usb-devices.js";
+import { createListUsbDevicesTool, createRunAdbCommandTool, createRunIosSshCommandTool } from "./usb-devices.js";
 import { createBackgroundProcessTools } from "./background-process.js";
 import { BackgroundProcessManager } from "../../core/background-process.js";
 import { createPythonReplTool } from "./python-repl.js";
@@ -193,6 +193,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   if (isCommandAvailable("kubectl")) registry.register(kubectlTool!);
   registry.register(createListUsbDevicesTool());
   if (isCommandAvailable("adb")) registry.register(createRunAdbCommandTool());
+  if (isCommandAvailable("iproxy")) registry.register(createRunIosSshCommandTool());
   registry.register(mqttPublishTool);
   registry.register(mqttSubscribeTool);
   registry.register(coapRequestTool);
