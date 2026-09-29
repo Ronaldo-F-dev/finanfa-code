@@ -8,7 +8,10 @@
     "dev": "vite build --watch"
   },
   "dependencies": {
-    "marked": "^15.0.12",
+    "@types/vscode": "^1.138.0",
+    "@vscode/vsce": "^4.0.0",
+    "esbuild": "^0.28.2",
+    "marked": "^18.0.13",
     "react": "^19.2.8",
     "react-dom": "^19.2.8"
   },
@@ -16,8 +19,8 @@
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.5",
     "@types/vscode-webview": "^1.57.5",
-    "@vitejs/plugin-react": "^4.3.4",
-    "typescript": "^5.7.2",
-    "vite": "^6.3.5"
+    "@vitejs/plugin-react": "^6.1.1",
+    "typescript": "^7.0.2",
+    "vite": "^8.3.0"
   }
 }
