@@ -273,7 +273,7 @@ async function createAcpSession(cwd: string, cx: ClientRequester, opts: CreateAc
   const sessionId = opts.resumeSessionId ?? randomUUID();
 
   const tools = new ToolRegistry();
-  registerBuiltins(tools, { sandbox: config.sandbox });
+  registerBuiltins(tools, { sandbox: config.sandbox, config });
   if (opts.clientCapabilities.fs?.readTextFile) tools.replace(createAcpReadFileTool(cx, sessionId));
   if (opts.clientCapabilities.fs?.writeTextFile) tools.replace(createAcpWriteFileTool(cx, sessionId, Boolean(opts.clientCapabilities.fs?.readTextFile)));
   if (opts.clientCapabilities.terminal) tools.replace(createAcpBashTool(cx, sessionId, config.sandbox));
