@@ -4,6 +4,8 @@ import type { PermissionManager } from "../../permissions/manager.js";
 import type { UIAdapter } from "../../ui/adapter.js";
 import type { BrowserManager } from "../../browser/manager.js";
 import type { SandboxConfig } from "../../util/sandbox.js";
+import type { FinanfaConfig } from "../../core/config.js";
+import { createRagTools } from "./rag-tools.js";
 import { readFileTool } from "./read-file.js";
 import { writeFileTool } from "./write-file.js";
 import { editFileTool } from "./edit-file.js";
@@ -159,7 +161,7 @@ import { createJailbreakScanTool } from "./security/jailbreak.js";
 import type { SubagentType } from "../../agents/loader.js";
 
 /** Stateless builtins — no shared instance state, safe to register in any order. */
-export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: SandboxConfig }): void {
+export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: SandboxConfig; config?: FinanfaConfig }): void {
   registry.register(readFileTool);
   registry.register(writeFileTool);
   registry.register(editFileTool);
@@ -333,6 +335,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(securityScanAccountCreationTool);
   registry.register(securityScanCrawlerTool);
   for (const tool of gitTools) registry.register(tool);
+  for (const tool of createRagTools(opts?.config ?? {})) registry.register(tool);
 }
 
 export interface StatefulToolDeps {
