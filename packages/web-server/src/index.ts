@@ -962,7 +962,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
     const trusted = await resolveTrust(CWD, adapter);
     const permissionConfig = await loadPermissionConfig(CWD, trusted);
     const hooksConfig = await loadHooksConfig(CWD, trusted);
-    const permissions = new PermissionManager({ config: permissionConfig, ui: adapter, hooksConfig });
+    const permissions = new PermissionManager({ config: permissionConfig, ui: adapter, hooksConfig, provider });
 
     // Plugins are arbitrary imported JS, not inert config like hooks —
     // gated on the same folder-trust decision above, not loaded before it.
@@ -1340,6 +1340,10 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
             sendSessionInfo();
             return;
           }
+          // Keeps the auto-approval classifier (if enabled) classifying
+          // against the model this session actually just switched to,
+          // rather than a stale provider captured at connection time.
+          permissions.setProvider(provider);
           // A manual pick through this plain picker is a distinct action
           // from an effort tier (see set_effort below) — the "effort" badge
           // shouldn't keep claiming Faible/Moyen/Fort once the user has
@@ -1503,6 +1507,9 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
             sendSessionInfo();
             return;
           }
+          // Same as set_model above — keep the classifier on the provider
+          // this effort tier actually switched to.
+          permissions.setProvider(provider);
           session.maxTokens = tier.maxTokens;
           session.effort = tier.id;
           if (tier.toolBudget === "none") {
