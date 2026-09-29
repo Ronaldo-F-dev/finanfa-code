@@ -7,6 +7,7 @@ import '../core/models/session_models.dart';
 import '../state/api_client_provider.dart';
 import '../state/language_provider.dart';
 import '../theme.dart';
+import '../widgets/content_width.dart';
 
 final _channelsProvider = FutureProvider.autoDispose<List<ChannelStatus>>((
   ref,
@@ -31,22 +32,27 @@ class ChannelsScreen extends ConsumerWidget {
       body: channelsAsync.when(
         loading: () => const Center(child: CircularProgressIndicator()),
         error: (err, _) => Center(child: Text(t(ref, 'channels.failedToLoad'))),
-        data: (channels) => ListView(
-          padding: const EdgeInsets.all(12),
-          children: [
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
-              child: Text(
-                t(ref, 'channels.hint'),
-                style: TextStyle(color: context.colors.textMuted, fontSize: 13),
+        data: (channels) => ContentWidth(
+          child: ListView(
+            padding: const EdgeInsets.all(12),
+            children: [
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+                child: Text(
+                  t(ref, 'channels.hint'),
+                  style: TextStyle(
+                    color: context.colors.textMuted,
+                    fontSize: 13,
+                  ),
+                ),
               ),
-            ),
-            for (final c in channels)
-              _ChannelCard(
-                channel: c,
-                onSaved: () => ref.invalidate(_channelsProvider),
-              ),
-          ],
+              for (final c in channels)
+                _ChannelCard(
+                  channel: c,
+                  onSaved: () => ref.invalidate(_channelsProvider),
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -84,7 +90,8 @@ class _ChannelCardState extends ConsumerState<_ChannelCard> {
     final client = ref.read(apiClientProvider);
     try {
       final values = {
-        for (final f in widget.channel.fields) f.key: _controllerFor(f.key).text.trim(),
+        for (final f in widget.channel.fields)
+          f.key: _controllerFor(f.key).text.trim(),
       };
       await client?.saveChannelConfig(widget.channel.id, values);
       for (final c in _controllers.values) {
@@ -133,11 +140,17 @@ class _ChannelCardState extends ConsumerState<_ChannelCard> {
                   Expanded(
                     child: Text(
                       channel.name,
-                      style: TextStyle(fontWeight: FontWeight.w600, color: c.text),
+                      style: TextStyle(
+                        fontWeight: FontWeight.w600,
+                        color: c.text,
+                      ),
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 2),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 9,
+                      vertical: 2,
+                    ),
                     decoration: BoxDecoration(
                       borderRadius: BorderRadius.circular(20),
                       border: Border.all(
@@ -215,7 +228,10 @@ class _ChannelCardState extends ConsumerState<_ChannelCard> {
                               children: [
                                 Text(
                                   w.label,
-                                  style: TextStyle(color: c.textMuted, fontSize: 11.5),
+                                  style: TextStyle(
+                                    color: c.textMuted,
+                                    fontSize: 11.5,
+                                  ),
                                 ),
                                 Text(
                                   w.url,
