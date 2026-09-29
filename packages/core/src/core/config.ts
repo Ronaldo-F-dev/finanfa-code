@@ -53,6 +53,21 @@ export interface FinanfaConfig {
   visionApiKey?: string;
   visionModel?: string;
   /**
+   * A fourth, separate capability slot (alongside the primary/vision/image-
+   * generation ones) for RAG embeddings — see core/rag/embedding-provider.ts.
+   * Unset by default: finanfa-code embeds locally, in-process, via
+   * @huggingface/transformers (Xenova/all-MiniLM-L6-v2), no server or API
+   * key required. Setting embeddingApiBaseUrl opts into an OpenAI-compatible
+   * embeddings endpoint instead (Ollama's nomic-embed-text, llama-server
+   * --embeddings, a cloud provider) via the existing embedTexts in
+   * embeddings.ts. Never conflated with baseUrl/visionBaseUrl — a local
+   * model being used for chat says nothing about whether it's also meant
+   * to serve embeddings.
+   */
+  embeddingApiBaseUrl?: string;
+  embeddingApiKey?: string;
+  embeddingModel?: string;
+  /**
    * Enables Anthropic extended thinking (direct/Bedrock/Vertex — see
    * streamAnthropicTurn) with this token budget. A plain string like every
    * other /config-set value, parsed to a number where it's actually used
