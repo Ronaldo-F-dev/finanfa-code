@@ -6,7 +6,7 @@ import { AgentSession } from "@finanfa/core/src/core/session.js";
 import { runTurn, maybeGenerateTitle, compactSession, isLoopGuardStopMessage } from "@finanfa/core/src/core/loop.js";
 import { ToolRegistry } from "@finanfa/core/src/tools/registry.js";
 import { registerBuiltins, registerStatefulBuiltins } from "@finanfa/core/src/tools/builtin/index.js";
-import { PermissionManager } from "@finanfa/core/src/permissions/manager.js";
+import { PermissionManager, type PermissionManagerOptions } from "@finanfa/core/src/permissions/manager.js";
 import { loadPermissionConfig } from "@finanfa/core/src/permissions/config.js";
 import { loadHooksConfig } from "@finanfa/core/src/hooks/config.js";
 import { resolveTrust } from "@finanfa/core/src/core/trust-gate.js";
@@ -56,9 +56,11 @@ import { isOllamaAvailable, listOllamaModels, pullOllamaModel, deleteOllamaModel
 import { EFFORT_TIERS, getEffortTier, isDefaultProviderTier, MINIMAL_TOOL_SET } from "@finanfa/core/src/core/effort-tiers.js";
 import { AnthropicProvider } from "@finanfa/core/src/providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "@finanfa/core/src/providers/openai-compatible-provider.js";
-import type { LlmProvider, NeutralImage } from "@finanfa/core/src/core/types.js";
+import type { LlmProvider, NeutralImage, ToolContext, ToolDefinition } from "@finanfa/core/src/core/types.js";
+import type { PermissionDecision } from "@finanfa/core/src/permissions/config.js";
 import { PRICING } from "@finanfa/core/src/core/pricing.js";
 import { createWebUiAdapter } from "./web-ui-adapter.js";
+import type { UIAdapter } from "@finanfa/core/src/ui/adapter.js";
 import { resolveAllowedPath } from "@finanfa/core/src/tools/builtin/path-guard.js";
 import { initTracing } from "@finanfa/core/src/observability/tracing.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
@@ -564,6 +566,234 @@ app.delete("/api/sessions/:id", async (req, res) => {
   res.json({ ok: true });
 });
 
+/** Records which tool calls this one turn got denied — see buildTurnContext's createPermissions hook. loop.ts's dispatch never fires writeToolCall/writeToolResult for a "deny" decision at all (it returns before either), so this is the only way POST /api/turn can report "a tool call needed a decision this stateless request couldn't make" instead of silently returning a final answer that skipped a step. */
+class RecordingPermissionManager extends PermissionManager {
+  readonly deniedTools: string[] = [];
+  override async check(tool: ToolDefinition, input: unknown, ctx: ToolContext, toolCallId?: string): Promise<PermissionDecision> {
+    const decision = await super.check(tool, input, ctx, toolCallId);
+    if (decision === "deny") this.deniedTools.push(tool.name);
+    return decision;
+  }
+}
+
+/**
+ * A UIAdapter for POST /api/turn: nothing here streams anywhere (the whole
+ * point of this endpoint is a single blocking JSON response), so every
+ * hook just accumulates into plain arrays/strings the route reads back
+ * once runTurn resolves. askUser is never expected to actually be called —
+ * both resolveTrust and PermissionManager are wired with nonInteractive:
+ * true for this endpoint (see buildTurnContext), so neither ever prompts —
+ * but it fails safe (denies) rather than hanging if some new code path
+ * ever did call it.
+ */
+function createHeadlessUiAdapter(): { adapter: UIAdapter; collected: { text: string; systemMessages: string[]; errors: string[]; toolCalls: { name: string; riskLevel: string }[] } } {
+  const collected = { text: "", systemMessages: [] as string[], errors: [] as string[], toolCalls: [] as { name: string; riskLevel: string }[] };
+  const adapter: UIAdapter = {
+    writeAssistantDelta(text) {
+      collected.text += text;
+    },
+    endAssistantMessage() {},
+    writeBanner() {},
+    writeSystem(text) {
+      collected.systemMessages.push(text);
+    },
+    writeError(text) {
+      collected.errors.push(text);
+    },
+    writeToolCall(info) {
+      collected.toolCalls.push({ name: info.toolName, riskLevel: info.riskLevel });
+    },
+    setStatus() {},
+    getStatus: () => undefined,
+    setCommands() {},
+    setBusy() {},
+    async askUser() {
+      return "n";
+    },
+    close() {},
+  };
+  return { adapter, collected };
+}
+
+const DEFAULT_TURN_TIMEOUT_MS = 180_000; // 3 minutes — a turn with several tool calls can legitimately run long, but an HTTP client (n8n's own default request timeout) needs a bound well inside its own
+const MAX_TURN_TIMEOUT_MS = 600_000; // 10 minutes — generous ceiling; a caller wanting longer should poll a resumed session instead of holding one HTTP connection open indefinitely
+
+/**
+ * The REST, single-shot counterpart to the WS protocol's real-time turn
+ * streaming — for callers like n8n's HTTP Request node that just want to
+ * POST a prompt and get the final answer back, not speak WebSocket. Runs
+ * exactly one runTurn() call (the same function/loop the WS handler above
+ * calls) against a session built by the exact same buildTurnContext used
+ * for every WS connection, then returns once it's done. See
+ * buildTurnContext's nonInteractive doc for how a permission "ask" is
+ * handled here (denied, not hung) since there's no live client to answer it
+ * mid-request.
+ */
+app.post("/api/turn", async (req, res) => {
+  const body = req.body as {
+    message?: unknown;
+    project?: unknown;
+    session?: unknown;
+    model?: unknown;
+    family?: unknown;
+    effort?: unknown;
+    timeoutMs?: unknown;
+  };
+  if (typeof body.message !== "string" || !body.message.trim()) {
+    res.status(400).json({ error: "Body must include a non-empty string `message`." });
+    return;
+  }
+  const requestedTimeout = typeof body.timeoutMs === "number" && Number.isFinite(body.timeoutMs) ? body.timeoutMs : DEFAULT_TURN_TIMEOUT_MS;
+  const timeoutMs = Math.min(Math.max(requestedTimeout, 1000), MAX_TURN_TIMEOUT_MS);
+
+  let cwd: string;
+  try {
+    cwd = await resolveCwd(typeof body.project === "string" ? body.project : undefined);
+  } catch (err) {
+    res.status(404).json({ error: err instanceof Error ? err.message : String(err) });
+    return;
+  }
+
+  const { adapter, collected } = createHeadlessUiAdapter();
+  let ctx: TurnContext;
+  try {
+    ctx = await buildTurnContext(cwd, {
+      requestedModel: typeof body.model === "string" ? body.model : undefined,
+      requestedSessionId: typeof body.session === "string" ? body.session : undefined,
+      ui: adapter,
+      nonInteractive: true,
+      user: req.user,
+      createPermissions: (o) => new RecordingPermissionManager(o),
+    });
+  } catch (err) {
+    if (err instanceof SessionOwnershipError) {
+      res.status(403).json({ error: err.message });
+      return;
+    }
+    res.status(400).json({ error: err instanceof Error ? err.message : String(err) });
+    return;
+  }
+  const { session, config } = ctx;
+  let provider = ctx.provider;
+  let providerKind = ctx.providerKind;
+  const { tools } = ctx;
+  const permissions = ctx.permissions as RecordingPermissionManager;
+
+  // Optional effort-tier override, reusing the exact same resolution the
+  // WS "set_effort" handler above uses (getEffortTier/isDefaultProviderTier/
+  // selectProvider/buildProvider) — not a second guess at what "high"/a
+  // local tier's baseUrl/family/model/toolBudget mean. A plain `model`
+  // (with no `effort`) is instead handled by buildTurnContext itself, the
+  // same way the WS handler's `?model=` connect param already is.
+  if (typeof body.effort === "string") {
+    const tier = getEffortTier(body.effort);
+    if (!tier) {
+      res.status(400).json({ error: `Unknown effort level: ${body.effort}` });
+      return;
+    }
+    let resolvedModel = tier.model;
+    let resolvedFamily = tier.family;
+    if (isDefaultProviderTier(tier)) {
+      try {
+        const selected = selectProvider(config);
+        resolvedModel = selected.defaultModel;
+        resolvedFamily = selected.kind === "openai-compatible" ? "openai-compatible" : "anthropic";
+      } catch {
+        res.status(400).json({ error: "No default provider configured for this project." });
+        return;
+      }
+    }
+    if (tier.baseUrl) {
+      provider = new OpenAiCompatibleProvider({ baseUrl: tier.baseUrl, apiKey: undefined });
+      providerKind = "openai-compatible";
+    } else if (resolvedFamily) {
+      const availability = await familyAvailability(config);
+      if (!availability[resolvedFamily]) {
+        res.status(400).json({ error: `Effort level ${body.effort} needs ${resolvedFamily}, which isn't configured on this server.` });
+        return;
+      }
+      provider = buildProvider(resolvedFamily, config);
+      providerKind = resolvedFamily;
+    }
+    session.providerKind = providerKind;
+    session.providerBaseUrl = tier.baseUrl;
+    session.model = resolvedModel;
+    const localSwitch = await ensureLocalTextModelForSwitch(config, resolvedModel, adapter);
+    if (localSwitch.handled && !localSwitch.ok) {
+      res.status(502).json({
+        error: `Couldn't switch to effort level ${body.effort} (${resolvedModel}): ${
+          localSwitch.status.state === "start-failed" ? localSwitch.status.message : "the local service switch failed."
+        }`,
+      });
+      return;
+    }
+    permissions.setProvider(provider);
+    session.maxTokens = tier.maxTokens;
+    session.effort = tier.id;
+    if (tier.toolBudget === "none") {
+      for (const t of tools.list()) session.disabledTools.add(t.name);
+    } else if (tier.toolBudget === "minimal") {
+      for (const t of tools.list()) {
+        if (MINIMAL_TOOL_SET.includes(t.name)) session.disabledTools.delete(t.name);
+        else session.disabledTools.add(t.name);
+      }
+    } else {
+      session.disabledTools.clear();
+    }
+  }
+
+  // Same abort mechanism the WS "interrupt" message already uses (see
+  // handleConnection above) — timing out here doesn't leave the turn
+  // running invisibly against the provider/tools after the HTTP response
+  // is sent, it actually stops it.
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    for (const controller of session.activeAbortControllers) controller.abort();
+  }, timeoutMs);
+  try {
+    await runTurn(session, provider, adapter, tools, permissions, body.message);
+  } catch (err) {
+    clearTimeout(timer);
+    res.status(502).json({ error: `Turn failed: ${err instanceof Error ? err.message : String(err)}` });
+    return;
+  }
+  clearTimeout(timer);
+  await session.persist().catch((err) => collected.errors.push(`Failed to save session: ${err instanceof Error ? err.message : err}`));
+
+  if (timedOut) {
+    res.status(408).json({
+      error: `Turn exceeded its ${timeoutMs}ms timeout and was aborted.`,
+      sessionId: session.id,
+      partialText: collected.text || undefined,
+    });
+    return;
+  }
+
+  const last = session.messages.at(-1);
+  const stoppedByGuard = last?.role === "assistant" && typeof last.content === "string" && isLoopGuardStopMessage(last.content);
+  res.json({
+    sessionId: session.id,
+    model: session.model,
+    providerKind,
+    effort: session.effort,
+    text: collected.text,
+    toolCalls: collected.toolCalls,
+    // Tool calls this turn wanted to run but that hit an "ask"-tier
+    // decision with no live client to answer it — this endpoint's
+    // nonInteractive policy denies them rather than hanging (see
+    // buildTurnContext/PermissionManager's own nonInteractive doc). The
+    // model still got a "User declined to run this tool." result for each
+    // and may have adapted its answer around that; this list is so a
+    // caller (e.g. an n8n workflow) can tell that happened instead of
+    // silently trusting a final answer that skipped a step.
+    deniedTools: permissions.deniedTools,
+    stoppedByStepLimitGuard: stoppedByGuard,
+    systemMessages: collected.systemMessages,
+    errors: collected.errors,
+  });
+});
+
 // Same scope as the CLI's /config command: reads the merged (global +
 // project) config, but only ever writes the global file — a web session has
 // no separate notion of "project-local" beyond CWD itself. Secrets
@@ -828,6 +1058,181 @@ wss.on("connection", (ws: WebSocket, req) => {
   void handleConnection(ws, url, undefined);
 });
 
+/** Thrown by buildTurnContext when GATEWAY_ENABLED and a resumed session belongs to a different user than the one making this request — each caller translates it into its own "forbidden" response (the WS handler: close 4003; POST /api/turn: 403). */
+class SessionOwnershipError extends Error {}
+
+interface TurnContext {
+  session: AgentSession;
+  provider: LlmProvider;
+  providerKind: string;
+  tools: ToolRegistry;
+  permissions: PermissionManager;
+  mcp: McpClientManager;
+  browser: BrowserManager;
+  config: FinanfaConfig;
+  model: string;
+  needsAuth: string[];
+}
+
+/**
+ * Builds everything a single agent turn needs against one project directory
+ * — config, provider, the full tool registry (builtins, skills, memories,
+ * MCP, plugins), and a PermissionManager wired up the same way — for every
+ * real entry point that runs a turn (the WS handler below, and POST
+ * /api/turn). One construction path so a change to what a session needs
+ * (a new builtin tool, a new project-instructions file, ...) only has to
+ * happen once; this is exactly the setup handleConnection used to inline
+ * directly, extracted unchanged so POST /api/turn doesn't need a second,
+ * drifting copy of it.
+ *
+ * `nonInteractive` controls both the folder-trust gate and permission
+ * "ask"-tier prompts (see resolveTrust/PermissionManager's own docs): pass
+ * true for a caller with no live human to answer a mid-request prompt (a
+ * stateless REST request can't); the WS path always has a connected
+ * browser that can, so it passes false, exactly as it did before this was
+ * extracted.
+ */
+async function buildTurnContext(
+  cwd: string,
+  opts: {
+    requestedModel?: string;
+    requestedSessionId?: string;
+    ui: UIAdapter;
+    nonInteractive: boolean;
+    user?: string;
+    /** Overrides how the PermissionManager is constructed — used only by POST /api/turn, to swap in a subclass that records which tool calls got denied (see RecordingPermissionManager) without duplicating the config/hooks/trust resolution above. Defaults to a plain `new PermissionManager(...)`, exactly as before this hook existed. */
+    createPermissions?: (managerOpts: PermissionManagerOptions) => PermissionManager;
+  },
+): Promise<TurnContext> {
+  const config = await loadConfig(cwd);
+  const initial = selectProvider(config);
+  const defaultModel = initial.defaultModel;
+  // Mutable — switching to a model from a different provider family (see
+  // "set_model" below) swaps both, not just the model string.
+  let provider: LlmProvider = initial.provider;
+  let providerKind: string = initial.kind;
+
+  const tools = new ToolRegistry();
+  registerBuiltins(tools, { sandbox: config.sandbox });
+
+  const skills = await loadSkills(cwd);
+  if (skills.length > 0) tools.register(createReadSkillTool(skills));
+  tools.register(writeMemoryTool);
+  tools.register(deleteMemoryTool);
+  const memories = await loadMemories(cwd);
+  if (memories.length > 0) {
+    tools.register(createReadMemoryTool(cwd));
+    tools.register(findDuplicateMemoriesTool);
+    tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
+  }
+
+  const projectInstructions = await loadProjectInstructions(cwd);
+  const scopedInstructions = await loadScopedInstructions(cwd);
+  const designContract = await loadDesignContract(cwd);
+  const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
+  const systemPrompt =
+    baseSystemPromptFor(localModelLeanEnabled) +
+    formatSkillIndex(skills) +
+    formatMemoryIndex(memories) +
+    formatProjectInstructions(projectInstructions) +
+    formatScopedInstructions(scopedInstructions);
+
+  // The session's own (readonly) model wins on resume — a saved session
+  // keeps whatever model it was created with, same as the CLI has no
+  // /model command to change one mid-session either.
+  let session: AgentSession;
+  if (opts.requestedSessionId) {
+    try {
+      session = await AgentSession.resume(cwd, opts.requestedSessionId, systemPrompt);
+      // Auth on, session already has a different owner: refuse the resume
+      // outright rather than silently handing one user's conversation
+      // history to another. A session with no owner recorded yet (predates
+      // this field, or was created by a non-web entry point sharing this
+      // project) is treated as unclaimed — resuming it adopts it below.
+      if (GATEWAY_ENABLED && session.ownerUser && session.ownerUser !== opts.user) {
+        throw new SessionOwnershipError(`Session "${opts.requestedSessionId}" belongs to a different user.`);
+      }
+    } catch (err) {
+      if (err instanceof SessionOwnershipError) throw err;
+      opts.ui.writeError(
+        `Could not resume session "${opts.requestedSessionId}": ${err instanceof Error ? err.message : String(err)}. Starting a new session instead.`,
+      );
+      session = new AgentSession({ cwd, model: opts.requestedModel ?? defaultModel, systemPrompt });
+    }
+  } else {
+    session = new AgentSession({ cwd, model: opts.requestedModel ?? defaultModel, systemPrompt });
+  }
+  if (GATEWAY_ENABLED) session.ownerUser = opts.user;
+  if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
+  session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
+  session.localModelLeanEnabled = localModelLeanEnabled;
+  const model = session.model;
+
+  // Reconstructs the provider/endpoint this session actually last talked
+  // to, if it ever switched away from the global/project default (see
+  // the "set_model" handler below, which is the only thing that ever
+  // sets these two fields) — otherwise `initial` above (the ordinary
+  // config-derived default) is exactly right and this is a no-op. Without
+  // this, a resumed session whose last-used model belonged to a local
+  // runtime kept that model's name but silently reverted to whatever
+  // provider is configured as the default, sending a model name that
+  // provider had never heard of.
+  if (session.providerBaseUrl) {
+    provider = new OpenAiCompatibleProvider({ baseUrl: session.providerBaseUrl, apiKey: undefined });
+    providerKind = "openai-compatible";
+  } else if (session.providerKind && session.providerKind !== providerKind) {
+    const family: ProviderFamily = session.providerKind === "openai-compatible" ? "openai-compatible" : "anthropic";
+    const availability = await familyAvailability(config);
+    if (availability[family]) {
+      provider = buildProvider(family, config);
+      providerKind = family;
+    } else {
+      opts.ui.writeError(
+        `This session was last using a ${family} model, but ${family} isn't configured — falling back to the default (${providerKind}). Switch models or update Settings to restore it.`,
+      );
+    }
+  }
+
+  // Same folder-trust gate the CLI applies (see core/trust-gate.ts): a
+  // project's own .finanfa-code/settings.json can define permission
+  // rules and hooks that run automatically — including a PreToolUse hook
+  // that auto-approves every tool call — so it must never take effect
+  // just because the web server happened to be pointed at that
+  // directory. resolveTrust prompts over the same askUser round-trip
+  // permission prompts already use; nonInteractive fails closed instead
+  // (never calling opts.ui.askUser at all) for a caller with no live
+  // client to answer it, e.g. POST /api/turn — same as the CLI's
+  // --non-interactive and the ACP bridge.
+  const trusted = await resolveTrust(cwd, opts.ui, opts.nonInteractive);
+  const permissionConfig = await loadPermissionConfig(cwd, trusted);
+  const hooksConfig = await loadHooksConfig(cwd, trusted);
+  const permissions = (opts.createPermissions ?? ((o: PermissionManagerOptions) => new PermissionManager(o)))({
+    config: permissionConfig,
+    ui: opts.ui,
+    hooksConfig,
+    provider,
+    nonInteractive: opts.nonInteractive,
+  });
+
+  // Plugins are arbitrary imported JS, not inert config like hooks —
+  // gated on the same folder-trust decision above, not loaded before it.
+  // The web UI has no slash-command surface yet, so a plugin's
+  // registerCommands (if any) is a no-op here — only registerTools takes
+  // effect, same as it would with any other tool-provider.
+  const plugins = trusted ? await loadPlugins(cwd, tools, new CommandRegistry()) : [];
+  if (plugins.length > 0) console.log(`[${cwd}] Plugins: ${plugins.join(", ")}`);
+
+  const mcp = new McpClientManager();
+  const browser = new BrowserManager();
+  const { needsAuth } = await connectMcpServers(cwd, mcp, opts.ui);
+  for (const def of await mcp.listAllTools()) tools.register(def);
+
+  const agentTypes = await loadSubagentTypes(cwd);
+  registerStatefulBuiltins(tools, { provider, permissions, ui: opts.ui, model, cwd, browser, designContract: designContract.content, systemPrompt, agentTypes });
+
+  return { session, provider, providerKind, tools, permissions, mcp, browser, config, model, needsAuth };
+}
+
 async function handleConnection(ws: WebSocket, url: string, user: string | undefined): Promise<void> {
   const { adapter, resolvePending } = createWebUiAdapter(ws);
 
@@ -861,125 +1266,24 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
 
   try {
     const CWD = await resolveCwd(requestedProjectId);
-    const config = await loadConfig(CWD);
-    const initial = selectProvider(config);
-    const defaultModel = initial.defaultModel;
+    let ctx: TurnContext;
+    try {
+      ctx = await buildTurnContext(CWD, { requestedModel, requestedSessionId, ui: adapter, nonInteractive: false, user });
+    } catch (err) {
+      if (err instanceof SessionOwnershipError) {
+        adapter.writeError(err.message);
+        ws.close(4003, "Session belongs to a different user");
+        return;
+      }
+      throw err;
+    }
+    const { session, config, model, tools, mcp, browser } = ctx;
     // Mutable — switching to a model from a different provider family (see
     // "set_model" below) swaps both, not just the model string.
-    let provider: LlmProvider = initial.provider;
-    let providerKind: string = initial.kind;
-
-    const tools = new ToolRegistry();
-    registerBuiltins(tools, { sandbox: config.sandbox });
-
-    const skills = await loadSkills(CWD);
-    if (skills.length > 0) tools.register(createReadSkillTool(skills));
-    tools.register(writeMemoryTool);
-    tools.register(deleteMemoryTool);
-    const memories = await loadMemories(CWD);
-    if (memories.length > 0) {
-      tools.register(createReadMemoryTool(CWD));
-      tools.register(findDuplicateMemoriesTool);
-      tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
-    }
-
-    const projectInstructions = await loadProjectInstructions(CWD);
-    const scopedInstructions = await loadScopedInstructions(CWD);
-    const designContract = await loadDesignContract(CWD);
-    const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
-    const systemPrompt =
-      baseSystemPromptFor(localModelLeanEnabled) +
-      formatSkillIndex(skills) +
-      formatMemoryIndex(memories) +
-      formatProjectInstructions(projectInstructions) +
-      formatScopedInstructions(scopedInstructions);
-
-    // The session's own (readonly) model wins on resume — a saved session
-    // keeps whatever model it was created with, same as the CLI has no
-    // /model command to change one mid-session either.
-    let session: AgentSession;
-    if (requestedSessionId) {
-      try {
-        session = await AgentSession.resume(CWD, requestedSessionId, systemPrompt);
-        // Auth on, session already has a different owner: refuse the resume
-        // outright rather than silently handing one user's conversation
-        // history to another. A session with no owner recorded yet (predates
-        // this field, or was created by a non-web entry point sharing this
-        // project) is treated as unclaimed — resuming it adopts it below.
-        if (GATEWAY_ENABLED && session.ownerUser && session.ownerUser !== user) {
-          adapter.writeError(`Session "${requestedSessionId}" belongs to a different user.`);
-          ws.close(4003, "Session belongs to a different user");
-          return;
-        }
-      } catch (err) {
-        adapter.writeError(
-          `Could not resume session "${requestedSessionId}": ${err instanceof Error ? err.message : String(err)}. Starting a new session instead.`,
-        );
-        session = new AgentSession({ cwd: CWD, model: requestedModel ?? defaultModel, systemPrompt });
-      }
-    } else {
-      session = new AgentSession({ cwd: CWD, model: requestedModel ?? defaultModel, systemPrompt });
-    }
-    if (GATEWAY_ENABLED) session.ownerUser = user;
-    if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
-    session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
-    session.localModelLeanEnabled = localModelLeanEnabled;
-    const model = session.model;
-
-    // Reconstructs the provider/endpoint this session actually last talked
-    // to, if it ever switched away from the global/project default (see
-    // the "set_model" handler below, which is the only thing that ever
-    // sets these two fields) — otherwise `initial` above (the ordinary
-    // config-derived default) is exactly right and this is a no-op. Without
-    // this, a resumed session whose last-used model belonged to a local
-    // runtime kept that model's name but silently reverted to whatever
-    // provider is configured as the default, sending a model name that
-    // provider had never heard of.
-    if (session.providerBaseUrl) {
-      provider = new OpenAiCompatibleProvider({ baseUrl: session.providerBaseUrl, apiKey: undefined });
-      providerKind = "openai-compatible";
-    } else if (session.providerKind && session.providerKind !== providerKind) {
-      const family: ProviderFamily = session.providerKind === "openai-compatible" ? "openai-compatible" : "anthropic";
-      const availability = await familyAvailability(config);
-      if (availability[family]) {
-        provider = buildProvider(family, config);
-        providerKind = family;
-      } else {
-        adapter.writeError(
-          `This session was last using a ${family} model, but ${family} isn't configured — falling back to the default (${providerKind}). Switch models or update Settings to restore it.`,
-        );
-      }
-    }
-
-    // Same folder-trust gate the CLI applies (see core/trust-gate.ts): a
-    // project's own .finanfa-code/settings.json can define permission
-    // rules and hooks that run automatically — including a PreToolUse hook
-    // that auto-approves every tool call — so it must never take effect
-    // just because the web server happened to be pointed at that
-    // directory. resolveTrust prompts over the same askUser round-trip
-    // permission prompts already use; nonInteractive is never set here
-    // (the web UI always has a live client to answer it).
-    const trusted = await resolveTrust(CWD, adapter);
-    const permissionConfig = await loadPermissionConfig(CWD, trusted);
-    const hooksConfig = await loadHooksConfig(CWD, trusted);
-    const permissions = new PermissionManager({ config: permissionConfig, ui: adapter, hooksConfig, provider });
-
-    // Plugins are arbitrary imported JS, not inert config like hooks —
-    // gated on the same folder-trust decision above, not loaded before it.
-    // The web UI has no slash-command surface yet, so a plugin's
-    // registerCommands (if any) is a no-op here — only registerTools takes
-    // effect, same as it would with any other tool-provider.
-    const plugins = trusted ? await loadPlugins(CWD, tools, new CommandRegistry()) : [];
-    if (plugins.length > 0) console.log(`[${CWD}] Plugins: ${plugins.join(", ")}`);
-
-    const mcp = new McpClientManager();
-    const browser = new BrowserManager();
-    const { needsAuth } = await connectMcpServers(CWD, mcp, adapter);
-    const needsAuthSet = new Set(needsAuth);
-    for (const def of await mcp.listAllTools()) tools.register(def);
-
-    const agentTypes = await loadSubagentTypes(CWD);
-    registerStatefulBuiltins(tools, { provider, permissions, ui: adapter, model, cwd: CWD, browser, designContract: designContract.content, systemPrompt, agentTypes });
+    let provider = ctx.provider;
+    let providerKind = ctx.providerKind;
+    const permissions = ctx.permissions;
+    const needsAuthSet = new Set(ctx.needsAuth);
 
     function sendSessionInfo(): void {
       ws.send(
