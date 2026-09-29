@@ -17,6 +17,7 @@ import '../state/server_connection_provider.dart';
 import '../state/sessions_provider.dart';
 import '../theme.dart';
 import '../widgets/busy_indicator.dart';
+import '../widgets/content_width.dart';
 import '../widgets/permission_sheet.dart';
 import '../widgets/picker_sheets.dart';
 import '../widgets/timeline_tile.dart';
@@ -322,48 +323,50 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
       }
     });
 
-    return Scaffold(
-      drawer: _SessionsDrawer(
-        connection: widget.connection,
-        activeSessionId: controller.sessionInfo?.id,
-        onSelect: (id) {
-          Navigator.of(context).pop();
-          _openSession(id);
-        },
-        onNewChat: () {
-          Navigator.of(context).pop();
-          _openSession(null);
-        },
-        onOpenSettings: () {
-          Navigator.of(context).pop();
-          Navigator.of(context).push(
-            MaterialPageRoute(
-              builder: (_) => SettingsScreen(connection: widget.connection),
-            ),
-          );
-        },
-        onOpenConnectors: () {
-          Navigator.of(context).pop();
-          Navigator.of(
-            context,
-          ).push(MaterialPageRoute(builder: (_) => const ConnectorsScreen()));
-        },
-        onOpenProjects: () {
-          Navigator.of(context).pop();
-          Navigator.of(context)
-              .push(MaterialPageRoute(builder: (_) => const ProjectsScreen()));
-        },
-        onOpenArtifacts: () {
-          Navigator.of(context).pop();
-          Navigator.of(context)
-              .push(MaterialPageRoute(builder: (_) => const ArtifactsScreen()));
-        },
-        onOpenChannels: () {
-          Navigator.of(context).pop();
-          Navigator.of(context)
-              .push(MaterialPageRoute(builder: (_) => const ChannelsScreen()));
-        },
+    // Bare navigation callbacks, no Navigator.pop() baked in — the narrow
+    // overlay Drawer (_SessionsDrawer) pops itself before calling one of
+    // these; the wide persistent panel (_SessionsPanel) calls them
+    // directly, since there's no overlay route to dismiss.
+    void onSelect(String id) => _openSession(id);
+    void onNewChat() => _openSession(null);
+    void onOpenSettings() => Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => SettingsScreen(connection: widget.connection),
       ),
+    );
+    void onOpenConnectors() =>
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const ConnectorsScreen()));
+    void onOpenProjects() =>
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const ProjectsScreen()));
+    void onOpenArtifacts() =>
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const ArtifactsScreen()));
+    void onOpenChannels() =>
+        Navigator.of(context)
+            .push(MaterialPageRoute(builder: (_) => const ChannelsScreen()));
+
+    // Desktop-width windows: show the sessions panel permanently instead of
+    // behind a hamburger — see _SessionsPanel's doc comment. `wide` is
+    // recomputed every build from the live window width, so resizing a
+    // desktop window across the breakpoint switches layouts immediately.
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+
+    final scaffold = Scaffold(
+      drawer: wide
+          ? null
+          : _SessionsDrawer(
+              connection: widget.connection,
+              activeSessionId: controller.sessionInfo?.id,
+              onSelect: onSelect,
+              onNewChat: onNewChat,
+              onOpenSettings: onOpenSettings,
+              onOpenConnectors: onOpenConnectors,
+              onOpenProjects: onOpenProjects,
+              onOpenArtifacts: onOpenArtifacts,
+              onOpenChannels: onOpenChannels,
+            ),
       appBar: AppBar(
         titleSpacing: 0,
         title: Column(
@@ -421,193 +424,223 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           if (controller.modelUnavailable case final m?)
             _Banner(text: m.message, color: c.danger),
           Expanded(
-            child: !controller.connected && _openedSessionId != null
-                // Real, reported bug: resuming an existing conversation
-                // tears down and reopens the whole socket (open() clears
-                // the timeline immediately, before the new connection's
-                // history arrives — see AgentSessionController.open), so
-                // for that whole round trip this showed the new-chat empty
-                // state's suggestion cards instead of any loading feedback,
-                // reading as "stuck"/slow rather than "in progress".
-                ? const Center(child: CircularProgressIndicator())
-                : controller.timeline.isEmpty && !controller.busy.active
-                ? _EmptyState(
-                    onPickSuggestion: (text) {
-                      _textController.text = text;
-                      _textController.selection = TextSelection.collapsed(
-                        offset: text.length,
-                      );
-                    },
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.all(16),
-                    itemCount:
-                        controller.timeline.length +
-                        (controller.busy.active ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index == controller.timeline.length)
-                        return BusyIndicatorTile(label: controller.busy.label);
-                      return TimelineTile(item: controller.timeline[index]);
-                    },
-                  ),
+            child: ContentWidth(
+              child: !controller.connected && _openedSessionId != null
+                  // Real, reported bug: resuming an existing conversation
+                  // tears down and reopens the whole socket (open() clears
+                  // the timeline immediately, before the new connection's
+                  // history arrives — see AgentSessionController.open), so
+                  // for that whole round trip this showed the new-chat empty
+                  // state's suggestion cards instead of any loading feedback,
+                  // reading as "stuck"/slow rather than "in progress".
+                  ? const Center(child: CircularProgressIndicator())
+                  : controller.timeline.isEmpty && !controller.busy.active
+                  ? _EmptyState(
+                      onPickSuggestion: (text) {
+                        _textController.text = text;
+                        _textController.selection = TextSelection.collapsed(
+                          offset: text.length,
+                        );
+                      },
+                    )
+                  : ListView.builder(
+                      controller: _scrollController,
+                      padding: const EdgeInsets.all(16),
+                      itemCount:
+                          controller.timeline.length +
+                          (controller.busy.active ? 1 : 0),
+                      itemBuilder: (context, index) {
+                        if (index == controller.timeline.length) {
+                          return BusyIndicatorTile(
+                            label: controller.busy.label,
+                          );
+                        }
+                        return TimelineTile(item: controller.timeline[index]);
+                      },
+                    ),
+            ),
           ),
           SafeArea(
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  if (_pendingImages.isNotEmpty)
-                    SizedBox(
-                      height: 56,
-                      child: ListView.separated(
-                        scrollDirection: Axis.horizontal,
-                        itemCount: _pendingImages.length,
-                        separatorBuilder: (_, _) => const SizedBox(width: 8),
-                        itemBuilder: (context, i) => Stack(
-                          children: [
-                            ClipRRect(
-                              borderRadius: BorderRadius.circular(8),
-                              child: Image.memory(
-                                base64Decode(_pendingImages[i].base64),
-                                width: 56,
-                                height: 56,
-                                fit: BoxFit.cover,
+              child: ContentWidth(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_pendingImages.isNotEmpty)
+                      SizedBox(
+                        height: 56,
+                        child: ListView.separated(
+                          scrollDirection: Axis.horizontal,
+                          itemCount: _pendingImages.length,
+                          separatorBuilder: (_, _) => const SizedBox(width: 8),
+                          itemBuilder: (context, i) => Stack(
+                            children: [
+                              ClipRRect(
+                                borderRadius: BorderRadius.circular(8),
+                                child: Image.memory(
+                                  base64Decode(_pendingImages[i].base64),
+                                  width: 56,
+                                  height: 56,
+                                  fit: BoxFit.cover,
+                                ),
                               ),
-                            ),
-                            Positioned(
-                              right: -4,
-                              top: -4,
-                              child: GestureDetector(
-                                onTap: () =>
-                                    setState(() => _pendingImages.removeAt(i)),
-                                child: CircleAvatar(
-                                  radius: 9,
-                                  backgroundColor: c.danger,
-                                  child: const Icon(
-                                    Icons.close,
-                                    size: 12,
-                                    color: Colors.white,
+                              Positioned(
+                                right: -4,
+                                top: -4,
+                                child: GestureDetector(
+                                  onTap: () => setState(
+                                    () => _pendingImages.removeAt(i),
+                                  ),
+                                  child: CircleAvatar(
+                                    radius: 9,
+                                    backgroundColor: c.danger,
+                                    child: const Icon(
+                                      Icons.close,
+                                      size: 12,
+                                      color: Colors.white,
+                                    ),
                                   ),
                                 ),
                               ),
-                            ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    if (_pendingFiles.isNotEmpty)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            for (var i = 0; i < _pendingFiles.length; i++)
+                              _FileChip(
+                                name: _pendingFiles[i].name,
+                                onRemove: () =>
+                                    setState(() => _pendingFiles.removeAt(i)),
+                              ),
                           ],
                         ),
                       ),
-                    ),
-                  if (_pendingFiles.isNotEmpty)
-                    Padding(
-                      padding: const EdgeInsets.only(bottom: 6),
-                      child: Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          for (var i = 0; i < _pendingFiles.length; i++)
-                            _FileChip(
-                              name: _pendingFiles[i].name,
-                              onRemove: () =>
-                                  setState(() => _pendingFiles.removeAt(i)),
-                            ),
-                        ],
-                      ),
-                    ),
-                  Row(
-                    children: [
-                      IconButton(
-                        icon: _uploading
-                            ? const SizedBox(
-                                width: 18,
-                                height: 18,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(Icons.attach_file),
-                        tooltip: t(ref, 'chat.attach'),
-                        onPressed: _uploading ? null : _pickAttachment,
-                      ),
-                      if (_speechAvailable)
+                    Row(
+                      children: [
                         IconButton(
-                          icon: Icon(
-                            _listening ? Icons.mic : Icons.mic_none,
-                            color: _listening ? c.danger : null,
+                          icon: _uploading
+                              ? const SizedBox(
+                                  width: 18,
+                                  height: 18,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                  ),
+                                )
+                              : const Icon(Icons.attach_file),
+                          tooltip: t(ref, 'chat.attach'),
+                          onPressed: _uploading ? null : _pickAttachment,
+                        ),
+                        if (_speechAvailable)
+                          IconButton(
+                            icon: Icon(
+                              _listening ? Icons.mic : Icons.mic_none,
+                              color: _listening ? c.danger : null,
+                            ),
+                            tooltip: t(ref, 'chat.dictate'),
+                            onPressed: _toggleListening,
                           ),
-                          tooltip: t(ref, 'chat.dictate'),
-                          onPressed: _toggleListening,
-                        ),
-                      _ComposerChip(
-                        icon: Icons.smart_toy_outlined,
-                        label:
-                            controller.sessionInfo?.model.split('/').last ??
-                            t(ref, 'chat.model'),
-                        onTap: () => showModelPickerSheet(
-                          context,
-                          ref,
-                          controller.sessionInfo?.model,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      _ComposerChip(
-                        icon: Icons.speed_outlined,
-                        label:
-                            effortLabel ??
-                            controller.sessionInfo?.effort ??
-                            t(ref, 'chat.effort'),
-                        onTap: () => showEffortPickerSheet(
-                          context,
-                          ref,
-                          controller.sessionInfo?.effort,
-                        ),
-                      ),
-                    ],
-                  ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _textController,
-                          minLines: 1,
-                          maxLines: 5,
-                          textInputAction: TextInputAction.send,
-                          onSubmitted: (_) => _send(),
-                          enabled: controller.connected,
-                          decoration: InputDecoration(
-                            hintText: controller.connected
-                                ? t(ref, 'chat.composerHint')
-                                : t(ref, 'chat.connecting'),
+                        _ComposerChip(
+                          icon: Icons.smart_toy_outlined,
+                          label:
+                              controller.sessionInfo?.model.split('/').last ??
+                              t(ref, 'chat.model'),
+                          onTap: () => showModelPickerSheet(
+                            context,
+                            ref,
+                            controller.sessionInfo?.model,
                           ),
                         ),
-                      ),
-                      const SizedBox(width: 8),
-                      if (controller.busy.active)
-                        IconButton.filled(
-                          style: IconButton.styleFrom(
-                            backgroundColor: c.danger,
+                        const SizedBox(width: 6),
+                        _ComposerChip(
+                          icon: Icons.speed_outlined,
+                          label:
+                              effortLabel ??
+                              controller.sessionInfo?.effort ??
+                              t(ref, 'chat.effort'),
+                          onTap: () => showEffortPickerSheet(
+                            context,
+                            ref,
+                            controller.sessionInfo?.effort,
                           ),
-                          icon: const Icon(Icons.stop),
-                          onPressed: () =>
-                              ref.read(agentSessionProvider).interrupt(),
-                        )
-                      else
-                        IconButton.filled(
-                          style: IconButton.styleFrom(
-                            backgroundColor: c.accent,
-                          ),
-                          icon: const Icon(Icons.arrow_upward),
-                          onPressed: controller.connected ? _send : null,
                         ),
-                    ],
-                  ),
-                ],
+                      ],
+                    ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.end,
+                      children: [
+                        Expanded(
+                          child: TextField(
+                            controller: _textController,
+                            minLines: 1,
+                            maxLines: 5,
+                            textInputAction: TextInputAction.send,
+                            onSubmitted: (_) => _send(),
+                            enabled: controller.connected,
+                            decoration: InputDecoration(
+                              hintText: controller.connected
+                                  ? t(ref, 'chat.composerHint')
+                                  : t(ref, 'chat.connecting'),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        if (controller.busy.active)
+                          IconButton.filled(
+                            style: IconButton.styleFrom(
+                              backgroundColor: c.danger,
+                            ),
+                            icon: const Icon(Icons.stop),
+                            onPressed: () =>
+                                ref.read(agentSessionProvider).interrupt(),
+                          )
+                        else
+                          IconButton.filled(
+                            style: IconButton.styleFrom(
+                              backgroundColor: c.accent,
+                            ),
+                            icon: const Icon(Icons.arrow_upward),
+                            onPressed: controller.connected ? _send : null,
+                          ),
+                      ],
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ],
       ),
+    );
+
+    if (!wide) return scaffold;
+    // Wide desktop window: the persistent panel + a keyless copy of the
+    // Scaffold with its own drawer already nulled out above — Scaffold
+    // itself has no "drawer, but always open and not an overlay" mode, so
+    // the panel sits beside it in a Row instead.
+    return Row(
+      children: [
+        _SessionsPanel(
+          connection: widget.connection,
+          activeSessionId: controller.sessionInfo?.id,
+          onSelect: onSelect,
+          onNewChat: onNewChat,
+          onOpenSettings: onOpenSettings,
+          onOpenConnectors: onOpenConnectors,
+          onOpenProjects: onOpenProjects,
+          onOpenArtifacts: onOpenArtifacts,
+          onOpenChannels: onOpenChannels,
+        ),
+        Expanded(child: scaffold),
+      ],
     );
   }
 }
@@ -716,9 +749,7 @@ class _Banner extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Text(text, style: TextStyle(color: color, fontSize: 13)),
     );
-    return onTap == null
-        ? content
-        : InkWell(onTap: onTap, child: content);
+    return onTap == null ? content : InkWell(onTap: onTap, child: content);
   }
 }
 
@@ -744,7 +775,9 @@ class _EmptyState extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final connection = ref.watch(serverConnectionProvider).valueOrNull;
-    final host = connection == null ? null : (Uri.tryParse(connection.baseUrl)?.host);
+    final host = connection == null
+        ? null
+        : (Uri.tryParse(connection.baseUrl)?.host);
     return Align(
       alignment: Alignment.center,
       child: SingleChildScrollView(
@@ -757,7 +790,8 @@ class _EmptyState extends ConsumerWidget {
             const SizedBox(height: 20),
             Text(
               t(ref, 'chat.emptyState'),
-              style: Theme.of(context).textTheme.displaySmall?.copyWith(fontSize: 24),
+              style: Theme.of(context).textTheme.displaySmall
+                  ?.copyWith(fontSize: 24),
             ),
             if (host != null) ...[
               const SizedBox(height: FinanfaSpace.sm),
@@ -790,7 +824,11 @@ class _SuggestionCard extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _SuggestionCard({required this.icon, required this.label, required this.onTap});
+  const _SuggestionCard({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -823,7 +861,14 @@ class _SuggestionCard extends StatelessWidget {
               ),
               const SizedBox(width: FinanfaSpace.md),
               Expanded(
-                child: Text(label, style: TextStyle(color: c.text, fontSize: 14.5, fontWeight: FontWeight.w500)),
+                child: Text(
+                  label,
+                  style: TextStyle(
+                    color: c.text,
+                    fontSize: 14.5,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ),
               Icon(Icons.chevron_right_rounded, color: c.textMuted, size: 20),
             ],
@@ -834,7 +879,9 @@ class _SuggestionCard extends StatelessWidget {
   }
 }
 
-class _SessionsDrawer extends ConsumerWidget {
+/// Overlay form (narrow/phone-width windows) — a standard `Drawer` opened
+/// via the AppBar's hamburger, holding [_SessionsPanelContent].
+class _SessionsDrawer extends StatelessWidget {
   final ServerConnection connection;
   final String? activeSessionId;
   final void Function(String id) onSelect;
@@ -857,137 +904,276 @@ class _SessionsDrawer extends ConsumerWidget {
   });
 
   @override
+  Widget build(BuildContext context) {
+    return Drawer(
+      child: _SessionsPanelContent(
+        connection: connection,
+        activeSessionId: activeSessionId,
+        onSelect: (id) {
+          Navigator.of(context).pop();
+          onSelect(id);
+        },
+        onNewChat: () {
+          Navigator.of(context).pop();
+          onNewChat();
+        },
+        onOpenSettings: () {
+          Navigator.of(context).pop();
+          onOpenSettings();
+        },
+        onOpenConnectors: () {
+          Navigator.of(context).pop();
+          onOpenConnectors();
+        },
+        onOpenProjects: () {
+          Navigator.of(context).pop();
+          onOpenProjects();
+        },
+        onOpenArtifacts: () {
+          Navigator.of(context).pop();
+          onOpenArtifacts();
+        },
+        onOpenChannels: () {
+          Navigator.of(context).pop();
+          onOpenChannels();
+        },
+      ),
+    );
+  }
+}
+
+/// Persistent form (desktop-width windows, see `_ChatScreenState.build`'s
+/// breakpoint check) — the SAME content rendered inline in a fixed-width
+/// side panel instead of behind a hamburger, with no `Navigator.pop()`
+/// baked into its callbacks (there's no overlay route to dismiss). Real,
+/// reported feedback: on a wide desktop window there was already enough
+/// room to show this permanently, and requiring a click to reveal it
+/// otherwise looked broken/incomplete rather than like an intentional
+/// desktop layout — see `widgets/content_width.dart`'s doc comment for the
+/// same root issue (this app had zero desktop-width handling before now).
+class _SessionsPanel extends StatelessWidget {
+  final ServerConnection connection;
+  final String? activeSessionId;
+  final void Function(String id) onSelect;
+  final VoidCallback onNewChat;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onOpenConnectors;
+  final VoidCallback onOpenProjects;
+  final VoidCallback onOpenArtifacts;
+  final VoidCallback onOpenChannels;
+  const _SessionsPanel({
+    required this.connection,
+    required this.activeSessionId,
+    required this.onSelect,
+    required this.onNewChat,
+    required this.onOpenSettings,
+    required this.onOpenConnectors,
+    required this.onOpenProjects,
+    required this.onOpenArtifacts,
+    required this.onOpenChannels,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return SizedBox(
+      width: 300,
+      // A real, only-found-by-running-it bug: unlike Drawer (which wraps
+      // its child in Material itself), this panel sits directly beside the
+      // Scaffold in a Row — so ListTile/InkWell below, which need a
+      // Material ancestor, crashed with "No Material widget found" here
+      // even though the exact same _SessionsPanelContent renders fine
+      // inside the narrow-mode Drawer.
+      child: Material(
+        color: c.bgElevated,
+        child: Column(
+          children: [
+            Expanded(
+              child: _SessionsPanelContent(
+                connection: connection,
+                activeSessionId: activeSessionId,
+                onSelect: onSelect,
+                onNewChat: onNewChat,
+                onOpenSettings: onOpenSettings,
+                onOpenConnectors: onOpenConnectors,
+                onOpenProjects: onOpenProjects,
+                onOpenArtifacts: onOpenArtifacts,
+                onOpenChannels: onOpenChannels,
+              ),
+            ),
+            VerticalDivider(width: 1, color: c.border),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionsPanelContent extends ConsumerWidget {
+  final ServerConnection connection;
+  final String? activeSessionId;
+  final void Function(String id) onSelect;
+  final VoidCallback onNewChat;
+  final VoidCallback onOpenSettings;
+  final VoidCallback onOpenConnectors;
+  final VoidCallback onOpenProjects;
+  final VoidCallback onOpenArtifacts;
+  final VoidCallback onOpenChannels;
+  const _SessionsPanelContent({
+    required this.connection,
+    required this.activeSessionId,
+    required this.onSelect,
+    required this.onNewChat,
+    required this.onOpenSettings,
+    required this.onOpenConnectors,
+    required this.onOpenProjects,
+    required this.onOpenArtifacts,
+    required this.onOpenChannels,
+  });
+
+  @override
   Widget build(BuildContext context, WidgetRef ref) {
     final c = context.colors;
     final sessionsAsync = ref.watch(sessionListProvider);
-    return Drawer(
-      child: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
-              child: Row(
-                children: [
-                  const FinanfaMark(size: 36),
-                  const SizedBox(width: 12),
-                  Text(
-                    'finanfa',
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w700,
-                      color: c.text,
-                      letterSpacing: -0.3,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-              child: FilledButton.icon(
-                onPressed: onNewChat,
-                icon: const Icon(Icons.add),
-                label: Text(t(ref, 'chat.newChat')),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
-              child: Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  t(ref, 'chat.chats'),
+    return SafeArea(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
+            child: Row(
+              children: [
+                const FinanfaMark(size: 36),
+                const SizedBox(width: 12),
+                Text(
+                  'finanfa',
                   style: TextStyle(
-                    color: c.textMuted,
-                    fontSize: 11,
-                    letterSpacing: 0.6,
+                    fontSize: 19,
+                    fontWeight: FontWeight.w700,
+                    color: c.text,
+                    letterSpacing: -0.3,
                   ),
+                ),
+              ],
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: FilledButton.icon(
+              onPressed: onNewChat,
+              icon: const Icon(Icons.add),
+              label: Text(t(ref, 'chat.newChat')),
+            ),
+          ),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 4),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                t(ref, 'chat.chats'),
+                style: TextStyle(
+                  color: c.textMuted,
+                  fontSize: 11,
+                  letterSpacing: 0.6,
                 ),
               ),
             ),
-            Expanded(
-              child: sessionsAsync.when(
-                loading: () => const Center(child: CircularProgressIndicator()),
-                error: (err, _) => Center(
-                  child: Text(
-                    t(ref, 'chat.failedToLoadChats'),
-                    style: TextStyle(color: c.textMuted),
-                  ),
+          ),
+          Expanded(
+            child: sessionsAsync.when(
+              loading: () => const Center(child: CircularProgressIndicator()),
+              error: (err, _) => Center(
+                child: Text(
+                  t(ref, 'chat.failedToLoadChats'),
+                  style: TextStyle(color: c.textMuted),
                 ),
-                data: (sessions) {
-                  if (sessions.isEmpty)
-                    return Center(
-                      child: Text(
-                        t(ref, 'chat.noChats'),
-                        style: TextStyle(color: c.textMuted),
+              ),
+              data: (sessions) {
+                if (sessions.isEmpty) {
+                  return Center(
+                    child: Text(
+                      t(ref, 'chat.noChats'),
+                      style: TextStyle(color: c.textMuted),
+                    ),
+                  );
+                }
+                return ListView.builder(
+                  itemCount: sessions.length,
+                  itemBuilder: (context, index) {
+                    final s = sessions[index];
+                    final isActive = s.id == activeSessionId;
+                    return ListTile(
+                      selected: isActive,
+                      selectedTileColor: c.accent.withValues(alpha: 0.12),
+                      title: Text(
+                        s.title ?? t(ref, 'chat.newChat'),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      onTap: () => onSelect(s.id),
+                      trailing: IconButton(
+                        icon: const Icon(Icons.close, size: 18),
+                        onPressed: () async {
+                          await ref
+                              .read(apiClientProvider)
+                              ?.deleteSession(s.id);
+                          ref.invalidate(sessionListProvider);
+                        },
                       ),
                     );
-                  return ListView.builder(
-                    itemCount: sessions.length,
-                    itemBuilder: (context, index) {
-                      final s = sessions[index];
-                      final isActive = s.id == activeSessionId;
-                      return ListTile(
-                        selected: isActive,
-                        selectedTileColor: c.accent.withValues(alpha: 0.12),
-                        title: Text(
-                          s.title ?? t(ref, 'chat.newChat'),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        onTap: () => onSelect(s.id),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.close, size: 18),
-                          onPressed: () async {
-                            await ref
-                                .read(apiClientProvider)
-                                ?.deleteSession(s.id);
-                            ref.invalidate(sessionListProvider);
-                          },
-                        ),
-                      );
-                    },
-                  );
-                },
-              ),
+                  },
+                );
+              },
             ),
-            const Divider(height: 1),
-            const SizedBox(height: 4),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Column(
-                children: [
-                  ListTile(
-                    leading: _DrawerIcon(Icons.folder_outlined, const Color(0xFF7C5CFF)),
-                    title: Text(t(ref, 'drawer.projects')),
-                    onTap: onOpenProjects,
+          ),
+          const Divider(height: 1),
+          const SizedBox(height: 4),
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: Column(
+              children: [
+                ListTile(
+                  leading: _DrawerIcon(
+                    Icons.folder_outlined,
+                    const Color(0xFF7C5CFF),
                   ),
-                  ListTile(
-                    leading: _DrawerIcon(Icons.hub_outlined, const Color(0xFF2BB3A3)),
-                    title: Text(t(ref, 'drawer.connectors')),
-                    onTap: onOpenConnectors,
+                  title: Text(t(ref, 'drawer.projects')),
+                  onTap: onOpenProjects,
+                ),
+                ListTile(
+                  leading: _DrawerIcon(
+                    Icons.hub_outlined,
+                    const Color(0xFF2BB3A3),
                   ),
-                  ListTile(
-                    leading: _DrawerIcon(Icons.attachment_outlined, const Color(0xFFE0A030)),
-                    title: Text(t(ref, 'drawer.artifacts')),
-                    onTap: onOpenArtifacts,
+                  title: Text(t(ref, 'drawer.connectors')),
+                  onTap: onOpenConnectors,
+                ),
+                ListTile(
+                  leading: _DrawerIcon(
+                    Icons.attachment_outlined,
+                    const Color(0xFFE0A030),
                   ),
-                  ListTile(
-                    leading: _DrawerIcon(Icons.forum_outlined, const Color(0xFF3D9BE9)),
-                    title: Text(t(ref, 'drawer.channels')),
-                    onTap: onOpenChannels,
+                  title: Text(t(ref, 'drawer.artifacts')),
+                  onTap: onOpenArtifacts,
+                ),
+                ListTile(
+                  leading: _DrawerIcon(
+                    Icons.forum_outlined,
+                    const Color(0xFF3D9BE9),
                   ),
-                  ListTile(
-                    leading: _DrawerIcon(Icons.settings_outlined, c.textMuted),
-                    title: Text(t(ref, 'chat.settings')),
-                    onTap: onOpenSettings,
-                  ),
-                ],
-              ),
+                  title: Text(t(ref, 'drawer.channels')),
+                  onTap: onOpenChannels,
+                ),
+                ListTile(
+                  leading: _DrawerIcon(Icons.settings_outlined, c.textMuted),
+                  title: Text(t(ref, 'chat.settings')),
+                  onTap: onOpenSettings,
+                ),
+              ],
             ),
-            const SizedBox(height: 8),
-          ],
-        ),
+          ),
+          const SizedBox(height: 8),
+        ],
       ),
     );
   }
@@ -1008,7 +1194,7 @@ class _DrawerIcon extends StatelessWidget {
       height: 32,
       decoration: BoxDecoration(
         color: color.withValues(alpha: 0.14),
-        borderRadius: BorderRadius.circular(9),
+        borderRadius: BorderRadius.circular(FinanfaRadii.sm),
       ),
       child: Icon(icon, size: 18, color: color),
     );
