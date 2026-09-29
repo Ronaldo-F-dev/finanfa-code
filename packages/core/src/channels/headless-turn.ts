@@ -173,7 +173,7 @@ export async function runHeadlessTurn(
     session = new AgentSession({ id: sessionId, cwd, model: defaultModel, systemPrompt });
   }
   if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
-  session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
+  session.toolSearchEnabled = resolveToolSearchEnabled(config);
   session.localModelLeanEnabled = localModelLeanEnabled;
 
   const browser = new BrowserManager();
