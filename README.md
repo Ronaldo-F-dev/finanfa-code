@@ -65,9 +65,8 @@ export FINANFA_MODEL=llama3.1:8b
 A running local server on a well-known port (Ollama, LM Studio,
 llama.cpp, vLLM, Docker Model Runner) is auto-detected — the web UI's
 model picker lists what's actually available with no configuration at
-all. A local/small model also gets [Tool Search](docs/tool-search.md)
-automatically, so a handful of tools are sent per turn instead of all
-90+.
+all. Every provider, local or cloud, also gets [Tool Search](docs/tool-search.md)
+by default, so a handful of tools are sent per turn instead of all 90+.
 
 **A remote OpenAI-compatible endpoint** (OpenRouter, Poolside, ...):
 
@@ -199,9 +198,9 @@ Ctrl+C persists the session and closes connections cleanly before exit.
 | Doc | Covers |
 |---|---|
 | [docs/providers.md](docs/providers.md) | Every model provider (local and remote), persistent config, vision routing |
-| [docs/tool-search.md](docs/tool-search.md) | How a small/local model avoids paying for all 90+ tool schemas every turn |
-| [docs/rag.md](docs/rag.md) | Project document indexing/search/grounding-check (RAG) |
+| [docs/tool-search.md](docs/tool-search.md) | How every provider (on by default) avoids paying for all 90+ tool schemas every turn |
 | [docs/tools.md](docs/tools.md) | The full builtin tool catalog by category |
+| [docs/rag.md](docs/rag.md) | Project document indexing/search/grounding-check (RAG) |
 | [docs/channels.md](docs/channels.md) | Slack, Telegram, Matrix, LINE, Feishu, Microsoft Teams, Discord, WhatsApp, SMS, Voice |
 | [docs/mcp.md](docs/mcp.md) | Connecting external MCP servers |
 | [docs/configuration.md](docs/configuration.md) | `.finanfa-code/` project config, permissions/hooks, memory, bundles ("Claws") |
