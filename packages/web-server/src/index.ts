@@ -376,7 +376,22 @@ app.get("/api/models", async (req, res) => {
   // model (e.g. switching from the 1.7B default to the 4B) would otherwise never
   // appear for the user to pick. Skip any already surfaced by the live probe or
   // as the active default so the same model isn't listed twice.
-  const alreadyListed = new Set(models.map((m) => m.id));
+  //
+  // Real, reported bug: a live-probed local model's `id` is prefixed with its
+  // source ("ollama: medgemma:4b"), not the bare model name — but a
+  // localServices config key IS the bare name ("medgemma:4b"), the same value
+  // that live-probed entry exposes as `localModelId`. Checking membership by
+  // `id` alone never matched, so the same model was pushed a second time (as
+  // a separate `local`/`running: false` entry) whenever it was both actually
+  // running AND still listed in config.localServices — the mobile client then
+  // showed two checked rows for one active model, since each one independently
+  // matches `sessionInfo.model` via its own `localModelId ?? id`.
+  const alreadyListed = new Set(
+    models.flatMap((m) => {
+      const localModelId = (m as { localModelId?: string }).localModelId;
+      return localModelId ? [m.id, localModelId] : [m.id];
+    }),
+  );
   for (const modelName of Object.keys(config.localServices ?? {})) {
     if (alreadyListed.has(modelName)) continue;
     models.push({ id: modelName, family: "openai-compatible" as const, configured: true, local: true, running: false } as (typeof models)[number] & { local: boolean; running: boolean });
