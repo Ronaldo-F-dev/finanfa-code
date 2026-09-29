@@ -1,0 +1,141 @@
+name: Desktop build
+
+# Building the Flutter desktop client is heavy (5-15 min per OS) and host
+# toolchain-dependent (Windows needs MSVC, Linux needs GTK3/CMake/ninja), so
+# unlike ci.yml this does not run on every push/PR — trigger it by hand, or
+# by pushing a version tag.
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - "v*"
+
+defaults:
+  run:
+    working-directory: apps
+
+env:
+  FLUTTER_VERSION: "3.47.5"
+  APP_VERSION: "1.0.0"
+
+jobs:
+  windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Enable Windows desktop
+        run: flutter config --enable-windows-desktop
+
+      - run: flutter pub get
+
+      - run: flutter build windows --release
+
+      - name: Zip the Release bundle
+        shell: pwsh
+        run: |
+          $dest = "finanfa-windows-x64.zip"
+          Compress-Archive -Path "build/windows/x64/runner/Release/*" -DestinationPath $dest
+          New-Item -ItemType Directory -Force -Path "$env:GITHUB_WORKSPACE/dist" | Out-Null
+          Move-Item $dest "$env:GITHUB_WORKSPACE/dist/$dest"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: finanfa-windows-x64
+          path: dist/finanfa-windows-x64.zip
+          if-no-files-found: error
+
+  linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install Flutter Linux desktop build dependencies
+        run: |
+          sudo apt-get update
+          # clang/cmake/ninja/pkg-config/libgtk-3-dev: baseline required by
+          # `flutter build linux` itself.
+          # libsecret-1-dev + libjsoncpp-dev: flutter_secure_storage_linux
+          # (the only plugin this app actually bundles for Linux, per
+          # apps/linux/flutter/generated_plugins.cmake) links against
+          # libsecret at build time.
+          sudo apt-get install -y \
+            clang cmake ninja-build pkg-config libgtk-3-dev \
+            libsecret-1-dev libjsoncpp-dev
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+
+      - run: flutter pub get
+
+      - run: flutter build linux --release
+
+      - name: Package .deb
+        run: |
+          set -euo pipefail
+          PKG_NAME=finanfa
+          PKG_VERSION="${APP_VERSION}"
+          ARCH=amd64
+          STAGE="$(mktemp -d)/${PKG_NAME}_${PKG_VERSION}_${ARCH}"
+          BUNDLE_DIR="build/linux/x64/release/bundle"
+
+          mkdir -p "$STAGE/DEBIAN"
+          mkdir -p "$STAGE/opt/${PKG_NAME}"
+          mkdir -p "$STAGE/usr/bin"
+          mkdir -p "$STAGE/usr/share/applications"
+
+          cp -r "$BUNDLE_DIR"/* "$STAGE/opt/${PKG_NAME}/"
+
+          ln -s "/opt/${PKG_NAME}/apps" "$STAGE/usr/bin/${PKG_NAME}"
+
+          cat > "$STAGE/usr/share/applications/${PKG_NAME}.desktop" <<EOF
+          [Desktop Entry]
+          Type=Application
+          Name=Finanfa
+          Comment=Finanfa desktop client
+          Exec=/usr/bin/${PKG_NAME}
+          Icon=${PKG_NAME}
+          Terminal=false
+          Categories=Finance;Office;
+          EOF
+
+          INSTALLED_SIZE=$(du -sk "$STAGE/opt/${PKG_NAME}" | cut -f1)
+
+          cat > "$STAGE/DEBIAN/control" <<EOF
+          Package: ${PKG_NAME}
+          Version: ${PKG_VERSION}
+          Section: finance
+          Priority: optional
+          Architecture: ${ARCH}
+          Installed-Size: ${INSTALLED_SIZE}
+          Depends: libgtk-3-0, libsecret-1-0
+          Maintainer: Finanfa <cohortedata@gotolearn.com>
+          Description: Finanfa desktop client
+           Flutter-based desktop client for the finanfa-code local-first
+           multi-model assistant.
+          EOF
+
+          chmod 0755 "$STAGE/DEBIAN"
+          chmod 0644 "$STAGE/DEBIAN/control"
+
+          mkdir -p "$GITHUB_WORKSPACE/dist"
+          dpkg-deb --build --root-owner-group "$STAGE" "$GITHUB_WORKSPACE/dist/${PKG_NAME}_${PKG_VERSION}_${ARCH}.deb"
+          dpkg-deb --info "$GITHUB_WORKSPACE/dist/${PKG_NAME}_${PKG_VERSION}_${ARCH}.deb"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: finanfa-linux-amd64-deb
+          path: dist/finanfa_${{ env.APP_VERSION }}_amd64.deb
+          if-no-files-found: error
