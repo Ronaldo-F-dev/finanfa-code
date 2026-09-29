@@ -135,6 +135,7 @@ import { createSecurityScanWifiTool } from "./security/wifi-scan.js";
 import { createSecurityScanBluetoothTool } from "./security/bluetooth-scan.js";
 import { createSecurityStartWifiCaptureTool, createSecurityListWifiCapturesTool } from "./security/wifi-capture.js";
 import { createSecurityAnalyzeBluetoothCaptureTool } from "./security/bluetooth-capture.js";
+import { createSecurityWifiActiveHandshakeCaptureTool } from "./security/wifi-active-handshake.js";
 import { createSecurityRunNmapTool } from "./security/nmap.js";
 import { createSecurityRunMetasploitTool } from "./security/metasploit.js";
 import { securityScanParamFuzzingTool } from "./security/param-fuzzing.js";
@@ -314,6 +315,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(createSecurityStartWifiCaptureTool());
   registry.register(createSecurityListWifiCapturesTool());
   registry.register(createSecurityAnalyzeBluetoothCaptureTool());
+  registry.register(createSecurityWifiActiveHandshakeCaptureTool());
   if (isCommandAvailable("nmap")) registry.register(createSecurityRunNmapTool());
   if (isCommandAvailable("msfconsole")) registry.register(createSecurityRunMetasploitTool());
   registry.register(securityScanParamFuzzingTool);
