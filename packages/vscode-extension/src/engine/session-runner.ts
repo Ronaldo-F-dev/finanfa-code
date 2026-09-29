@@ -171,7 +171,7 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
   const visionRoute = selectVisionProvider(config);
 
   const tools = new ToolRegistry();
-  registerBuiltins(tools, { sandbox: config.sandbox });
+  registerBuiltins(tools, { sandbox: config.sandbox, config });
 
   const skills = await loadSkills(cwd);
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
