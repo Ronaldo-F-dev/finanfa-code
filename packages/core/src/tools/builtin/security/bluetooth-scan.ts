@@ -1,7 +1,9 @@
 import { spawn } from "node:child_process";
 import type { ToolDefinition } from "../../../core/types.js";
 import { isCommandAvailable } from "../../../util/command-availability.js";
-import { formatScanOutput, type PassedControl, type ScanOutput } from "./types.js";
+import { severityFromScore } from "./cvss.js";
+import { formatScanOutput, type Finding, type PassedControl, type ScanOutput } from "./types.js";
+import { BluetoothctlSession, parseListAttributes, parseReadValue, auditGattAttributes, type GattAttribute } from "./bluetooth-gatt.js";
 
 // Real gap this fills: no Bluetooth recon at all in this directory. Scoped
 // to surface-level discovery only — what's advertising/paired, by name,
@@ -151,6 +153,67 @@ async function scanLinuxBluetoothctl(bin: string, scanWindowMs: number): Promise
   return { devices, available: true, note: `bluetoothctl: ${devices.length} device(s) known (paired and/or discovered during a ${scanWindowMs / 1000}s scan window).` };
 }
 
+// --- Linux: BLE GATT discovery (read-only), ported from wireless-lab's ---
+// bluetooth/gatt package. Drives bluetoothctl's interactive "menu gatt"
+// flow to enumerate services/characteristics/descriptors and, optionally,
+// read specific characteristic values. Never writes to a characteristic —
+// see security_bluetooth_gatt_active_write's still-unimplemented stub for
+// that materially different (state-changing) operation. macOS has no
+// standard-tooling CLI equivalent to bluetoothctl's GATT menu, so this is
+// Linux-only, same restriction wireless-lab's own module documented.
+export interface GattDiscoveryResult {
+  deviceAddress: string;
+  attributes: GattAttribute[];
+  values: Record<string, string>; // characteristic path -> hex string
+}
+
+async function discoverGatt(bluetoothctlBin: string, deviceAddress: string, readCharacteristicPaths: string[]): Promise<GattDiscoveryResult & { note: string }> {
+  const session = new BluetoothctlSession(bluetoothctlBin);
+  try {
+    session.start();
+    await session.send("", 100); // let the banner/agent-registration print settle
+    await session.send("menu gatt");
+    const listOutput = await session.send(`list-attributes ${deviceAddress}`, 300);
+    const attributes = parseListAttributes(listOutput);
+
+    const values: Record<string, string> = {};
+    for (const path of readCharacteristicPaths) {
+      await session.send(`select-attribute ${path}`);
+      const readOutput = await session.send("read", 250);
+      const value = parseReadValue(readOutput);
+      if (value) values[path] = value.toString("hex");
+    }
+
+    return { deviceAddress, attributes, values, note: `bluetoothctl GATT discovery: ${attributes.length} attribute(s) found for ${deviceAddress}${readCharacteristicPaths.length > 0 ? `, ${Object.keys(values).length}/${readCharacteristicPaths.length} characteristic(s) read` : ""}.` };
+  } finally {
+    session.close();
+  }
+}
+
+function findingsFromGattAudit(discovery: GattDiscoveryResult): ScanOutput {
+  const findings: Finding[] = [];
+  const passedControls: PassedControl[] = [];
+  const auditFindings = auditGattAttributes(discovery.attributes);
+  for (const f of auditFindings) {
+    findings.push({
+      id: `bt-gatt-legacy-${f.uuid}`,
+      title: f.title,
+      severity: severityFromScore(5.5),
+      cvssScore: 5.5,
+      description: f.description,
+      remediation: "Confirm this service requires authentication/pairing before accepting commands, or disable it if unused.",
+      affectedEndpoint: discovery.deviceAddress,
+    });
+  }
+  if (auditFindings.length === 0) {
+    passedControls.push({ label: "GATT service audit", detail: "No known legacy/high-risk service UUIDs observed among discovered attributes." });
+  }
+  for (const [path, hex] of Object.entries(discovery.values)) {
+    passedControls.push({ label: `Characteristic ${path}`, detail: `Read ${hex.length / 2} byte(s): ${hex}` });
+  }
+  return { findings, passedControls };
+}
+
 // --- reporting -------------------------------------------------------
 
 /** No per-device security "finding" is fabricated here — see the tool description for why. Devices are reported as informational passed-controls (what's discoverable), not judged. */
@@ -174,7 +237,18 @@ export interface SecurityScanBluetoothOptions {
   scanWindowMs?: number;
 }
 
-export function createSecurityScanBluetoothTool(options: SecurityScanBluetoothOptions = {}): ToolDefinition<Record<string, never>> {
+export interface SecurityScanBluetoothInput {
+  /** Optional: a known device address (from a prior scan) to run read-only
+   * BLE GATT discovery against instead of discovery/enumeration. Linux only
+   * (bluetoothctl's GATT menu has no macOS standard-tooling equivalent). */
+  deviceAddress?: string;
+  /** With deviceAddress: characteristic paths (as reported by discovery) to
+   * also read a value from. Read-only — this never writes to a
+   * characteristic (see security_bluetooth_gatt_active_write). */
+  readCharacteristicPaths?: string[];
+}
+
+export function createSecurityScanBluetoothTool(options: SecurityScanBluetoothOptions = {}): ToolDefinition<SecurityScanBluetoothInput> {
   const platform = options.platformOverride ?? process.platform;
   const systemProfilerBin = options.systemProfilerBinary ?? "system_profiler";
   const blueutilBin = options.blueutilBinary ?? "blueutil";
@@ -193,16 +267,46 @@ export function createSecurityScanBluetoothTool(options: SecurityScanBluetoothOp
       "SURFACE-LEVEL ONLY: this reports what's discoverable (name/address/RSSI), not each device's actual " +
       "pairing security — determining whether a device uses a weak/deprecated pairing method (e.g. Just Works) " +
       "requires sniffing the pairing exchange itself, which this tool does not attempt. " +
-      "OUT OF SCOPE, not implemented here: BLE GATT-level enumeration or exploitation, and anything requiring " +
-      "a specialized Bluetooth adapter or firmware-level access.",
+      "Alternatively, pass `deviceAddress` (Linux only) to run read-only BLE GATT discovery against that " +
+      "device instead — drives bluetoothctl's interactive GATT menu to enumerate services/characteristics/" +
+      "descriptors, and optionally reads back specific characteristics via `readCharacteristicPaths`. Flags " +
+      "known legacy/high-risk GATT service UUIDs (e.g. unauthenticated vendor UART bridges) as findings. Never " +
+      "writes to a characteristic — see security_bluetooth_gatt_active_write for that (unimplemented) " +
+      "operation. " +
+      "OUT OF SCOPE, not implemented here: BLE GATT-level exploitation/writes, and anything requiring a " +
+      "specialized Bluetooth adapter or firmware-level access.",
     // Passive discovery/enumeration only, same tier as security_scan_wifi
     // and list_usb_devices — no connection is made to any discovered
     // device, just listening for/reading back what's already advertising
-    // or already paired.
+    // or already paired. GATT discovery does open a connection to read
+    // already-exposed characteristic values, but stays read-only — same
+    // tier as reading a file the target already serves up.
     riskLevel: "safe",
-    inputSchema: { type: "object", properties: {} },
-    describeCall: () => "scan for nearby/paired Bluetooth devices",
-    async handler() {
+    inputSchema: {
+      type: "object",
+      properties: {
+        deviceAddress: { type: "string", description: "Device address to run read-only BLE GATT discovery against instead of discovery/enumeration (Linux only)" },
+        readCharacteristicPaths: { type: "array", items: { type: "string" }, description: "With deviceAddress: characteristic paths (from a prior discovery) to read a value from" },
+      },
+    },
+    describeCall: (input) => (input.deviceAddress ? `GATT discovery for Bluetooth device ${input.deviceAddress}` : "scan for nearby/paired Bluetooth devices"),
+    async handler(input) {
+      if (input.deviceAddress) {
+        if (platform !== "linux") {
+          return { content: `Read-only GATT discovery via bluetoothctl targets Linux only (no standard macOS CLI equivalent); this host reports platform "${platform}".`, isError: true };
+        }
+        if (!isCommandAvailable(bluetoothctlBin)) {
+          return { content: "bluetoothctl not found (install bluez).", isError: true };
+        }
+        const discovery = await discoverGatt(bluetoothctlBin, input.deviceAddress, input.readCharacteristicPaths ?? []);
+        if (discovery.attributes.length === 0) {
+          return { content: `No GATT attributes discovered for ${input.deviceAddress}.\n\n${discovery.note}`, isError: false, metadata: { discovery } };
+        }
+        const output = findingsFromGattAudit(discovery);
+        const body = formatScanOutput(`GATT attributes for ${input.deviceAddress}`, output);
+        return { content: `${body}\n\n${discovery.note}`, isError: false, metadata: { discovery } };
+      }
+
       const notes: string[] = [];
       let devices: BluetoothDevice[] = [];
 
