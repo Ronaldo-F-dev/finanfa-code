@@ -2,6 +2,7 @@ import { readFile, writeFile, mkdir, chmod } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import type { SandboxConfig } from "../util/sandbox.js";
+import type { LocalServiceConfig } from "./local-model-manager.js";
 
 export interface FinanfaConfig {
   provider?: "anthropic" | "openai-compatible" | "gemini" | "azure-openai" | "amazon-bedrock" | "google-vertex" | "cohere" | "github-copilot";
@@ -105,33 +106,23 @@ export interface FinanfaConfig {
    */
   channels?: Record<string, Record<string, string>>;
   /**
-   * Path to a local .gguf model file — when set, ensureLocalTextModelServer
-   * (core/local-model-manager.ts) uses it to auto-start a llama.cpp server
-   * (or confirm one already running there is serving this exact model) so
-   * the local-first default text model doesn't require the user to launch
-   * llama-server by hand every time. Only meaningful alongside
-   * provider: "openai-compatible"/TEXT_MODEL_PROVIDER pointed at a
-   * localhost baseUrl — a remote or non-local provider ignores it.
+   * Describes how to auto-start whatever's configured at the CURRENT
+   * baseUrl/model if nothing's already answering there — a generic launch
+   * command (command/args/cwd/env), not a runtime-specific model path, so
+   * ensureLocalService (core/local-model-manager.ts) never needs to know or
+   * guess llama.cpp's vs mlx_lm.server's vs anything else's invocation
+   * shape. Completely optional — if unset, finanfa-code makes zero attempt
+   * to start anything and just talks to baseUrl as-is.
    */
-  textModelPath?: string;
-  /** Overrides the "llama-server" binary name/path ensureLocalTextModelServer spawns — set this if it's not on PATH under its default name. */
-  textModelBinary?: string;
-  /** llama-server's -c/--ctx-size — defaults to 8192 if unset (see local-model-manager.ts). */
-  textModelContextSize?: string;
-  /** Hugging Face repo id (e.g. "prism-ml/Ternary-Bonsai-1.7B-gguf") the .gguf at textModelPath comes from — purely informational, used only to print a real `hf download` command when the file is missing (see ensureConfiguredLocalTextModel). Never auto-downloaded without the user running that command themselves. */
-  textModelHfRepo?: string;
-  /** Filename within textModelHfRepo (e.g. "Ternary-Bonsai-1.7B-Q2_0_g64.gguf") — paired with textModelHfRepo for the same download-command message. */
-  textModelHfFile?: string;
+  localService?: LocalServiceConfig;
   /**
-   * Maps a model name (as it'd appear picked from /models or the model
-   * picker) to its local .gguf path — lets ensureLocalTextModelForSwitch
-   * (app.ts) restart the local llama.cpp server with the newly-picked
-   * model when switching between several locally-served text models (e.g.
-   * Bonsai 1.7B vs 4B vs 8B, all served one at a time on the same port).
-   * A model not listed here is assumed unrelated to the local text model
-   * slot (a different Anthropic/Ollama/etc. model) and left untouched.
+   * Same shape as localService, keyed by model name — for switching between
+   * several local models (e.g. the /models command or a model picker
+   * sending set_model). A model not listed here is assumed unrelated to the
+   * local-service slot (a different Anthropic/remote model, or one already
+   * running elsewhere) and left untouched.
    */
-  localTextModelPaths?: Record<string, string>;
+  localServices?: Record<string, LocalServiceConfig>;
 }
 
 /** Parses config.thinkingBudgetTokens (a plain string, like every other /config-set value) into the number session.thinkingBudgetTokens actually wants — undefined for unset/non-positive/non-numeric, never NaN or 0, so callers can assign it straight through without their own validation. */
