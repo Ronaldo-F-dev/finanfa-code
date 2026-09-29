@@ -26,7 +26,13 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
     throw new Error(`Unknown tool: ${request.params.name}`);
   }
   const text = request.params.arguments?.text ?? "";
-  return { content: [{ type: "text", text: `echo: ${text}` }] };
+  // Only appended when a test explicitly asks for it (via ECHO_ENV_PROBE),
+  // so existing "echo: <text>" assertions elsewhere are untouched — this
+  // lets a client-manager test prove a custom `env` config value actually
+  // reached this spawned process, without changing default behavior.
+  const probe = process.env.ECHO_ENV_PROBE;
+  const suffix = probe ? ` env=${process.env[probe] ?? ""}` : "";
+  return { content: [{ type: "text", text: `echo: ${text}${suffix}` }] };
 });
 
 await server.connect(new StdioServerTransport());

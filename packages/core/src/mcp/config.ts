@@ -7,6 +7,14 @@ export interface McpServerConfig {
   // stdio
   command?: string;
   args?: string[];
+  // Extra environment variables for the spawned process (e.g. a real API
+  // key a credential-based MCP server needs before it'll even complete an
+  // initialize handshake — Stripe's --api-key flag aside, most servers of
+  // this shape read the key from the environment instead). Merged on top
+  // of the transport's own default-safe-to-inherit environment (PATH and
+  // friends) at spawn time, never a full replacement of it — see
+  // client-manager.ts's buildTransport.
+  env?: Record<string, string>;
   // http / sse (remote servers — OAuth is attempted automatically if the
   // server responds 401; see src/mcp/oauth-provider.ts)
   url?: string;

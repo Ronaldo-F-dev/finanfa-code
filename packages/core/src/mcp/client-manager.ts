@@ -1,5 +1,5 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import { StdioClientTransport, getDefaultEnvironment } from "@modelcontextprotocol/sdk/client/stdio.js";
 import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/streamableHttp.js";
 import { SSEClientTransport } from "@modelcontextprotocol/sdk/client/sse.js";
 import { UnauthorizedError } from "@modelcontextprotocol/sdk/client/auth.js";
@@ -34,7 +34,15 @@ interface BuiltTransport {
 function buildTransport(cfg: McpServerConfig): BuiltTransport {
   if (cfg.transport === "stdio") {
     if (!cfg.command) throw new Error(`MCP server "${cfg.name}": stdio transport requires "command"`);
-    return { transport: new StdioClientTransport({ command: cfg.command, args: cfg.args }) };
+    // StdioClientTransport's own `env` option REPLACES the child's
+    // environment entirely rather than extending it (confirmed in the SDK's
+    // own stdio.d.ts) — passing cfg.env straight through would drop PATH and
+    // break `npx`/`node` from even starting. Merge onto the same
+    // default-safe-to-inherit set the transport would otherwise apply
+    // itself, so a credential like STRIPE_API_KEY layers on top instead of
+    // replacing the environment a real command needs to run at all.
+    const env = cfg.env ? { ...getDefaultEnvironment(), ...cfg.env } : undefined;
+    return { transport: new StdioClientTransport({ command: cfg.command, args: cfg.args, env }) };
   }
   if (!cfg.url) throw new Error(`MCP server "${cfg.name}": ${cfg.transport} transport requires "url"`);
   const authProvider = new FileOAuthClientProvider(cfg.name);
