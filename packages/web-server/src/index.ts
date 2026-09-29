@@ -368,14 +368,14 @@ app.get("/api/models", async (req, res) => {
       : []),
     ...localModels.map((m) => ({ id: `${m.source}: ${m.id}`, family: "openai-compatible" as const, configured: true, baseUrl: m.baseUrl, localModelId: m.id })),
   ];
-  // localTextModelPaths lists models the user has downloaded on disk, whether
-  // or not a server currently happens to be serving one — detectLocalProviders()
+  // localServices lists models the user has a launch command for, whether or
+  // not a server currently happens to be serving one — detectLocalProviders()
   // above only reports what's live right now, so a configured-but-not-running
   // model (e.g. switching from the 1.7B default to the 4B) would otherwise never
   // appear for the user to pick. Skip any already surfaced by the live probe or
   // as the active default so the same model isn't listed twice.
   const alreadyListed = new Set(models.map((m) => m.id));
-  for (const modelName of Object.keys(config.localTextModelPaths ?? {})) {
+  for (const modelName of Object.keys(config.localServices ?? {})) {
     if (alreadyListed.has(modelName)) continue;
     models.push({ id: modelName, family: "openai-compatible" as const, configured: true, local: true, running: false } as (typeof models)[number] & { local: boolean; running: boolean });
   }
@@ -1243,12 +1243,11 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           }
         } else if (msg.type === "set_model" && typeof msg.model === "string" && msg.model) {
           // Snapshot of everything this handler is about to overwrite, so a
-          // local-server switch that ensureLocalTextModelForSwitch reports as
-          // failed (a different local model already serving that baseUrl,
-          // missing binary/model file, start-failed) can be rolled back
-          // below instead of leaving the session/UI claiming the new model is
-          // active while the old local server is still the one actually
-          // answering — the real, reported bug this closes.
+          // local-service switch that ensureLocalTextModelForSwitch reports
+          // as failed (start-failed) can be rolled back below instead of
+          // leaving the session/UI claiming the new model is active while
+          // the old local service is still the one actually answering — the
+          // real, reported bug this closes.
           const previousModel = session.model;
           const previousProviderKind = providerKind;
           const previousProviderBaseUrl = session.providerBaseUrl;
@@ -1310,19 +1309,17 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           session.providerBaseUrl = typeof msg.baseUrl === "string" && msg.baseUrl ? msg.baseUrl : undefined;
           session.model = msg.model;
           // Real, reported gap: picking a different locally-served text
-          // model (e.g. switching between several Bonsai sizes, all served
-          // one at a time by the same llama.cpp process) didn't restart
-          // that server with the newly-picked one — only the very first
-          // process-startup check ever ensured the right model was
-          // loaded. A no-op unless config.localTextModelPaths has an entry
-          // for msg.model.
+          // model (e.g. switching between several Bonsai sizes) didn't
+          // start that service with the newly-picked one — only the very
+          // first process-startup check ever ensured something was running.
+          // A no-op unless config.localServices has an entry for msg.model.
           const localSwitch = await ensureLocalTextModelForSwitch(config, msg.model, adapter);
           if (localSwitch.handled && !localSwitch.ok) {
-            // The local server switch was attempted and refused/failed —
-            // whatever's actually running at that baseUrl is still the OLD
-            // model, so committing session.model/providerKind here would
-            // make the UI show the new model as active while every message
-            // keeps getting answered by the old one underneath it. Roll the
+            // The local service switch was attempted and failed — whatever's
+            // actually running at that baseUrl is still the OLD model, so
+            // committing session.model/providerKind here would make the UI
+            // show the new model as active while every message keeps
+            // getting answered by the old one underneath it. Roll the
             // session back to what was actually working before this message
             // arrived, and tell the client the switch didn't happen instead
             // of silently acking it.
@@ -1336,15 +1333,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
               JSON.stringify({
                 type: "error",
                 text: `Couldn't switch to ${msg.model}: ${
-                  localSwitch.status.state === "already-running-different-model"
-                    ? `${config.baseUrl ?? "the local server"} is already serving "${localSwitch.status.runningModelId}" — stop that server yourself, then try again.`
-                    : localSwitch.status.state === "missing-binary"
-                      ? `"${localSwitch.status.binary}" isn't installed or isn't on PATH.`
-                      : localSwitch.status.state === "missing-model-file"
-                        ? `no model file at ${localSwitch.status.path}.`
-                        : localSwitch.status.state === "start-failed"
-                          ? localSwitch.status.message
-                          : "the local model server switch failed."
+                  localSwitch.status.state === "start-failed" ? localSwitch.status.message : "the local service switch failed."
                 }`,
               }),
             );
@@ -1491,12 +1480,12 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           session.model = resolvedModel;
           // Same local-model-switch check as the plain model picker above —
           // a no-op unless this tier's model is one of
-          // config.localTextModelPaths's entries.
+          // config.localServices's entries.
           const localSwitch = await ensureLocalTextModelForSwitch(config, resolvedModel, adapter);
           if (localSwitch.handled && !localSwitch.ok) {
             // Same rollback as set_model above: don't let the session/UI
-            // claim this effort tier's model is active when the local server
-            // switch it depends on actually failed.
+            // claim this effort tier's model is active when the local
+            // service switch it depends on actually failed.
             session.model = previousModel;
             providerKind = previousProviderKind;
             session.providerKind = previousProviderKind;
@@ -1507,15 +1496,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
               JSON.stringify({
                 type: "error",
                 text: `Couldn't switch to effort level ${msg.level} (${resolvedModel}): ${
-                  localSwitch.status.state === "already-running-different-model"
-                    ? `${config.baseUrl ?? "the local server"} is already serving "${localSwitch.status.runningModelId}" — stop that server yourself, then try again.`
-                    : localSwitch.status.state === "missing-binary"
-                      ? `"${localSwitch.status.binary}" isn't installed or isn't on PATH.`
-                      : localSwitch.status.state === "missing-model-file"
-                        ? `no model file at ${localSwitch.status.path}.`
-                        : localSwitch.status.state === "start-failed"
-                          ? localSwitch.status.message
-                          : "the local model server switch failed."
+                  localSwitch.status.state === "start-failed" ? localSwitch.status.message : "the local service switch failed."
                 }`,
               }),
             );
