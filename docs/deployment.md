@@ -100,3 +100,29 @@ coordinating multiple downstream agent instances, and not per-user
 isolation of the underlying project/workspace files themselves (every
 authenticated user shares the same projects on disk; only conversation
 history is private).
+
+## Desktop app packaging
+
+The mobile/desktop client (`apps/`, see [apps/README.md](../apps/README.md))
+is a Flutter app that talks to a finanfa-code web server rather than
+embedding the agent — packaging it is a separate concern from deploying
+the server itself.
+
+[.github/workflows/desktop-build.yml](../.github/workflows/desktop-build.yml)
+builds the Windows and Linux desktop targets:
+
+- **Triggers**: manual (`workflow_dispatch`), or automatically on a push
+  of a `v*` tag. It deliberately does not run on every push/PR — a
+  Flutter desktop build is heavy (5-15 minutes per OS) and needs a
+  platform-specific toolchain (MSVC on Windows, GTK3/CMake/ninja on
+  Linux).
+- **Produces**: a zipped Windows release build
+  (`finanfa-windows-x64.zip`), and a real installable Linux package
+  (`finanfa_<version>_amd64.deb`, with its own desktop entry and
+  `libgtk-3-0`/`libsecret-1-0` dependencies declared).
+- **Artifacts**: attached to that workflow run (Actions → Desktop build
+  → the specific run) — not published anywhere else automatically.
+
+iOS/Android/macOS builds are built and run through the normal Flutter
+toolchain directly (`flutter build ios|apk|macos`) rather than through
+this workflow.
