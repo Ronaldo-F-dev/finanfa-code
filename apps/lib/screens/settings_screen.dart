@@ -96,157 +96,185 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       appBar: AppBar(title: Text(t(ref, 'settings.title'))),
       body: ContentWidth(
         child: ListView(
+          padding: const EdgeInsets.all(FinanfaSpace.lg),
           children: [
-            _SectionLabel(t(ref, 'settings.appearance')),
-            _OptionGroup<ThemeMode>(
-              value: themeMode,
-              onChanged: (mode) =>
-                  ref.read(themeModeProvider.notifier).setMode(mode),
-              options: [
-                (ThemeMode.system, t(ref, 'settings.system')),
-                (ThemeMode.light, t(ref, 'settings.light')),
-                (ThemeMode.dark, t(ref, 'settings.dark')),
-              ],
+            _SettingsSection(
+              title: t(ref, 'settings.appearance'),
+              child: _OptionGroup<ThemeMode>(
+                value: themeMode,
+                onChanged: (mode) =>
+                    ref.read(themeModeProvider.notifier).setMode(mode),
+                options: [
+                  (ThemeMode.system, t(ref, 'settings.system')),
+                  (ThemeMode.light, t(ref, 'settings.light')),
+                  (ThemeMode.dark, t(ref, 'settings.dark')),
+                ],
+              ),
             ),
-            const Divider(),
-            _SectionLabel(t(ref, 'settings.language')),
-            _OptionGroup<String>(
-              value: language,
-              onChanged: (code) =>
-                  ref.read(languageProvider.notifier).setLanguage(code),
-              options: [
-                for (final code in supportedLanguages)
-                  (code, _languageNames[code] ?? code),
-              ],
+            const SizedBox(height: FinanfaSpace.lg),
+            _SettingsSection(
+              title: t(ref, 'settings.language'),
+              child: _OptionGroup<String>(
+                value: language,
+                onChanged: (code) =>
+                    ref.read(languageProvider.notifier).setLanguage(code),
+                options: [
+                  for (final code in supportedLanguages)
+                    (code, _languageNames[code] ?? code),
+                ],
+              ),
             ),
-            const Divider(),
-            _SectionLabel(t(ref, 'settings.providers')),
-            if (!_loaded)
-              const Padding(
-                padding: EdgeInsets.all(16),
-                child: Center(child: CircularProgressIndicator()),
-              )
-            else ...[
-              _ProviderCard(
-                title: t(ref, 'settings.anthropicTitle'),
-                configured: _saved['anthropicApiKey'] != null,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (_saved['anthropicApiKey'] != null)
-                      Padding(
-                        padding: const EdgeInsets.only(bottom: 8),
-                        child: Text(
-                          _saved['anthropicApiKey']!,
-                          style: TextStyle(color: c.textMuted, fontSize: 12),
-                        ),
-                      ),
-                    Row(
+            const SizedBox(height: FinanfaSpace.lg),
+            _SettingsSection(
+              title: t(ref, 'settings.providers'),
+              padded: false,
+              child: !_loaded
+                  ? const Padding(
+                      padding: EdgeInsets.all(24),
+                      child: Center(child: CircularProgressIndicator()),
+                    )
+                  : Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        Expanded(
-                          child: TextField(
-                            controller: _anthropicKeyController,
-                            obscureText: true,
-                            decoration: const InputDecoration(
-                              hintText: 'sk-ant-…',
-                            ),
+                        _ProviderTile(
+                          title: t(ref, 'settings.anthropicTitle'),
+                          configured: _saved['anthropicApiKey'] != null,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (_saved['anthropicApiKey'] != null)
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Text(
+                                    _saved['anthropicApiKey']!,
+                                    style: TextStyle(
+                                      color: c.textMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: TextField(
+                                      controller: _anthropicKeyController,
+                                      obscureText: true,
+                                      decoration: const InputDecoration(
+                                        hintText: 'sk-ant-…',
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 8),
+                                  FilledButton(
+                                    onPressed: _saveAnthropic,
+                                    child: Text(t(ref, 'settings.save')),
+                                  ),
+                                ],
+                              ),
+                            ],
                           ),
                         ),
-                        const SizedBox(width: 8),
-                        FilledButton(
-                          onPressed: _saveAnthropic,
-                          child: Text(t(ref, 'settings.save')),
+                        Divider(height: 1, color: c.border),
+                        _ProviderTile(
+                          title: t(ref, 'settings.otherProviderTitle'),
+                          configured: _saved['baseUrl'] != null,
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              LabeledField(
+                                label: t(ref, 'settings.baseUrl'),
+                                child: TextField(
+                                  controller: _baseUrlController,
+                                  decoration: InputDecoration(
+                                    hintText:
+                                        _saved['baseUrl'] ?? 'https://…/v1',
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              LabeledField(
+                                label: t(ref, 'settings.model'),
+                                child: TextField(
+                                  controller: _modelController,
+                                  decoration: InputDecoration(
+                                    hintText:
+                                        _saved['model'] ?? 'e.g. llama3.1',
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              LabeledField(
+                                label: t(ref, 'settings.apiKeyOptional'),
+                                child: TextField(
+                                  controller: _apiKeyController,
+                                  obscureText: true,
+                                  decoration: InputDecoration(
+                                    hintText: _saved['apiKey'] ?? '',
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 8),
+                              FilledButton(
+                                onPressed: _saveOther,
+                                child: Text(t(ref, 'settings.save')),
+                              ),
+                            ],
+                          ),
                         ),
+                        if (_status != null)
+                          Padding(
+                            padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                            child: Text(
+                              _status!,
+                              style: TextStyle(color: c.textMuted),
+                            ),
+                          ),
                       ],
                     ),
-                  ],
-                ),
-              ),
-              _ProviderCard(
-                title: t(ref, 'settings.otherProviderTitle'),
-                configured: _saved['baseUrl'] != null,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    LabeledField(
-                      label: t(ref, 'settings.baseUrl'),
-                      child: TextField(
-                        controller: _baseUrlController,
-                        decoration: InputDecoration(
-                          hintText: _saved['baseUrl'] ?? 'https://…/v1',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    LabeledField(
-                      label: t(ref, 'settings.model'),
-                      child: TextField(
-                        controller: _modelController,
-                        decoration: InputDecoration(
-                          hintText: _saved['model'] ?? 'e.g. llama3.1',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    LabeledField(
-                      label: t(ref, 'settings.apiKeyOptional'),
-                      child: TextField(
-                        controller: _apiKeyController,
-                        obscureText: true,
-                        decoration: InputDecoration(
-                          hintText: _saved['apiKey'] ?? '',
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    FilledButton(
-                      onPressed: _saveOther,
-                      child: Text(t(ref, 'settings.save')),
-                    ),
-                  ],
-                ),
-              ),
-              if (_status != null)
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 4,
+            ),
+            const SizedBox(height: FinanfaSpace.lg),
+            _SettingsSection(
+              title: t(ref, 'settings.server'),
+              padded: false,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  _SettingsRow(
+                    icon: Icons.dns_outlined,
+                    title: t(ref, 'settings.connectedTo'),
+                    subtitle: widget.connection.baseUrl,
                   ),
-                  child: Text(_status!, style: TextStyle(color: c.textMuted)),
-                ),
-            ],
-            const Divider(),
-            _SectionLabel(t(ref, 'settings.server')),
-            ListTile(
-              leading: Icon(Icons.dns_outlined, color: c.textMuted),
-              title: Text(t(ref, 'settings.connectedTo')),
-              subtitle: Text(widget.connection.baseUrl),
-            ),
-            ListTile(
-              leading: Icon(Icons.key_outlined, color: c.textMuted),
-              title: Text(t(ref, 'settings.login')),
-              subtitle: Text(
-                widget.connection.token != null
-                    ? t(ref, 'settings.signedIn')
-                    : t(ref, 'settings.noLoginRequired'),
+                  Divider(height: 1, color: c.border),
+                  _SettingsRow(
+                    icon: Icons.key_outlined,
+                    title: t(ref, 'settings.login'),
+                    subtitle: widget.connection.token != null
+                        ? t(ref, 'settings.signedIn')
+                        : t(ref, 'settings.noLoginRequired'),
+                  ),
+                  Divider(height: 1, color: c.border),
+                  _SettingsRow(
+                    icon: Icons.info_outline,
+                    title: t(ref, 'about.title'),
+                    trailing: Icons.chevron_right_rounded,
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            AboutScreen(connection: widget.connection),
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
-            ListTile(
-              leading: Icon(Icons.info_outline, color: c.textMuted),
-              title: Text(t(ref, 'about.title')),
-              onTap: () => Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (_) => AboutScreen(connection: widget.connection),
-                ),
-              ),
-            ),
-            const SizedBox(height: 8),
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16),
+            const SizedBox(height: FinanfaSpace.lg),
+            SizedBox(
+              width: double.infinity,
               child: OutlinedButton.icon(
                 style: OutlinedButton.styleFrom(
                   foregroundColor: c.danger,
                   side: BorderSide(color: c.danger),
+                  padding: const EdgeInsets.symmetric(vertical: 12),
                 ),
                 icon: const Icon(Icons.logout),
                 label: Text(t(ref, 'settings.disconnect')),
@@ -361,11 +389,72 @@ class _OptionRow<T> extends StatelessWidget {
   }
 }
 
-class _ProviderCard extends StatelessWidget {
+/// A bounded, titled section — the whole screen used to be one flat
+/// `ListView` with `Divider`s and floating labels between ungrouped rows
+/// (real feedback: "trop basique", the structure/density specifically).
+/// Every section is now a real boxed card with its title INSIDE the box,
+/// matching the same border/radius/flat-elevation language as
+/// `_ProviderTile`'s row dividers, instead of some parts being cards
+/// (Providers) and others a bare list (Appearance, Server).
+class _SettingsSection extends StatelessWidget {
+  final String title;
+  final Widget child;
+
+  /// false for sections whose child already manages its own internal
+  /// padding/dividers per row (Providers, Server) — true (default) for
+  /// ones that just need the standard content inset (Appearance, Language).
+  final bool padded;
+  const _SettingsSection({
+    required this.title,
+    required this.child,
+    this.padded = true,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Container(
+      decoration: BoxDecoration(
+        color: c.bgCard,
+        borderRadius: BorderRadius.circular(FinanfaRadii.lg),
+        border: Border.all(color: c.border),
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.fromLTRB(
+              FinanfaSpace.lg,
+              FinanfaSpace.md,
+              FinanfaSpace.lg,
+              FinanfaSpace.sm,
+            ),
+            child: Text(title, style: context.textStyles.sectionLabel),
+          ),
+          Divider(height: 1, color: c.border),
+          padded
+              ? Padding(
+                  padding: const EdgeInsets.symmetric(
+                    vertical: FinanfaSpace.xs,
+                  ),
+                  child: child,
+                )
+              : child,
+        ],
+      ),
+    );
+  }
+}
+
+/// A provider's config block within the Providers section — same content
+/// as the old `_ProviderCard`, just laid out as a row inside the shared
+/// section box instead of being its own separate floating `Card`.
+class _ProviderTile extends StatelessWidget {
   final String title;
   final bool configured;
   final Widget child;
-  const _ProviderCard({
+  const _ProviderTile({
     required this.title,
     required this.configured,
     required this.child,
@@ -374,47 +463,79 @@ class _ProviderCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final c = context.colors;
-    return Card(
-      margin: const EdgeInsets.symmetric(
-        horizontal: FinanfaSpace.lg,
-        vertical: FinanfaSpace.sm,
-      ),
-      child: Padding(
-        padding: const EdgeInsets.all(FinanfaSpace.lg),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Text(title, style: context.textStyles.itemTitle),
-                if (configured) ...[
-                  const SizedBox(width: FinanfaSpace.sm),
-                  Icon(Icons.check_circle, size: 16, color: c.success),
-                ],
+    return Padding(
+      padding: const EdgeInsets.all(FinanfaSpace.lg),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              Text(title, style: context.textStyles.itemTitle),
+              if (configured) ...[
+                const SizedBox(width: FinanfaSpace.sm),
+                Icon(Icons.check_circle, size: 16, color: c.success),
               ],
-            ),
-            const SizedBox(height: FinanfaSpace.md),
-            child,
-          ],
-        ),
+            ],
+          ),
+          const SizedBox(height: FinanfaSpace.md),
+          child,
+        ],
       ),
     );
   }
 }
 
-class _SectionLabel extends StatelessWidget {
-  final String text;
-  const _SectionLabel(this.text);
+/// A single info/nav row inside the Server section — the plain `ListTile`
+/// this replaces read fine but visually clashed once boxed inside
+/// `_SettingsSection` (its default padding/icon color didn't line up with
+/// `_ProviderTile`'s own rhythm above it in the same box).
+class _SettingsRow extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String? subtitle;
+  final IconData? trailing;
+  final VoidCallback? onTap;
+  const _SettingsRow({
+    required this.icon,
+    required this.title,
+    this.subtitle,
+    this.trailing,
+    this.onTap,
+  });
+
   @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        FinanfaSpace.lg,
-        FinanfaSpace.lg,
-        FinanfaSpace.lg,
-        FinanfaSpace.xs,
+    final c = context.colors;
+    return InkWell(
+      onTap: onTap,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: FinanfaSpace.lg,
+          vertical: FinanfaSpace.md,
+        ),
+        child: Row(
+          children: [
+            Icon(icon, size: 20, color: c.textMuted),
+            const SizedBox(width: FinanfaSpace.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: context.textStyles.body),
+                  if (subtitle != null)
+                    Text(
+                      subtitle!,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: context.textStyles.caption,
+                    ),
+                ],
+              ),
+            ),
+            if (trailing != null) Icon(trailing, size: 18, color: c.textMuted),
+          ],
+        ),
       ),
-      child: Text(text, style: context.textStyles.sectionLabel),
     );
   }
 }
