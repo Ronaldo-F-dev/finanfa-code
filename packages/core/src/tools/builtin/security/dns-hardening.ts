@@ -193,7 +193,12 @@ export async function attemptZoneTransferAgainst(nsIp: string, hostname: string,
       prefix.writeUInt16BE(query.length, 0);
       socket.write(Buffer.concat([prefix, query]));
     });
-    socket.on("data", (chunk) => chunks.push(chunk));
+    // socket.setEncoding() is never called on this socket, so "data" always
+    // hands us a Buffer, never a string — narrow explicitly rather than
+    // assert, since @types/node's "data" event type covers both cases.
+    socket.on("data", (chunk) => {
+      if (typeof chunk !== "string") chunks.push(chunk);
+    });
     socket.on("error", () => finish(undefined));
     socket.on("close", () => {
       if (settled) return;

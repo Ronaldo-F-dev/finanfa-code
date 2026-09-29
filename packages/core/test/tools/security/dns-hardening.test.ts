@@ -172,7 +172,10 @@ describe("AXFR zone transfer over TCP (real wire protocol against a fake local n
   it("performs a real AXFR-over-TCP exchange against a fake nameserver and confirms the leak", async () => {
     const server = net.createServer((socket) => {
       let buf = Buffer.alloc(0);
+      // socket.setEncoding() is never called here, so "data" always hands
+      // us a Buffer, never a string.
       socket.on("data", (chunk) => {
+        if (typeof chunk === "string") return;
         buf = Buffer.concat([buf, chunk]);
         if (buf.length < 2) return;
         const len = buf.readUInt16BE(0);

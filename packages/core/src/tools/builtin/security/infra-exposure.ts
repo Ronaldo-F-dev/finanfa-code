@@ -99,7 +99,12 @@ function connectAndExchange(hostname: string, port: number, send: (socket: net.S
       resolve(result);
     };
     socket.on("connect", () => send(socket));
-    socket.once("data", (chunk) => finish(chunk.subarray(0, readBytes)));
+    // socket.setEncoding() is never called here, so "data" always hands us
+    // a Buffer, never a string.
+    socket.once("data", (chunk) => {
+      if (typeof chunk === "string") return finish(undefined);
+      finish(chunk.subarray(0, readBytes));
+    });
     socket.on("timeout", () => finish(undefined));
     socket.on("error", () => finish(undefined));
   });
@@ -212,6 +217,9 @@ export async function checkMysql(hostname: string, port = 3306): Promise<Finding
     };
 
     socket.on("data", (chunk) => {
+      // socket.setEncoding() is never called here, so "data" always hands
+      // us a Buffer, never a string.
+      if (typeof chunk === "string") return finish(undefined);
       if (stage === "handshake") {
         parsed = parseMysqlHandshake(chunk);
         if (!parsed) return finish(undefined);

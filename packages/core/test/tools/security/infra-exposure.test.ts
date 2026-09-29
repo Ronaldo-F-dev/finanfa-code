@@ -86,6 +86,9 @@ describe("security_scan_infra_exposure tool (real TCP servers speaking the actua
       server = net.createServer((socket) => {
         socket.write(buildHandshake(fullSalt));
         socket.once("data", (clientAuth) => {
+          // socket.setEncoding() is never called on this socket, so "data"
+          // always hands us a Buffer, never a string.
+          if (typeof clientAuth === "string") return;
           // Real verification: does the client's auth response match what
           // an EMPTY password ("root"/"") would produce for this salt?
           const expectedForEmpty = nativePasswordResponse("", fullSalt);

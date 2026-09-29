@@ -33,7 +33,10 @@ function whoisQuery(host: string, query: string): Promise<string> {
     const chunks: Buffer[] = [];
     let total = 0;
     socket.on("connect", () => socket.write(`${query}\r\n`));
+    // socket.setEncoding() is never called on this socket, so "data" always
+    // hands us a Buffer, never a string.
     socket.on("data", (chunk) => {
+      if (typeof chunk === "string") return;
       total += chunk.length;
       if (total <= MAX_WHOIS_RESPONSE_BYTES) chunks.push(chunk);
       else socket.destroy();
