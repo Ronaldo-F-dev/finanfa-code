@@ -7,6 +7,27 @@ import type { EmbeddingProvider } from "./embedding-provider.js";
 // ranked set of relevant chunks. Purely a library — nothing here is wired
 // into the agent loop or exposed as a tool yet (that's phase 7).
 
+// RAG rollout complete (phases 1-8). End to end, finanfa-code's RAG now
+// lets the agent: index a project's documents on demand
+// (index_project_documents, this file's indexProject); search them by
+// meaning rather than exact wording (search_project_documents, this file's
+// retrieve, formatted with source-attributed citations by
+// context-builder.ts); spot-check a specific claim against the index
+// (check_claim_grounding); and get a note when a search result spans
+// multiple distinct source documents, as a prompt to cross-check them.
+// Real, honest limitations, not caveats to gloss over: there is no true
+// semantic contradiction detection anywhere in this system — the
+// multi-source note flags "more than one document answered this", never
+// "these documents disagree", because nothing here compares meaning across
+// chunks. check_claim_grounding is a similarity signal, not a certified
+// fact-checker — high similarity can still be a contradicting chunk with
+// similar wording, and a true claim can score low if the index just
+// doesn't cover it. Retrieval quality is bounded by whatever embedding
+// model is in use, and the zero-config default (LocalTransformersEmbeddingProvider,
+// a 384-dim MiniLM model) trades some of that quality for needing no setup
+// at all; an API-backed embedding model, configured explicitly, will
+// generally retrieve better.
+
 export interface RetrievedChunk {
   text: string;
   /** Cosine similarity to the query — higher is a better match. */
