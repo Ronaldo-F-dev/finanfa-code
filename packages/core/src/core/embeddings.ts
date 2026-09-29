@@ -11,7 +11,7 @@ export function embeddingsConfigFromEnv(env: NodeJS.ProcessEnv = process.env): E
   return apiKey ? { apiKey } : undefined;
 }
 
-const EMBEDDING_MODEL = "text-embedding-3-small";
+const DEFAULT_EMBEDDING_MODEL = "text-embedding-3-small";
 // OpenAI accepts many inputs per request — batching real embedding calls
 // (instead of one request per text) matters here specifically because
 // ensureIndexed (session-embeddings-index.ts) can have hundreds of
@@ -26,8 +26,13 @@ interface EmbeddingsErrorResponse {
   error?: { message?: string };
 }
 
-/** Embeds one or more texts in as few real API calls as possible, returning vectors in the same order as `texts`. Throws with the real API error message on failure — callers decide how to surface that. */
-export async function embedTexts(config: EmbeddingsConfig, texts: string[], apiBaseUrl = "https://api.openai.com/v1"): Promise<number[][]> {
+/** Embeds one or more texts in as few real API calls as possible, returning vectors in the same order as `texts`. Throws with the real API error message on failure — callers decide how to surface that. `model` defaults to OpenAI's own text-embedding-3-small but is overridable for an OpenAI-compatible endpoint speaking a different embedding model (Ollama's nomic-embed-text, llama-server --embeddings, etc). */
+export async function embedTexts(
+  config: EmbeddingsConfig,
+  texts: string[],
+  apiBaseUrl = "https://api.openai.com/v1",
+  model = DEFAULT_EMBEDDING_MODEL,
+): Promise<number[][]> {
   const results: number[][] = Array.from({ length: texts.length });
 
   for (let start = 0; start < texts.length; start += MAX_BATCH_SIZE) {
@@ -37,7 +42,7 @@ export async function embedTexts(config: EmbeddingsConfig, texts: string[], apiB
       response = await fetch(`${apiBaseUrl}/embeddings`, {
         method: "POST",
         headers: { Authorization: `Bearer ${config.apiKey}`, "content-type": "application/json" },
-        body: JSON.stringify({ model: EMBEDDING_MODEL, input: batch }),
+        body: JSON.stringify({ model, input: batch }),
       });
     } catch (err) {
       throw new Error(`Failed to reach OpenAI: ${err instanceof Error ? err.message : String(err)}`);
