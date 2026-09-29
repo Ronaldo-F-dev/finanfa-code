@@ -35,4 +35,30 @@ describe("McpClientManager (end-to-end against a real stdio MCP server)", () => 
     expect(result.isError).toBe(false);
     expect(result.content).toBe("echo: hello");
   });
+
+  it("merges a stdio server's `env` config on top of the default environment, rather than replacing it", async () => {
+    manager = new McpClientManager();
+    // If `env` replaced the default environment instead of merging onto it,
+    // PATH would be gone and process.execPath (an absolute path, so it
+    // doesn't need PATH to be found) plus the fixture's own reliance on
+    // node's module resolution would still start — so this also asserts on
+    // the actual custom value round-tripping through, not just "it started".
+    await manager.connect({
+      name: "echo",
+      transport: "stdio",
+      command: process.execPath,
+      args: [fixtureServer],
+      env: { ECHO_ENV_PROBE: "CUSTOM_SECRET", CUSTOM_SECRET: "sk-test-123" },
+    });
+
+    const tools = await manager.listAllTools();
+    const result = await tools[0].handler({ text: "hi" }, {
+      cwd: process.cwd(),
+      sessionId: "test",
+      signal: new AbortController().signal,
+    });
+
+    expect(result.isError).toBe(false);
+    expect(result.content).toBe("echo: hi env=sk-test-123");
+  });
 });
