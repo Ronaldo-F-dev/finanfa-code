@@ -23,7 +23,7 @@ tools are registered in total.
 
 On by default for **every** provider, local or cloud — not just a local
 server. The problem it closes (prefill cost scaling with the *total*
-number of registered tools, ~90+ and growing) hits a large cloud model's
+number of registered tools, 188 and growing) hits a large cloud model's
 input-token bill the same way it hits a small local model's latency; it's
 just more visible on the local model because a slow model turns that
 extra cost into minutes instead of extra tokens on the invoice. So Tool
