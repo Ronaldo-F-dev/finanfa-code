@@ -3,7 +3,8 @@
 **Real tools, real actions, any machine. Not a chatbot — an operator.**
 
 A from-scratch AI coding agent, in TypeScript, with a terminal UI, a
-browser UI, a VS Code extension, and editor integration via ACP. 90+
+browser UI, a VS Code extension, a native mobile/desktop client, and
+editor integration via ACP. 90+
 builtin tools (files, shell, git, browser, documents, IoT, DevOps,
 security scanning, and more), a pluggable LLM backend (Anthropic, Azure
 OpenAI, Gemini, Cohere, GitHub Copilot, Amazon Bedrock, Google Vertex AI,
@@ -134,6 +135,17 @@ dev:web-server`. For a one-off production build instead of the dev
 server: `npm run build:web-client`, then `npm run dev:web-server` serves
 the built client directly.
 
+### Mobile & desktop app
+
+`apps/` is finanfa-code's native client (Flutter), built against a
+running web server (see above) instead of embedding the agent itself —
+point it at your server's URL from its connect screen and it drives the
+same sessions/tools/config as the terminal or browser UI. iOS, Android,
+and macOS builds were built and manually verified in this repo; Windows
+and Linux builds are packaged by CI (`.github/workflows/desktop-build.yml`)
+but not yet manually verified on real hardware. See
+[apps/README.md](apps/README.md) for how to run it locally.
+
 ### Docker, self-hosting, and multi-user access
 
 See [docs/deployment.md](docs/deployment.md).
@@ -188,6 +200,7 @@ Ctrl+C persists the session and closes connections cleanly before exit.
 |---|---|
 | [docs/providers.md](docs/providers.md) | Every model provider (local and remote), persistent config, vision routing |
 | [docs/tool-search.md](docs/tool-search.md) | How a small/local model avoids paying for all 90+ tool schemas every turn |
+| [docs/rag.md](docs/rag.md) | Project document indexing/search/grounding-check (RAG) |
 | [docs/tools.md](docs/tools.md) | The full builtin tool catalog by category |
 | [docs/channels.md](docs/channels.md) | Slack, Telegram, Matrix, LINE, Feishu, Microsoft Teams, Discord, WhatsApp, SMS, Voice |
 | [docs/mcp.md](docs/mcp.md) | Connecting external MCP servers |
