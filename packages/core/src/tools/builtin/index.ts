@@ -30,6 +30,7 @@ import { createContainerTools } from "./containers.js";
 import { createArgocdTools } from "./argocd.js";
 import { createDockerComposeUpDownTool, createDockerComposeStatusTool, createDockerRegistryLoginTool } from "./docker-registry.js";
 import { readEnvFileTool, setEnvValueTool, listEnvFilesTool } from "./env-secrets.js";
+import { createMonitoringStackTools } from "./monitoring-stack.js";
 import { createRecallSessionsTool } from "./recall-sessions.js";
 import { embeddingsConfigFromEnv } from "../../core/embeddings.js";
 import { readTracesTool } from "./read-traces.js";
@@ -204,6 +205,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
     registry.register(removeFleetHostTool);
     registry.register(listFleetHostsTool);
     registry.register(createDockerRegistryLoginTool());
+    for (const tool of createMonitoringStackTools()) registry.register(tool);
   }
   if (isCommandAvailable("kubectl")) registry.register(kubectlTool!);
   if (isCommandAvailable("argocd")) for (const tool of createArgocdTools()) registry.register(tool);

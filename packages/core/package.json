@@ -43,6 +43,8 @@
     "word-extractor": "^1.0.4"
   },
   "devDependencies": {
-    "@types/nodemailer": "^8.0.2"
+    "@types/js-yaml": "^4.0.9",
+    "@types/nodemailer": "^8.0.2",
+    "js-yaml": "^4.3.2"
   }
 }
