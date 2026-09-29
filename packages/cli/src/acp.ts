@@ -304,7 +304,7 @@ async function createAcpSession(cwd: string, cx: ClientRequester, opts: CreateAc
     ? await AgentSession.resume(cwd, opts.resumeSessionId, systemPrompt)
     : new AgentSession({ id: sessionId, cwd, model: defaultModel, systemPrompt });
   session.thinkingBudgetTokens ??= thinkingBudgetTokensFromConfig(config);
-  session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
+  session.toolSearchEnabled = resolveToolSearchEnabled(config);
   session.localModelLeanEnabled = localModelLeanEnabled;
   const ui = createAcpUiAdapter(session.id, cx);
 
