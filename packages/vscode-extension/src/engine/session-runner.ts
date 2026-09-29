@@ -253,7 +253,7 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
   const permissionConfig = await loadPermissionConfig(cwd, trusted);
   const hooksConfig = await loadHooksConfig(cwd, trusted);
 
-  const permissions = new PermissionManager({ config: permissionConfig, ui, yolo: false, nonInteractive: false, hooksConfig });
+  const permissions = new PermissionManager({ config: permissionConfig, ui, yolo: false, nonInteractive: false, hooksConfig, provider });
 
   const mcp = new McpClientManager();
   const browser = new BrowserManager();
@@ -357,6 +357,10 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
       session.providerKind = providerKind;
       session.providerBaseUrl = baseUrl || undefined;
       session.model = newModel;
+      // Keeps the auto-approval classifier (if enabled) classifying
+      // against the model this session actually just switched to, same as
+      // web-server's own set_model handler.
+      permissions.setProvider(provider);
       const hadEffort = Boolean(session.effort);
       session.effort = undefined;
 
@@ -436,6 +440,9 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
       session.providerKind = providerKind;
       session.providerBaseUrl = tier.baseUrl;
       session.model = resolvedModel;
+      // Same as switchModel above — keep the classifier on the provider
+      // this effort tier actually switched to.
+      permissions.setProvider(provider);
       session.maxTokens = tier.maxTokens;
       session.effort = tier.id;
       if (tier.toolBudget === "none") {
