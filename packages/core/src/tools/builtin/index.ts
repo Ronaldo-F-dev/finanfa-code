@@ -147,6 +147,7 @@ import { createSecurityWifiActiveHandshakeCaptureTool } from "./security/wifi-ac
 import { createSecurityAnalyzeBluetoothCaptureTool } from "./security/bluetooth-capture.js";
 import { createSecurityBluetoothGattActiveWriteTool } from "./security/bluetooth-gatt-active-write.js";
 import { createSecurityRunNmapTool } from "./security/nmap.js";
+import { createSecopsAuditTools } from "./security/secops-audit.js";
 import { generateGithubActionsWorkflowTool, generateGitlabCiConfigTool } from "./cicd-generate.js";
 import { generateNginxConfigTool, createTestNginxConfigTool } from "./nginx-config.js";
 import { createSecurityRunMetasploitTool } from "./security/metasploit.js";
@@ -362,6 +363,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(securityScanStorageTool);
   registry.register(securityScanAccountCreationTool);
   registry.register(securityScanCrawlerTool);
+  for (const tool of createSecopsAuditTools()) registry.register(tool);
   registry.register(generateGithubActionsWorkflowTool);
   registry.register(generateGitlabCiConfigTool);
   registry.register(generateNginxConfigTool);
