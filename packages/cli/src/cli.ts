@@ -217,7 +217,7 @@ export async function main(argv: string[]): Promise<void> {
   const visionRoute = selectVisionProvider(config);
 
   const tools = new ToolRegistry();
-  registerBuiltins(tools, { sandbox: config.sandbox });
+  registerBuiltins(tools, { sandbox: config.sandbox, config });
 
   const skills = await loadSkills(cwd);
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
