@@ -15,6 +15,11 @@ export class ToolRegistry {
     return this.tools.get(name);
   }
 
+  /** Swaps out an already-registered tool for another with the same name (e.g. ACP routing a builtin through the client's fs/terminal callbacks instead of touching the filesystem directly) — unlike register(), never throws on a name collision. */
+  replace(tool: ToolDefinition): void {
+    this.tools.set(tool.name, tool);
+  }
+
   /** Removes every registered tool whose name starts with `prefix` (used to reload MCP-provided tools). */
   unregisterByPrefix(prefix: string): void {
     for (const name of this.tools.keys()) {
