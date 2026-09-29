@@ -159,7 +159,11 @@ export const DOCUMENT_TOOLS_PROMPT =
   "If a project has documents (specs, notes, READMEs, anything the user mentions or that's visible in the " +
   "project) that might answer a question, index_project_documents once and then search_project_documents rather " +
   "than reading every file by hand or guessing — cheap after the first index, and it matches by meaning, not " +
-  "just filename or exact wording. ";
+  "just filename or exact wording. When an answer uses retrieved content, cite its source path so the user can " +
+  "verify it, and if search_project_documents flags results from multiple documents, check them yourself before " +
+  "presenting either as authoritative. Use check_claim_grounding to spot-check a key claim against the index " +
+  "before asserting it confidently — it's a similarity signal, not a fact-check, so read the matched text " +
+  "yourself rather than trusting the score alone. ";
 
 /** Static analysis, image resizing, the Python REPL, databases, HTTP testing, JS/TS lint+typecheck. */
 export const DEV_TOOLS_PROMPT =
