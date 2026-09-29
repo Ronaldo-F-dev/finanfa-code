@@ -141,7 +141,7 @@ export async function runHeadlessTurn(
   const trusted = await resolveTrust(cwd, ui, true);
   const permissionConfig = await loadPermissionConfig(cwd, trusted);
   const hooksConfig = await loadHooksConfig(cwd, trusted);
-  const permissions = new PermissionManager({ config: permissionConfig, ui, nonInteractive: !sendMessage, hooksConfig });
+  const permissions = new PermissionManager({ config: permissionConfig, ui, nonInteractive: !sendMessage, hooksConfig, provider });
   if (trusted) await loadPlugins(cwd, tools, new CommandRegistry());
 
   const skills = await loadSkills(cwd);
