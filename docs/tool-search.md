@@ -21,15 +21,21 @@ tools are registered in total.
 
 ## Enabling it
 
-Auto-enabled whenever the resolved provider points at a local server
-(`localhost`/`127.0.0.1`/`::1`) — see [providers.md](providers.md). Force
-it on or off regardless of provider:
+On by default for **every** provider, local or cloud — not just a local
+server. The problem it closes (prefill cost scaling with the *total*
+number of registered tools, ~90+ and growing) hits a large cloud model's
+input-token bill the same way it hits a small local model's latency; it's
+just more visible on the local model because a slow model turns that
+extra cost into minutes instead of extra tokens on the invoice. So Tool
+Search stays on unless explicitly turned off:
 
 ```
-/config set toolSearch true
-/config set toolSearch false
-/config set toolSearch auto   # back to the default heuristic
+/config set toolSearch false   # opt out — send every tool's full schema every turn
+/config set toolSearch true    # explicit on (the default already)
 ```
+
+Only an explicit `toolSearch: "false"` disables it — there's no longer a
+local-vs-cloud heuristic to fall back to.
 
 ## Safety
 

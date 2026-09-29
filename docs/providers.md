@@ -63,7 +63,7 @@ npm run dev
 
 `FINANFA_PROVIDER`/`FINANFA_BASE_URL` are auto-detected on session start when they're already reachable on their well-known default port (Ollama `11434`, LM Studio `1234`, llama.cpp `8080`, vLLM `8000`, Docker Model Runner `12434`) — the web UI's model picker lists what's actually running with no configuration at all.
 
-**A local/small model gets [Tool Search](tool-search.md) automatically** — instead of every registered tool's full schema on every turn (which can make a small model's response time balloon, since prefill cost scales with the total tool count), it gets 3 small meta-tools to find and call the one it actually needs. No configuration needed; force it on/off with `/config set toolSearch true|false`.
+**[Tool Search](tool-search.md) is on by default for every provider**, local or remote — instead of every registered tool's full schema on every turn (prefill cost scales with the total tool count, ~90+ and growing), the model gets 3 small meta-tools to find and call the one it actually needs. This matters most visibly on a small/local model (it's the difference between a few seconds and several minutes), but it also cuts real input-token cost on a large cloud model that handles the raw size fine — it just shouldn't have to pay for ~90 schemas on a turn that needs one tool. No configuration needed; opt out with `/config set toolSearch false`.
 
 ### Local: Docker Model Runner
 
