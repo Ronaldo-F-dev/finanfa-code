@@ -29,6 +29,7 @@ import { createEmbeddedDevTools } from "./embedded-dev.js";
 import { createContainerTools } from "./containers.js";
 import { createArgocdTools } from "./argocd.js";
 import { createTerraformTools } from "./terraform.js";
+import { createDoctorTools } from "./doctor.js";
 import { createDockerComposeUpDownTool, createDockerComposeStatusTool, createDockerRegistryLoginTool } from "./docker-registry.js";
 import { readEnvFileTool, setEnvValueTool, listEnvFilesTool } from "./env-secrets.js";
 import { createMonitoringStackTools } from "./monitoring-stack.js";
@@ -181,6 +182,9 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(readEnvFileTool);
   registry.register(setEnvValueTool);
   registry.register(listEnvFilesTool);
+  // Always registered too — git/npm absence is gated gracefully inside the
+  // handler itself (skipped/failed findings), not via isCommandAvailable.
+  for (const tool of createDoctorTools()) registry.register(tool);
   // Optional external-CLI wrappers: only registered when the underlying
   // binary is actually installed — otherwise the model would see a tool
   // that can never work on this machine and waste a turn discovering
