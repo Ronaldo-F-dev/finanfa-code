@@ -165,6 +165,70 @@ excessive-agency self-red-team, plus SSRF / XSS / SQLi / XXE / SSTI /
 IDOR / CSRF / JWT / LDAP-injection / subdomain-takeover / recon /
 email-security / and more against a target URL.
 
+Network/host recon tools:
+
+- `security_run_nmap` — the real `nmap` CLI, any flags (version/OS
+  detection, script scans, timing templates, port ranges). Needs `nmap`
+  installed; `riskLevel: ask`, gated behind explicit confirmation.
+- `security_run_metasploit` — a sequence of real `msfconsole` commands
+  against the actual Metasploit Framework (not a simulation). Needs
+  `msfconsole` installed; `riskLevel: dangerous`, gated behind explicit
+  confirmation.
+- `security_scan_ports` — a dependency-free TCP connect-scan (Node's own
+  `net` module, no external binary): an explicit port list or a
+  start/end range (default: a curated list of commonly-exposed service
+  ports, not a full 1-65535 sweep), reporting open/closed/filtered per
+  port with a best-guess service name. `riskLevel: ask`.
+
+Wi-Fi / Bluetooth tools (each uses each OS's own standard tooling — no
+special hardware/drivers required beyond what's already listed):
+
+- `security_scan_wifi` — passive Wi-Fi recon (SSID/BSSID/channel/
+  signal/security type). Also doubles as a pcap-analysis tool: pass
+  `captureFilePath` to analyze an already-captured `.pcap` file offline
+  instead of live-scanning.
+- `security_start_wifi_capture` / `security_list_wifi_captures` — runs a
+  real, bounded `tcpdump` capture on a Wi-Fi interface in whatever mode
+  it's already in (never enables monitor mode) and writes a `.pcap` +
+  metadata sidecar; the list tool reads those sidecars back.
+- `security_scan_bluetooth` — Bluetooth device discovery, including GATT
+  service/characteristic discovery on a target device.
+- `security_analyze_bluetooth_capture` — offline analysis of an
+  already-captured Bluetooth HCI snoop (`.btsnoop`) file (packet
+  direction/type counts, HCI event codes).
+- `security_wifi_active_handshake_capture` / `security_bluetooth_gatt_active_write`
+  — **stubs.** Both explicitly report "STUB — NOT YET IMPLEMENTED" and
+  do not perform the attack they describe (a WPA/WPA2 handshake capture
+  via deauth, and a BLE GATT characteristic write). They exist as a
+  fixed interface for a user to fill in themselves (e.g. wiring up
+  aircrack-ng / bluetoothctl); calling either today does not run a real
+  attack.
+
+## RAG (project document search)
+
+`index_project_documents` / `search_project_documents` /
+`check_claim_grounding` — semantic search over a project's own documents
+(Markdown, PDF, Word, ...), backed by a zero-config local embedding
+model by default. See [rag.md](rag.md) for the full writeup, including
+its stated limitations.
+
+## USB / phone devices
+
+`list_usb_devices` — enumerates USB devices connected to this machine,
+identifying Android/iOS phones where possible (via `adb`/
+`idevice_id`+`ideviceinfo`, with `system_profiler`/`lsusb`/PowerShell for
+generic enumeration).
+
+`run_adb_command` — runs a real `adb` command (`shell`, `install`,
+`push`, `pull`, ...) against a specific connected **Android** device by
+serial. `riskLevel: dangerous`.
+
+`run_ios_ssh_command` — runs a real shell command on a connected iOS
+device over USB via SSH tunneled through `iproxy`. Works **only** on a
+jailbroken device with an SSH server already running (OpenSSH via
+Cydia/Sileo) — stock iOS has no adb-equivalent shell-exec path at all,
+jailbreak or not. `riskLevel: dangerous`.
+
 ## Session & memory
 
 `recall_past_sessions` — full-text search over past sessions, plus an
