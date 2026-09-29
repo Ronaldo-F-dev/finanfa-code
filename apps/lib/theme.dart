@@ -24,6 +24,7 @@ class FinanfaColors {
   final Color accentFill;
   final Color danger;
   final Color success;
+  final Color warning;
   final Color userBubble;
 
   const FinanfaColors({
@@ -37,6 +38,7 @@ class FinanfaColors {
     required this.accentFill,
     required this.danger,
     required this.success,
+    required this.warning,
     required this.userBubble,
   });
 
@@ -51,16 +53,33 @@ class FinanfaColors {
     accentFill: Color(0xFF3652E0),
     danger: Color(0xFFD14343),
     success: Color(0xFF0F9D6E),
+    // Not part of the "Opérateur terminal" dark-mode pass below — light mode
+    // is out of scope for that rework, so this is just a same-family amber
+    // kept consistent with the rest of the light palette's saturation.
+    warning: Color(0xFFB7791F),
     userBubble: Color(0xFFE8ECFD),
   );
 
+  // "Opérateur terminal" direction (approved mockup) — flatter, warmer
+  // near-black surfaces than the previous indigo-tinted dark palette, one
+  // flat surface shade shared by `bgElevated`/`bgCard` instead of two
+  // slightly different ones, and a bold solid-fill user bubble instead of a
+  // soft tint. See per-field comments below for where a value is derived
+  // rather than picked freehand.
   static const dark = FinanfaColors(
-    bg: Color(0xFF0E1016),
-    bgElevated: Color(0xFF1D222E),
-    bgCard: Color(0xFF161A23),
-    border: Color(0xFF262C3A),
-    text: Color(0xFFE9ECF4),
-    textMuted: Color(0xFF8D96AC),
+    bg: Color(0xFF17181C),
+    // Same flat surface as `bgCard` in this direction — the mockup didn't
+    // distinguish an "elevated" shade from a "card" shade, so both fields
+    // carry the same value rather than inventing a difference that isn't
+    // in the approved design.
+    bgElevated: Color(0xFF1D1F24),
+    bgCard: Color(0xFF1D1F24),
+    // Solid equivalent of white-on-`bg` at 8% opacity (a subtle hairline,
+    // not a strong outline) — #2A2A2E ≈ 0xFF17181C blended with 8% white.
+    border: Color(0xFF2A2A2E),
+    text: Color(0xFFECEDEE),
+    // Solid equivalent of `text` at 55% opacity over `bg`.
+    textMuted: Color(0xFF8C8D90),
     accent: Color(0xFF5B72FF),
     // Filled buttons in dark mode use this instead of `accent` directly —
     // #4A60F0 keeps a >=4.5:1 contrast ratio against white button text,
@@ -68,16 +87,27 @@ class FinanfaColors {
     accentFill: Color(0xFF4A60F0),
     danger: Color(0xFFF87171),
     success: Color(0xFF34D399),
-    userBubble: Color(0xFF222C57),
+    // Distinct from `accent`/`accentFill` — used for "needs auth"/pending
+    // states (connectors_screen.dart) so a pending state doesn't read as
+    // "the same blue as the brand/CTA color".
+    warning: Color(0xFFF2A93C),
+    // Bold solid fill — same value as `accentFill`, not a soft tint like
+    // the old #222C57 — per the approved mockup. `_Bubble` in
+    // timeline_tile.dart pairs this with pure white text rather than
+    // `c.text`: `c.text` (#ECEDEE) against this fill computes to ~4.24:1,
+    // just under the 4.5:1 target, while pure white reaches ~4.97:1.
+    userBubble: Color(0xFF4A60F0),
   );
 }
 
 /// export/tokens/finanfa_theme.dart's radius scale.
 class FinanfaRadii {
-  static const sm = 9.0; // pills, small fields
-  static const md = 12.0; // buttons
-  static const lg = 14.0; // cards
-  static const xl = 20.0; // composer, sheets
+  // "Opérateur terminal" direction — sharper, flatter corners than the
+  // previous softer scale (was 9/12/14/20).
+  static const sm = 6.0; // pills, small fields
+  static const md = 8.0; // buttons
+  static const lg = 10.0; // cards
+  static const xl = 16.0; // composer, sheets
 }
 
 /// A single spacing scale (4/8/12/16/20/24/32) so paddings/gaps across
@@ -125,7 +155,8 @@ class FinanfaTextStyles {
 
   /// Secondary metadata under an itemTitle — transport, timestamp, host.
   /// Deliberately smaller/muted so it recedes behind itemTitle/body text.
-  TextStyle get caption => TextStyle(color: c.textMuted, fontSize: 12.5, height: 1.3);
+  TextStyle get caption =>
+      TextStyle(color: c.textMuted, fontSize: 12.5, height: 1.3);
 
   /// Uppercase-ish section headers (settings sections, drawer group labels).
   TextStyle get sectionLabel => TextStyle(
@@ -166,12 +197,28 @@ ThemeData _buildTheme(FinanfaColors c, Brightness brightness) {
   final headingFont = GoogleFonts.spaceGroteskTextTheme();
   final monoFont = GoogleFonts.ibmPlexMonoTextTheme();
   final textTheme = base.copyWith(
-    displaySmall: headingFont.displaySmall?.copyWith(color: c.text, fontWeight: FontWeight.w600),
-    titleLarge: headingFont.titleLarge?.copyWith(color: c.text, fontWeight: FontWeight.w600),
-    titleMedium: headingFont.titleMedium?.copyWith(color: c.text, fontWeight: FontWeight.w600),
+    displaySmall: headingFont.displaySmall?.copyWith(
+      color: c.text,
+      fontWeight: FontWeight.w600,
+    ),
+    titleLarge: headingFont.titleLarge?.copyWith(
+      color: c.text,
+      fontWeight: FontWeight.w600,
+    ),
+    titleMedium: headingFont.titleMedium?.copyWith(
+      color: c.text,
+      fontWeight: FontWeight.w600,
+    ),
     // Tool/file names and code — export/README.md's IBM Plex Mono.
-    labelMedium: monoFont.labelMedium?.copyWith(color: c.text, fontWeight: FontWeight.w500),
-    labelSmall: monoFont.labelSmall?.copyWith(color: c.textMuted, fontWeight: FontWeight.w600, letterSpacing: 1.2),
+    labelMedium: monoFont.labelMedium?.copyWith(
+      color: c.text,
+      fontWeight: FontWeight.w500,
+    ),
+    labelSmall: monoFont.labelSmall?.copyWith(
+      color: c.textMuted,
+      fontWeight: FontWeight.w600,
+      letterSpacing: 1.2,
+    ),
   );
 
   return ThemeData(
@@ -189,8 +236,9 @@ ThemeData _buildTheme(FinanfaColors c, Brightness brightness) {
     ),
     cardTheme: CardThemeData(
       color: c.bgCard,
-      elevation: 3,
-      shadowColor: Colors.black.withValues(alpha: brightness == Brightness.dark ? 0.5 : 0.08),
+      // Flat — "Opérateur terminal" relies on `border` for definition
+      // instead of a drop shadow (was elevation: 3 with a shadow).
+      elevation: 0,
       surfaceTintColor: Colors.transparent,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(FinanfaRadii.lg),
@@ -199,7 +247,9 @@ ThemeData _buildTheme(FinanfaColors c, Brightness brightness) {
     ),
     listTileTheme: ListTileThemeData(
       iconColor: c.textMuted,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FinanfaRadii.md)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(FinanfaRadii.md),
+      ),
     ),
     dividerColor: c.border,
     inputDecorationTheme: InputDecorationTheme(
@@ -216,14 +266,18 @@ ThemeData _buildTheme(FinanfaColors c, Brightness brightness) {
       style: FilledButton.styleFrom(
         backgroundColor: c.accentFill,
         foregroundColor: Colors.white,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FinanfaRadii.md)),
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(FinanfaRadii.md),
+        ),
         padding: const EdgeInsets.symmetric(vertical: 14),
       ),
     ),
     drawerTheme: DrawerThemeData(backgroundColor: c.bgElevated),
     dialogTheme: DialogThemeData(
       backgroundColor: c.bgCard,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FinanfaRadii.xl)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(FinanfaRadii.xl),
+      ),
     ),
     textTheme: textTheme,
   );
