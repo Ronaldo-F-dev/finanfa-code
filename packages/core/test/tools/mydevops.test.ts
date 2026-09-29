@@ -56,12 +56,19 @@ describe("run_mydevops tool (real subprocess, fake mydevops binary stand-in)", (
   it("defaults to the real 'mydevops' binary name when no binary override is given", async () => {
     const tool = createMydevopsTool();
     const result = await tool.handler({ subcommand: "whoami" }, ctx);
-    // The real mydevops binary is snap-packaged and doesn't run inside
-    // this dev sandbox (confirmed separately: exits immediately, code
-    // 120) — this just confirms the wrapper attempts to invoke something
-    // named "mydevops" and reports back a real (non-throwing) result
-    // either way, rather than asserting on its actual (unavailable-here)
-    // behavior.
+    // The real mydevops binary (the user's own separate install, via pip
+    // or the snap package) isn't present in this dev sandbox — confirmed
+    // separately by installing and running it directly elsewhere, which
+    // worked fine, so this is an environment gap, not a wrapper bug. With
+    // it absent, this just confirms the wrapper attempts to invoke
+    // something named "mydevops" and reports back a real (non-throwing,
+    // isError: true) result surfacing the shell's own "command not found"
+    // — rather than asserting on the real tool's actual (unavailable-here)
+    // behavior. If a real "mydevops" happens to be on PATH wherever this
+    // runs, it succeeds instead, which is also a valid outcome here.
     expect(typeof result.isError).toBe("boolean");
+    if (result.isError) {
+      expect(result.content.toLowerCase()).toMatch(/not found|no such file/);
+    }
   }, 15_000);
 });

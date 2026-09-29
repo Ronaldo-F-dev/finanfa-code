@@ -14,12 +14,19 @@ import { runSubprocess } from "../../util/process.js";
 //
 // The binary name is injectable (defaults to "mydevops") so tests can
 // point this at a fake stand-in script instead of the real one — the
-// real mydevops binary is snap-packaged and doesn't run inside this
-// project's own dev sandbox (confirmed: exits immediately with code 120,
-// a snap-confinement issue in that specific sandboxed environment, not a
-// bug in this wrapper), so its actual behavior can't be exercised here
-// either way; the underlying subprocess mechanism (runSubprocess) is
-// already covered by bash.ts/run-tests.ts's own tests.
+// real mydevops binary is the user's own separate install (via `pip
+// install mydevops` or the snap package) and simply isn't present in this
+// project's own dev sandbox, so its actual behavior can't be exercised
+// here either way. (Verified directly, once: no special handling is
+// needed for that case — spawning a missing binary through runSubprocess's
+// shell just surfaces the shell's own "command not found" and its normal
+// exit code via stderr/isError, same as it would for any other missing
+// CLI wrapped here, e.g. docker/kubectl in containers.ts. An earlier note
+// here claimed a snap-confinement failure with a specific exit code 120;
+// that doesn't hold up — snap itself doesn't exist on this machine, and
+// installing the real CLI with pip and running it directly worked fine.)
+// The underlying subprocess mechanism (runSubprocess) is already covered
+// by bash.ts/run-tests.ts's own tests.
 //
 // riskLevel "dangerous", same tier as bash: mydevops has commands
 // spanning pure information (whoami, info, doctor, inventory) through to
