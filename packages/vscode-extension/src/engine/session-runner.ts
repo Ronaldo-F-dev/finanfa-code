@@ -221,7 +221,7 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
     session = new AgentSession({ cwd, model, systemPrompt });
   }
   if (session.thinkingBudgetTokens === undefined) session.thinkingBudgetTokens = thinkingBudgetTokensFromConfig(config);
-  session.toolSearchEnabled = resolveToolSearchEnabled(config, isLocalProviderConfig(config));
+  session.toolSearchEnabled = resolveToolSearchEnabled(config);
   session.localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
 
   // Real reported bug: reconstructs the provider/endpoint this session
