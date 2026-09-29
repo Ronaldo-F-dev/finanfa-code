@@ -7,15 +7,23 @@ import type { ToolDefinition } from "./types.js";
 // small local model (1.4B, MLX) took 277s (and an earlier, larger local
 // model attempt never finished after 2 minutes) to even start answering
 // with this project's full ~180-tool list in the request, vs 3-5s with a
-// handful. A comparable project's own answer to this (verified against
-// its real source/docs, not guessed) is "Tool Search": defer full tool
-// schemas behind a small, fixed set of meta-tools (search/describe/call)
-// that the model uses to find and invoke the ONE real tool it actually
-// needs, so the per-turn request stays small regardless of how many
-// tools this project has registered in total. This module is that
-// mechanism's core — session/loop wiring (including call_tool's dispatch,
-// which must still go through the exact same permission/risk-level
-// checks a direct call would) lives in loop.ts, not here.
+// handful. That's a correctness/usability failure for a small model, but
+// the same full-list-every-turn request also costs real, unnecessary
+// input tokens (confirmed: a real session hit 202,917 input tokens with
+// tool schemas as a major contributor — see loop.ts) for a large, capable
+// cloud model that handles the raw size fine — it just shouldn't have to
+// pay for ~180 schemas on a turn that needs one tool. That's why this is
+// on by default for every provider now, not just ones that look local
+// (see resolveToolSearchEnabled in config.ts). A comparable project's own
+// answer to this (verified against its real source/docs, not guessed) is
+// "Tool Search": defer full tool schemas behind a small, fixed set of
+// meta-tools (search/describe/call) that the model uses to find and
+// invoke the ONE real tool it actually needs, so the per-turn request
+// stays small regardless of how many tools this project has registered
+// in total. This module is that mechanism's core — session/loop wiring
+// (including call_tool's dispatch, which must still go through the exact
+// same permission/risk-level checks a direct call would) lives in
+// loop.ts, not here.
 export const SEARCH_TOOLS_NAME = "search_tools";
 export const DESCRIBE_TOOL_NAME = "describe_tool";
 export const CALL_TOOL_NAME = "call_tool";

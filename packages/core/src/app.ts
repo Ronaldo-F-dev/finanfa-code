@@ -412,12 +412,16 @@ const LOCAL_HOSTNAMES = new Set(["localhost", "127.0.0.1", "::1"]);
  * can point anywhere at all, including a local one (Ollama/LM Studio/
  * llama.cpp/vLLM/a raw MLX server), so every other kind is never local.
  * Mirrors selectProvider's own env/config precedence for that one branch
- * rather than changing its return shape. Used to auto-enable Tool Search
- * (session.toolSearchEnabled) for a local/small model without the user
- * needing to configure anything — see tool-search.ts's own header
- * comment for the real, measured problem this closes specifically for
- * this case (a small local model's prefill cost scaling with the total
- * tool count).
+ * rather than changing its return shape. Used to auto-enable
+ * localModelLean's tool/prompt trimming (session.localModelLeanEnabled,
+ * baseSystemPromptFor above) for a local/small model without the user
+ * needing to configure anything — a small local model's prefill cost
+ * scaling with the total tool/prompt size is bad enough to choke on, not
+ * just cost more. Tool Search itself (session.toolSearchEnabled,
+ * resolveToolSearchEnabled in config.ts) no longer depends on this: its
+ * "auto" default is now on regardless of provider kind, since the token
+ * cost it closes scales with registered tool count for any provider, not
+ * just a local one — see tool-search.ts's own header comment.
  */
 export function isLocalProviderConfig(config: FinanfaConfig): boolean {
   const kind = resolveProviderKindAlias(
