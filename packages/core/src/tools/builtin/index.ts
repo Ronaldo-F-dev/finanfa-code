@@ -29,6 +29,7 @@ import { createEmbeddedDevTools } from "./embedded-dev.js";
 import { createContainerTools } from "./containers.js";
 import { createArgocdTools } from "./argocd.js";
 import { createDockerComposeUpDownTool, createDockerComposeStatusTool, createDockerRegistryLoginTool } from "./docker-registry.js";
+import { readEnvFileTool, setEnvValueTool, listEnvFilesTool } from "./env-secrets.js";
 import { createRecallSessionsTool } from "./recall-sessions.js";
 import { embeddingsConfigFromEnv } from "../../core/embeddings.js";
 import { readTracesTool } from "./read-traces.js";
@@ -170,6 +171,11 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(multiEditFileTool);
   registry.register(globTool);
   registry.register(repoMapTool);
+  // Pure file I/O, no external binary dependency — always registered, unlike
+  // the isCommandAvailable-gated CLI wrappers below.
+  registry.register(readEnvFileTool);
+  registry.register(setEnvValueTool);
+  registry.register(listEnvFilesTool);
   // Optional external-CLI wrappers: only registered when the underlying
   // binary is actually installed — otherwise the model would see a tool
   // that can never work on this machine and waste a turn discovering
