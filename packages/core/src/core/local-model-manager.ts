@@ -1,112 +1,39 @@
-import { spawn, execFile } from "node:child_process";
-import { promisify } from "node:util";
-import { access, mkdir, readFile, writeFile, rm } from "node:fs/promises";
-import path from "node:path";
-import os from "node:os";
+import { spawn, type ChildProcess } from "node:child_process";
 
-const execFileAsync = promisify(execFile);
-
-const DEFAULT_BINARY = "llama-server";
-const DEFAULT_CONTEXT_SIZE = 8192;
-const DEFAULT_STARTUP_TIMEOUT_MS = 30_000;
-const POLL_INTERVAL_MS = 500;
+const POLL_INTERVAL_MS = 250;
+const DEFAULT_READY_TIMEOUT_MS = 120_000;
 const PROBE_TIMEOUT_MS = 2000;
-const STOP_WAIT_MS = 3000;
 
-export type LocalModelStatus =
-  | { state: "already-running-correct"; modelId: string }
-  | { state: "already-running-different-model"; runningModelId: string; expected: string }
-  | { state: "started"; modelId: string }
-  | { state: "restarted"; modelId: string; previousModelId: string }
-  | { state: "missing-binary"; binary: string }
-  | { state: "missing-model-file"; path: string }
+export interface LocalServiceConfig {
+  command: string;
+  args?: string[];
+  cwd?: string;
+  env?: Record<string, string>;
+  healthUrl?: string;
+  readyTimeoutMs?: number;
+  idleStopMs?: number;
+}
+
+export type LocalServiceStatus =
+  | { state: "already-running" }
+  | { state: "started" }
   | { state: "start-failed"; message: string };
-
-/**
- * Which server binary's CLI convention to use. Detected from the binary's
- * basename (see detectRuntime) rather than a separate config field — the
- * binary path is already required config (textModelBinary/TEXT_MODEL_BINARY),
- * so deriving the runtime from it avoids one more setting the user has to
- * remember to keep in sync with it.
- */
-export type TextModelRuntime = "llama.cpp" | "mlx";
-
-/**
- * mlx_lm.server's installed script is literally named "mlx_lm.server"
- * (checked via `ls <venv>/bin | grep -i mlx`) — but a test stand-in for it,
- * or another build, may not share that exact name, so this matches on "mlx"
- * anywhere in the basename rather than the literal full name. Nothing in
- * llama.cpp's own naming (llama-server, or a differently-named build of it)
- * plausibly contains "mlx", so this is unambiguous in practice.
- */
-function detectRuntime(binary: string): TextModelRuntime {
-  const base = path.basename(binary).toLowerCase();
-  return base.includes("mlx") ? "mlx" : "llama.cpp";
-}
-
-/** A bare HF-repo-id-shaped string ("org/repo-name") vs. an actual filesystem path — the latter starts with "/", "./", "../", or "~". mlx_lm.server accepts either as --model and resolves/downloads a repo id itself, so only path-shaped values are worth stat-ing here. */
-function looksLikeLocalPath(p: string): boolean {
-  return p.startsWith("/") || p.startsWith("./") || p.startsWith("../") || p.startsWith("~");
-}
-
-export interface EnsureLocalTextModelOptions {
-  /** The OpenAI-compatible base URL to reach it at, e.g. "http://127.0.0.1:8080/v1". */
-  baseUrl: string;
-  /** Absolute path to the .gguf file (llama.cpp) to load, or an MLX model — an HF repo id (e.g. "mlx-community/LFM2.5-2.6B-OptiQ-4bit") or a local directory path — if nothing is already serving it. */
-  modelPath: string;
-  /** Expected model id/name — compared (case-insensitively, substring either way) against whatever a running server actually reports, since llama-server may report a bare filename, a stem, or a full path depending on how it was launched. */
-  modelName: string;
-  binary?: string;
-  contextSize?: number;
-  startupTimeoutMs?: number;
-  /**
-   * When the port is already serving a *different* model: false (the
-   * default — right for an app/CLI startup check, where a mismatch is
-   * unexpected and touching a stranger's process would be a surprise) just
-   * reports the mismatch. true (right for a deliberate model switch — the
-   * user picked a different local model on purpose) stops whatever's there
-   * first, but *only* if this same module is the one that started it
-   * (tracked by port — see wasStartedByUs); a server this module didn't
-   * spawn itself is never touched either way.
-   */
-  restartIfDifferent?: boolean;
-}
 
 function sleep(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function fileExists(p: string): Promise<boolean> {
+/** Queries an OpenAI-compatible /models endpoint. Resolves to true for "something's answering there", never throws. */
+async function probeHealth(healthUrl: string): Promise<boolean> {
   try {
-    await access(p);
-    return true;
+    const res = await fetch(healthUrl, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
+    return res.ok;
   } catch {
     return false;
   }
 }
 
-async function binaryIsAvailable(binary: string, runtime: TextModelRuntime): Promise<boolean> {
-  // llama-server (and every stand-in used in tests) prints its version and
-  // exits 0 for --version. mlx_lm.server has no --version at all (exits 2,
-  // "unrecognized arguments") but --help exits 0 — so the two runtimes need
-  // different probes. Neither ever starts serving, so both are safe, fast
-  // checks rather than an accidental real launch.
-  const probeArg = runtime === "mlx" ? "--help" : "--version";
-  try {
-    await execFileAsync(binary, [probeArg], { timeout: 5000 });
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-function namesLooselyMatch(a: string, b: string): boolean {
-  const na = a.toLowerCase();
-  const nb = b.toLowerCase();
-  return na.includes(nb) || nb.includes(na);
-}
-
-/** Queries an OpenAI-compatible /models endpoint — same shape core/local-providers.ts's own probe() already relies on. Resolves to undefined for "nothing answering there", never throws. */
+/** Queries an OpenAI-compatible /models endpoint and returns the first model id reported there, if any — same probe as probeHealth, kept for callers that want the id rather than a bare boolean. Resolves to undefined for "nothing answering there", never throws. */
 export async function checkRunningModel(baseUrl: string): Promise<string | undefined> {
   try {
     const res = await fetch(`${baseUrl.replace(/\/$/, "")}/models`, { signal: AbortSignal.timeout(PROBE_TIMEOUT_MS) });
@@ -118,145 +45,149 @@ export async function checkRunningModel(baseUrl: string): Promise<string | undef
   }
 }
 
-interface PidRecord {
-  modelName: string;
-  pid: number;
+interface ManagedEntry {
+  child: ChildProcess;
+  refCount: number;
+  idleTimer?: NodeJS.Timeout;
 }
 
-// Keyed by port, not model name: the thing actually being contended for is
-// the port, and a deliberate model switch needs to answer "did *we* start
-// whatever's currently on this port" regardless of which model that was —
-// a model-name-keyed file couldn't answer that without already knowing
-// which name to look up.
-function pidFilePath(port: string): string {
-  const safe = port.replace(/[^a-zA-Z0-9_.-]/g, "_");
-  return path.join(os.homedir(), ".finanfa-code", "local-models", `port-${safe}.pid`);
+// In-memory only, keyed by a stable string identifying the exact launch —
+// no pidfile on disk. Concurrent callers for the same key share one
+// in-flight startup promise instead of racing to spawn twice, and this
+// module only ever stops a process it finds in this map, never anything
+// merely answering healthUrl that it didn't itself spawn.
+const managed = new Map<string, ManagedEntry>();
+const starting = new Map<string, Promise<LocalServiceStatus>>();
+
+function serviceKey(service: LocalServiceConfig, healthUrl: string): string {
+  return JSON.stringify({
+    command: service.command,
+    args: service.args ?? [],
+    cwd: service.cwd ?? null,
+    env: service.env ?? null,
+    healthUrl,
+  });
 }
 
-async function readPidRecord(port: string): Promise<PidRecord | undefined> {
+function healthUrlFor(baseUrl: string, service: LocalServiceConfig): string {
+  return service.healthUrl ?? `${baseUrl.replace(/\/$/, "")}/models`;
+}
+
+function clearIdleTimer(entry: ManagedEntry): void {
+  if (entry.idleTimer) {
+    clearTimeout(entry.idleTimer);
+    entry.idleTimer = undefined;
+  }
+}
+
+function stopEntry(key: string, entry: ManagedEntry): void {
+  clearIdleTimer(entry);
+  managed.delete(key);
   try {
-    return JSON.parse(await readFile(pidFilePath(port), "utf-8")) as PidRecord;
+    entry.child.kill("SIGTERM");
   } catch {
-    return undefined;
+    // Already dead — fine.
   }
 }
 
-function portFromBaseUrl(baseUrl: string): string {
-  const url = new URL(baseUrl);
-  return url.port || "80";
-}
+async function startService(key: string, service: LocalServiceConfig, healthUrl: string): Promise<LocalServiceStatus> {
+  const child = spawn(service.command, service.args ?? [], {
+    cwd: service.cwd,
+    env: service.env ? { ...process.env, ...service.env } : undefined,
+    stdio: "ignore",
+  });
+  managed.set(key, { child, refCount: 0 });
+  child.once("exit", () => {
+    const entry = managed.get(key);
+    if (entry?.child === child) managed.delete(key);
+  });
 
-/** True if this module itself started whatever's currently listening on this baseUrl's port (tracked via its pidfile) — the one thing that must be true before restartIfDifferent is allowed to stop it. */
-export async function wasStartedByUs(baseUrl: string): Promise<PidRecord | undefined> {
-  return readPidRecord(portFromBaseUrl(baseUrl));
-}
-
-async function stopPort(port: string): Promise<boolean> {
-  const record = await readPidRecord(port);
-  if (!record) return false;
-  try {
-    process.kill(record.pid, "SIGTERM");
-  } catch {
-    // Already dead — fine, just clean up the stale pidfile below.
-  }
-  await rm(pidFilePath(port), { force: true });
-  return true;
-}
-
-/** Stops a server this module itself started (tracked via its pidfile, keyed by the port it's listening on) — a no-op, not an error, if none is tracked or it's already gone. Never touches a process it didn't spawn. */
-export async function stopManagedLocalModel(baseUrl: string): Promise<boolean> {
-  return stopPort(portFromBaseUrl(baseUrl));
-}
-
-async function spawnAndWait(
-  opts: EnsureLocalTextModelOptions,
-  binary: string,
-  contextSize: number,
-  startupTimeoutMs: number,
-): Promise<LocalModelStatus> {
-  const runtime = detectRuntime(binary);
-  if (!(await binaryIsAvailable(binary, runtime))) {
-    return { state: "missing-binary", binary };
-  }
-  if (runtime === "llama.cpp") {
-    if (!(await fileExists(opts.modelPath))) {
-      return { state: "missing-model-file", path: opts.modelPath };
-    }
-  } else if (looksLikeLocalPath(opts.modelPath)) {
-    // Only a path-shaped modelPath is checkable here — a bare "org/repo"
-    // HF repo id is trusted as-is and handed to mlx_lm.server, which does
-    // its own cache lookup/download.
-    const exists = await fileExists(opts.modelPath);
-    if (!exists) {
-      return { state: "missing-model-file", path: opts.modelPath };
-    }
-  }
-
-  const url = new URL(opts.baseUrl);
-  const host = url.hostname;
-  const port = url.port || "80";
-
-  const args =
-    runtime === "mlx"
-      ? ["--model", opts.modelPath, "--host", host, "--port", port]
-      : ["-m", opts.modelPath, "--host", host, "--port", port, "-c", String(contextSize)];
-
-  const child = spawn(binary, args, { detached: true, stdio: "ignore" });
-  child.unref();
-
-  if (typeof child.pid === "number") {
-    const pidFile = pidFilePath(port);
-    await mkdir(path.dirname(pidFile), { recursive: true });
-    await writeFile(pidFile, JSON.stringify({ modelName: opts.modelName, pid: child.pid } satisfies PidRecord), "utf-8");
-  }
-
-  const deadline = Date.now() + startupTimeoutMs;
+  const readyTimeoutMs = service.readyTimeoutMs ?? DEFAULT_READY_TIMEOUT_MS;
+  const deadline = Date.now() + readyTimeoutMs;
   while (Date.now() < deadline) {
+    if (await probeHealth(healthUrl)) return { state: "started" };
     await sleep(POLL_INTERVAL_MS);
-    const modelId = await checkRunningModel(opts.baseUrl);
-    if (modelId) return { state: "started", modelId };
   }
-  return { state: "start-failed", message: `timed out after ${startupTimeoutMs}ms waiting for ${binary} to start serving ${opts.modelPath}` };
+  const entry = managed.get(key);
+  if (entry) stopEntry(key, entry);
+  return { state: "start-failed", message: `timed out after ${readyTimeoutMs}ms waiting for ${service.command} to answer ${healthUrl}` };
+}
+
+async function ensureLocalServiceInner(key: string, service: LocalServiceConfig, healthUrl: string): Promise<LocalServiceStatus> {
+  if (managed.get(key)) return { state: "already-running" };
+  if (await probeHealth(healthUrl)) return { state: "already-running" };
+  return startService(key, service, healthUrl);
 }
 
 /**
- * Real, reported friction: getting llama.cpp serving the default local text
- * model running at all was the hard part for the user, not configuring
- * finanfa-code to talk to it once it was up. This closes that gap: check
- * what (if anything) is already answering at baseUrl, and if it's not the
- * expected model, try to start it — rather than assuming the user already
- * has the right server running and just failing unhelpfully if not.
+ * Generic, runtime-agnostic local-service supervisor — replaces the old
+ * llama.cpp/MLX-specific manager. The user supplies the exact command/args
+ * to launch whatever they've configured at baseUrl; this module never
+ * guesses a runtime's invocation shape, checks for a model file on disk, or
+ * suggests a download — it just probes, and if nothing answers, spawns.
  *
- * Never touches a server it didn't start itself: if something else is
- * already answering with a different model, this reports that (so the
- * caller can tell the user) instead of killing an unrelated process on the
- * same port — unless restartIfDifferent is set AND this module is the one
- * that started what's currently there (a deliberate model switch).
+ * Deliberately not `async`: the starting-map check-and-register below must
+ * happen with no await in between, so two calls made back to back (e.g.
+ * inside Promise.all) are guaranteed to see and share the same in-flight
+ * promise rather than racing each other into a double spawn.
  */
-export async function ensureLocalTextModelServer(opts: EnsureLocalTextModelOptions): Promise<LocalModelStatus> {
-  const binary = opts.binary ?? DEFAULT_BINARY;
-  const contextSize = opts.contextSize ?? DEFAULT_CONTEXT_SIZE;
-  const startupTimeoutMs = opts.startupTimeoutMs ?? DEFAULT_STARTUP_TIMEOUT_MS;
-  const port = portFromBaseUrl(opts.baseUrl);
+export function ensureLocalService(
+  config: { baseUrl: string; healthUrl?: string },
+  service: LocalServiceConfig,
+): Promise<LocalServiceStatus> {
+  const healthUrl = config.healthUrl ?? healthUrlFor(config.baseUrl, service);
+  const key = serviceKey(service, healthUrl);
 
-  const runningModelId = await checkRunningModel(opts.baseUrl);
-  if (runningModelId) {
-    if (namesLooselyMatch(runningModelId, opts.modelName)) {
-      return { state: "already-running-correct", modelId: runningModelId };
-    }
-    if (!opts.restartIfDifferent || !(await wasStartedByUs(opts.baseUrl))) {
-      return { state: "already-running-different-model", runningModelId, expected: opts.modelName };
-    }
-    await stopPort(port);
-    // Give the OS a moment to actually free the port before rebinding it —
-    // llama-server's own shutdown isn't instant.
-    const stopDeadline = Date.now() + STOP_WAIT_MS;
-    while ((await checkRunningModel(opts.baseUrl)) && Date.now() < stopDeadline) {
-      await sleep(200);
-    }
-    const result = await spawnAndWait(opts, binary, contextSize, startupTimeoutMs);
-    return result.state === "started" ? { state: "restarted", modelId: result.modelId, previousModelId: runningModelId } : result;
+  const inFlight = starting.get(key);
+  if (inFlight) return inFlight;
+
+  const promise = ensureLocalServiceInner(key, service, healthUrl).finally(() => starting.delete(key));
+  starting.set(key, promise);
+  return promise;
+}
+
+/** Stops a service this module itself started (tracked in the in-memory map above) — a harmless no-op if none is tracked for this exact command/args/healthUrl. Never touches a process it didn't spawn. */
+export async function stopLocalService(config: { baseUrl: string; healthUrl?: string }, service: LocalServiceConfig): Promise<boolean> {
+  const healthUrl = config.healthUrl ?? healthUrlFor(config.baseUrl, service);
+  const key = serviceKey(service, healthUrl);
+  const entry = managed.get(key);
+  if (!entry) return false;
+  stopEntry(key, entry);
+  return true;
+}
+
+/**
+ * Runs fn while this service is held "active" — if service.idleStopMs is
+ * set, the spawned process (if this module is the one that started it) is
+ * stopped that many ms after the last active caller releases it; if unset,
+ * it's never auto-stopped, matching the "no idle-stop by default" behavior.
+ */
+export async function withLocalService<T>(
+  config: { baseUrl: string; healthUrl?: string },
+  service: LocalServiceConfig,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const healthUrl = config.healthUrl ?? healthUrlFor(config.baseUrl, service);
+  const key = serviceKey(service, healthUrl);
+  await ensureLocalService(config, service);
+
+  const entry = managed.get(key);
+  if (entry) {
+    clearIdleTimer(entry);
+    entry.refCount += 1;
   }
-
-  return spawnAndWait(opts, binary, contextSize, startupTimeoutMs);
+  try {
+    return await fn();
+  } finally {
+    const current = managed.get(key);
+    if (current) {
+      current.refCount = Math.max(0, current.refCount - 1);
+      if (current.refCount === 0 && service.idleStopMs && service.idleStopMs > 0) {
+        current.idleTimer = setTimeout(() => {
+          const latest = managed.get(key);
+          if (latest && latest.refCount === 0) stopEntry(key, latest);
+        }, service.idleStopMs);
+      }
+    }
+  }
 }
