@@ -28,6 +28,7 @@ import { createFirmwareFlashTools } from "./firmware-flash.js";
 import { createEmbeddedDevTools } from "./embedded-dev.js";
 import { createContainerTools } from "./containers.js";
 import { createArgocdTools } from "./argocd.js";
+import { createTerraformTools } from "./terraform.js";
 import { createDockerComposeUpDownTool, createDockerComposeStatusTool, createDockerRegistryLoginTool } from "./docker-registry.js";
 import { readEnvFileTool, setEnvValueTool, listEnvFilesTool } from "./env-secrets.js";
 import { createMonitoringStackTools } from "./monitoring-stack.js";
@@ -211,6 +212,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   }
   if (isCommandAvailable("kubectl")) registry.register(kubectlTool!);
   if (isCommandAvailable("argocd")) for (const tool of createArgocdTools()) registry.register(tool);
+  if (isCommandAvailable("terraform")) for (const tool of createTerraformTools()) registry.register(tool);
   if (isCommandAvailable("docker") || isCommandAvailable("docker-compose")) {
     registry.register(createDockerComposeUpDownTool());
     registry.register(createDockerComposeStatusTool());
