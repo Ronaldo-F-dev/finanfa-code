@@ -1,8 +1,10 @@
 import { spawn } from "node:child_process";
+import fs from "node:fs/promises";
 import type { ToolDefinition } from "../../../core/types.js";
 import { isCommandAvailable } from "../../../util/command-availability.js";
 import { severityFromScore } from "./cvss.js";
 import { formatScanOutput, type Finding, type PassedControl, type ScanOutput } from "./types.js";
+import { parsePcap, extractBeaconFrames, UnsupportedCaptureFormatError, type BeaconFrame } from "./wifi-pcap.js";
 
 // Real gap this fills: no wireless recon at all in this directory. Deliberately
 // scoped to what a general-purpose laptop's built-in Wi-Fi chipset can do
@@ -224,6 +226,50 @@ async function scanWindowsNetsh(bin: string): Promise<{ networks: WifiNetwork[];
   return { networks, available: true, note: `netsh wlan show networks: ${networks.length} nearby network(s) found (best-effort, unverified on real Windows hardware).` };
 }
 
+// --- offline capture-file analysis (ported from wireless-lab's wifi/analyzer) --
+
+/** Beacon frames don't carry WPA3 vs WPA2 as a distinct bit an offline
+ * parser can reliably tell apart without decoding the RSN element's AKM
+ * suite list, so — same conservative bucketing iwlist's own parsing above
+ * uses — an RSN element means "wpa2", a WPA vendor element means "wpa", and
+ * privacy-on with neither means "wep" (WPA/WPA2 always carry one of those
+ * IEs, so their absence with encryption enabled is WEP's signature). */
+function beaconToWifiNetwork(beacon: BeaconFrame): WifiNetwork {
+  let security: WifiSecurity;
+  if (!beacon.privacyBit) security = "open";
+  else if (beacon.hasRsnElement) security = "wpa2";
+  else if (beacon.hasWpaVendorElement) security = "wpa";
+  else security = "wep";
+  return {
+    ssid: beacon.ssid.length === 0 ? "(hidden)" : beacon.ssid,
+    bssid: beacon.bssid,
+    channel: beacon.channel !== undefined ? String(beacon.channel) : undefined,
+    security,
+    raw: `${beacon.frameType} bssid=${beacon.bssid} ssid=${JSON.stringify(beacon.ssid)} channel=${beacon.channel ?? "?"}`,
+  };
+}
+
+async function analyzeWifiCaptureFile(filePath: string): Promise<{ networks: WifiNetwork[]; note: string } | { error: string }> {
+  let buffer: Buffer;
+  try {
+    buffer = await fs.readFile(filePath);
+  } catch (err) {
+    return { error: `Failed to read capture file "${filePath}": ${err instanceof Error ? err.message : String(err)}` };
+  }
+  try {
+    const pcap = parsePcap(buffer);
+    const beacons = extractBeaconFrames(pcap.linkType, pcap.packets);
+    // De-dupe by BSSID: the same AP typically sends many beacons.
+    const byBssid = new Map<string, BeaconFrame>();
+    for (const b of beacons) byBssid.set(b.bssid, b);
+    const networks = [...byBssid.values()].map(beaconToWifiNetwork);
+    return { networks, note: `Parsed ${pcap.packets.length} packet record(s) from "${filePath}" (linktype ${pcap.linkType}), found ${beacons.length} beacon/probe-response frame(s), ${networks.length} distinct network(s).` };
+  } catch (err) {
+    const detail = err instanceof UnsupportedCaptureFormatError ? err.message : err instanceof Error ? err.message : String(err);
+    return { error: `Failed to parse "${filePath}": ${detail}` };
+  }
+}
+
 // --- findings ------------------------------------------------------------
 
 const WEAK_SECURITY_SCORE: Record<"open" | "wep" | "wpa", number> = { open: 7.5, wep: 8.1, wpa: 5.9 };
@@ -275,7 +321,15 @@ export interface SecurityScanWifiOptions {
   platformOverride?: NodeJS.Platform;
 }
 
-export function createSecurityScanWifiTool(options: SecurityScanWifiOptions = {}): ToolDefinition<Record<string, never>> {
+export interface SecurityScanWifiInput {
+  /** Optional: path to an already-captured .pcap file (e.g. from tcpdump or
+   * security_start_wifi_capture) to analyze offline instead of doing a live
+   * scan. Extracts beacon/probe-response frames for SSID/channel/encryption
+   * per network, same as a live scan's output shape. */
+  captureFilePath?: string;
+}
+
+export function createSecurityScanWifiTool(options: SecurityScanWifiOptions = {}): ToolDefinition<SecurityScanWifiInput> {
   const platform = options.platformOverride ?? process.platform;
   const airportBin = options.airportBinary ?? DEFAULT_AIRPORT_BIN;
   const systemProfilerBin = options.systemProfilerBinary ?? "system_profiler";
@@ -296,15 +350,38 @@ export function createSecurityScanWifiTool(options: SecurityScanWifiOptions = {}
       "OUT OF SCOPE, not implemented here: monitor mode, packet injection, deauthentication attacks, WPA " +
       "handshake capture or offline cracking, and anything requiring a specialized adapter in monitor mode — " +
       "those need dedicated hardware/drivers this tool can't assume exist, and several of them are attack " +
-      "actions against a network's other clients rather than passive enumeration.",
+      "actions against a network's other clients rather than passive enumeration. " +
+      "Alternatively, pass `captureFilePath` to analyze an already-captured classic-pcap file offline (e.g. " +
+      "from tcpdump or security_start_wifi_capture) instead of doing a live scan — parses 802.11 beacon/" +
+      "probe-response frames (radiotap-aware) for the same SSID/channel/encryption fields, plus flags hidden " +
+      "SSIDs.",
     // Passive scanning only (the radio listens to beacon frames already being
     // broadcast — the same signal any device in range receives just by
     // existing), no packets sent to any target — same tier as recon.ts's
     // passive DNS/WHOIS lookups and list_usb_devices' passive enumeration.
+    // captureFilePath is even more passive still: pure offline file parsing.
     riskLevel: "safe",
-    inputSchema: { type: "object", properties: {} },
-    describeCall: () => "scan for nearby Wi-Fi networks",
-    async handler() {
+    inputSchema: {
+      type: "object",
+      properties: {
+        captureFilePath: { type: "string", description: "Path to an already-captured .pcap file to analyze offline instead of live-scanning" },
+      },
+    },
+    describeCall: (input) => (input.captureFilePath ? `analyze Wi-Fi capture file ${input.captureFilePath}` : "scan for nearby Wi-Fi networks"),
+    async handler(input) {
+      if (input.captureFilePath) {
+        const analysis = await analyzeWifiCaptureFile(input.captureFilePath);
+        if ("error" in analysis) return { content: analysis.error, isError: true };
+        if (analysis.networks.length === 0) {
+          return { content: `No beacon/probe-response frames found in the capture.\n\n${analysis.note}`, isError: false, metadata: { networks: [] } };
+        }
+        const output = findingsFromNetworks(analysis.networks);
+        const hidden = analysis.networks.filter((n) => n.ssid === "(hidden)");
+        if (hidden.length > 0) output.passedControls.push({ label: "Hidden SSID(s)", detail: `${hidden.length} network(s) broadcast an empty SSID: ${hidden.map((n) => n.bssid).join(", ")}` });
+        const body = formatScanOutput("Wi-Fi networks in capture file", output);
+        return { content: `${body}\n\n${analysis.note}`, isError: false, metadata: { networks: analysis.networks } };
+      }
+
       const notes: string[] = [];
       let networks: WifiNetwork[] = [];
 
