@@ -10,7 +10,7 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "types": ["vscode-webview"],
+    "types": ["vscode-webview", "vite/client"],
     "noEmit": true
   },
   "include": ["src"]
