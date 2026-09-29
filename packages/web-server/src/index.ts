@@ -1128,7 +1128,7 @@ async function buildTurnContext(
   let providerKind: string = initial.kind;
 
   const tools = new ToolRegistry();
-  registerBuiltins(tools, { sandbox: config.sandbox });
+  registerBuiltins(tools, { sandbox: config.sandbox, config });
 
   const skills = await loadSkills(cwd);
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
