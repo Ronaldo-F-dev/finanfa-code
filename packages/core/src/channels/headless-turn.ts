@@ -132,7 +132,7 @@ export async function runHeadlessTurn(
   const { provider, defaultModel } = selectProvider(config);
 
   const tools = new ToolRegistry();
-  registerBuiltins(tools, { sandbox: config.sandbox });
+  registerBuiltins(tools, { sandbox: config.sandbox, config });
 
   // No human is present to answer a folder-trust prompt for an inbound
   // channel message, so this fails closed exactly like a non-interactive
