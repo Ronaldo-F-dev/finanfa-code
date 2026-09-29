@@ -49,7 +49,13 @@ export async function transcribeAudioBytes(
   language?: string,
 ): Promise<TranscribeResult> {
   const form = new FormData();
-  form.append("file", new Blob([bytes], { type: mimeType }), filename);
+  // `bytes` may be a Node Buffer, whose type is generic over
+  // ArrayBufferLike (it could in principle be backed by a SharedArrayBuffer),
+  // while Blob's parts require a Uint8Array backed by a concrete
+  // ArrayBuffer. Copy into a fresh Uint8Array/ArrayBuffer rather than
+  // asserting, so this is correct even in the SharedArrayBuffer case.
+  const blobBytes = new Uint8Array(bytes);
+  form.append("file", new Blob([blobBytes], { type: mimeType }), filename);
   form.append("model", "whisper-1");
   if (language) form.append("language", language);
 
