@@ -81,6 +81,41 @@ function handlePlan(ctx: CommandContext): CommandOutcome {
   return "continue";
 }
 
+/**
+ * Toggles the auto-approval classifier mode (see permissions/classifier.ts)
+ * at runtime — mirrors /plan's on/off/status shape above. Fully opt-in and
+ * off by default: turning it on only affects calls that would otherwise
+ * land on "ask" (see PermissionManager.check), never the static
+ * defaultForRiskLevel/rules behavior itself.
+ */
+function handlePermissions(ctx: CommandContext): CommandOutcome {
+  const [sub, state, model] = ctx.args.trim().split(/\s+/);
+  if (sub !== "auto-classifier") {
+    ctx.ui.writeError("Usage: /permissions auto-classifier [on [model]|off] (no args shows current state)");
+    return "continue";
+  }
+  if (state === "on") {
+    ctx.permissions.setAutoApprovalClassifier({ enabled: true, model });
+    ctx.ui.writeSystem(
+      `Auto-approval classifier ON${model ? ` (model: ${model})` : ""} — a per-call risk score now decides low/medium-risk calls that would ` +
+        `otherwise ask (low: silent, medium: allowed with a notice); high-risk calls still ask, same as today.`,
+    );
+    return "continue";
+  }
+  if (state === "off") {
+    ctx.permissions.setAutoApprovalClassifier(undefined);
+    ctx.ui.writeSystem("Auto-approval classifier OFF.");
+    return "continue";
+  }
+  if (!state) {
+    const current = ctx.permissions.getAutoApprovalClassifier();
+    ctx.ui.writeSystem(current?.enabled ? `Auto-approval classifier is ON (model: ${current.model ?? "(default)"}).` : "Auto-approval classifier is OFF.");
+    return "continue";
+  }
+  ctx.ui.writeError("Usage: /permissions auto-classifier [on [model]|off]");
+  return "continue";
+}
+
 function handleMcpEnableDisable(ctx: CommandContext, enable: boolean, name: string | undefined): CommandOutcome {
   if (!name) {
     ctx.ui.writeError(`Usage: /mcp ${enable ? "enable" : "disable"} <name>`);
@@ -697,5 +732,12 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
     "plan",
     handlePlan,
     "Toggle plan mode: /plan [on|off] (no args shows current state) — while on, only read-only tools work until a plan is presented via exit_plan_mode and approved",
+  );
+
+  commands.register(
+    "permissions",
+    handlePermissions,
+    "Toggle the auto-approval classifier: /permissions auto-classifier [on [model]|off] (no args shows current state) — " +
+      "scores each call that would otherwise ask, auto-running low/medium risk (with a notice for medium) and still asking for high",
   );
 }

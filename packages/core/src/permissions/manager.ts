@@ -1,9 +1,10 @@
-import type { ToolContext, ToolDefinition } from "../core/types.js";
+import type { ToolContext, ToolDefinition, LlmProvider } from "../core/types.js";
 import type { UIAdapter } from "../ui/adapter.js";
 import type { PermissionConfig, PermissionDecision } from "./config.js";
 import type { HooksConfig } from "../hooks/config.js";
 import { runHooks } from "../hooks/runner.js";
 import { appendAuditEvent, type AuditDecisionSource } from "../observability/audit-log.js";
+import { classifyToolRisk, resolveClassifierModel, type AutoApprovalClassifierConfig } from "./classifier.js";
 
 export type AskAnswer = "allow" | "deny" | "always" | "always-tool";
 
@@ -16,6 +17,8 @@ export interface PermissionManagerOptions {
   yolo?: boolean;
   /** PreToolUse hooks, if any are configured. Deliberately checked BEFORE yolo/config/prompting — a hook is a guardrail the user or org opted into, meant to hold even under --yolo. */
   hooksConfig?: HooksConfig;
+  /** Needed only for the auto-approval classifier (see classifier.ts) — the same provider the session already talks to, just given a different (cheap/fast) model for the classification call itself. Unset means the classifier can never run, even if config.autoApprovalClassifier.enabled is true. */
+  provider?: LlmProvider;
 }
 
 export class PermissionManager {
@@ -24,7 +27,18 @@ export class PermissionManager {
   private readonly nonInteractive: boolean;
   private readonly yolo: boolean;
   private readonly hooksConfig?: HooksConfig;
+  private provider?: LlmProvider;
   private readonly sessionAllowlist = new Set<string>();
+  /**
+   * Runtime override for config.autoApprovalClassifier (see /permissions in
+   * builtin.ts). `hasClassifierOverride` distinguishes "never touched at
+   * runtime, defer to config" from "explicitly turned off this session" —
+   * without it, setAutoApprovalClassifier(undefined) (turning the mode OFF)
+   * would be indistinguishable from never having called it, and `??` would
+   * silently fall back to a config that still says enabled: true.
+   */
+  private classifierOverride?: AutoApprovalClassifierConfig;
+  private hasClassifierOverride = false;
 
   constructor(opts: PermissionManagerOptions) {
     this.config = opts.config;
@@ -32,6 +46,22 @@ export class PermissionManager {
     this.nonInteractive = opts.nonInteractive ?? false;
     this.yolo = opts.yolo ?? false;
     this.hooksConfig = opts.hooksConfig;
+    this.provider = opts.provider;
+  }
+
+  /** Turns the auto-approval classifier mode on/off (or changes its model) at runtime — see /permissions. Passing undefined explicitly turns it off for this session, regardless of what config says. */
+  setAutoApprovalClassifier(config: AutoApprovalClassifierConfig | undefined): void {
+    this.classifierOverride = config;
+    this.hasClassifierOverride = true;
+  }
+
+  /** Keeps the classifier's provider in sync when a caller switches its own active provider mid-session (e.g. web-server's set_model/set_effort) — without this, the classifier would keep classifying against whatever provider was active at construction time. */
+  setProvider(provider: LlmProvider | undefined): void {
+    this.provider = provider;
+  }
+
+  getAutoApprovalClassifier(): AutoApprovalClassifierConfig | undefined {
+    return this.hasClassifierOverride ? this.classifierOverride : this.config.autoApprovalClassifier;
   }
 
   /**
@@ -142,6 +172,29 @@ export class PermissionManager {
     const decision = ruleDecision ?? this.config.defaultForRiskLevel[tool.riskLevel];
 
     if (decision !== "ask") return this.record(tool, riskKey, ctx, decision, ruleDecision ? "rule" : "default_for_risk_level");
+
+    // Only reached for a call the static logic would otherwise send to
+    // "ask" — the classifier supplements that path, it never overrides an
+    // already-decided allow/deny. Fully opt-in (config.autoApprovalClassifier
+    // unset/disabled is the default and leaves this whole block dead code),
+    // and fails open to the existing "ask" flow below on any classifier
+    // failure (error, timeout, unparseable response) or when no provider
+    // was wired in — never fails open to "allow".
+    const classifierConfig = this.getAutoApprovalClassifier();
+    if (classifierConfig?.enabled && this.provider) {
+      const classification = await classifyToolRisk(this.provider, resolveClassifierModel(classifierConfig), tool, input, ctx.signal);
+      if (classification?.risk === "low") {
+        return this.record(tool, riskKey, ctx, "allow", "auto_approval_classifier");
+      }
+      if (classification?.risk === "medium") {
+        this.ui.writeSystem(
+          `Auto-approved "${tool.name}" (medium risk, per-call classifier): ${classification.justification || "(no justification returned)"}`,
+        );
+        return this.record(tool, riskKey, ctx, "allow", "auto_approval_classifier");
+      }
+      // classification.risk === "high", or classification is undefined
+      // (classifier failed) — both fall through to the normal ask prompt below.
+    }
 
     if (this.nonInteractive) return this.record(tool, riskKey, ctx, "deny", "non_interactive");
 

@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import type { ToolRiskLevel } from "../core/types.js";
+import type { AutoApprovalClassifierConfig } from "./classifier.js";
 
 export type PermissionDecision = "allow" | "ask" | "deny";
 
@@ -24,6 +25,13 @@ export interface PermissionRule {
 export interface PermissionConfig {
   defaultForRiskLevel: Record<ToolRiskLevel, PermissionDecision>;
   rules: PermissionRule[];
+  /**
+   * Opt-in "auto" approval mode (see classifier.ts) — undefined/disabled
+   * leaves every existing static risk-level/rules behavior completely
+   * unaffected. When enabled, a call that the static logic would otherwise
+   * send to "ask" is scored per-call by a real classifier LLM call first.
+   */
+  autoApprovalClassifier?: AutoApprovalClassifierConfig;
 }
 
 export const DEFAULT_PERMISSION_CONFIG: PermissionConfig = {
@@ -77,5 +85,7 @@ export async function loadPermissionConfig(cwd: string, trusted = true): Promise
       ...projectCfg?.defaultForRiskLevel,
     },
     rules: [...(globalCfg?.rules ?? []), ...(projectCfg?.rules ?? [])],
+    // Project-level setting wins over global, same precedence as defaultForRiskLevel above.
+    autoApprovalClassifier: projectCfg?.autoApprovalClassifier ?? globalCfg?.autoApprovalClassifier,
   };
 }

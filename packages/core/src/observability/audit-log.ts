@@ -23,7 +23,16 @@ export function auditFilePath(date = new Date()): string {
 }
 
 /** Which code path in PermissionManager.check() produced the decision — lets a reviewer tell "the user typed 'n'" apart from "a PreToolUse hook blocked it" or "config already allows this by default". */
-export type AuditDecisionSource = "pre_tool_use_hook" | "yolo" | "session_allowlist" | "rule" | "default_for_risk_level" | "non_interactive" | "prepare_error" | "user_prompt";
+export type AuditDecisionSource =
+  | "pre_tool_use_hook"
+  | "yolo"
+  | "session_allowlist"
+  | "rule"
+  | "default_for_risk_level"
+  | "non_interactive"
+  | "prepare_error"
+  | "user_prompt"
+  | "auto_approval_classifier";
 
 export interface AuditEvent {
   ts: string;

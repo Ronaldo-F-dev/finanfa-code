@@ -3,6 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import type { SandboxConfig } from "../util/sandbox.js";
 import type { LocalServiceConfig } from "./local-model-manager.js";
+import type { AutoApprovalClassifierConfig } from "../permissions/classifier.js";
 
 export interface FinanfaConfig {
   provider?: "anthropic" | "openai-compatible" | "gemini" | "azure-openai" | "amazon-bedrock" | "google-vertex" | "cohere" | "github-copilot";
@@ -123,6 +124,19 @@ export interface FinanfaConfig {
    * running elsewhere) and left untouched.
    */
   localServices?: Record<string, LocalServiceConfig>;
+  /**
+   * Opt-in "auto" permission mode (see permissions/classifier.ts and
+   * PermissionManager.check) — undefined/{enabled:false} is the default and
+   * leaves the static defaultForRiskLevel/rules behavior in
+   * .finanfa-code/settings.json completely unaffected. When enabled, a call
+   * that would otherwise land on "ask" is scored per-call by a real (cheap)
+   * classifier LLM call first: low risk auto-runs silently, medium
+   * auto-runs with a visible notice, high still asks. This same field also
+   * lives on PermissionConfig (loadPermissionConfig reads the same
+   * ~/.finanfa-code/config.json this does), and can be toggled at runtime
+   * via /permissions.
+   */
+  autoApprovalClassifier?: AutoApprovalClassifierConfig;
 }
 
 /** Parses config.thinkingBudgetTokens (a plain string, like every other /config-set value) into the number session.thinkingBudgetTokens actually wants — undefined for unset/non-positive/non-numeric, never NaN or 0, so callers can assign it straight through without their own validation. */
