@@ -27,29 +27,24 @@ describe("security_run_nmap (real subprocess, fake nmap stand-in)", () => {
     expect(result.content).toMatch(/nmap not available/i);
   });
 
-  it("rejects a --script dos request before ever spawning nmap", async () => {
-    const tool = createSecurityRunNmapTool({ nmapBinary: MISSING_BIN }); // even with a missing binary, the guard fires first
-    const result = await tool.handler({ target: "10.0.0.5", args: ["--script", "dos"] }, ctx);
-    expect(result.isError).toBe(true);
-    expect(result.content).toContain("Blocked");
-    expect(result.content).not.toMatch(/nmap not available/i);
-  });
-
-  it("rejects a --script dos request expressed as a boolean expression and via --script=", async () => {
-    const tool = createSecurityRunNmapTool({ nmapBinary: MISSING_BIN });
-    const r1 = await tool.handler({ target: "10.0.0.5", args: ["--script", "dos and safe"] }, ctx);
-    expect(r1.isError).toBe(true);
-    expect(r1.content).toContain("Blocked");
-
-    const r2 = await tool.handler({ target: "10.0.0.5", args: ["--script=dos,vuln"] }, ctx);
-    expect(r2.isError).toBe(true);
-    expect(r2.content).toContain("Blocked");
-  });
-
-  it("does not block a script category that merely contains 'dos' as a substring or an unrelated category", async () => {
+  it("runs a --script dos request like any other scan — real DoS confirmation is the permission prompt's job, not a code-level block", async () => {
     const tool = createSecurityRunNmapTool({ nmapBinary: FAKE_NMAP });
-    const result = await tool.handler({ target: "10.0.0.5", args: ["--script", "vuln,safe"] }, ctx);
+    const result = await tool.handler({ target: "10.0.0.5", args: ["--script", "dos"] }, ctx);
     expect(result.isError).toBe(false);
+    expect(result.content).toContain('"--script","dos"');
+  });
+
+  it("gives a dos-script request a distinct riskKey (so a stricter permission rule can target it) while a normal scan keeps the plain tool-name key", () => {
+    const tool = createSecurityRunNmapTool({ nmapBinary: FAKE_NMAP });
+    expect(tool.riskKey?.({ target: "10.0.0.5", args: ["--script", "dos and safe"] })).toBe("security_run_nmap:dos-script");
+    expect(tool.riskKey?.({ target: "10.0.0.5", args: ["--script=dos,vuln"] })).toBe("security_run_nmap:dos-script");
+    expect(tool.riskKey?.({ target: "10.0.0.5", args: ["--script", "vuln,safe"] })).toBe("security_run_nmap");
+  });
+
+  it("describeCall flags a dos-script request as requiring confirmation", () => {
+    const tool = createSecurityRunNmapTool({ nmapBinary: FAKE_NMAP });
+    expect(tool.describeCall?.({ target: "10.0.0.5", args: ["--script", "dos"] })).toContain("requires confirmation");
+    expect(tool.describeCall?.({ target: "10.0.0.5", args: ["-sV"] })).not.toContain("requires confirmation");
   });
 
   it("reports a real nmap failure as a tool error with the real stderr", async () => {

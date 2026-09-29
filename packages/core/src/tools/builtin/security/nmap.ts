@@ -16,14 +16,16 @@ import { isCommandAvailable } from "../../../util/command-availability.js";
 // nmap itself is fundamentally a recon/scanner tool, even with -A/-sC/
 // --script, and the user installing it is the trust boundary this tool
 // relies on — same "wrap, don't reinvent, don't second-guess" stance as
-// run_docker/run_kubectl take toward their own real CLIs. The one
-// carve-out is nmap's own `dos` NSE script category (--script dos, or a
-// boolean script expression containing it, e.g. --script "dos and safe"):
-// those scripts actively try to crash/hang the target service, which
-// crosses from "check what's exposed" into "attack" the same way this
-// codebase's SECURITY_INSTRUCTION already draws that line for sqli.ts/
-// xss.ts's real-payload tools — so that one category is rejected before
-// nmap is ever spawned.
+// run_docker/run_kubectl take toward their own real CLIs. nmap's own `dos`
+// NSE script category (--script dos, or a boolean script expression
+// containing it, e.g. --script "dos and safe") crosses from "check what's
+// exposed" into "attack" the same way sqli.ts/xss.ts's real-payload tools
+// do — real, reported decision: don't hard-block it in code, since this
+// tool's whole "ask" risk tier already exists to put a real confirmation
+// prompt in front of exactly this kind of call; a dos-script request gets
+// its own riskKey suffix so a stricter permission rule can target it
+// specifically, but by default it runs the same as any other scan once
+// the user explicitly confirms the prompt.
 const DEFAULT_TIMEOUT_MS = 300_000; // nmap scans (especially -A/-sC/full port ranges) can run long
 
 function extractScriptValues(args: string[]): string[] {
@@ -107,9 +109,11 @@ export function createSecurityRunNmapTool(options: RunNmapOptions = {}): ToolDef
       "output. " +
       "IMPORTANT: only scan a host the user owns or has explicit, documented authorization to test — this is a " +
       "real active network scan the target can log/alert on. The `dos` NSE script category (--script dos, or " +
-      "any boolean script expression containing it) is rejected outright: those scripts try to actually " +
-      "crash/hang the target service, which is attack rather than recon.",
+      "any boolean script expression containing it) actually tries to crash/hang the target service — real " +
+      "denial-of-service, not recon — so it still runs, but only after the user explicitly confirms this tool's " +
+      "permission prompt; it is never auto-approved silently.",
     riskLevel: "ask",
+    riskKey: (input) => (isDosScriptRequest(input.args ?? []) ? "security_run_nmap:dos-script" : "security_run_nmap"),
     inputSchema: {
       type: "object",
       properties: {
@@ -119,21 +123,10 @@ export function createSecurityRunNmapTool(options: RunNmapOptions = {}): ToolDef
       },
       required: ["target"],
     },
-    describeCall: (input) => `nmap ${(input.args ?? []).join(" ")} ${input.target}`.trim(),
+    describeCall: (input) =>
+      `nmap ${(input.args ?? []).join(" ")} ${input.target}${isDosScriptRequest(input.args ?? []) ? " (dos script — real denial-of-service, requires confirmation)" : ""}`.trim(),
     async handler(input, ctx) {
       const args = input.args ?? [];
-      // Checked before isCommandAvailable so this guard fires even when
-      // nmap isn't installed — it's a policy rejection, not a runtime
-      // failure, and shouldn't depend on the environment.
-      if (isDosScriptRequest(args)) {
-        return {
-          content:
-            "Blocked: the `dos` NSE script category actively tries to crash/hang the target service, which is " +
-            "a denial-of-service attack, not reconnaissance. This tool won't run it. Remove `dos` from --script " +
-            "and try again.",
-          isError: true,
-        };
-      }
       if (!isCommandAvailable(nmapBin)) {
         return { content: "nmap not available — install nmap (e.g. `brew install nmap` / `apt install nmap`) and ensure it's on PATH.", isError: true };
       }
