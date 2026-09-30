@@ -830,6 +830,39 @@ export async function compactSession(session: AgentSession, provider: LlmProvide
   }
 }
 
+export interface CompactUiHooks {
+  setBusy: (busy: boolean, label?: string) => void;
+  writeSystem: (text: string) => void;
+}
+
+export interface CompactCommandResult {
+  /** Present only on a successful compaction — the two-message summary now actually in session.messages, ready to replace whatever timeline a UI was showing for the old turns. */
+  replacedMessages?: Array<{ role: "user" | "assistant"; content: string }>;
+}
+
+/**
+ * The actual "/compact" command behavior, factored out of each UI's own
+ * ws/message handler (originally duplicated near-verbatim between
+ * web-server's index.ts and the VS Code extension's message-handler.ts —
+ * flagged by static analysis as duplicated code once both existed) so
+ * there is exactly one place that owns the busy/system-message/compaction
+ * sequence. Callers still own their own turnInFlight-style guard (held for
+ * the whole call, since compactSession replaces session.messages wholesale)
+ * and their own wire-message shape — this only needs two small hooks to
+ * stay UI-agnostic.
+ */
+export async function runCompactCommand(session: AgentSession, provider: LlmProvider, hooks: CompactUiHooks): Promise<CompactCommandResult> {
+  hooks.setBusy(true, "compacting");
+  const result = await compactSession(session, provider);
+  hooks.setBusy(false);
+  if (!result) {
+    hooks.writeSystem("Nothing to compact, or the summarization call failed — conversation left unchanged.");
+    return {};
+  }
+  hooks.writeSystem(`Compacted ${result.messagesBefore} messages into a summary.`);
+  return { replacedMessages: session.messages.filter((m) => m.role === "user" || m.role === "assistant").map((m) => ({ role: m.role, content: m.content })) };
+}
+
 export async function runTurn(
   session: AgentSession,
   provider: LlmProvider,
