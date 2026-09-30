@@ -1063,6 +1063,37 @@ body {
 .tool-call-dangerous .tool-call-name {
   color: var(--danger);
 }
+/* <details>/<summary> tool-call block (see ChatMessage.tsx) — summary
+   keeps .tool-call's own flex layout, just adds a pointer cursor and drops
+   the browser's default marker glyph (the risk icon already signals
+   "this is clickable/has more"). */
+details.tool-call-details > summary.tool-call {
+  cursor: pointer;
+  user-select: none;
+}
+details.tool-call-details > summary.tool-call::-webkit-details-marker {
+  display: none;
+}
+details.tool-call-details > summary.tool-call::marker {
+  content: "";
+}
+.tool-call-result {
+  margin: 4px 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 6px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  font-family: var(--font-mono);
+  font-size: 12px;
+  white-space: pre-wrap;
+  max-height: 260px;
+  overflow-y: auto;
+  color: var(--text-muted);
+}
+.tool-call-result-error {
+  color: var(--danger);
+  border-color: var(--danger);
+}
 .log-busy {
   display: flex;
   align-items: center;

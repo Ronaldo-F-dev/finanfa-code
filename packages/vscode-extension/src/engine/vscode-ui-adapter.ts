@@ -63,6 +63,9 @@ export function createVscodeUiAdapter(
     writeToolCall(info) {
       send("tool_call", { ...info });
     },
+    writeToolResult(info) {
+      send("tool_result", { ...info });
+    },
     writeError(text) {
       send("error", { text });
     },
