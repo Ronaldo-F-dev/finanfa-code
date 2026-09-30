@@ -7,7 +7,7 @@ import type {
   StreamTurnResult,
   ToolDefinition,
 } from "../core/types.js";
-import { Agent } from "undici";
+import { Agent, fetch as undiciFetch } from "undici";
 import { retryWithBackoff } from "../util/retry.js";
 import { repairTruncatedToolCallJson } from "./tool-call-json-repair.js";
 
@@ -25,6 +25,16 @@ import { repairTruncatedToolCallJson } from "./tool-call-json-repair.js";
 // this file's own timers — the ttfbController below for headers, and the
 // read-loop's idle timeout for the body, both of which actually reset on
 // activity instead of capping total duration — the sole authority.
+//
+// Real, reported regression this caused: passing this Agent as `dispatcher`
+// to the global `fetch` (Node's own built-in, backed by whatever undici
+// version Node itself bundles) crashed every real request with "fetch
+// failed: invalid onRequestStart method" once the `undici` npm dependency
+// here got bumped past Node's bundled version — the two undici copies'
+// internal dispatcher/interceptor shapes no longer agreed. Using undici's
+// OWN `fetch` (imported from the same package as `Agent`, so they're always
+// the exact same version by construction) instead of the global one removes
+// the version-skew entirely, regardless of what Node happens to bundle.
 const dispatcher = new Agent({ bodyTimeout: 0, headersTimeout: 0 });
 
 // A generic client for any server implementing the OpenAI chat-completions
@@ -201,7 +211,10 @@ async function fetchInitialResponse(
       );
       let response: Response;
       try {
-        response = await fetch(url, {
+        // undiciFetch, not the global fetch — see the `dispatcher` module-
+        // level comment on why mixing the two breaks across a Node/undici
+        // version skew.
+        response = (await undiciFetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json", ...headers },
           body: JSON.stringify({ ...body, stream: true }),
@@ -217,7 +230,7 @@ async function fetchInitialResponse(
           // undici's own default Agent silently overrides every timeout
           // this file implements.
           dispatcher,
-        } as unknown as RequestInit);
+        })) as unknown as Response;
       } finally {
         clearTimeout(ttfbTimer);
       }
