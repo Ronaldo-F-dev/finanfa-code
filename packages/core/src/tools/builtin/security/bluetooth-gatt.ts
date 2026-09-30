@@ -163,6 +163,55 @@ export function parseReadValue(stdout: string): Buffer | undefined {
   return Buffer.from(bytes);
 }
 
+export interface GattWriteResult {
+  ok: boolean;
+  connected: boolean;
+  detail: string;
+  /** Best-effort value read straight back after the write, as a hex string —
+   * undefined for a write-only characteristic (or if the read-back itself
+   * failed, which is not the write's failure). */
+  readBackHex?: string;
+}
+
+/** Drives bluetoothctl's interactive gatt menu to write `bytes` to the
+ * characteristic at `characteristicPath` on `deviceAddress`: connect → menu
+ * gatt → select-attribute → write → best-effort read-back. The session
+ * (and, best-effort, the device connection) is always torn down in the
+ * finally, whatever the outcome. bluetoothctl's exact `write` argument
+ * syntax has varied across bluez versions — space-separated `0x`-prefixed
+ * bytes here matches recent bluez's own `help write`; an older peripheral/
+ * stack that rejects that form surfaces as a normal write error, not a
+ * silent no-op (see parseGattWriteResult). */
+export async function writeGattCharacteristic(
+  bin: string,
+  deviceAddress: string,
+  characteristicPath: string,
+  bytes: string[],
+): Promise<GattWriteResult> {
+  const session = new BluetoothctlSession(bin);
+  try {
+    session.start();
+    await session.send("", 100); // let the banner/agent-registration print settle
+    const connectOutput = await session.send(`connect ${deviceAddress}`, 300, 15_000);
+    if (!parseGattConnectResult(connectOutput)) {
+      return { ok: false, connected: false, detail: `Could not connect to ${deviceAddress}: ${connectOutput.trim() || "no response from bluetoothctl"}` };
+    }
+    await session.send("menu gatt");
+    await session.send(`select-attribute ${characteristicPath}`);
+    const writeOutput = await session.send(`write ${bytes.map((b) => `0x${b}`).join(" ")}`, 300);
+    const parsed = parseGattWriteResult(writeOutput);
+    const readBackHex = parseReadValue(await session.send("read", 250))?.toString("hex");
+    return { ok: parsed.ok, connected: true, detail: parsed.detail ?? "write accepted (bluetoothctl reported no error)", readBackHex };
+  } finally {
+    try {
+      await session.send(`disconnect ${deviceAddress}`, 100, 5_000);
+    } catch {
+      // Best-effort — the session is being torn down regardless.
+    }
+    session.close();
+  }
+}
+
 // Legacy/high-risk GATT service UUIDs, ported from wireless-lab's
 // bluetooth/audit package — not exhaustive, a starting set covering the
 // common "this is worth a second look" services.
