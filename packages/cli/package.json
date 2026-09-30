@@ -12,17 +12,17 @@
     "build": "tsup"
   },
   "dependencies": {
-    "@agentclientprotocol/sdk": "^1.4.0",
+    "@agentclientprotocol/sdk": "^1.5.0",
     "@finanfa/core": "*",
     "commander": "^15.0.0",
     "gradient-string": "^3.0.0",
     "ink": "^7.1.1",
     "ink-spinner": "^5.0.0",
     "ink-text-input": "^6.0.0",
-    "marked": "^18.0.13",
+    "marked": "^18.0.14",
     "marked-terminal": "^7.3.0",
     "react": "^19.2.8",
     "undici": "^8.10.2",
-    "web-tree-sitter": "^0.25.6"
+    "web-tree-sitter": "^0.27.0"
   }
 }
