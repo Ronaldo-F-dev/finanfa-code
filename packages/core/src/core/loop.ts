@@ -247,13 +247,23 @@ async function runOneToolCall(
 
   const missingFields = findMissingRequiredFields(tool, call.input);
   if (missingFields.length > 0) {
-    return {
-      result: {
-        toolCallId: call.id,
-        isError: true,
-        content: `Missing required field(s) for "${tool.name}": ${missingFields.join(", ")} (the arguments for this call could not be parsed — try again with complete, valid arguments)`,
-      },
-    };
+    // The "could not be parsed" wording only fits the provider-layer
+    // fallback-to-{} case above (truncation/parse-error markers already
+    // handled it when identifiable; this covers the marker-less fallback
+    // still landing here as an empty object) — nothing was actually
+    // malformed when the model just legitimately omitted a field on an
+    // otherwise normally-parsed call (e.g. read_file with no `path`), which
+    // is the far more common way this branch is reached. Telling the model
+    // its JSON "could not be parsed" in that ordinary case blames the wrong
+    // thing and pushes it to "regenerate valid JSON" instead of just adding
+    // the missing field — the same class of misdirected-retry bug the
+    // __toolCallTruncated/__toolCallParseError markers above were split out
+    // to avoid, just not caught here yet.
+    const isEmptyFallback = call.input && typeof call.input === "object" && Object.keys(call.input as Record<string, unknown>).length === 0;
+    const content = isEmptyFallback
+      ? `Missing required field(s) for "${tool.name}": ${missingFields.join(", ")} (the arguments for this call could not be parsed — try again with complete, valid arguments)`
+      : `Missing required field(s) for "${tool.name}": ${missingFields.join(", ")} — provide these and try again.`;
+    return { result: { toolCallId: call.id, isError: true, content } };
   }
 
   // Plan mode (/plan): only read-only tools and exit_plan_mode itself get

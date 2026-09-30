@@ -153,6 +153,44 @@ describe("runTurn: a tool call missing its schema's required fields is rejected 
     },
   );
 
+  it(
+    "a normally-parsed call that just legitimately omits a required field gets a plain 'provide this and " +
+      "try again' message, not the JSON-parsing-blame wording meant for the empty-object fallback case",
+    async () => {
+      // Real inconsistency: the "(the arguments for this call could not be
+      // parsed — try again with complete, valid arguments)" wording was
+      // written for the provider-layer fallback-to-{} case above (see the
+      // bash-with-{} test), but findMissingRequiredFields is reached just as
+      // often when nothing failed to parse at all — the model called a real
+      // tool with valid JSON, just forgot one field among several (e.g.
+      // read_file with no `path`). Blaming "malformed JSON" there is wrong
+      // and pushes the model toward regenerating JSON instead of just adding
+      // the missing field — the same class of bug __toolCallTruncated/
+      // __toolCallParseError were split out above to avoid.
+      const tools = new ToolRegistry();
+      tools.register({
+        name: "read_file",
+        description: "",
+        riskLevel: "safe",
+        inputSchema: { type: "object", properties: { path: { type: "string" }, offset: { type: "number" } }, required: ["path"] },
+        handler: async () => ({ content: "unreachable", isError: false }),
+      });
+
+      const ui = makeStubUi();
+      const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+      const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+      await runTurn(session, new (oneToolCallThenDone("read_file", { offset: 10 }))(), ui, tools, permissions, "read a file");
+
+      const toolMessage = session.messages.find((m) => m.role === "tool");
+      const toolResult = (toolMessage as { results: Array<{ isError: boolean; content: string }> }).results[0];
+      expect(toolResult.isError).toBe(true);
+      expect(toolResult.content).toContain("Missing required field(s)");
+      expect(toolResult.content).toContain("path");
+      expect(toolResult.content).not.toContain("could not be parsed");
+    },
+  );
+
   it("a tool call with all required fields present still reaches its handler normally", async () => {
     const tools = new ToolRegistry();
     tools.register({
