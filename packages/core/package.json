@@ -45,6 +45,6 @@
   "devDependencies": {
     "@types/js-yaml": "^4.0.9",
     "@types/nodemailer": "^8.0.2",
-    "js-yaml": "^5.4.2"
+    "js-yaml": "^4.3.2"
   }
 }
