@@ -95,12 +95,18 @@ function hasCaptchaMarkers(html: string): boolean {
   return CAPTCHA_MARKERS.some((marker) => lowered.includes(marker));
 }
 
-async function attemptRegistration(pageUrl: string): Promise<{ finding?: Finding; passed: PassedControl }> {
+async function attemptRegistration(pageUrl: string): Promise<{ finding?: Finding; passed?: PassedControl; launchError?: string }> {
   let browser;
   try {
     browser = await chromium.launch({ headless: true });
   } catch (err) {
-    return { passed: { label: "Account creation attempt skipped (no browser available)", detail: `No Playwright browser could be launched: ${err instanceof Error ? err.message : String(err)}` } };
+    // Real, reported bug: reporting this as a "passed control" reads as "no
+    // CAPTCHA/protection issue found" — the opposite of the truth (the
+    // check never actually ran) and a real false-negative risk for anyone
+    // skimming a scan report. Same explicit "here's what to install"
+    // messaging as browser/manager.ts's own launch failure, surfaced as a
+    // real tool error instead of a silently misleading pass.
+    return { launchError: `Failed to launch Chromium — has it been installed? Run \`npx playwright install chromium\`.\nOriginal error: ${err instanceof Error ? err.message : String(err)}` };
   }
 
   try {
@@ -240,8 +246,9 @@ export const securityScanAccountCreationTool: ToolDefinition<SecurityScanAccount
     } catch {
       return { content: `"${input.url}" is not a valid URL.`, isError: true };
     }
-    const { finding, passed } = await attemptRegistration(input.url);
-    const output: ScanOutput = finding ? { findings: [finding], passedControls: [] } : { findings: [], passedControls: [passed] };
+    const { finding, passed, launchError } = await attemptRegistration(input.url);
+    if (launchError) return { content: launchError, isError: true };
+    const output: ScanOutput = finding ? { findings: [finding], passedControls: [] } : { findings: [], passedControls: [passed!] };
     return { content: formatScanOutput(input.url, output), isError: false };
   },
 };

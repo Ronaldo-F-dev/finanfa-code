@@ -6,6 +6,7 @@ import type { ToolDefinition, ToolImage } from "../../core/types.js";
 import { resolveAllowedPath } from "./path-guard.js";
 import { readImageFile } from "../../util/image.js";
 import { SHELL, killProcessGroup } from "../../util/process.js";
+import { isCommandAvailable } from "../../util/command-availability.js";
 
 // Video understanding beyond audio transcription (transcribe_audio only
 // ever sees the audio track) — samples still frames via ffmpeg/ffprobe
@@ -70,6 +71,21 @@ export const viewVideoFramesTool: ToolDefinition<ViewVideoFramesInput> = {
   },
   describeCall: (input) => `view frames from ${input.path}`,
   async handler(input, ctx) {
+    // Real, reported gap: without this check, a missing ffmpeg/ffprobe
+    // surfaced only as a raw "spawn ffprobe ENOENT" — accurate, but not
+    // something a user unfamiliar with that error message would recognize
+    // as "install ffmpeg", unlike ocr-image.ts/convert-pdf-to-image.ts's
+    // own explicit checks for their own optional external binaries.
+    const missing = ["ffmpeg", "ffprobe"].filter((bin) => !isCommandAvailable(bin));
+    if (missing.length > 0) {
+      return {
+        content:
+          `${missing.join(" and ")} isn't available. Install ffmpeg (it provides both) — ` +
+          "`apt install ffmpeg` on Debian/Ubuntu, `brew install ffmpeg` on macOS — then retry.",
+        isError: true,
+      };
+    }
+
     const sourcePath = resolveAllowedPath(ctx.cwd, input.path);
     const frameCount = Math.min(Math.max(1, Math.floor(input.frame_count ?? DEFAULT_FRAME_COUNT)), MAX_FRAME_COUNT);
 
