@@ -1,6 +1,7 @@
 import type { NeutralImage } from "@finanfa/core/src/core/types.js";
 import type { SessionRunner } from "./session-runner.js";
 import { buildHistoryReplay } from "./history.js";
+import { compactSession } from "@finanfa/core/src/core/loop.js";
 
 export interface WebviewMessage {
   type: string;
@@ -116,6 +117,40 @@ export function createChatMessageHandler(
           post({ type: "ollama_pull_done", name });
         } catch (err) {
           post({ type: "ollama_pull_error", name, message: err instanceof Error ? err.message : String(err) });
+        }
+        break;
+      }
+      case "compact": {
+        // Mirrors web-server's own "compact" ws branch (index.ts) —
+        // same turnInFlight guard user_message uses (compactSession
+        // replaces session.messages wholesale, so a user_message racing in
+        // mid-compaction would corrupt it), held for the whole call, not
+        // just checked at the start.
+        if (turnInFlight) {
+          post({ type: "error", text: "A turn is already in progress — wait for it to finish (or interrupt) before compacting." });
+          break;
+        }
+        turnInFlight = true;
+        try {
+          post({ type: "busy", busy: true, label: "compacting" });
+          const result = await compactSession(runner.session, runner.provider);
+          post({ type: "busy", busy: false });
+          if (!result) {
+            post({ type: "system", text: "Nothing to compact, or the summarization call failed — conversation left unchanged." });
+          } else {
+            post({ type: "system", text: `Compacted ${result.messagesBefore} messages into a summary.` });
+            // The webview's timeline holds the old turns individually — tell
+            // it to replace them with just the two-message summary now
+            // actually in session.messages, same replace:true path a
+            // resumed session's initial "history" reply already uses.
+            post({
+              type: "history",
+              replace: true,
+              messages: runner.session.messages.filter((m) => m.role === "user" || m.role === "assistant").map((m) => ({ role: m.role, content: m.content })),
+            });
+          }
+        } finally {
+          turnInFlight = false;
         }
         break;
       }
