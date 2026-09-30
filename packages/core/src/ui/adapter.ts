@@ -1,4 +1,4 @@
-import type { ToolRiskLevel } from "../core/types.js";
+import type { FilePreview, ToolRiskLevel } from "../core/types.js";
 import type { TodoItem } from "../core/todo-store.js";
 
 export interface ToolCallAnnouncement {
@@ -63,7 +63,16 @@ export interface UIAdapter {
    * uses to match it to the tool_call notification that follows) can use
    * the real id instead of a synthetic placeholder.
    */
-  askUser(prompt: string, kind?: "input" | "confirm", toolCallId?: string): Promise<string>;
+  /**
+   * `filePreview`, when the tool call being confirmed implements
+   * ToolDefinition.filePreview, carries structured {path, before, after}
+   * content for a UI that can render a real diff view (a native VS Code
+   * diff editor tab) — optional, purely additive: every adapter that
+   * ignores it keeps behaving exactly as it did before this parameter
+   * existed (the `prompt` string already has a text diff embedded for
+   * tools with a preview()).
+   */
+  askUser(prompt: string, kind?: "input" | "confirm", toolCallId?: string, filePreview?: FilePreview): Promise<string>;
   /** A tool produced a file the human should be able to play/view inline (e.g. text_to_speech's MP3) — optional, since a terminal can't render it; the CLI adapters just skip this and rely on the tool's own printed output. */
   writeMedia?(media: { kind: "audio" | "image"; path: string; mimeType: string }): void;
   /** Streamed Anthropic extended-thinking text (see StreamTurnParams.thinkingBudgetTokens) — mirrors writeAssistantDelta, kept separate since thinking is reasoning shown alongside the reply, not the reply itself. Optional: silently unused by an adapter (or a session) that never enables thinking. */

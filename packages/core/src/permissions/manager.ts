@@ -1,4 +1,4 @@
-import type { ToolContext, ToolDefinition, LlmProvider } from "../core/types.js";
+import type { ToolContext, ToolDefinition, LlmProvider, FilePreview } from "../core/types.js";
 import type { UIAdapter } from "../ui/adapter.js";
 import type { PermissionConfig, PermissionDecision } from "./config.js";
 import type { HooksConfig } from "../hooks/config.js";
@@ -209,22 +209,30 @@ export class PermissionManager {
     // proper tool_result) is the safe fallback, not crashing the turn.
     let summary: string;
     let preview: string | undefined;
+    let filePreview: FilePreview | undefined;
     try {
       summary = tool.describeCall ? tool.describeCall(input) : JSON.stringify(input);
       preview = tool.preview ? await tool.preview(input, ctx) : undefined;
+      // Deliberately swallowed on its own, separate from the try/catch's
+      // existing deny-on-error policy above: filePreview is a pure bonus for
+      // a UI that can render a real diff (see askUser's own doc comment) —
+      // its own failure (e.g. the same stale-old_string case preview()
+      // throws on, but filePreview already returns undefined for) must
+      // never turn a normal permission prompt into a denial.
+      filePreview = tool.filePreview ? await tool.filePreview(input, ctx).catch(() => undefined) : undefined;
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       this.ui.writeError(`Could not prepare "${tool.name}" for confirmation: ${message}`);
       return this.record(tool, riskKey, ctx, "deny", "prepare_error");
     }
-    const answer = await this.promptUser(tool.name, summary, preview, toolCallId);
+    const answer = await this.promptUser(tool.name, summary, preview, toolCallId, filePreview);
 
     if (answer === "always") this.sessionAllowlist.add(key);
     if (answer === "always-tool") this.sessionAllowlist.add(tool.name);
     return this.record(tool, riskKey, ctx, answer === "deny" ? "deny" : "allow", "user_prompt");
   }
 
-  private async promptUser(toolName: string, summary: string, preview?: string, toolCallId?: string): Promise<AskAnswer> {
+  private async promptUser(toolName: string, summary: string, preview?: string, toolCallId?: string, filePreview?: FilePreview): Promise<AskAnswer> {
     const previewBlock = preview ? `\n${preview}\n` : "";
     // Spelled out explicitly which tool "always" scopes to — "[t]ool always
     // allowed" alone reads to some users as "any tool", when it only ever
@@ -239,7 +247,7 @@ export class PermissionManager {
     // tool, a mistyped keystroke could silently execute the command. Fails
     // closed instead: re-prompt until a recognized answer comes back.
     for (;;) {
-      const raw = (await this.ui.askUser(prompt, "confirm", toolCallId)).trim().toLowerCase();
+      const raw = (await this.ui.askUser(prompt, "confirm", toolCallId, filePreview)).trim().toLowerCase();
       switch (raw) {
         case "a":
         case "always":

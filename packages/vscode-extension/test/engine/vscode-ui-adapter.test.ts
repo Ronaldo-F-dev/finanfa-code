@@ -56,6 +56,34 @@ describe("createVscodeUiAdapter", () => {
     expect(() => resolvePending(999, "y")).not.toThrow();
   });
 
+  it("askUser calls openFileDiff with the tool's filePreview, for a real native diff view", async () => {
+    const post = vi.fn();
+    const openFileDiff = vi.fn();
+    const { adapter, resolvePending } = createVscodeUiAdapter(post, undefined, openFileDiff);
+    const preview = { path: "a.txt", before: "old", after: "new" };
+
+    const promise = adapter.askUser("Allow this?", "confirm", "call-1", preview);
+    expect(openFileDiff).toHaveBeenCalledWith(preview);
+    // filePreview is a bonus for the extension host's own diff view, not
+    // part of the message the webview itself receives.
+    expect(post).toHaveBeenCalledWith({ type: "ask", requestId: 1, prompt: "Allow this?", kind: "confirm" });
+
+    resolvePending(1, "y");
+    await promise;
+  });
+
+  it("askUser never calls openFileDiff when the tool has no filePreview (every other call site's normal case)", async () => {
+    const post = vi.fn();
+    const openFileDiff = vi.fn();
+    const { adapter, resolvePending } = createVscodeUiAdapter(post, undefined, openFileDiff);
+
+    const promise = adapter.askUser("Allow this?", "confirm");
+    expect(openFileDiff).not.toHaveBeenCalled();
+
+    resolvePending(1, "y");
+    await promise;
+  });
+
   it("two concurrent askUser calls get distinct requestIds and resolve independently", async () => {
     const post = vi.fn();
     const { adapter, resolvePending } = createVscodeUiAdapter(post);
