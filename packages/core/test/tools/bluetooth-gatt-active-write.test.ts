@@ -1,13 +1,17 @@
 import { describe, expect, it } from "vitest";
+import { fileURLToPath } from "node:url";
 import { createSecurityBluetoothGattActiveWriteTool } from "../../src/tools/builtin/security/bluetooth-gatt-active-write.js";
 import { resetCommandAvailabilityCacheForTests } from "../../src/util/command-availability.js";
 
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
 const MISSING_BIN = "/nonexistent/definitely-not-a-real-binary-xyz";
+// Real interactive fake: exercises connect → menu gatt → select-attribute →
+// write → read → disconnect, driven over stdin exactly like real bluetoothctl.
+const FAKE_BLUETOOTHCTL = fileURLToPath(new URL("../fixtures/fake-bluetoothctl-gatt-write.mjs", import.meta.url));
 
 const VALID_INPUT = { deviceAddress: "AA:BB:CC:DD:EE:FF", characteristicPath: "/org/bluez/hci0/dev_AA/service0001/char0003", valueHex: "01 02" };
 
-describe("security_bluetooth_gatt_active_write (STUB — real prerequisite checks, unimplemented run, ported from wireless-lab)", () => {
+describe("security_bluetooth_gatt_active_write (real bluetoothctl interactive flow, faked binary)", () => {
   it("has 'dangerous' risk level", () => {
     const tool = createSecurityBluetoothGattActiveWriteTool();
     expect(tool.riskLevel).toBe("dangerous");
@@ -40,12 +44,41 @@ describe("security_bluetooth_gatt_active_write (STUB — real prerequisite check
     expect(missingPath.content).toMatch(/characteristic path is required/i);
   });
 
-  it("returns a clear not-implemented error once every real precondition passes, never writing anything", async () => {
+  it("rejects a malformed hex value BEFORE connecting to anything", async () => {
     resetCommandAvailabilityCacheForTests();
+    // /bin/echo as the "bluetoothctl" — if the handler ever reached the
+    // connect step with bad hex, the flow would hang/misbehave rather than
+    // returning this clean validation error instantly.
     const tool = createSecurityBluetoothGattActiveWriteTool({ platformOverride: "linux", bluetoothctlBinary: "/bin/echo" });
-    const result = await tool.handler(VALID_INPUT, ctx);
+    const result = await tool.handler({ ...VALID_INPUT, valueHex: "nothex" }, ctx);
     expect(result.isError).toBe(true);
-    expect(result.content).toMatch(/not implemented yet/i);
-    expect(result.content).toMatch(/preconditions verified/i);
+    expect(result.content).toMatch(/not valid hex/i);
+  });
+
+  it("writes the value over a real interactive session and reads it straight back", async () => {
+    resetCommandAvailabilityCacheForTests();
+    const tool = createSecurityBluetoothGattActiveWriteTool({ platformOverride: "linux", bluetoothctlBinary: FAKE_BLUETOOTHCTL });
+    const result = await tool.handler({ ...VALID_INPUT, valueHex: "01 02" }, ctx);
+    expect(result.isError).toBe(false);
+    expect(result.content).toMatch(/wrote 2 byte\(s\)/i);
+    expect(result.content).toMatch(/read-back value: 0102/i);
+  });
+
+  it("reports a real connect failure instead of claiming a write happened", async () => {
+    resetCommandAvailabilityCacheForTests();
+    const tool = createSecurityBluetoothGattActiveWriteTool({ platformOverride: "linux", bluetoothctlBinary: FAKE_BLUETOOTHCTL });
+    const result = await tool.handler({ ...VALID_INPUT, deviceAddress: "DE:AD:BE:EF:00:00" }, ctx);
+    expect(result.isError).toBe(true);
+    expect(result.content).toMatch(/could not connect/i);
+    expect(result.content).not.toMatch(/wrote \d+ byte/i);
+  });
+
+  it("surfaces the peripheral's own rejection of a write to a non-writable characteristic", async () => {
+    resetCommandAvailabilityCacheForTests();
+    const tool = createSecurityBluetoothGattActiveWriteTool({ platformOverride: "linux", bluetoothctlBinary: FAKE_BLUETOOTHCTL });
+    const result = await tool.handler({ ...VALID_INPUT, characteristicPath: "/org/bluez/hci0/dev_AA/readonly/char0009" }, ctx);
+    expect(result.isError).toBe(true);
+    expect(result.content).toMatch(/did not succeed/i);
+    expect(result.content).toMatch(/NotPermitted/i);
   });
 });
