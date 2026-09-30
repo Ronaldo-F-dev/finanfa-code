@@ -32,12 +32,14 @@ describe("dist/extension.cjs (the real compiled bundle) loads without crashing",
     await mkdir(path.join(fakeVscodeDir, "node_modules"), { recursive: true });
     // Minimal stub of the real `vscode` module — just enough surface for
     // extension.ts's activate() to run to completion (registers a webview
-    // view provider and does nothing else at activation time; a real
-    // SessionRunner is only created lazily once a message actually arrives
-    // from a real webview, which this test doesn't simulate).
+    // view provider, registers registerDiffView's content provider, and
+    // does nothing else at activation time; a real SessionRunner is only
+    // created lazily once a message actually arrives from a real webview,
+    // which this test doesn't simulate).
     await writeFile(
       path.join(fakeVscodeDir, "node_modules", "vscode.js"),
-      "module.exports = { window: { registerWebviewViewProvider: () => ({ dispose() {} }) }, workspace: {}, ExtensionContext: class {} };",
+      "module.exports = { window: { registerWebviewViewProvider: () => ({ dispose() {} }) }, " +
+        "workspace: { registerTextDocumentContentProvider: () => ({ dispose() {} }) }, ExtensionContext: class {} };",
     );
   });
 
