@@ -12,6 +12,7 @@ describe("createVscodeUiAdapter", () => {
     adapter.writeSystem("sys");
     adapter.writeError("err");
     adapter.writeToolCall?.({ toolCallId: "t1", toolName: "bash", description: "ls", riskLevel: "dangerous" });
+    adapter.writeToolResult?.({ toolCallId: "t1", toolName: "bash", isError: false, content: "file1\nfile2" });
     adapter.writeMedia?.({ kind: "image", path: "/tmp/x.png", mimeType: "image/png" });
     adapter.setStatus({ tokens: 10, costUsd: 0.01, model: "m" });
     adapter.setCommands([{ name: "cost", description: "show cost" }]);
@@ -23,6 +24,7 @@ describe("createVscodeUiAdapter", () => {
     expect(post).toHaveBeenCalledWith({ type: "system", text: "sys" });
     expect(post).toHaveBeenCalledWith({ type: "error", text: "err" });
     expect(post).toHaveBeenCalledWith({ type: "tool_call", toolCallId: "t1", toolName: "bash", description: "ls", riskLevel: "dangerous" });
+    expect(post).toHaveBeenCalledWith({ type: "tool_result", toolCallId: "t1", toolName: "bash", isError: false, content: "file1\nfile2" });
     expect(post).toHaveBeenCalledWith({ type: "media", kind: "image", path: "/tmp/x.png", mimeType: "image/png" });
     expect(post).toHaveBeenCalledWith({ type: "status", status: { tokens: 10, costUsd: 0.01, model: "m" } });
     expect(post).toHaveBeenCalledWith({ type: "commands", commands: [{ name: "cost", description: "show cost" }] });
