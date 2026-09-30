@@ -2,6 +2,20 @@ import { describe, expect, it, vi, afterEach } from "vitest";
 import { Agent } from "undici";
 import { OpenAiCompatibleProvider } from "../../src/providers/openai-compatible-provider.js";
 
+// The provider now calls undici's OWN fetch (imported directly from the
+// "undici" module, not the global one) — see openai-compatible-provider.ts's
+// module comment on the real "invalid onRequestStart method" bug that fix
+// closed (a version-skew between the `undici` npm package and whatever
+// undici Node bundles for its global fetch). Every test below still stubs
+// the GLOBAL fetch (`vi.stubGlobal("fetch", ...)`) to script a response —
+// this makes undici's fetch export just delegate to whatever the global one
+// currently is, so every existing stub keeps working unchanged instead of
+// needing its own `vi.mock("undici", ...)` per test.
+vi.mock("undici", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("undici")>();
+  return { ...actual, fetch: (...args: Parameters<typeof globalThis.fetch>) => globalThis.fetch(...args) };
+});
+
 function sseResponse(events: string[]): Response {
   const body = new ReadableStream<Uint8Array>({
     start(controller) {
