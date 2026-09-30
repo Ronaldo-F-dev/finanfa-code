@@ -3,7 +3,7 @@ import type { ToolDefinition } from "../../../core/types.js";
 import { isCommandAvailable } from "../../../util/command-availability.js";
 import { severityFromScore } from "./cvss.js";
 import { formatScanOutput, type Finding, type PassedControl, type ScanOutput } from "./types.js";
-import { BluetoothctlSession, parseListAttributes, parseReadValue, auditGattAttributes, type GattAttribute } from "./bluetooth-gatt.js";
+import { BluetoothctlSession, parseListAttributes, parseReadValue, auditGattAttributes, isValidMacAddress, isValidGattPath, type GattAttribute } from "./bluetooth-gatt.js";
 
 // Real gap this fills: no Bluetooth recon at all in this directory. Scoped
 // to surface-level discovery only — what's advertising/paired, by name,
@@ -297,6 +297,23 @@ export function createSecurityScanBluetoothTool(options: SecurityScanBluetoothOp
         }
         if (!isCommandAvailable(bluetoothctlBin)) {
           return { content: "bluetoothctl not found (install bluez).", isError: true };
+        }
+        // Real command-injection gap, same class as the one already fixed
+        // in security_bluetooth_gatt_active_write (see bluetooth-gatt.ts's
+        // isValidMacAddress/isValidGattPath doc comments): deviceAddress and
+        // each readCharacteristicPaths entry get spliced directly into
+        // lines written to bluetoothctl's interactive stdin REPL
+        // (`list-attributes <address>` / `select-attribute <path>` inside
+        // discoverGatt) — and unlike the active-write tool, this one is
+        // riskLevel "safe", so it runs with NO permission prompt at all. A
+        // newline embedded in either field would inject a second,
+        // unauthorized bluetoothctl command with zero user confirmation.
+        if (!isValidMacAddress(input.deviceAddress)) {
+          return { content: `"${input.deviceAddress}" is not a valid device address — expected a MAC address like "AA:BB:CC:DD:EE:FF".`, isError: true };
+        }
+        const invalidPath = (input.readCharacteristicPaths ?? []).find((p) => !isValidGattPath(p));
+        if (invalidPath !== undefined) {
+          return { content: `"${invalidPath}" is not a valid GATT characteristic path — expected a bluez object path like "/org/bluez/hci0/dev_.../char.....".`, isError: true };
         }
         const discovery = await discoverGatt(bluetoothctlBin, input.deviceAddress, input.readCharacteristicPaths ?? []);
         if (discovery.attributes.length === 0) {

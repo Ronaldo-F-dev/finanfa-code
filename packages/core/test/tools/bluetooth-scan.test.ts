@@ -93,4 +93,40 @@ describe("security_scan_bluetooth deviceAddress (read-only GATT discovery, porte
     expect(result.isError).toBe(false);
     expect(result.content).toMatch(/Legacy\/vendor UART-bridge service exposed/i);
   }, 10_000);
+
+  // Real command-injection gap, same class as the one already fixed in
+  // security_bluetooth_gatt_active_write — and more urgent here, since this
+  // tool is riskLevel "safe" (no permission prompt at all). deviceAddress/
+  // readCharacteristicPaths used to get spliced directly into bluetoothctl's
+  // interactive stdin with only a non-empty check, so a newline embedded in
+  // either field could inject a second, unauthorized bluetoothctl command
+  // with zero user confirmation. These fail BEFORE ever spawning
+  // bluetoothctl (bluetoothctlBinary set to a real, would-crash-if-reached
+  // binary would make that failure loud rather than silent).
+  it("rejects a deviceAddress shaped to inject a second bluetoothctl command via an embedded newline", async () => {
+    resetCommandAvailabilityCacheForTests();
+    const tool = createSecurityScanBluetoothTool({ platformOverride: "linux", bluetoothctlBinary: FAKE_BLUETOOTHCTL_INTERACTIVE });
+    const result = await tool.handler({ deviceAddress: "AA:BB:CC:DD:EE:FF\nremove-device AA:BB:CC:DD:EE:FF" }, ctx);
+    expect(result.isError).toBe(true);
+    expect(result.content).toMatch(/not a valid device address/i);
+  });
+
+  it("rejects a readCharacteristicPaths entry shaped to inject a second bluetoothctl command", async () => {
+    resetCommandAvailabilityCacheForTests();
+    const tool = createSecurityScanBluetoothTool({ platformOverride: "linux", bluetoothctlBinary: FAKE_BLUETOOTHCTL_INTERACTIVE });
+    const result = await tool.handler(
+      { deviceAddress: "AA:BB:CC:DD:EE:FF", readCharacteristicPaths: ["/org/bluez/hci0/dev_AA/char0003\ndisconnect"] },
+      ctx,
+    );
+    expect(result.isError).toBe(true);
+    expect(result.content).toMatch(/not a valid GATT characteristic path/i);
+  });
+
+  it("still accepts a real, well-formed device address and characteristic path (no over-broad rejection)", async () => {
+    resetCommandAvailabilityCacheForTests();
+    const tool = createSecurityScanBluetoothTool({ platformOverride: "linux", bluetoothctlBinary: FAKE_BLUETOOTHCTL_INTERACTIVE });
+    const path = "/org/bluez/hci0/dev_AA_BB_CC_DD_EE_FF/service0001/char0003";
+    const result = await tool.handler({ deviceAddress: "AA:BB:CC:DD:EE:FF", readCharacteristicPaths: [path] }, ctx);
+    expect(result.isError).toBe(false);
+  }, 10_000);
 });
