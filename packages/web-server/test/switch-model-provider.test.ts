@@ -52,11 +52,25 @@ function fakeSseServer(label: string): { server: http.Server; baseUrl: Promise<s
   return { server, baseUrl, requestedModels: () => requestedModels };
 }
 
+// Real test bug found while chasing a spurious failure: matches the LAST
+// event satisfying `predicate`, not the first — see effort-tiers.test.ts's
+// own copy of this helper for the full explanation (a plain tools_status
+// predicate otherwise grabs the stale, pre-switch snapshot every
+// connection already sends, instead of the fresh one sent right alongside
+// the session_info this test already waited for).
 function waitFor(events: WsEvent[], predicate: (e: WsEvent) => boolean, timeoutMs = 10_000): Promise<WsEvent> {
   const start = Date.now();
   return new Promise((resolve, reject) => {
     const check = () => {
-      const found = events.find(predicate);
+      // Plain reverse iteration, not .findLast — this project's tsconfig
+      // targets ES2022, one short of ES2023's Array.prototype.findLast.
+      let found: WsEvent | undefined;
+      for (let i = events.length - 1; i >= 0; i--) {
+        if (predicate(events[i]!)) {
+          found = events[i];
+          break;
+        }
+      }
       if (found) return resolve(found);
       if (Date.now() - start > timeoutMs) return reject(new Error(`timed out waiting for event: ${JSON.stringify(events)}`));
       setTimeout(check, 50);
@@ -212,21 +226,23 @@ describe("web-server: switching back to a default-family model after a local one
       const lowStatus = await waitFor(events, (e) => e.type === "tools_status");
       expect((lowStatus.tools as { enabled: boolean }[]).some((t) => t.enabled)).toBe(false);
 
+      // Snapshotting the length here (not counting fixed-index matches
+      // below) is what actually makes this race-proof: there's already a
+      // tools_status from the initial connection AND one from "low" above
+      // by this point, so a fixed "2nd match" index silently drifts every
+      // time an earlier step in this test (or a shared helper) changes how
+      // many tools_status events preceded it — real, reported bug, found
+      // via the exact same class of race waitFor's own findLast fix
+      // above addresses. Only an event that arrives strictly after this
+      // send can be the switch-back's own.
+      const beforeSwitchBack = events.length;
       ws.send(JSON.stringify({ type: "set_model", model: "default/laguna", family: "openai-compatible" }));
-      // events.find (inside waitFor) matches the FIRST event satisfying a
-      // predicate, not the latest — "model === default/laguna" alone
-      // would grab the initial connection's own session_info (that's this
-      // project's default model too), sent before "low" was even applied.
-      // Waiting for a SECOND tools_status event specifically sidesteps
-      // that: the first is "low"'s (already captured above as lowStatus),
-      // so a second one only exists once this switch-back actually sent
-      // its own.
       const secondToolsStatus = await new Promise<WsEvent>((resolve, reject) => {
         const start = Date.now();
         const check = () => {
-          const matches = events.filter((e) => e.type === "tools_status");
-          if (matches.length >= 2) return resolve(matches[1]!);
-          if (Date.now() - start > 15_000) return reject(new Error(`timed out waiting for a 2nd tools_status: ${JSON.stringify(events)}`));
+          const found = events.slice(beforeSwitchBack).find((e) => e.type === "tools_status");
+          if (found) return resolve(found);
+          if (Date.now() - start > 15_000) return reject(new Error(`timed out waiting for the switch-back's own tools_status: ${JSON.stringify(events)}`));
           setTimeout(check, 50);
         };
         check();

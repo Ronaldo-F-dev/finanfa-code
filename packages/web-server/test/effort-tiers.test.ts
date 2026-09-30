@@ -19,11 +19,28 @@ interface WsEvent {
   [key: string]: unknown;
 }
 
+// Real test bug found while chasing a spurious failure: matches the LAST
+// event satisfying `predicate`, not the first. A plain tools_status
+// predicate (with no extra discriminator) matches the one sent on every
+// fresh connection too — .find would grab that stale, pre-switch snapshot
+// instead of the fresh one sent right alongside the session_info this test
+// already waited for, making a correct app-side tool-budget switch look
+// broken. Every other existing predicate here still gets the right event
+// either way (there's only ever one match), so this is a pure widening, not
+// a behavior change for those.
 function waitFor(events: WsEvent[], predicate: (e: WsEvent) => boolean, timeoutMs = 15_000): Promise<WsEvent> {
   const start = Date.now();
   return new Promise((resolve, reject) => {
     const check = () => {
-      const found = events.find(predicate);
+      // Plain reverse iteration, not .findLast — this project's tsconfig
+      // targets ES2022, one short of ES2023's Array.prototype.findLast.
+      let found: WsEvent | undefined;
+      for (let i = events.length - 1; i >= 0; i--) {
+        if (predicate(events[i]!)) {
+          found = events[i];
+          break;
+        }
+      }
       if (found) return resolve(found);
       if (Date.now() - start > timeoutMs) return reject(new Error(`timed out waiting for event: ${JSON.stringify(events)}`));
       setTimeout(check, 50);
