@@ -8,6 +8,13 @@ updates:
       npm-dependencies:
         patterns:
           - "*"
+    ignore:
+      # web-tree-sitter 0.27's WASM loader is incompatible with
+      # tree-sitter-wasms@0.1.13's prebuilt grammars (repo_map crashes with
+      # a "getDylinkMetadata" error) — pinned to ^0.25.6 in core/cli. Ignore
+      # updates so a grouped bump doesn't silently re-break it; revisit only
+      # when tree-sitter-wasms ships grammars built for the newer loader.
+      - dependency-name: "web-tree-sitter"
   - package-ecosystem: github-actions
     directory: "/"
     schedule:
