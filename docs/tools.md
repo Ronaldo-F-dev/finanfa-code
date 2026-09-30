@@ -196,13 +196,21 @@ special hardware/drivers required beyond what's already listed):
 - `security_analyze_bluetooth_capture` — offline analysis of an
   already-captured Bluetooth HCI snoop (`.btsnoop`) file (packet
   direction/type counts, HCI event codes).
-- `security_wifi_active_handshake_capture` / `security_bluetooth_gatt_active_write`
-  — **stubs.** Both explicitly report "STUB — NOT YET IMPLEMENTED" and
-  do not perform the attack they describe (a WPA/WPA2 handshake capture
-  via deauth, and a BLE GATT characteristic write). They exist as a
-  fixed interface for a user to fill in themselves (e.g. wiring up
-  aircrack-ng / bluetoothctl); calling either today does not run a real
-  attack.
+- `security_bluetooth_gatt_active_write` — writes hex bytes to a BLE GATT
+  characteristic (from a prior `security_scan_bluetooth` discovery), via
+  `bluetoothctl`'s interactive gatt menu: connect → write → read straight
+  back → disconnect. `dangerous` risk tier — an active, state-changing
+  operation against real hardware (a characteristic write can drive locks,
+  actuators, firmware paths), only for a device you're authorized to test.
+  Linux-only.
+- `security_wifi_active_handshake_capture` — **stub.** Reports
+  "STUB — NOT YET IMPLEMENTED"; only its real prerequisite checks run. It
+  deliberately does not perform the attack it describes: capturing a
+  WPA/WPA2 handshake via deauthentication means transmitting deauth frames
+  to forcibly disconnect other clients from a network — a denial-of-service
+  against third parties — which this project does not ship as a working
+  tool. The fixed interface remains for a user to wire up aircrack-ng
+  themselves, under their own authorization for the target network.
 
 ## RAG (project document search)
 
