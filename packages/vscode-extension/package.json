@@ -30,6 +30,28 @@
           "name": "Chat"
         }
       ]
+    },
+    "commands": [
+      {
+        "command": "finanfa-code.addSelectionToChat",
+        "title": "finanfa-code: Ajouter la sélection au chat"
+      },
+      {
+        "command": "finanfa-code.explainSelection",
+        "title": "finanfa-code: Expliquer la sélection"
+      }
+    ],
+    "menus": {
+      "editor/context": [
+        {
+          "command": "finanfa-code.addSelectionToChat",
+          "group": "finanfa-code"
+        },
+        {
+          "command": "finanfa-code.explainSelection",
+          "group": "finanfa-code"
+        }
+      ]
     }
   },
   "scripts": {
