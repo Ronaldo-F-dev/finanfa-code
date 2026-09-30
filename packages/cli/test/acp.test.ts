@@ -35,9 +35,22 @@ interface WithAcpAgentOptions {
 }
 
 async function withAcpAgent<T>(projectDir: string, run: (ctx: acp.ClientContext) => Promise<T>, opts: WithAcpAgentOptions = {}): Promise<T> {
+  // Real, reported bug found while chasing spurious failures here: this
+  // spawn used to inherit the full parent environment, including whatever
+  // real FINANFA_*/ANTHROPIC_API_KEY vars a dev shell exports for manual
+  // testing against a real inference endpoint (see spawn-server.ts's own
+  // comment on the exact same hazard, already guarded there) — with those
+  // set, the subprocess silently talked to a REAL provider instead of this
+  // test's local fake LLM server, producing unpredictable real model
+  // behavior (different tool-call ids, different tool usage, real latency)
+  // instead of the scripted responses every assertion here expects.
+  const env: NodeJS.ProcessEnv = { ...process.env };
+  for (const k of ["FINANFA_PROVIDER", "FINANFA_BASE_URL", "FINANFA_MODEL", "FINANFA_API_KEY", "FINANFA_API_KEYS", "ANTHROPIC_API_KEY"]) delete env[k];
+
   const agentProcess: ChildProcessWithoutNullStreams = spawn("npx", ["tsx", "bin/finanfa.ts", "--acp", "--cwd", projectDir], {
     cwd: cliDir,
     stdio: ["pipe", "pipe", "pipe"],
+    env,
   }) as ChildProcessWithoutNullStreams;
   agentProcess.stderr.on("data", () => {}); // drained, not asserted on — real stderr noise (experimental warnings) is expected
 
