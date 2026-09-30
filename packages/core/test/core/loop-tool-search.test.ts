@@ -85,7 +85,7 @@ describe("runTurn: Tool Search (session.toolSearchEnabled)", () => {
     expect(provider.offeredToolNames.sort()).toEqual(["bash", "read_file"]);
   });
 
-  it("offers only the 3 meta-tools when Tool Search is enabled, regardless of how many real tools are registered", async () => {
+  it("offers the 3 meta-tools plus any registered core tool (MINIMAL_TOOL_SET) when Tool Search is enabled, never the full list", async () => {
     const tools = makeTools();
     const ui = makeStubUi();
     const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
@@ -95,7 +95,24 @@ describe("runTurn: Tool Search (session.toolSearchEnabled)", () => {
 
     await runTurn(session, provider, ui, tools, permissions, "hi");
 
-    expect(provider.offeredToolNames.sort()).toEqual([CALL_TOOL_NAME, DESCRIBE_TOOL_NAME, SEARCH_TOOLS_NAME]);
+    // makeTools() registers "read_file" (in MINIMAL_TOOL_SET) and "bash" (not) —
+    // only "read_file" should be sent directly, alongside the 3 meta-tools; "bash"
+    // stays behind search_tools/describe_tool.
+    expect(provider.offeredToolNames.sort()).toEqual(["read_file", CALL_TOOL_NAME, DESCRIBE_TOOL_NAME, SEARCH_TOOLS_NAME].sort());
+  });
+
+  it("a core tool the session has individually disabled is excluded from the core set too, not force-included", async () => {
+    const tools = makeTools();
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+    session.toolSearchEnabled = true;
+    session.disabledTools.add("read_file");
+    const provider = new CapturingProvider();
+
+    await runTurn(session, provider, ui, tools, permissions, "hi");
+
+    expect(provider.offeredToolNames.sort()).toEqual([CALL_TOOL_NAME, DESCRIBE_TOOL_NAME, SEARCH_TOOLS_NAME].sort());
   });
 
   // Real, reported bug: disabling every tool from the Tools panel (to use a
