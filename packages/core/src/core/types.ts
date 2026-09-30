@@ -60,6 +60,23 @@ export interface ToolDefinition<TInput = any> {
   describeCall?: (input: TInput) => string;
   /** Optional richer preview (e.g. a diff) shown above the permission prompt. */
   preview?: (input: TInput, ctx: ToolContext) => Promise<string>;
+  /**
+   * Structured before/after file content for a real diff view (a native VS
+   * Code diff editor tab, not just monospace diff text in a chat bubble) —
+   * richer than preview()'s pre-formatted unified-diff string, which stays
+   * the only preview readline/ink/the web UI render. Only implemented by
+   * file-editing tools (write_file/edit_file/multi_edit_file); undefined
+   * return means "no file-level diff to show" (e.g. a brand-new empty file,
+   * or the tool call fails before content is known).
+   */
+  filePreview?: (input: TInput, ctx: ToolContext) => Promise<FilePreview | undefined>;
+}
+
+export interface FilePreview {
+  /** Same path the tool call itself used (relative or absolute) — the UI resolves it the same way resolveAllowedPath does. */
+  path: string;
+  before: string;
+  after: string;
 }
 
 export interface UsageTotals {

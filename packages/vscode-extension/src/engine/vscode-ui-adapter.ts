@@ -1,4 +1,5 @@
 import type { CommandInfo, StatusInfo, UIAdapter } from "@finanfa/core/src/ui/adapter.js";
+import type { FilePreview } from "@finanfa/core/src/core/types.js";
 
 /**
  * UIAdapter implementation for the VS Code webview — same shape as
@@ -22,6 +23,18 @@ export function createVscodeUiAdapter(
    * e.g. in a unit test with no real webview).
    */
   resolveMediaUri?: (path: string) => string | undefined,
+  /**
+   * Opens a real native VS Code diff editor tab for a file-editing tool's
+   * permission prompt (write_file/edit_file/multi_edit_file — see
+   * ToolDefinition.filePreview) — supplied by chat-view-provider.ts, the
+   * only place holding a real `vscode` module import. Fire-and-forget: the
+   * permission decision itself is still made through the normal ask/
+   * permission_response round trip (the PermissionModal in the webview),
+   * this is purely an additional, richer view alongside it. A unit test
+   * with no real VS Code window simply omits this and gets the exact same
+   * askUser behavior as before this parameter existed.
+   */
+  openFileDiff?: (preview: FilePreview) => void,
 ): {
   adapter: UIAdapter;
   resolvePending: (requestId: number, answer: string) => void;
@@ -69,7 +82,8 @@ export function createVscodeUiAdapter(
     setBusy(busy, label) {
       send("busy", { busy, label });
     },
-    askUser(prompt, kind = "input") {
+    askUser(prompt, kind = "input", _toolCallId, filePreview) {
+      if (filePreview) openFileDiff?.(filePreview);
       return new Promise<string>((resolve) => {
         const requestId = nextRequestId++;
         pending.set(requestId, resolve);

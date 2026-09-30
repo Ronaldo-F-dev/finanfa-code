@@ -61,6 +61,20 @@ export const editFileTool: ToolDefinition<EditFileInput> = {
     const after = applyEdit(before, input);
     return createTwoFilesPatch(input.path, input.path, before, after);
   },
+  async filePreview(input, ctx) {
+    try {
+      const filePath = resolveAllowedPath(ctx.cwd, input.path);
+      const before = await readFile(filePath, "utf-8");
+      const after = applyEdit(before, input);
+      return { path: input.path, before, after };
+    } catch {
+      // Stale old_string (file changed since last read), or the file
+      // doesn't exist — same cases preview() throws on. A UI opening a
+      // real diff view has no error channel to surface that into, so this
+      // just means "no diff to show", not a crash.
+      return undefined;
+    }
+  },
   async handler(input, ctx) {
     const filePath = resolveAllowedPath(ctx.cwd, input.path);
     const before = await readFile(filePath, "utf-8");

@@ -87,7 +87,44 @@ describe("PermissionManager", () => {
     const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
 
     await manager.check(bashLikeTool, { command: "git status" }, ctx, "call-42");
-    expect(ui.askUser).toHaveBeenCalledWith(expect.any(String), "confirm", "call-42");
+    expect(ui.askUser).toHaveBeenCalledWith(expect.any(String), "confirm", "call-42", undefined);
+  });
+
+  it("passes the tool's own filePreview() result through to askUser, for a UI that can render a real diff", async () => {
+    const ui = makeUi("y");
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+    const editLikeTool: ToolDefinition<{ path: string }> = {
+      name: "edit_like_tool",
+      description: "",
+      riskLevel: "dangerous",
+      inputSchema: { type: "object" },
+      riskKey: (input) => input.path,
+      handler: async () => ({ content: "", isError: false }),
+      filePreview: async (input) => ({ path: input.path, before: "old", after: "new" }),
+    };
+
+    await manager.check(editLikeTool, { path: "a.txt" }, ctx);
+    expect(ui.askUser).toHaveBeenCalledWith(expect.any(String), "confirm", undefined, { path: "a.txt", before: "old", after: "new" });
+  });
+
+  it("never turns a permission prompt into a denial when filePreview() itself throws", async () => {
+    const ui = makeUi("y");
+    const manager = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui });
+    const brokenPreviewTool: ToolDefinition<{ path: string }> = {
+      name: "broken_preview_tool",
+      description: "",
+      riskLevel: "dangerous",
+      inputSchema: { type: "object" },
+      riskKey: (input) => input.path,
+      handler: async () => ({ content: "", isError: false }),
+      filePreview: async () => {
+        throw new Error("stale content");
+      },
+    };
+
+    const decision = await manager.check(brokenPreviewTool, { path: "a.txt" }, ctx);
+    expect(decision).toBe("allow");
+    expect(ui.askUser).toHaveBeenCalledWith(expect.any(String), "confirm", undefined, undefined);
   });
 
   it("remembers 'always' for the same risk key only", async () => {
