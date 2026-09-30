@@ -21,6 +21,8 @@
     "ink-text-input": "^6.0.0",
     "marked": "^18.0.13",
     "marked-terminal": "^7.3.0",
-    "react": "^19.2.8"
+    "react": "^19.2.8",
+    "undici": "^8.10.2",
+    "web-tree-sitter": "^0.25.6"
   }
 }
