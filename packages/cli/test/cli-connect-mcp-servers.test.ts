@@ -71,6 +71,40 @@ describe("connectMcpServers", () => {
     expect(ui.writeError).not.toHaveBeenCalled();
   });
 
+  it("connects every configured server concurrently, not one at a time — a slow/hung server must not delay the others", async () => {
+    await mkdir(path.join(projectDir, ".finanfa-code"), { recursive: true });
+    await writeFile(
+      path.join(projectDir, ".finanfa-code", "mcp.json"),
+      JSON.stringify({
+        servers: [
+          { name: "slow", transport: "http", url: "http://127.0.0.1:1/mcp" },
+          { name: "fast", transport: "http", url: "http://127.0.0.1:1/mcp" },
+        ],
+      }),
+    );
+
+    const started: string[] = [];
+    const resolvers = new Map<string, () => void>();
+    // Real reported gap: a plain sequential for-loop meant one slow/hung
+    // server (the MCP SDK's own initialize request defaults to a 60s
+    // timeout, x3 retries) blocked every other configured server from even
+    // starting to connect. This stubs connect() itself to prove the real
+    // fix — every server's connect() attempt starts before any of them
+    // resolves — without needing a real 60s timeout in the test.
+    vi.spyOn(manager, "connect").mockImplementation(async (cfg) => {
+      started.push(cfg.name);
+      await new Promise<void>((resolve) => resolvers.set(cfg.name, resolve));
+    });
+
+    const ui = makeUi();
+    const promise = connectMcpServers(projectDir, manager, ui);
+
+    await vi.waitFor(() => expect(started.sort()).toEqual(["fast", "slow"]));
+    resolvers.get("slow")!();
+    resolvers.get("fast")!();
+    await promise;
+  });
+
   it("still reports a real (non-auth) connection failure individually via writeError", async () => {
     await mkdir(path.join(projectDir, ".finanfa-code"), { recursive: true });
     await writeFile(

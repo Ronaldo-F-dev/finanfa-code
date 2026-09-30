@@ -576,21 +576,31 @@ export function selectVisionProvider(config: FinanfaConfig): { provider: LlmProv
  * (allowOAuthPrompt: false) and reports the rest as needing authorization
  * instead of popping a browser tab per server and blocking startup for up to
  * 5 minutes each — see NeedsAuthorizationError / McpClientManager.connect.
+ *
+ * Connects all servers concurrently, not one at a time: a sequential loop
+ * meant one slow/hung server (the underlying MCP SDK's own initialize
+ * request defaults to a 60s timeout, x3 with McpClientManager.connect's own
+ * retryWithBackoff — up to ~3 minutes for that server alone) blocked every
+ * other configured server from even starting to connect, and this function
+ * is awaited synchronously on every session start in the CLI, ACP, and the
+ * VS Code extension (createSessionRunner) alike — so a single bad server
+ * config stalled the whole chat panel/REPL for minutes, not just that one
+ * server's own tools being unavailable.
  */
 export async function connectMcpServers(cwd: string, mcp: McpClientManager, ui: UIAdapter): Promise<{ needsAuth: string[] }> {
   const servers = await loadMcpServers(cwd);
   const needsAuth: string[] = [];
-  for (const server of servers) {
-    try {
-      await mcp.connect(server, { allowOAuthPrompt: false });
-    } catch (err) {
-      if (err instanceof NeedsAuthorizationError) {
-        needsAuth.push(server.name);
-      } else {
-        ui.writeError(`Failed to connect MCP server "${server.name}": ${err instanceof Error ? err.message : err}`);
-      }
+  const results = await Promise.allSettled(servers.map((server) => mcp.connect(server, { allowOAuthPrompt: false })));
+  results.forEach((result, i) => {
+    if (result.status === "fulfilled") return;
+    const server = servers[i]!;
+    const err = result.reason;
+    if (err instanceof NeedsAuthorizationError) {
+      needsAuth.push(server.name);
+    } else {
+      ui.writeError(`Failed to connect MCP server "${server.name}": ${err instanceof Error ? err.message : err}`);
     }
-  }
+  });
   if (needsAuth.length > 0) {
     ui.writeSystem(`${needsAuth.length} MCP server(s) need authorization: ${needsAuth.join(", ")} — run /mcp connect <name> to use one.`);
   }
