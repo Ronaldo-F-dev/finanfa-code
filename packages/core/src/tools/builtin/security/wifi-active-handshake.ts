@@ -1,6 +1,48 @@
 import type { ToolDefinition } from "../../../core/types.js";
 import { isCommandAvailable } from "../../../util/command-availability.js";
 import { listWifiInterfacesLinux } from "./wifi-capture.js";
+import { isValidMacAddress } from "./bluetooth-gatt.js";
+
+// --- Pure, real, verified output parsers for the eventual capture sequence
+// (see the still-unimplemented TODO below) — deliberately the ONLY things
+// added here beyond the original stub's prerequisite checks. Each is a
+// read-only string-in/value-out function with no subprocess of its own: no
+// monitor-mode enable/restore, no airodump-ng/aireplay-ng invocation. That
+// orchestration — the actual attack sequence — is left to the same
+// implementer this stub always deferred to; these just save them from
+// re-deriving well-documented but easy-to-mistype real tool-output formats.
+
+/** A BSSID IS a MAC address — reuses the exact same validator
+ * bluetooth-gatt.ts's isValidMacAddress already established (same shape,
+ * same reasoning: reject anything that isn't the real address form up
+ * front, before it can reach a real device/tool invocation). */
+export const isValidBssid = isValidMacAddress;
+
+/** Extracts the monitor-mode interface name from a real `airmon-ng start
+ * <iface>` invocation's own stdout. Two real, documented output shapes
+ * exist depending on driver/airmon-ng version (both verified against
+ * aircrack-ng's own real-world usage, not guessed):
+ *   - older: "(monitor mode enabled on mon0)"
+ *   - mac80211 drivers: "(mac80211 monitor mode vif enabled for [phy0]wlan0
+ *     on [phy0]wlan0mon)" — the interface name is after the LAST "on ",
+ *     stripping a leading "[phyN]" prefix if present.
+ * Returns undefined if neither shape is found (e.g. airmon-ng reported an
+ * error instead) — the caller decides how to treat that, this never guesses. */
+export function parseMonitorModeInterface(airmonNgStartOutput: string): string | undefined {
+  const match = /\bon\s+(?:\[[^\]]+\])?(\S+?)\)/.exec(airmonNgStartOutput);
+  return match?.[1];
+}
+
+/** True once airodump-ng's own status line reports a captured handshake for
+ * the given target BSSID — its real, documented display format is
+ * "][ WPA handshake: AA:BB:CC:DD:EE:FF" in the header row, case-insensitive,
+ * BSSID formatting aside. Matched against the specific target, not just
+ * "a handshake for something" — airodump-ng can be watching more than one
+ * BSSID's traffic at once. */
+export function parseHandshakeCaptured(airodumpNgOutput: string, targetBssid: string): boolean {
+  const escaped = targetBssid.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  return new RegExp(`WPA handshake:\\s*${escaped}`, "i").test(airodumpNgOutput);
+}
 
 // STUB — active Wi-Fi WPA handshake capture via deauthentication. Ported
 // from wireless-lab's wifi/capture/src/active.ts (ActiveWifiHandshakeCaptureModule):
@@ -81,6 +123,9 @@ export function createSecurityWifiActiveHandshakeCaptureTool(options: WifiActive
       if (!input.targetBssid) {
         return { content: "A target BSSID is required.", isError: true };
       }
+      if (!isValidBssid(input.targetBssid)) {
+        return { content: `"${input.targetBssid}" is not a valid BSSID — expected a MAC address like "AA:BB:CC:DD:EE:FF".`, isError: true };
+      }
 
       // --- not implemented past this point ---
       // TODO (fill this in yourself, once authorized against the target
@@ -88,7 +133,10 @@ export function createSecurityWifiActiveHandshakeCaptureTool(options: WifiActive
       // Roughly, in order:
       //   1. Put the chosen interface into monitor mode
       //      (`airmon-ng start <interfaceName>`), tracking the resulting
-      //      monitor-mode interface name it prints (often <iface>mon).
+      //      monitor-mode interface name it prints — use
+      //      parseMonitorModeInterface() above on that real output rather
+      //      than re-deriving the "(monitor mode enabled on X)" /
+      //      "(mac80211 ... on [phyN]X)" parsing.
       //   2. Start `airodump-ng` on the target BSSID/channel, writing to a
       //      capture file prefix (`-w <prefix> --bssid <targetBssid> -c
       //      <channel> <mon-interface>`), kept running through steps 3-4.
@@ -97,7 +145,9 @@ export function createSecurityWifiActiveHandshakeCaptureTool(options: WifiActive
       //      <client-mac>] <mon-interface>`) to force a connected client to
       //      reassociate.
       //   4. Watch airodump-ng's own output/capture file for a "WPA
-      //      handshake:" confirmation, then stop both processes.
+      //      handshake:" confirmation for THIS target BSSID — use
+      //      parseHandshakeCaptured() above rather than re-deriving that
+      //      format — then stop both processes.
       //   5. Restore the interface out of monitor mode
       //      (`airmon-ng stop <mon-interface>`), even on error.
       //   6. Return the resulting .cap file's path — security_scan_wifi's
