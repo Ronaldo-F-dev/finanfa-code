@@ -3,7 +3,7 @@ import path from "node:path";
 import express from "express";
 import { WebSocketServer, type WebSocket } from "ws";
 import { AgentSession } from "@finanfa/core/src/core/session.js";
-import { runTurn, maybeGenerateTitle, compactSession, isLoopGuardStopMessage } from "@finanfa/core/src/core/loop.js";
+import { runTurn, maybeGenerateTitle, runCompactCommand, isLoopGuardStopMessage } from "@finanfa/core/src/core/loop.js";
 import { ToolRegistry } from "@finanfa/core/src/tools/registry.js";
 import { registerBuiltins, registerStatefulBuiltins } from "@finanfa/core/src/tools/builtin/index.js";
 import { PermissionManager, type PermissionManagerOptions } from "@finanfa/core/src/permissions/manager.js";
@@ -1533,30 +1533,22 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           // checked at the start) — compactSession replaces session.messages
           // wholesale, so a user_message arriving mid-compaction and
           // appending to the same array while that replacement is in flight
-          // would corrupt it. Same guard user_message itself uses.
+          // would corrupt it. Same guard user_message itself uses. The
+          // actual busy/system-message/compaction sequence lives in
+          // runCompactCommand (loop.ts), shared with the VS Code extension's
+          // own "compact" handler — this used to be duplicated near-verbatim
+          // between the two.
           turnInFlight = true;
           try {
-            adapter.setBusy(true, "compacting");
-            const result = await compactSession(session, provider);
-            adapter.setBusy(false);
-            if (!result) {
-              adapter.writeSystem("Nothing to compact, or the summarization call failed — conversation left unchanged.");
-            } else {
-              adapter.writeSystem(`Compacted ${result.messagesBefore} messages into a summary.`);
-              // The client's timeline holds the old turns individually —
-              // tell it to replace them with just the two-message summary
-              // now actually in session.messages, same replay path a
-              // resumed session's initial "history" event already uses.
-              ws.send(
-                JSON.stringify({
-                  type: "history",
-                  replace: true,
-                  messages: session.messages
-                    .filter((m) => m.role === "user" || m.role === "assistant")
-                    .map((m) => ({ role: m.role, content: m.content })),
-                }),
-              );
-            }
+            const result = await runCompactCommand(session, provider, {
+              setBusy: (busy, label) => adapter.setBusy(busy, label),
+              writeSystem: (text) => adapter.writeSystem(text),
+            });
+            // The client's timeline holds the old turns individually — tell
+            // it to replace them with just the two-message summary now
+            // actually in session.messages, same replay path a resumed
+            // session's initial "history" event already uses.
+            if (result.replacedMessages) ws.send(JSON.stringify({ type: "history", replace: true, messages: result.replacedMessages }));
           } finally {
             turnInFlight = false;
           }

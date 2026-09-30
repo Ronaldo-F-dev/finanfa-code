@@ -3,7 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { AgentSession } from "../../src/core/session.js";
-import { compactSession } from "../../src/core/loop.js";
+import { compactSession, runCompactCommand } from "../../src/core/loop.js";
 import type { LlmProvider, StreamTurnParams, StreamTurnResult } from "../../src/core/types.js";
 
 class FixedSummaryProvider implements LlmProvider {
@@ -144,6 +144,59 @@ describe("compactSession", () => {
 
       expect(result).toBeUndefined();
       expect(session.messages).toHaveLength(2);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});
+
+describe("runCompactCommand (the UI-agnostic /compact behavior shared by web-server and the VS Code extension)", () => {
+  let dir: string;
+
+  it("on success: reports busy true/false around the call, a 'Compacted N messages' system message, and the replaced messages", async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "finanfa-compact-cmd-"));
+    try {
+      const session = new AgentSession({ cwd: dir, model: "m", systemPrompt: "sys" });
+      session.messages = [
+        { role: "user", content: "hi" },
+        { role: "assistant", content: "hello" },
+      ];
+      const provider = new FixedSummaryProvider("A short greeting exchange.");
+      const busyCalls: Array<{ busy: boolean; label?: string }> = [];
+      const systemMessages: string[] = [];
+
+      const result = await runCompactCommand(session, provider, {
+        setBusy: (busy, label) => busyCalls.push({ busy, label }),
+        writeSystem: (text) => systemMessages.push(text),
+      });
+
+      expect(busyCalls).toEqual([
+        { busy: true, label: "compacting" },
+        { busy: false, label: undefined },
+      ]);
+      expect(systemMessages).toEqual(["Compacted 2 messages into a summary."]);
+      expect(result.replacedMessages).toEqual([
+        { role: "user", content: "[Earlier conversation compacted to save context — see the summary below]" },
+        { role: "assistant", content: "A short greeting exchange." },
+      ]);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("on failure (nothing to compact, or the summarization call failed): reports a system message, no replacedMessages", async () => {
+    dir = await mkdtemp(path.join(tmpdir(), "finanfa-compact-cmd-"));
+    try {
+      const session = new AgentSession({ cwd: dir, model: "m", systemPrompt: "sys" });
+      const systemMessages: string[] = [];
+
+      const result = await runCompactCommand(session, new FixedSummaryProvider("N/A"), {
+        setBusy: () => {},
+        writeSystem: (text) => systemMessages.push(text),
+      });
+
+      expect(systemMessages).toEqual(["Nothing to compact, or the summarization call failed — conversation left unchanged."]);
+      expect(result.replacedMessages).toBeUndefined();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
