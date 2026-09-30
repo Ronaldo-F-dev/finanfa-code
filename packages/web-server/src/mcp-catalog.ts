@@ -182,6 +182,88 @@ import type { McpServerConfig } from "@finanfa/core/src/mcp/config.js";
 // no `#!/usr/bin/env node` shebang, so it was executed as a shell script and
 // failed instantly with real errors ("import: command not found", "syntax
 // error near unexpected token `('"). Not added.
+//
+// Mercury, Brex, NetSuite, and SAP were investigated for a follow-up
+// finance/accounting pass and NONE were added — same reasoning as the
+// Stripe/QuickBooks/Xero/Plaid pass: every real, working server found needs
+// a per-user secret with no shared/built-in credential this catalog could
+// ship.
+//
+// Mercury: `mercury-mcp` (confirmed via real `npm view mercury-mcp`,
+// v1.0.1, published 2 days before this check by a third party, not
+// Mercury/mercury.com itself) documents `MERCURY_API_KEY` as a required env
+// var (real per-user API key — same shape as Stripe) and also gates two of
+// its tools behind a separate paid "MCP_LICENSE_KEY" from a third-party
+// marketplace, per its own README. Moot either way: a real
+// `npx --package=mercury-mcp@latest mercury-mcp` invocation in this sandbox
+// never got that far — the installed bin (`import ...` ESM source) has no
+// `#!/usr/bin/env node` shebang, so it ran as a shell script and failed
+// instantly with the identical real errors seen for `plaid-mcp` above
+// ("import: command not found", "syntax error near unexpected token `('").
+// No other `mercury*mcp*` name resolves on npm (`@mercury/mcp`,
+// `mercury-bank-mcp`, `mcp-mercury` all real 404s). Not added.
+//
+// Brex: two real packages, same maintainer, same result. `mcp-brex`
+// (confirmed via real `npm view mcp-brex`, v0.4.0) is the current name;
+// `brex-mcp-server` (confirmed via real `npm view brex-mcp-server`, v0.2.0)
+// is the same project, deprecated in favor of it per npm's own deprecation
+// notice. Its README documents `BREX_API_KEY` as a required env var (a real
+// per-user Brex API key, no shared/built-in credential). A real
+// `npx --package=mcp-brex@latest mcp-brex` invocation in this sandbox with
+// no key set crashed instantly and cleanly with the real error "Missing
+// required environment variables: BREX_API_KEY" — zero MCP response, same
+// disqualifying shape as Xero. Not added.
+//
+// NetSuite: three real packages found, all disqualified the same way —
+// each needs credentials manually created in the user's own NetSuite
+// account before any tool call can work, with no shared/built-in app.
+// (a) `netsuite-mcp-server` (confirmed via real `npm view`, v1.0.2) — OAuth
+// 1.0 Token-Based Auth requiring an Integration record + Access Token
+// created via NetSuite's own Setup UI (Consumer Key/Secret, Token
+// ID/Secret). Notably, a real
+// `npx --package=netsuite-mcp-server@latest netsuite-mcp-server` invocation
+// in this sandbox with zero env vars set DID complete a real MCP handshake
+// (`initialize` → real serverInfo, `tools/list` → 11 real tools including
+// `test_connection`) — it only fails once a tool is actually called against
+// NetSuite, same "clean handshake, then needs a real per-user secret" shape
+// as Stripe's `--api-key` path, not a shared credential this catalog could
+// supply. (b) `netsuite-mcp` (github.com/samson10504, confirmed via real
+// `npm view`, v0.1.1) requires the same OAuth 1.0 TBA fields via
+// NETSUITE_* env vars and fails fast and cleanly without them (real error:
+// "Missing required NetSuite configuration: NETSUITE_ACCOUNT_ID,
+// NETSUITE_CONSUMER_KEY, ..."). (c) `@suiteinsider/netsuite-mcp`
+// (confirmed via real npm search listing, v1.0.2) uses OAuth 2.0 PKCE
+// instead, but its own README requires first installing a "NetSuite AI
+// Connector SuiteApp" in the account and manually creating an OAuth 2.0
+// Integration record to obtain a Client ID — the same manual
+// pre-registration gap as (a)/(b), just via a different NetSuite screen.
+// None added.
+//
+// SAP: broad surface, two real packages found, neither added.
+// (a) `@sap-ux/fiori-mcp-server` (official SAP npm scope, confirmed via
+// real `npm view`, v1.14.0) is real and does speak MCP with zero
+// credentials — a real invocation of its installed bin
+// (`node dist/index.js`, since `npx --yes @sap-ux/fiori-mcp-server@latest
+// fiori-mcp` itself produced no output at all in this sandbox for unclear
+// reasons) produced a real `initialize` response with serverInfo
+// `{"name":"fiori-mcp","version":"1.14.0"}`. But it isn't a finance/
+// accounting connector at all: its tools (`generate_fiori_app_*`,
+// `list_functionality`, `execute_functionality`) scaffold and modify local
+// SAP Fiori UI codebases: an AI coding-assistant dev tool, not a connector
+// to live SAP financial data. Its own README says touching a real SAP
+// backend requires a "saved SAP system connection" set up out-of-band via
+// a separate VS Code extension (Connection Manager for SAP Systems) —
+// another credential store finanfa-code has no interface to. Out of scope
+// for this catalog even though it's real and unauthenticated at the
+// handshake level.
+// (b) `sap-datasphere-mcp` (PyPI, confirmed via real PyPI registry JSON,
+// v2.0.3) / its npm mirror `@mariodefe/sap-datasphere-mcp` (confirmed via
+// real `npm view`, v2.0.3) is a real finance-relevant SAP Datasphere data
+// connector, but its own README requires `DATASPHERE_CLIENT_ID` +
+// `DATASPHERE_CLIENT_SECRET` — an OAuth 2.0 "technical user" client that
+// must be manually registered per-tenant in SAP BTP cockpit — the same
+// pre-registered-app gap as Salesforce/QuickBooks/NetSuite above. Not
+// added.
 export const MCP_CATALOG: McpServerConfig[] = [
   { name: "notion", transport: "http", url: "https://mcp.notion.com/mcp" },
   { name: "canva", transport: "http", url: "https://mcp.canva.com/mcp" },
