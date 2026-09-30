@@ -24,21 +24,21 @@
     "@types/js-yaml": "^4.0.9",
     "@types/mailparser": "^3.4.6",
     "@types/marked-terminal": "^6.1.1",
-    "@types/node": "^26.6.2",
+    "@types/node": "^26.6.3",
     "@types/pg": "^8.23.1",
     "@types/react": "^19.2.18",
     "@types/smtp-server": "^3.5.13",
     "@types/word-extractor": "^1.0.6",
     "aedes": "^1.2.0",
     "ink-testing-library": "^4.0.0",
-    "js-yaml": "^4.3.2",
+    "js-yaml": "^5.4.2",
     "mailparser": "^3.9.23",
-    "oxlint": "^1.83.0",
+    "oxlint": "^1.85.0",
     "smtp-server": "^3.19.9",
     "tsup": "^8.3.5",
-    "tsx": "^4.19.2",
+    "tsx": "^4.23.15",
     "typescript": "^7.0.2",
-    "vitest": "^5.0.1"
+    "vitest": "^5.0.2"
   },
   "engines": {
     "node": ">=22.5.0"
