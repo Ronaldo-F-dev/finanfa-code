@@ -92,6 +92,19 @@ export const multiEditFileTool: ToolDefinition<MultiEditFileInput> = {
     const after = applyAllEdits(before, input);
     return createTwoFilesPatch(input.path, input.path, before, after);
   },
+  async filePreview(input, ctx) {
+    try {
+      const filePath = resolveAllowedPath(ctx.cwd, input.path);
+      const before = await readFile(filePath, "utf-8");
+      const after = applyAllEdits(before, input);
+      return { path: input.path, before, after };
+    } catch {
+      // Any edit in the sequence failing (stale old_string, empty edits
+      // array), or a missing file — same cases preview() throws on. A UI
+      // opening a real diff view has no error channel for that.
+      return undefined;
+    }
+  },
   async handler(input, ctx) {
     const filePath = resolveAllowedPath(ctx.cwd, input.path);
     const before = await readFile(filePath, "utf-8");
