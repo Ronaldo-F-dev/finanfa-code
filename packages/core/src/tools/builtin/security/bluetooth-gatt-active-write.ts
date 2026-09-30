@@ -1,16 +1,15 @@
 import type { ToolDefinition } from "../../../core/types.js";
 import { isCommandAvailable } from "../../../util/command-availability.js";
+import { normalizeGattWriteBytes, writeGattCharacteristic } from "./bluetooth-gatt.js";
 
-// STUB — active GATT characteristic write. Ported from wireless-lab's
+// Active GATT characteristic write. Ported from wireless-lab's
 // bluetooth/gatt/src/active-write.ts (BluetoothGattActiveWriteModule):
-// checkPrerequisites is real and fully implemented below (verifying tool/
-// platform/target preconditions is pure detection, not a write); run()
-// intentionally returns a not-implemented error — writing to a
-// characteristic changes device state and, for some services, can trigger
-// real-world side effects (locks, actuators, firmware update paths), an
-// active/state-changing operation rather than read-only enumeration, and
-// needs the user's own implementation plus explicit authorization for the
-// target device. Fill in the "not implemented" branch below once ready.
+// writing to a characteristic changes device state and, for some services,
+// can trigger real-world side effects (locks, actuators, firmware update
+// paths) — an active, state-changing operation, not read-only enumeration
+// (see security_scan_bluetooth's deviceAddress/readCharacteristicPaths for
+// that). Gated behind this tool's "dangerous" risk tier and only ever run
+// against a device the user is explicitly, documentedly authorized to test.
 
 export interface BluetoothGattActiveWriteOptions {
   bluetoothctlBinary?: string;
@@ -30,15 +29,15 @@ export function createSecurityBluetoothGattActiveWriteTool(options: BluetoothGat
   return {
     name: "security_bluetooth_gatt_active_write",
     description:
-      "STUB — NOT YET IMPLEMENTED. Intended to write a value to a BLE GATT characteristic (via bluetoothctl's " +
-      "interactive GATT menu), for write-based robustness/fuzzing testing or exercising a device's write-based " +
-      "functionality. Writing to a characteristic changes device state and, for some services, can trigger " +
-      "real-world side effects (locks, actuators, firmware update paths) — an active operation, not read-only " +
-      "enumeration (see security_scan_bluetooth's deviceAddress/readCharacteristicPaths for that), and requires " +
-      "explicit, documented authorization for the target device before ever being run. Currently only verifies " +
-      "real preconditions (platform, bluetoothctl installed, device address + characteristic path given) and " +
-      "then returns a clear not-implemented error — see this tool's handler in bluetooth-gatt-active-write.ts " +
-      "for the TODO describing what belongs in it.",
+      "Security tool. Writes a value to a BLE GATT characteristic (via bluetoothctl's interactive GATT menu), " +
+      "for write-based robustness/fuzzing testing or exercising a device's write-based functionality. Connects " +
+      "to the device, writes the given hex bytes to the characteristic at `characteristicPath` (from a prior " +
+      "security_scan_bluetooth GATT-discovery call), reads the value straight back where possible, and " +
+      "disconnects. Linux-only (bluetoothctl). " +
+      "IMPORTANT: this is an active, state-changing operation against real physical hardware — writing to a " +
+      "characteristic can trigger real-world side effects (locks, actuators, firmware update paths), unlike " +
+      "read-only enumeration (see security_scan_bluetooth). Only ever run it against a device the user owns or " +
+      "has explicit, documented authorization to test, and confirm the exact value/target with them first.",
     riskLevel: "dangerous",
     inputSchema: {
       type: "object",
@@ -50,11 +49,10 @@ export function createSecurityBluetoothGattActiveWriteTool(options: BluetoothGat
       required: ["deviceAddress", "characteristicPath", "valueHex"],
     },
     riskKey: (input) => `security_bluetooth_gatt_active_write:${input.deviceAddress}`,
-    describeCall: (input) => `[STUB, not implemented] write ${input.valueHex} to ${input.characteristicPath} on ${input.deviceAddress}`,
+    describeCall: (input) => `write ${input.valueHex} to ${input.characteristicPath} on ${input.deviceAddress}`,
     async handler(input) {
-      // --- real, working prerequisite checks (mirrors wireless-lab's
-      // checkPrerequisites — verifying preconditions is pure detection, not
-      // a write) ---
+      // Preconditions first (pure detection, no write): platform, tool,
+      // and both targets must be present before anything touches the device.
       if (platform !== "linux") {
         return { content: `GATT writes via bluetoothctl target Linux only; this host reports platform "${platform}".`, isError: true };
       }
@@ -67,32 +65,27 @@ export function createSecurityBluetoothGattActiveWriteTool(options: BluetoothGat
       if (!input.characteristicPath) {
         return { content: "A target characteristic path is required (from a prior security_scan_bluetooth GATT discovery call).", isError: true };
       }
+      // Validate the value BEFORE connecting — never open a connection to a
+      // real device just to discover the hex was malformed.
+      const normalized = normalizeGattWriteBytes(input.valueHex);
+      if ("error" in normalized) {
+        return { content: normalized.error, isError: true };
+      }
 
-      // --- not implemented past this point ---
-      // TODO (fill this in yourself, once authorized against the target
-      // device): the actual characteristic write belongs here. Roughly:
-      //   1. Open a BluetoothctlSession (see ./bluetooth-gatt.ts, already
-      //      built) and connect to the target device (`connect
-      //      <deviceAddress>`), confirming "Connection successful" rather
-      //      than assuming it.
-      //   2. `menu gatt`, then `select-attribute <characteristicPath>`.
-      //   3. `write <space-separated hex bytes>` (or `write "<value>"`
-      //      depending on bluetoothctl version), and read back its response
-      //      line for success/failure — bluetoothctl reports write errors
-      //      (e.g. "Not permitted", "Invalid Value Length") in its own
-      //      text.
-      //   4. Decide whether to verify the write by immediately reading the
-      //      characteristic back (only meaningful if it isn't write-only).
-      //   5. Disconnect cleanly in a `finally`, whatever the outcome.
-      // Handle: characteristic not writable, write rejected by the
-      // peripheral, and the value being longer than the characteristic's
-      // declared MTU.
+      const result = await writeGattCharacteristic(bluetoothctlBin, input.deviceAddress, input.characteristicPath, normalized.bytes);
+      if (!result.connected) {
+        return { content: result.detail, isError: true };
+      }
+      const readBack = result.readBackHex !== undefined ? ` Read-back value: ${result.readBackHex}.` : " (characteristic not readable back — write-only, or read not permitted.)";
+      if (!result.ok) {
+        return {
+          content: `Wrote ${normalized.bytes.length} byte(s) to ${input.characteristicPath} on ${input.deviceAddress}, but bluetoothctl reported it did not succeed: ${result.detail}.${readBack}`,
+          isError: true,
+        };
+      }
       return {
-        content:
-          "Preconditions verified (platform, bluetoothctl, device address, characteristic path), but the " +
-          "actual GATT write is not implemented yet — see the TODO comment in this tool's handler " +
-          "(packages/core/src/tools/builtin/security/bluetooth-gatt-active-write.ts) for the 5 steps it needs.",
-        isError: true,
+        content: `Wrote ${normalized.bytes.length} byte(s) (${normalized.bytes.join(" ")}) to ${input.characteristicPath} on ${input.deviceAddress}. ${result.detail}.${readBack}`,
+        isError: false,
       };
     },
   };
