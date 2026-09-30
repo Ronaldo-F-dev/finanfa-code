@@ -31,7 +31,7 @@
     "@types/word-extractor": "^1.0.6",
     "aedes": "^1.2.0",
     "ink-testing-library": "^4.0.0",
-    "js-yaml": "^5.4.2",
+    "js-yaml": "^4.3.2",
     "mailparser": "^3.9.23",
     "oxlint": "^1.85.0",
     "smtp-server": "^3.19.9",
