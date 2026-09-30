@@ -23,6 +23,6 @@
     "marked-terminal": "^7.3.0",
     "react": "^19.2.8",
     "undici": "^8.10.2",
-    "web-tree-sitter": "^0.27.0"
+    "web-tree-sitter": "^0.25.6"
   }
 }
