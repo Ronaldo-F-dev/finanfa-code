@@ -17,6 +17,7 @@ import { mcpToolServerName } from "../mcp/client-manager.js";
 import { withSpan } from "../observability/tracing.js";
 import { CALL_TOOL_NAME, SEARCH_TOOLS_NAME, DESCRIBE_TOOL_NAME, createToolSearchMetaTools, createCallToolMetaTool } from "./tool-search.js";
 import { LOCAL_MODEL_LEAN_EXCLUDED_TOOLS } from "./local-model-lean.js";
+import { MINIMAL_TOOL_SET } from "./effort-tiers.js";
 import { OpenAiCompatibleProvider, listAvailableModels } from "../providers/openai-compatible-provider.js";
 
 /**
@@ -88,10 +89,15 @@ function availableTools(tools: ToolRegistry, session: AgentSession): ToolDefinit
  * Tools to actually send to the provider this call. Normally the full
  * availableTools() list; when Tool Search is enabled for this session
  * (session.toolSearchEnabled — see tool-search.ts's own header comment
- * for the real, measured problem this closes), just the 3 meta-tools
- * instead, so the per-turn request stays small regardless of how many
- * tools are actually available — full schemas are deferred until the
- * model asks for one via describe_tool.
+ * for the real, measured problem this closes), just MINIMAL_TOOL_SET (the
+ * same small "read/search/edit a codebase" core effort-tiers.ts already
+ * curates and tests elsewhere) sent directly, plus the 3 meta-tools —
+ * still tiny regardless of how many tools are actually registered in
+ * total, but without making every single turn pay a search_tools/
+ * describe_tool round trip just to reach the handful of tools almost
+ * every real coding turn needs anyway. Full schemas for everything else
+ * (the long tail: security scanners, IoT, channel integrations, ...) are
+ * still deferred until the model asks via describe_tool.
  *
  * Real, reported bug: disabling every tool from the Tools panel (to use a
  * model with no tool-calling support at all, e.g. medgemma) still sent a
@@ -106,7 +112,14 @@ function availableTools(tools: ToolRegistry, session: AgentSession): ToolDefinit
 function toolsForProvider(tools: ToolRegistry, session: AgentSession): ToolDefinition[] {
   const available = availableTools(tools, session);
   if (!session.toolSearchEnabled || available.length === 0) return available;
-  return [...createToolSearchMetaTools(() => available), createCallToolMetaTool()];
+  // Filtered against `available` (not looked up on the registry directly)
+  // so a core tool this session has disabled, or that was never
+  // registered at all, is silently skipped rather than force-included —
+  // the same disabledTools/hidden-tools rules a direct call already
+  // respects apply here too.
+  const availableByName = new Map(available.map((t) => [t.name, t]));
+  const core = MINIMAL_TOOL_SET.map((name) => availableByName.get(name)).filter((t): t is ToolDefinition => t !== undefined);
+  return [...core, ...createToolSearchMetaTools(() => available), createCallToolMetaTool()];
 }
 
 interface ToolCallOutcome {
