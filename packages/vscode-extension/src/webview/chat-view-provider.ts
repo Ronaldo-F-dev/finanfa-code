@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import * as vscode from "vscode";
 import { globalConfigPath, saveGlobalConfig, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
 import { AgentSession } from "@finanfa/core/src/core/session.js";
+import type { FilePreview } from "@finanfa/core/src/core/types.js";
 import { createSessionRunner, type SessionRunner } from "../engine/session-runner.js";
 import { createVscodeUiAdapter } from "../engine/vscode-ui-adapter.js";
 import { createChatMessageHandler, type WebviewMessage } from "../engine/message-handler.js";
@@ -67,6 +68,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   constructor(
     private readonly extensionUri: vscode.Uri,
     private readonly context: vscode.ExtensionContext,
+    /** Opens a real native diff editor tab for a write_file/edit_file/multi_edit_file permission prompt — see extension.ts's registerDiffView() call and vscode-ui-adapter.ts's own openFileDiff param. Optional so existing tests constructing this class without it keep compiling unchanged. */
+    private readonly openFileDiff?: (preview: FilePreview) => void,
   ) {}
 
   resolveWebviewView(webviewView: vscode.WebviewView): void {
@@ -266,8 +269,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       return async () => post({ type: "error", text: "Open a folder to start a finanfa-code session." });
     }
 
-    const { adapter, resolvePending } = createVscodeUiAdapter(post, (path) =>
-      this.webviewView?.webview.asWebviewUri(vscode.Uri.file(path)).toString(),
+    const { adapter, resolvePending } = createVscodeUiAdapter(
+      post,
+      (path) => this.webviewView?.webview.asWebviewUri(vscode.Uri.file(path)).toString(),
+      this.openFileDiff,
     );
     // Reprise automatique de la dernière session de ce workspace (voir le
     // plan, §2) — pas de commande à taper, contrairement au --resume/

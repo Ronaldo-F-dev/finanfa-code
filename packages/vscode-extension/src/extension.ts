@@ -1,9 +1,11 @@
 import "./dom-shims.js";
 import * as vscode from "vscode";
 import { ChatViewProvider } from "./webview/chat-view-provider.js";
+import { registerDiffView } from "./webview/diff-view.js";
 
 export function activate(context: vscode.ExtensionContext): void {
-  const provider = new ChatViewProvider(context.extensionUri, context);
+  const openFileDiff = registerDiffView(context);
+  const provider = new ChatViewProvider(context.extensionUri, context, openFileDiff);
   // retainContextWhenHidden: without it, switching away from the panel (or
   // just closing the Activity Bar sidebar) tears down the webview's DOM/JS
   // entirely — any assistant_delta/tool_call posted while hidden is lost,
