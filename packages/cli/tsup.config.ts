@@ -3,7 +3,12 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: ["bin/finanfa.ts"],
   format: ["esm"],
-  dts: true,
+  // dts generation (rollup-plugin-dts) crashes under TypeScript 7's
+  // internal API shape — "Cannot read properties of undefined (reading
+  // 'useCaseSensitiveFileNames')" — and was never actually needed: this is
+  // a CLI binary, nothing imports bin/finanfa.ts's types as a library
+  // (verified: no other package references packages/cli/dist's .d.ts).
+  dts: false,
   clean: true,
   outDir: "dist",
   // @finanfa/core is a workspace package shipped as TS source, not a real
