@@ -44,6 +44,33 @@ describe("security_bluetooth_gatt_active_write (real bluetoothctl interactive fl
     expect(missingPath.content).toMatch(/characteristic path is required/i);
   });
 
+  it("rejects a deviceAddress that isn't a real MAC address BEFORE connecting to anything — including a newline-injection attempt", async () => {
+    resetCommandAvailabilityCacheForTests();
+    // /bin/echo stands in for bluetoothctl — if the handler ever reached the
+    // connect step with this, a real bluetoothctl would read the embedded
+    // newline as a second, separate command on its own stdin REPL.
+    const tool = createSecurityBluetoothGattActiveWriteTool({ platformOverride: "linux", bluetoothctlBinary: "/bin/echo" });
+    const injected = await tool.handler({ ...VALID_INPUT, deviceAddress: "AA:BB:CC:DD:EE:FF\nremove-device XX:XX:XX:XX:XX:XX" }, ctx);
+    expect(injected.isError).toBe(true);
+    expect(injected.content).toMatch(/not a valid device address/i);
+
+    const malformed = await tool.handler({ ...VALID_INPUT, deviceAddress: "not-a-mac" }, ctx);
+    expect(malformed.isError).toBe(true);
+    expect(malformed.content).toMatch(/not a valid device address/i);
+  });
+
+  it("rejects a characteristicPath that isn't a real bluez object path BEFORE connecting to anything — including a newline-injection attempt", async () => {
+    resetCommandAvailabilityCacheForTests();
+    const tool = createSecurityBluetoothGattActiveWriteTool({ platformOverride: "linux", bluetoothctlBinary: "/bin/echo" });
+    const injected = await tool.handler({ ...VALID_INPUT, characteristicPath: "/org/bluez/hci0/dev_AA/service0001/char0003\ndisconnect" }, ctx);
+    expect(injected.isError).toBe(true);
+    expect(injected.content).toMatch(/not a valid gatt characteristic path/i);
+
+    const malformed = await tool.handler({ ...VALID_INPUT, characteristicPath: "../../etc/passwd" }, ctx);
+    expect(malformed.isError).toBe(true);
+    expect(malformed.content).toMatch(/not a valid gatt characteristic path/i);
+  });
+
   it("rejects a malformed hex value BEFORE connecting to anything", async () => {
     resetCommandAvailabilityCacheForTests();
     // /bin/echo as the "bluetoothctl" — if the handler ever reached the

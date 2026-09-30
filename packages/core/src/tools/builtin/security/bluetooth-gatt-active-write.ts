@@ -1,6 +1,6 @@
 import type { ToolDefinition } from "../../../core/types.js";
 import { isCommandAvailable } from "../../../util/command-availability.js";
-import { normalizeGattWriteBytes, writeGattCharacteristic } from "./bluetooth-gatt.js";
+import { isValidGattPath, isValidMacAddress, normalizeGattWriteBytes, writeGattCharacteristic } from "./bluetooth-gatt.js";
 
 // Active GATT characteristic write. Ported from wireless-lab's
 // bluetooth/gatt/src/active-write.ts (BluetoothGattActiveWriteModule):
@@ -64,6 +64,17 @@ export function createSecurityBluetoothGattActiveWriteTool(options: BluetoothGat
       }
       if (!input.characteristicPath) {
         return { content: "A target characteristic path is required (from a prior security_scan_bluetooth GATT discovery call).", isError: true };
+      }
+      // Real format validation, not just "is it non-empty" — both values get
+      // spliced directly into a line written to bluetoothctl's interactive
+      // stdin (see writeGattCharacteristic/isValidMacAddress/isValidGattPath),
+      // so anything outside a real MAC-address/D-Bus-path shape (a newline,
+      // in particular) could inject an extra bluetoothctl command.
+      if (!isValidMacAddress(input.deviceAddress)) {
+        return { content: `"${input.deviceAddress}" is not a valid device address — expected a MAC address like "AA:BB:CC:DD:EE:FF".`, isError: true };
+      }
+      if (!isValidGattPath(input.characteristicPath)) {
+        return { content: `"${input.characteristicPath}" is not a valid GATT characteristic path — expected a bluez object path like "/org/bluez/hci0/dev_.../char....." (from a prior security_scan_bluetooth GATT discovery call).`, isError: true };
       }
       // Validate the value BEFORE connecting — never open a connection to a
       // real device just to discover the hex was malformed.
