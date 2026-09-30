@@ -65,11 +65,21 @@ export function ChatMessageView({ item }: { item: TimelineItem }) {
     const icon = TOOL_RISK_ICON[item.riskLevel];
     return (
       <div className="row row-log">
-        <div className={`tool-call tool-call-${item.riskLevel}`}>
-          <span className="tool-call-icon">{icon}</span>
-          <span className="tool-call-name">{item.toolName}</span>
-          {item.description && <span className="tool-call-description">{item.description}</span>}
-        </div>
+        {/* <details>/<summary>: an expandable IN/OUT block (the tool call
+            itself as the always-visible header, its real result behind a
+            click) instead of only ever showing the one-line description —
+            matches the reference "cool" extension's own tool-call blocks,
+            and needs no extra React state to track open/closed. */}
+        <details className="tool-call-details">
+          <summary className={`tool-call tool-call-${item.riskLevel}`}>
+            <span className="tool-call-icon">{icon}</span>
+            <span className="tool-call-name">{item.toolName}</span>
+            {item.description && <span className="tool-call-description">{item.description}</span>}
+          </summary>
+          <pre className={`tool-call-result${item.result?.isError ? " tool-call-result-error" : ""}`}>
+            {item.result ? item.result.content : "En cours…"}
+          </pre>
+        </details>
       </div>
     );
   }
