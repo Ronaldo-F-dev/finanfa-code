@@ -84,6 +84,11 @@ export interface SessionSummary {
   title?: string;
 }
 
+export interface ComposerInsertRequest {
+  text: string;
+  nonce: number;
+}
+
 let nextId = 1;
 const uid = () => String(nextId++);
 
@@ -120,7 +125,9 @@ export function useAgentBridge() {
   const [effortNeedsDownload, setEffortNeedsDownload] = useState<EffortNeedsDownload | null>(null);
   const [ollamaPull, setOllamaPull] = useState<OllamaPullState | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
+  const [composerInsert, setComposerInsert] = useState<ComposerInsertRequest | null>(null);
   const streamingIdRef = useRef<string | null>(null);
+  const composerInsertNonceRef = useRef(0);
 
   useEffect(() => {
     // No origin check: inside a VS Code webview this channel only ever
@@ -191,6 +198,10 @@ export function useAgentBridge() {
           break;
         case "sessions":
           setSessions(msg.sessions);
+          break;
+        case "insert_into_composer":
+          composerInsertNonceRef.current += 1;
+          setComposerInsert({ text: msg.text, nonce: composerInsertNonceRef.current });
           break;
         case "model_unavailable":
           setModelUnavailable({ model: msg.model, family: msg.family, message: msg.message });
@@ -288,5 +299,6 @@ export function useAgentBridge() {
     listSessions,
     switchSession,
     deleteSession,
+    composerInsert,
   };
 }

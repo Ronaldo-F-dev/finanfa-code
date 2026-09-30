@@ -64,6 +64,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   // message matches in quick succession (e.g. a retried turn failing the
   // same way before the first popup is dismissed).
   private workspaceIdPromptInFlight = false;
+  // Set by sendToChat() when the webview hasn't finished its own
+  // webview_ready round-trip yet (a freshly revealed view, or one that was
+  // never opened this session) — postMessage'ing straight to an unmounted
+  // webview is silently dropped, not queued by VS Code itself, so this is
+  // flushed explicitly once webview_ready actually arrives.
+  private pendingSend?: { text: string; autoSend: boolean };
 
   constructor(
     private readonly extensionUri: vscode.Uri,
@@ -125,7 +131,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       // Deliberately not awaited/chained in strict FIFO order here — see
       // message-handler.ts's own comment on the "interrupt" branch for why
       // that matters once more message types are wired in.
-      void this.ensureReady(post).then((handle) => handle(msg));
+      void this.ensureReady(post).then(async (handle) => {
+        await handle(msg);
+        if (msg.type === "webview_ready") this.flushPendingSend(post, handle);
+      });
     });
 
     webviewView.onDidDispose(() => {
@@ -139,6 +148,35 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private ensureReady(post: (msg: Record<string, unknown>) => void): Promise<(msg: WebviewMessage) => Promise<void>> {
     if (!this.handlerPromise) this.handlerPromise = this.createHandler(post);
     return this.handlerPromise;
+  }
+
+  /**
+   * Entry point for editor commands ("Add Selection to Chat" / "Explain
+   * Selection" — see ../commands/selection-commands.ts). Reveals the chat
+   * view, then either inserts the snippet into the composer for the user to
+   * review (autoSend: false, the default — same "insert, don't fire"
+   * convention as comparable tools' "Add to Chat") or sends it immediately
+   * as a real turn.
+   */
+  async sendToChat(text: string, opts: { autoSend?: boolean } = {}): Promise<void> {
+    const autoSend = opts.autoSend ?? false;
+    await vscode.commands.executeCommand("finanfa.chatView.focus");
+    if (this.webviewView && this.handlerPromise) {
+      const handle = await this.handlerPromise;
+      const webviewView = this.webviewView;
+      if (autoSend) void handle({ type: "user_message", text });
+      else void webviewView.webview.postMessage({ type: "insert_into_composer", text });
+      return;
+    }
+    this.pendingSend = { text, autoSend };
+  }
+
+  private flushPendingSend(post: (msg: Record<string, unknown>) => void, handle: (msg: WebviewMessage) => Promise<void>): void {
+    if (!this.pendingSend) return;
+    const { text, autoSend } = this.pendingSend;
+    this.pendingSend = undefined;
+    if (autoSend) void handle({ type: "user_message", text });
+    else post({ type: "insert_into_composer", text });
   }
 
   /**

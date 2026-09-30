@@ -36,6 +36,7 @@ export function App() {
     listSessions,
     switchSession,
     deleteSession,
+    composerInsert,
   } = useAgentBridge();
 
   const [input, setInput] = useState("");
@@ -58,6 +59,15 @@ export function App() {
       wasNeedingDownloadRef.current = false;
     }
   }, [effortNeedsDownload, ollamaPull]);
+
+  // "Add Selection to Chat" (see selection-commands.ts) lands here as an
+  // insert_into_composer message — appended to whatever the user was
+  // already typing, not sent automatically, so they can add context or
+  // edit before pressing Enter.
+  useEffect(() => {
+    if (!composerInsert) return;
+    setInput((prev) => (prev.trim() ? `${prev}\n\n${composerInsert.text}` : composerInsert.text));
+  }, [composerInsert]);
 
   function handleSend() {
     const text = input.trim();

@@ -39,7 +39,8 @@ describe("dist/extension.cjs (the real compiled bundle) loads without crashing",
     await writeFile(
       path.join(fakeVscodeDir, "node_modules", "vscode.js"),
       "module.exports = { window: { registerWebviewViewProvider: () => ({ dispose() {} }) }, " +
-        "workspace: { registerTextDocumentContentProvider: () => ({ dispose() {} }) }, ExtensionContext: class {} };",
+        "workspace: { registerTextDocumentContentProvider: () => ({ dispose() {} }) }, " +
+        "commands: { registerCommand: () => ({ dispose() {} }) }, ExtensionContext: class {} };",
     );
   });
 
