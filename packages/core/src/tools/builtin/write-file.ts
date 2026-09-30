@@ -72,6 +72,13 @@ export const writeFileTool: ToolDefinition<WriteFileInput> = {
     const before = await readFile(filePath, "utf-8").catch(() => "");
     return createTwoFilesPatch(input.path, input.path, before, resolved.content);
   },
+  async filePreview(input, ctx) {
+    const resolved = resolveContent(input);
+    if ("error" in resolved) return undefined;
+    const filePath = resolveAllowedPath(ctx.cwd, input.path);
+    const before = await readFile(filePath, "utf-8").catch(() => "");
+    return { path: input.path, before, after: resolved.content };
+  },
   async handler(input, ctx) {
     const resolved = resolveContent(input);
     if ("error" in resolved) return { content: resolved.error, isError: true };
