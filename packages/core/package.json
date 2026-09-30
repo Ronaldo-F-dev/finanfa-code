@@ -39,7 +39,7 @@
     "sharp": "^0.35.4",
     "tree-sitter-wasms": "^0.1.13",
     "undici": "^8.10.2",
-    "web-tree-sitter": "^0.27.0",
+    "web-tree-sitter": "^0.25.6",
     "word-extractor": "^1.0.4"
   },
   "devDependencies": {
