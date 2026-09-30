@@ -6,7 +6,20 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { main } from "../src/cli.js";
 
-const ENV_KEYS_TO_CLEAR = ["FINANFA_PROVIDER", "FINANFA_BASE_URL", "FINANFA_MODEL", "FINANFA_API_KEY", "FINANFA_API_KEYS", "ANTHROPIC_API_KEY"] as const;
+// FINANFA_VISION_* included alongside the rest — see spawn-server.ts's own
+// comment on the real image-forwarding test failure this exact gap caused.
+const ENV_KEYS_TO_CLEAR = [
+  "FINANFA_PROVIDER",
+  "FINANFA_BASE_URL",
+  "FINANFA_MODEL",
+  "FINANFA_API_KEY",
+  "FINANFA_API_KEYS",
+  "ANTHROPIC_API_KEY",
+  "FINANFA_VISION_PROVIDER",
+  "FINANFA_VISION_BASE_URL",
+  "FINANFA_VISION_API_KEY",
+  "FINANFA_VISION_MODEL",
+] as const;
 
 // Real end-to-end test of the --prompt/--cwd single-shot mode
 // (schedule_task's payload path): a real local HTTP server plays the
