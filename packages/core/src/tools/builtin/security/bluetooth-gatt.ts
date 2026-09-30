@@ -109,6 +109,29 @@ export function parseListAttributes(stdout: string): GattAttribute[] {
   return attributes;
 }
 
+/** True for a real MAC-address shape (`AA:BB:CC:DD:EE:FF`) only. `deviceAddress`
+ * gets spliced directly into a `connect <address>`/`disconnect <address>` line
+ * sent to bluetoothctl's interactive stdin (see writeGattCharacteristic) —
+ * bluetoothctl reads that stdin as its own command REPL, so a value
+ * containing a newline would inject a SEPARATE bluetoothctl command (e.g.
+ * `remove-device`, connecting to a different device) beyond whatever this
+ * tool call was actually authorized for. Validating the real MAC shape
+ * up front rules that out categorically, not just "no newline". */
+export function isValidMacAddress(address: string): boolean {
+  return /^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(address);
+}
+
+/** True for a real bluez GATT D-Bus object path shape only (what
+ * parseListAttributes itself requires on the way OUT of discovery:
+ * `line.startsWith("/org/bluez/")`) — restricted to the character set bluez
+ * actually uses (alphanumeric, underscore, slash), so a `characteristicPath`
+ * containing a newline (or any other bluetoothctl-REPL-meaningful character)
+ * can't inject a second command into `select-attribute <path>`'s stdin line.
+ * Same reasoning as isValidMacAddress above. */
+export function isValidGattPath(path: string): boolean {
+  return /^\/org\/bluez\/[A-Za-z0-9_/]+$/.test(path);
+}
+
 /** Normalizes a user-supplied hex value ("01 02 03", "010203", or
  * "0x01 0x02") into the list of lowercase two-char hex byte tokens the GATT
  * `write` flow uses, or an error string if it isn't valid, even-length hex.
