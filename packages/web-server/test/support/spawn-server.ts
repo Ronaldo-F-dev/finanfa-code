@@ -52,7 +52,28 @@ function waitForServerReady(child: ChildProcessWithoutNullStreams): Promise<numb
  */
 export async function spawnWebServer(projectDir: string, homeDir: string): Promise<{ child: ChildProcessWithoutNullStreams; port: number }> {
   const env: NodeJS.ProcessEnv = { ...process.env, PORT: "0", FINANFA_WEB_CWD: projectDir, HOME: homeDir };
-  for (const k of ["FINANFA_PROVIDER", "FINANFA_BASE_URL", "FINANFA_MODEL", "FINANFA_API_KEY", "FINANFA_API_KEYS", "ANTHROPIC_API_KEY"]) delete env[k];
+  // Real, reported bug found chasing spurious channel-image-attachment
+  // failures: FINANFA_VISION_* wasn't in this list, so a dev shell's real
+  // vision-provider config (e.g. a real NVIDIA/OpenAI-compatible vision
+  // endpoint set up for manual testing) leaked into every test here too —
+  // selectVisionProvider(config) picked it up and routed any test sending
+  // an image to a REAL external vision endpoint instead of this test's
+  // local fake LLM server, so the request never showed up in whatever the
+  // test was tracking, and the response (from a real model, using real
+  // credentials) got treated as a normal successful turn.
+  for (const k of [
+    "FINANFA_PROVIDER",
+    "FINANFA_BASE_URL",
+    "FINANFA_MODEL",
+    "FINANFA_API_KEY",
+    "FINANFA_API_KEYS",
+    "ANTHROPIC_API_KEY",
+    "FINANFA_VISION_PROVIDER",
+    "FINANFA_VISION_BASE_URL",
+    "FINANFA_VISION_API_KEY",
+    "FINANFA_VISION_MODEL",
+  ])
+    delete env[k];
 
   // detached: true (+ killWebServer's process-group kill below) — real bug
   // found running this suite repeatedly: `npx tsx src/index.ts` spawns tsx

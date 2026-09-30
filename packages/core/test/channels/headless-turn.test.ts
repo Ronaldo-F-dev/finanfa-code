@@ -19,7 +19,23 @@ import { hasPendingConfirmation, resolvePendingConfirmation } from "../../src/ch
 // This real dev shell exports these for manual testing against a real
 // inference endpoint — must be cleared before AND after every test here,
 // same reasoning as app-select-provider-azure.test.ts.
-const ENV_KEYS = ["FINANFA_PROVIDER", "FINANFA_BASE_URL", "FINANFA_MODEL", "FINANFA_API_KEY", "ANTHROPIC_API_KEY"] as const;
+// Real, reported bug found chasing a spurious image-forwarding failure:
+// FINANFA_VISION_* wasn't cleared, so a dev shell's own real vision-provider
+// config leaked in — selectVisionProvider(config) picked it up and routed
+// the image-carrying call to a REAL external vision endpoint instead of
+// this test's local fake server, so the request never reached what the
+// test was asserting against.
+const ENV_KEYS = [
+  "FINANFA_PROVIDER",
+  "FINANFA_BASE_URL",
+  "FINANFA_MODEL",
+  "FINANFA_API_KEY",
+  "ANTHROPIC_API_KEY",
+  "FINANFA_VISION_PROVIDER",
+  "FINANFA_VISION_BASE_URL",
+  "FINANFA_VISION_API_KEY",
+  "FINANFA_VISION_MODEL",
+] as const;
 
 describe("runHeadlessTurn (real local HTTP server, real project directory, real session file)", () => {
   let projectDir: string;
