@@ -1,5 +1,31 @@
 import { describe, expect, it } from "vitest";
-import { normalizeGattWriteBytes, parseGattConnectResult, parseGattWriteResult } from "../../src/tools/builtin/security/bluetooth-gatt.js";
+import { isValidGattPath, isValidMacAddress, normalizeGattWriteBytes, parseGattConnectResult, parseGattWriteResult } from "../../src/tools/builtin/security/bluetooth-gatt.js";
+
+describe("isValidMacAddress", () => {
+  it("accepts a real MAC address shape only", () => {
+    expect(isValidMacAddress("AA:BB:CC:DD:EE:FF")).toBe(true);
+    expect(isValidMacAddress("aa:bb:cc:dd:ee:ff")).toBe(true);
+  });
+
+  it("rejects anything else, including a newline-injection attempt", () => {
+    expect(isValidMacAddress("not-a-mac")).toBe(false);
+    expect(isValidMacAddress("AA:BB:CC:DD:EE")).toBe(false);
+    expect(isValidMacAddress("AA:BB:CC:DD:EE:FF:00")).toBe(false);
+    expect(isValidMacAddress("AA:BB:CC:DD:EE:FF\nremove-device XX")).toBe(false);
+  });
+});
+
+describe("isValidGattPath", () => {
+  it("accepts a real bluez GATT object path shape only", () => {
+    expect(isValidGattPath("/org/bluez/hci0/dev_AA/service0001/char0003")).toBe(true);
+  });
+
+  it("rejects anything else, including a newline-injection attempt and path traversal", () => {
+    expect(isValidGattPath("not/a/bluez/path")).toBe(false);
+    expect(isValidGattPath("/org/bluez/hci0/dev_AA/service0001/char0003\ndisconnect")).toBe(false);
+    expect(isValidGattPath("../../etc/passwd")).toBe(false);
+  });
+});
 
 describe("normalizeGattWriteBytes", () => {
   it("accepts space-separated, bare, and 0x-prefixed hex, normalizing to lowercase byte tokens", () => {
