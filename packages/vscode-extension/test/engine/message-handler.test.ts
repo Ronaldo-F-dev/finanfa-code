@@ -6,6 +6,7 @@ import { AgentSession } from "@finanfa/core/src/core/session.js";
 import { ToolRegistry } from "@finanfa/core/src/tools/registry.js";
 import { createChatMessageHandler } from "../../src/engine/message-handler.js";
 import type { SessionRunner } from "../../src/engine/session-runner.js";
+import type { LlmProvider, StreamTurnResult } from "@finanfa/core/src/core/types.js";
 
 // Routing logic only — a real AgentSession (cheap, no network) stands in for
 // a full SessionRunner via a stub sendMessage, so these tests focus purely
@@ -117,6 +118,76 @@ describe("createChatMessageHandler", () => {
       // every later message would wrongly be told a turn is still running.
       await handle({ type: "user_message", text: "y" });
       expect(sendMessage).toHaveBeenCalledTimes(2);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("compact summarizes the conversation via runner.provider and tells the webview to replace its history", async () => {
+    const fakeProvider: LlmProvider = {
+      async streamTurn(): Promise<StreamTurnResult> {
+        return { assistantMessage: { role: "assistant", content: "Summary of the earlier conversation." }, usage: { inputTokens: 1, outputTokens: 1 }, stopReason: "end_turn" };
+      },
+    };
+    const { runner, dir } = await makeFakeRunner(vi.fn(), { provider: fakeProvider });
+    try {
+      runner.session.messages = [
+        { role: "user", content: "hello" },
+        { role: "assistant", content: "hi there" },
+      ];
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "compact" });
+
+      expect(post).toHaveBeenCalledWith({ type: "busy", busy: true, label: "compacting" });
+      expect(post).toHaveBeenCalledWith({ type: "busy", busy: false });
+      expect(post).toHaveBeenCalledWith(expect.objectContaining({ type: "system", text: expect.stringContaining("Compacted 2 messages") }));
+      expect(post).toHaveBeenCalledWith({
+        type: "history",
+        replace: true,
+        messages: [
+          { role: "user", content: "[Earlier conversation compacted to save context — see the summary below]" },
+          { role: "assistant", content: "Summary of the earlier conversation." },
+        ],
+      });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("compact leaves the conversation unchanged and reports so when there's nothing to compact", async () => {
+    const { runner, dir } = await makeFakeRunner();
+    try {
+      // A fresh session's messages array is empty — compactSession's own
+      // early-return case, not a provider failure.
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "compact" });
+
+      expect(post).toHaveBeenCalledWith(expect.objectContaining({ type: "system", text: expect.stringContaining("Nothing to compact") }));
+      expect(post).not.toHaveBeenCalledWith(expect.objectContaining({ type: "history" }));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("compact is rejected with an error while a turn is in flight, same as user_message", async () => {
+    let resolveFirst!: () => void;
+    const sendMessage = vi.fn().mockImplementation(() => new Promise<void>((resolve) => (resolveFirst = resolve)));
+    const { runner, dir } = await makeFakeRunner(sendMessage);
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      const firstCall = handle({ type: "user_message", text: "one" });
+      await handle({ type: "compact" });
+
+      expect(post).toHaveBeenCalledWith(expect.objectContaining({ type: "error", text: expect.stringContaining("in progress") }));
+
+      resolveFirst();
+      await firstCall;
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

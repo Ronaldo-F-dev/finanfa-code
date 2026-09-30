@@ -27,6 +27,7 @@ export function App() {
     answerPermission,
     interrupt,
     newChat,
+    compact,
     switchModel,
     setEffort,
     pullOllamaModel,
@@ -96,6 +97,17 @@ export function App() {
         <div className="brand">{sessionInfo?.title ?? "finanfa-code"}</div>
         <div className="topbar-right">
           <SessionHistory sessions={sessions} activeId={sessionInfo?.id} onRefresh={listSessions} onSwitch={switchSession} onDelete={deleteSession} />
+          {timeline.length > 0 && (
+            <button
+              type="button"
+              className="btn btn-ghost btn-compact"
+              onClick={compact}
+              disabled={!connected || busy.active}
+              title="Résumer la conversation pour réduire l'usage de contexte (opération irréversible)"
+            >
+              Compacter
+            </button>
+          )}
           <button type="button" className="btn btn-ghost" onClick={handleNewChat} disabled={!connected} title="Démarrer une nouvelle conversation">
             + Nouvelle conversation
           </button>
