@@ -44,7 +44,7 @@ import {
   ensureConfiguredLocalTextModel,
 } from "@finanfa/core/src/app.js";
 
-export { BASE_SYSTEM_PROMPT, SECURITY_INSTRUCTION, connectMcpServers };
+export { BASE_SYSTEM_PROMPT, SECURITY_INSTRUCTION, connectMcpServers, registerShutdownHandlers };
 
 // createRequire (not import ... with { type: "json" }) so this works
 // identically whether cli.ts runs from src/ directly (tsx, dev) or from the
@@ -110,14 +110,31 @@ export async function resolveSession(
  * letting SIGINT/SIGTERM kill the process mid-write. Ink's raw-mode Ctrl+C
  * handling is redirected into a real SIGINT (see App.tsx) so both UI modes
  * go through this same path.
+ *
+ * Real reported gap: the web UI and the VS Code extension both already have
+ * a lightweight "Stop" (session.activeAbortControllers.forEach(c =>
+ * c.abort())) that cancels only the in-flight turn, keeping the session, MCP
+ * connections, and process alive — the exact same primitive this function's
+ * own shutdown() already used right before tearing everything else down. The
+ * CLI's Ctrl+C had no equivalent: it was always the full-shutdown path, so a
+ * stuck turn (a long bash command, a slow local-model stream) forced exiting
+ * the whole process and losing in-process MCP connections just to get
+ * unstuck — `--continue`/`--resume` got back into the conversation, but not
+ * back into those connections. isBusy() lets a Ctrl+C while a turn is
+ * in-flight do the lightweight abort instead; a second Ctrl+C within 1s (or
+ * one with nothing in flight) still falls through to the real shutdown, so
+ * there's always a way out even if the soft interrupt doesn't unstick
+ * things.
  */
 function registerShutdownHandlers(
   getSession: () => AgentSession,
   mcp: McpClientManager,
   browser: BrowserManager,
   ui: UIAdapter,
+  isBusy: () => boolean,
 ): void {
   let shuttingDown = false;
+  let lastInterruptAt = 0;
 
   const shutdown = async (): Promise<void> => {
     if (shuttingDown) return;
@@ -149,7 +166,19 @@ function registerShutdownHandlers(
     process.exit(0);
   };
 
-  process.on("SIGINT", () => void shutdown());
+  const onInterruptSignal = (): void => {
+    const now = Date.now();
+    const doubleTap = now - lastInterruptAt < 1000;
+    lastInterruptAt = now;
+    if (isBusy() && !doubleTap) {
+      for (const controller of getSession().activeAbortControllers) controller.abort();
+      ui.writeSystem("Interrupted — stopping the current turn (session and connections kept open).");
+      return;
+    }
+    void shutdown();
+  };
+
+  process.on("SIGINT", onInterruptSignal);
   process.on("SIGTERM", () => void shutdown());
 }
 
@@ -303,8 +332,9 @@ export async function main(argv: string[]): Promise<void> {
   // close over it via a getter — /session can swap deps.session mid-run,
   // and Ctrl+C needs to persist whichever session is current then, not the
   // one that existed at startup.
-  const deps: ReplDeps = { session, provider, ui, tools, permissions, mcp, commands, customCommands, cwd, visionRoute };
-  registerShutdownHandlers(() => deps.session, mcp, browser, ui);
+  const busy = { current: false };
+  const deps: ReplDeps = { session, provider, ui, tools, permissions, mcp, commands, customCommands, cwd, visionRoute, busy };
+  registerShutdownHandlers(() => deps.session, mcp, browser, ui, () => busy.current);
 
   await connectMcpServers(cwd, mcp, ui);
   for (const def of await mcp.listAllTools()) tools.register(def);
@@ -374,6 +404,8 @@ interface ReplDeps {
   customCommands: Map<string, CustomCommand>;
   cwd: string;
   visionRoute?: VisionRoute;
+  /** Set around the runTurn call in repl() below — a mutable holder (not a bare boolean) so registerShutdownHandlers's isBusy() closure sees live updates, same pattern as deps.session itself. */
+  busy: { current: boolean };
 }
 
 async function runSlashCommand(deps: ReplDeps, trimmed: string): Promise<CommandOutcome> {
@@ -402,7 +434,7 @@ async function runSlashCommand(deps: ReplDeps, trimmed: string): Promise<Command
 }
 
 async function repl(deps: ReplDeps): Promise<void> {
-  const { ui, provider, tools, permissions, visionRoute } = deps;
+  const { ui, provider, tools, permissions, visionRoute, busy } = deps;
 
   for (;;) {
     const input = await ui.askUser("\n> ");
@@ -414,6 +446,7 @@ async function repl(deps: ReplDeps): Promise<void> {
       continue;
     }
 
+    busy.current = true;
     try {
       await runTurn(deps.session, provider, ui, tools, permissions, trimmed, visionRoute);
       // Real reported bug: awaiting this here blocked the REPL from
@@ -430,6 +463,8 @@ async function repl(deps: ReplDeps): Promise<void> {
       void maybeGenerateTitle(deps.session, provider);
     } catch (err) {
       ui.writeError(err instanceof Error ? err.message : String(err));
+    } finally {
+      busy.current = false;
     }
   }
 }
