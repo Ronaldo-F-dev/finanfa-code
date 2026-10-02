@@ -1466,6 +1466,471 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
       messageQueue = messageQueue.then(handleMessage).catch((err) => {
         console.error(`Unhandled error handling a WS message for session ${session.id}:`, err);
       });
+
+      // Each branch of the old if/else-if chain below is now its own named
+      // function — that single ~440-line closure was flagged by static
+      // analysis as excessive Cognitive Complexity (the same issue, and the
+      // same fix, already applied to message-handler.ts, the VS Code
+      // extension's own mirror of this handler — see its own comment on
+      // why). A `switch` on msg.type dispatches to them; each still starts
+      // with the same guard the original `if (msg.type === "X" && <guard>)`
+      // had, so an ill-shaped message for a matching type is silently
+      // dropped exactly as before (the old chain never reached a later
+      // `else if` once msg.type itself matched one, guard or not).
+      async function handleUserMessage(msg: { type: string; [key: string]: unknown }): Promise<void> {
+        if (typeof msg.text !== "string") return;
+        if (turnInFlight) {
+          adapter.writeError("A turn is already in progress — wait for it to finish (or interrupt) before sending another message.");
+          return;
+        }
+        turnInFlight = true;
+        try {
+          const images = Array.isArray(msg.images) ? (msg.images as NeutralImage[]) : undefined;
+          // Deep research: not a separate model/effort parameter (nothing
+          // like that exists in the engine — see the "effort" discussion),
+          // just a stronger per-turn instruction pushing the agent to
+          // actually use its search/fetch tools thoroughly instead of
+          // answering from memory. Real behavior change, honestly scoped.
+          const text = msg.deepResearch
+            ? "Do deep research for this: actively search the web and any other tools available (multiple queries/sources, " +
+              "cross-check facts, fetch pages for real detail rather than trusting a snippet) before answering — don't answer " +
+              `from memory alone if search tools can verify it. Take as many search/fetch steps as genuinely useful.\n\n${msg.text}`
+            : msg.text;
+          let nextText: string = text;
+          let nextImages = images;
+          for (let turn = 1; turn <= WEB_MAX_AUTO_CONTINUE_TURNS; turn++) {
+            await runTurn(session, provider, adapter, tools, permissions, nextText, undefined, nextImages);
+            const last = session.messages.at(-1);
+            const stoppedByGuard = last?.role === "assistant" && typeof last.content === "string" && isLoopGuardStopMessage(last.content);
+            if (!stoppedByGuard || turn === WEB_MAX_AUTO_CONTINUE_TURNS) break;
+            adapter.writeSystem(`(auto-continuing: cut off by the step-limit guard — turn ${turn + 1}/${WEB_MAX_AUTO_CONTINUE_TURNS})`);
+            nextText = "continue";
+            nextImages = undefined;
+          }
+          // Cleared here, not in the outer finally below — assistant_end
+          // has already reached the client by this point (runTurn itself
+          // sent it), so from the user's perspective the turn is over.
+          // maybeGenerateTitle is a second, separate LLM call that doesn't
+          // touch session.messages; gating /compact on it too just made
+          // clicking Compact right after a response finishes fail with a
+          // confusing "turn already in progress", for a call the client
+          // has no visibility into at all.
+          turnInFlight = false;
+          const hadTitle = Boolean(session.title);
+          await maybeGenerateTitle(session, provider);
+          if (!hadTitle && session.title) sendSessionInfo();
+        } catch (err) {
+          adapter.writeError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          turnInFlight = false;
+          await session.persist().catch((err) => adapter.writeError(`Failed to save session: ${err instanceof Error ? err.message : err}`));
+        }
+      }
+
+      function handlePermissionResponse(msg: { type: string; [key: string]: unknown }): void {
+        if (typeof msg.requestId === "number" && typeof msg.answer === "string") resolvePending(msg.requestId, msg.answer);
+      }
+
+      async function handleCompact(): Promise<void> {
+        if (turnInFlight) {
+          adapter.writeError("A turn is already in progress — wait for it to finish (or interrupt) before compacting.");
+          return;
+        }
+        // Held for the duration of the compaction call itself (not just
+        // checked at the start) — compactSession replaces session.messages
+        // wholesale, so a user_message arriving mid-compaction and
+        // appending to the same array while that replacement is in flight
+        // would corrupt it. Same guard user_message itself uses. The
+        // actual busy/system-message/compaction sequence lives in
+        // runCompactCommand (loop.ts), shared with the VS Code extension's
+        // own "compact" handler — this used to be duplicated near-verbatim
+        // between the two.
+        turnInFlight = true;
+        try {
+          const result = await runCompactCommand(session, provider, {
+            setBusy: (busy, label) => adapter.setBusy(busy, label),
+            writeSystem: (text) => adapter.writeSystem(text),
+          });
+          // The client's timeline holds the old turns individually — tell
+          // it to replace them with just the two-message summary now
+          // actually in session.messages, same replay path a resumed
+          // session's initial "history" event already uses.
+          if (result.replacedMessages) ws.send(JSON.stringify({ type: "history", replace: true, messages: result.replacedMessages }));
+        } finally {
+          turnInFlight = false;
+        }
+      }
+
+      // Shared by handleSetModel/handleSetEffort below: a local-service
+      // switch that ensureLocalTextModelForSwitch reports as failed
+      // (start-failed) must not leave the session/UI claiming the new
+      // model is active while the old local service is still the one
+      // actually answering — this restores exactly what each snapshotted
+      // right before attempting its own switch. The error TEXT still
+      // differs per caller (model name vs. "effort level X (model)"), so
+      // only the state-rollback itself is shared here, not the ws.send.
+      function rollbackProviderSwitch(snapshot: {
+        model: string;
+        providerKind: string;
+        providerBaseUrl: string | undefined;
+        provider: LlmProvider;
+        effort: string | undefined;
+      }): void {
+        session.model = snapshot.model;
+        providerKind = snapshot.providerKind;
+        session.providerKind = snapshot.providerKind;
+        session.providerBaseUrl = snapshot.providerBaseUrl;
+        provider = snapshot.provider;
+        session.effort = snapshot.effort;
+      }
+
+      async function handleSetModel(msg: { type: string; [key: string]: unknown }): Promise<void> {
+        if (typeof msg.model !== "string" || !msg.model) return;
+        // Snapshot of everything this handler is about to overwrite, so a
+        // local-service switch that ensureLocalTextModelForSwitch reports
+        // as failed (start-failed) can be rolled back below instead of
+        // leaving the session/UI claiming the new model is active while
+        // the old local service is still the one actually answering — the
+        // real, reported bug this closes.
+        const snapshot = { model: session.model, providerKind, providerBaseUrl: session.providerBaseUrl, provider, effort: session.effort };
+        const family: ProviderFamily = msg.family === "openai-compatible" ? "openai-compatible" : "anthropic";
+        // Real, reported bug: switching FROM a local model (a specific
+        // baseUrl override, e.g. Ollama) back TO a normal same-family
+        // model (e.g. the configured default openai-compatible provider)
+        // left `provider` pointed at the OLD local baseUrl — the family
+        // hadn't changed ("openai-compatible" both times), so the
+        // family-mismatch rebuild below never fired, and only
+        // session.model was updated. The next call then sent the new
+        // model's name to the old local server, which had never heard of
+        // it (404). Tracked here so switching away from a baseUrl
+        // override always forces a rebuild, even within the same family.
+        const hadBaseUrlOverride = Boolean(session.providerBaseUrl);
+        if (typeof msg.baseUrl === "string" && msg.baseUrl) {
+          // A detected local model (Ollama/LM Studio/...) — always rebuilt
+          // directly against its own baseUrl, unconditionally, rather than
+          // the family-change check below: two local models can both be
+          // family "openai-compatible" but live at different baseUrls
+          // (e.g. switching from Ollama to LM Studio), which that check
+          // alone can't distinguish since it only fires on a family flip.
+          // No API key — every local runtime here is unauthenticated.
+          provider = new OpenAiCompatibleProvider({ baseUrl: msg.baseUrl, apiKey: undefined });
+          providerKind = "openai-compatible";
+        } else if (family !== providerKind || hadBaseUrlOverride) {
+          const availability = await familyAvailability(config);
+          if (!availability[family]) {
+            ws.send(
+              JSON.stringify({
+                type: "model_unavailable",
+                model: msg.model,
+                family,
+                message:
+                  family === "anthropic"
+                    ? "No Anthropic API key configured. Add one in Settings to use Claude models."
+                    : "No base URL configured for an OpenAI-compatible provider. Add one in Settings to use this model.",
+              }),
+            );
+            return;
+          }
+          provider = buildProvider(family, config);
+          providerKind = family;
+        }
+        // Persisted alongside model so a resume (crash, restart, page
+        // reload) reconstructs the SAME provider/endpoint this session
+        // actually last talked to, instead of always defaulting back to
+        // the global/project config's provider — a real, reproduced bug:
+        // a session last using a local model kept that model's name on
+        // resume, but session.persist() had nowhere to remember it was
+        // local at all, so the freshly reconnected session silently sent
+        // that (to it, meaningless) local model name to the default
+        // remote provider instead, which naturally rejected it. Cleared
+        // (not left stale) when this switch has no baseUrl of its own —
+        // e.g. switching back to a normal remote model after a local one.
+        session.providerKind = providerKind;
+        session.providerBaseUrl = typeof msg.baseUrl === "string" && msg.baseUrl ? msg.baseUrl : undefined;
+        session.model = msg.model;
+        // Real, reported gap: picking a different locally-served text
+        // model (e.g. switching between several Bonsai sizes) didn't
+        // start that service with the newly-picked one — only the very
+        // first process-startup check ever ensured something was running.
+        // A no-op unless config.localServices has an entry for msg.model.
+        const localSwitch = await ensureLocalTextModelForSwitch(config, msg.model, adapter);
+        if (localSwitch.handled && !localSwitch.ok) {
+          // The local service switch was attempted and failed — whatever's
+          // actually running at that baseUrl is still the OLD model, so
+          // committing session.model/providerKind here would make the UI
+          // show the new model as active while every message keeps
+          // getting answered by the old one underneath it. Roll the
+          // session back to what was actually working before this message
+          // arrived, and tell the client the switch didn't happen instead
+          // of silently acking it.
+          rollbackProviderSwitch(snapshot);
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              text: `Couldn't switch to ${msg.model}: ${
+                localSwitch.status.state === "start-failed" ? localSwitch.status.message : "the local service switch failed."
+              }`,
+            }),
+          );
+          sendSessionInfo();
+          return;
+        }
+        // Keeps the auto-approval classifier (if enabled) classifying
+        // against the model this session actually just switched to,
+        // rather than a stale provider captured at connection time.
+        permissions.setProvider(provider);
+        // A manual pick through this plain picker is a distinct action
+        // from an effort tier (see set_effort below) — the "effort" badge
+        // shouldn't keep claiming Faible/Moyen/Fort once the user has
+        // overridden it by hand.
+        const hadEffort = Boolean(session.effort);
+        session.effort = undefined;
+        if (typeof msg.baseUrl === "string" && msg.baseUrl && isLocalBaseUrl(msg.baseUrl)) {
+          // Real, reported crashes from picking a local model directly
+          // through this plain picker (bypassing the Effort tiers, whose
+          // whole job is protecting against exactly this): qwen3:4b's
+          // default 4096-token context can't hold this project's own
+          // ~40k-token system-prompt-plus-full-tool-list, and some models
+          // (gemma2, yi-coder) don't support tool calling at all — both
+          // failed outright. Applying the same protective tool budget the
+          // Effort tiers use — derived from the model's real, reported
+          // capabilities, not a guess — closes that gap here too, instead
+          // of only warning about it after the user already hit the wall.
+          const supportsTools = await lookupOllamaToolSupport(msg.model);
+          session.disabledTools.clear();
+          if (supportsTools === false) {
+            for (const t of tools.list()) session.disabledTools.add(t.name);
+          } else if (supportsTools === true) {
+            for (const t of tools.list()) if (!MINIMAL_TOOL_SET.includes(t.name)) session.disabledTools.add(t.name);
+          }
+          // undefined (unknown runtime, e.g. LM Studio/llama.cpp/vLLM
+          // that doesn't expose Ollama's capabilities field, or the
+          // lookup itself failed) — no signal to act on, leave as-is.
+          sendToolsStatus();
+        } else if (hadEffort) {
+          session.disabledTools.clear();
+          sendToolsStatus();
+        }
+        sendSessionInfo();
+        // Real, reported case: switching to a local model and sending one
+        // message crashed the whole machine — not this project's bug in
+        // the usual sense, but a real consequence of this project's own
+        // behavior: every call includes the full tool list (100+ tools,
+        // several tens of thousands of tokens on its own, before any
+        // conversation). A local runtime (Ollama, Docker Model Runner,
+        // llama.cpp, ...) has to allocate KV-cache proportional to
+        // whatever context that prompt needs — on constrained hardware
+        // (no/limited GPU, modest RAM) that allocation can exhaust memory
+        // badly enough to take the whole system down, not just fail
+        // cleanly the way a remote API would. Warned here, proactively,
+        // the moment a local model is selected — before the crash, not
+        // only after it via the "context size exceeded" error message.
+        // Once per connection, not once per switch — the risk is exactly
+        // the same for every local model (it's about the tool list this
+        // agent always sends, not about which specific model you picked),
+        // so repeating it on every single switch just becomes noise
+        // someone trying several local models in a row has to scroll
+        // past — a real, reported annoyance.
+        if (!warnedAboutLocalModelThisConnection && session.providerBaseUrl && isLocalBaseUrl(session.providerBaseUrl)) {
+          warnedAboutLocalModelThisConnection = true;
+          const enabledToolCount = tools.list().filter((t) => !session.disabledTools.has(t.name)).length;
+          adapter.writeSystem(
+            `⚠ ${msg.model} is a local model — every message sent here includes this agent's full system prompt ` +
+              `and tool list (currently ${enabledToolCount} tools, tens of thousands of tokens on its own, before ` +
+              "any conversation). On a machine with limited RAM/no GPU, a local runtime trying to allocate enough " +
+              "context for that can exhaust memory badly enough to freeze or crash the whole system, not just fail " +
+              "cleanly. If that happens, use /tools (or the Tools panel here) to disable most tools before trying " +
+              "a local model again — a handful of tools is a much smaller, safer prompt than the full set.",
+          );
+        }
+      }
+
+      async function handleSetEffort(msg: { type: string; [key: string]: unknown }): Promise<void> {
+        if (typeof msg.level !== "string") return;
+        // Shortcut past manually picking a model + remembering to strip
+        // tools every time: one message picks a model, a max_tokens cap,
+        // and a curated tool budget together (see effort-tiers.ts for why
+        // each tier's exact settings are what they are).
+        const tier = getEffortTier(msg.level);
+        if (!tier) {
+          ws.send(JSON.stringify({ type: "error", text: `Unknown effort level: ${msg.level}` }));
+          return;
+        }
+        // Same rollback snapshot as set_model above, for the same reason —
+        // a tier whose model is local-server-served can fail the switch at
+        // ensureLocalTextModelForSwitch below just as easily as the plain
+        // picker can.
+        const snapshot = { model: session.model, providerKind, providerBaseUrl: session.providerBaseUrl, provider, effort: session.effort };
+        if (tier.ollamaModel) {
+          const available = await isOllamaAvailable().catch(() => false);
+          const installed = available && (await listOllamaModels().catch(() => [])).some((m) => m.name === tier.ollamaModel);
+          if (!installed) {
+            ws.send(JSON.stringify({ type: "effort_needs_download", level: tier.id, ollamaModel: tier.ollamaModel }));
+            return;
+          }
+        }
+        // "high" has no fixed model/family of its own — it means "this
+        // project's already-configured default provider", whatever that
+        // is (Poolside via openai-compatible, Anthropic, ...), not a
+        // hardcoded family. Resolving it wrong here would mean "high"
+        // silently requiring an Anthropic key even for a project whose
+        // actual default is an openai-compatible endpoint like Poolside.
+        let resolvedModel = tier.model;
+        let resolvedFamily = tier.family;
+        if (isDefaultProviderTier(tier)) {
+          try {
+            const selected = selectProvider(config);
+            resolvedModel = selected.defaultModel;
+            resolvedFamily = selected.kind === "openai-compatible" ? "openai-compatible" : "anthropic";
+          } catch {
+            ws.send(
+              JSON.stringify({
+                type: "model_unavailable",
+                model: tier.model,
+                family: "anthropic",
+                message: "No default provider configured for this project. Set one in Settings first.",
+              }),
+            );
+            return;
+          }
+        }
+        if (tier.baseUrl) {
+          provider = new OpenAiCompatibleProvider({ baseUrl: tier.baseUrl, apiKey: undefined });
+          providerKind = "openai-compatible";
+        } else if (resolvedFamily) {
+          const availability = await familyAvailability(config);
+          if (!availability[resolvedFamily]) {
+            ws.send(
+              JSON.stringify({
+                type: "model_unavailable",
+                model: resolvedModel,
+                family: resolvedFamily,
+                message: resolvedFamily === "anthropic" ? "No Anthropic API key configured. Add one in Settings." : "No base URL configured. Add one in Settings.",
+              }),
+            );
+            return;
+          }
+          provider = buildProvider(resolvedFamily, config);
+          providerKind = resolvedFamily;
+        }
+        session.providerKind = providerKind;
+        session.providerBaseUrl = tier.baseUrl;
+        session.model = resolvedModel;
+        // Same local-model-switch check as the plain model picker above —
+        // a no-op unless this tier's model is one of
+        // config.localServices's entries.
+        const localSwitch = await ensureLocalTextModelForSwitch(config, resolvedModel, adapter);
+        if (localSwitch.handled && !localSwitch.ok) {
+          // Same rollback as set_model above: don't let the session/UI
+          // claim this effort tier's model is active when the local
+          // service switch it depends on actually failed.
+          rollbackProviderSwitch(snapshot);
+          ws.send(
+            JSON.stringify({
+              type: "error",
+              text: `Couldn't switch to effort level ${msg.level} (${resolvedModel}): ${
+                localSwitch.status.state === "start-failed" ? localSwitch.status.message : "the local service switch failed."
+              }`,
+            }),
+          );
+          sendSessionInfo();
+          return;
+        }
+        // Same as set_model above — keep the classifier on the provider
+        // this effort tier actually switched to.
+        permissions.setProvider(provider);
+        session.maxTokens = tier.maxTokens;
+        session.effort = tier.id;
+        if (tier.toolBudget === "none") {
+          for (const t of tools.list()) session.disabledTools.add(t.name);
+        } else if (tier.toolBudget === "minimal") {
+          for (const t of tools.list()) {
+            if (MINIMAL_TOOL_SET.includes(t.name)) session.disabledTools.delete(t.name);
+            else session.disabledTools.add(t.name);
+          }
+        } else {
+          session.disabledTools.clear();
+        }
+        sendToolsStatus();
+        sendSessionInfo();
+      }
+
+      async function handleMcpConnect(msg: { type: string; [key: string]: unknown }): Promise<void> {
+        if (typeof msg.name !== "string") return;
+        const existing = await loadMcpServers(CWD);
+        let config = existing.find((s) => s.name === msg.name);
+        if (!config) {
+          // Not yet in this project's mcp.json — if it's a known catalog
+          // entry (see mcp-catalog.ts), add it there first, same file
+          // write the CLI's own /mcp add does, then fall through to
+          // connect it below.
+          const fromCatalog = MCP_CATALOG.find((c) => c.name === msg.name);
+          if (fromCatalog) {
+            const file = path.join(CWD, ".finanfa-code", "mcp.json");
+            await mkdir(path.dirname(file), { recursive: true });
+            await writeFile(file, JSON.stringify({ servers: [...existing, fromCatalog] }, null, 2), "utf-8");
+            config = fromCatalog;
+          }
+        }
+        if (!config) {
+          adapter.writeError(`No MCP server named "${msg.name}" in .finanfa-code/mcp.json.`);
+        } else if (mcp.connectedServers().includes(msg.name)) {
+          adapter.writeSystem(`"${msg.name}" is already connected.`);
+        } else {
+          if (config.transport !== "stdio") adapter.writeSystem(`Connecting to "${msg.name}" — if it requires authorization, a browser tab will open on the server...`);
+          try {
+            await mcp.connect(config);
+            needsAuthSet.delete(msg.name);
+            await reloadMcpTools();
+            adapter.writeSystem(`Connected "${msg.name}".`);
+          } catch (err) {
+            adapter.writeError(`Failed to connect "${msg.name}": ${err instanceof Error ? err.message : err}`);
+          }
+        }
+        await sendMcpStatus();
+      }
+
+      async function handleMcpEnableDisable(msg: { type: string; [key: string]: unknown }): Promise<void> {
+        if (typeof msg.name !== "string") return;
+        if (!mcp.connectedServers().includes(msg.name)) {
+          adapter.writeError(`No connected MCP server named "${msg.name}".`);
+        } else if (msg.type === "mcp_enable") {
+          session.disabledMcpServers.delete(msg.name);
+        } else {
+          session.disabledMcpServers.add(msg.name);
+        }
+        await sendMcpStatus();
+      }
+
+      async function handleMcpReload(): Promise<void> {
+        await reloadMcpTools();
+        adapter.writeSystem("MCP tools reloaded.");
+        await sendMcpStatus();
+      }
+
+      function handleSetToolEnabled(msg: { type: string; [key: string]: unknown }): void {
+        if (typeof msg.name !== "string" || typeof msg.enabled !== "boolean") return;
+        if (msg.enabled) session.disabledTools.delete(msg.name);
+        else session.disabledTools.add(msg.name);
+        sendToolsStatus();
+      }
+
+      function handleSetPlanMode(msg: { type: string; [key: string]: unknown }): void {
+        if (typeof msg.enabled !== "boolean") return;
+        // Same gate as /plan in the CLI (see loop.ts's runOneToolCall):
+        // while on, only read-only tools and exit_plan_mode run. Pushed
+        // as a status update immediately, not just on the next turn's
+        // ui.setStatus — the client shouldn't have to send a message
+        // first to see the toggle actually took effect.
+        session.planMode = msg.enabled;
+        adapter.setStatus({
+          tokens: session.usage.inputTokens + session.usage.outputTokens,
+          costUsd: session.costUsd,
+          model: session.model,
+          planMode: session.planMode,
+        });
+      }
+
       async function handleMessage(): Promise<void> {
         let msg: { type: string; [key: string]: unknown };
         try {
@@ -1475,432 +1940,36 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           return;
         }
 
-        if (msg.type === "user_message" && typeof msg.text === "string") {
-          if (turnInFlight) {
-            adapter.writeError("A turn is already in progress — wait for it to finish (or interrupt) before sending another message.");
+        switch (msg.type) {
+          case "user_message":
+            return handleUserMessage(msg);
+          case "permission_response":
+            return handlePermissionResponse(msg);
+          case "compact":
+            return handleCompact();
+          case "set_model":
+            return handleSetModel(msg);
+          case "set_effort":
+            return handleSetEffort(msg);
+          case "mcp_status":
+            await sendMcpStatus();
             return;
-          }
-          turnInFlight = true;
-          try {
-            const images = Array.isArray(msg.images) ? (msg.images as NeutralImage[]) : undefined;
-            // Deep research: not a separate model/effort parameter (nothing
-            // like that exists in the engine — see the "effort" discussion),
-            // just a stronger per-turn instruction pushing the agent to
-            // actually use its search/fetch tools thoroughly instead of
-            // answering from memory. Real behavior change, honestly scoped.
-            const text = msg.deepResearch
-              ? "Do deep research for this: actively search the web and any other tools available (multiple queries/sources, " +
-                "cross-check facts, fetch pages for real detail rather than trusting a snippet) before answering — don't answer " +
-                `from memory alone if search tools can verify it. Take as many search/fetch steps as genuinely useful.\n\n${msg.text}`
-              : msg.text;
-            let nextText: string = text;
-            let nextImages = images;
-            for (let turn = 1; turn <= WEB_MAX_AUTO_CONTINUE_TURNS; turn++) {
-              await runTurn(session, provider, adapter, tools, permissions, nextText, undefined, nextImages);
-              const last = session.messages.at(-1);
-              const stoppedByGuard = last?.role === "assistant" && typeof last.content === "string" && isLoopGuardStopMessage(last.content);
-              if (!stoppedByGuard || turn === WEB_MAX_AUTO_CONTINUE_TURNS) break;
-              adapter.writeSystem(`(auto-continuing: cut off by the step-limit guard — turn ${turn + 1}/${WEB_MAX_AUTO_CONTINUE_TURNS})`);
-              nextText = "continue";
-              nextImages = undefined;
-            }
-            // Cleared here, not in the outer finally below — assistant_end
-            // has already reached the client by this point (runTurn itself
-            // sent it), so from the user's perspective the turn is over.
-            // maybeGenerateTitle is a second, separate LLM call that doesn't
-            // touch session.messages; gating /compact on it too just made
-            // clicking Compact right after a response finishes fail with a
-            // confusing "turn already in progress", for a call the client
-            // has no visibility into at all.
-            turnInFlight = false;
-            const hadTitle = Boolean(session.title);
-            await maybeGenerateTitle(session, provider);
-            if (!hadTitle && session.title) sendSessionInfo();
-          } catch (err) {
-            adapter.writeError(`Unexpected error: ${err instanceof Error ? err.message : String(err)}`);
-          } finally {
-            turnInFlight = false;
-            await session.persist().catch((err) => adapter.writeError(`Failed to save session: ${err instanceof Error ? err.message : err}`));
-          }
-        } else if (msg.type === "permission_response" && typeof msg.requestId === "number" && typeof msg.answer === "string") {
-          resolvePending(msg.requestId, msg.answer);
-        } else if (msg.type === "compact") {
-          if (turnInFlight) {
-            adapter.writeError("A turn is already in progress — wait for it to finish (or interrupt) before compacting.");
-            return;
-          }
-          // Held for the duration of the compaction call itself (not just
-          // checked at the start) — compactSession replaces session.messages
-          // wholesale, so a user_message arriving mid-compaction and
-          // appending to the same array while that replacement is in flight
-          // would corrupt it. Same guard user_message itself uses. The
-          // actual busy/system-message/compaction sequence lives in
-          // runCompactCommand (loop.ts), shared with the VS Code extension's
-          // own "compact" handler — this used to be duplicated near-verbatim
-          // between the two.
-          turnInFlight = true;
-          try {
-            const result = await runCompactCommand(session, provider, {
-              setBusy: (busy, label) => adapter.setBusy(busy, label),
-              writeSystem: (text) => adapter.writeSystem(text),
-            });
-            // The client's timeline holds the old turns individually — tell
-            // it to replace them with just the two-message summary now
-            // actually in session.messages, same replay path a resumed
-            // session's initial "history" event already uses.
-            if (result.replacedMessages) ws.send(JSON.stringify({ type: "history", replace: true, messages: result.replacedMessages }));
-          } finally {
-            turnInFlight = false;
-          }
-        } else if (msg.type === "set_model" && typeof msg.model === "string" && msg.model) {
-          // Snapshot of everything this handler is about to overwrite, so a
-          // local-service switch that ensureLocalTextModelForSwitch reports
-          // as failed (start-failed) can be rolled back below instead of
-          // leaving the session/UI claiming the new model is active while
-          // the old local service is still the one actually answering — the
-          // real, reported bug this closes.
-          const previousModel = session.model;
-          const previousProviderKind = providerKind;
-          const previousProviderBaseUrl = session.providerBaseUrl;
-          const previousProvider = provider;
-          const previousEffort = session.effort;
-          const family: ProviderFamily = msg.family === "openai-compatible" ? "openai-compatible" : "anthropic";
-          // Real, reported bug: switching FROM a local model (a specific
-          // baseUrl override, e.g. Ollama) back TO a normal same-family
-          // model (e.g. the configured default openai-compatible provider)
-          // left `provider` pointed at the OLD local baseUrl — the family
-          // hadn't changed ("openai-compatible" both times), so the
-          // family-mismatch rebuild below never fired, and only
-          // session.model was updated. The next call then sent the new
-          // model's name to the old local server, which had never heard of
-          // it (404). Tracked here so switching away from a baseUrl
-          // override always forces a rebuild, even within the same family.
-          const hadBaseUrlOverride = Boolean(session.providerBaseUrl);
-          if (typeof msg.baseUrl === "string" && msg.baseUrl) {
-            // A detected local model (Ollama/LM Studio/...) — always rebuilt
-            // directly against its own baseUrl, unconditionally, rather than
-            // the family-change check below: two local models can both be
-            // family "openai-compatible" but live at different baseUrls
-            // (e.g. switching from Ollama to LM Studio), which that check
-            // alone can't distinguish since it only fires on a family flip.
-            // No API key — every local runtime here is unauthenticated.
-            provider = new OpenAiCompatibleProvider({ baseUrl: msg.baseUrl, apiKey: undefined });
-            providerKind = "openai-compatible";
-          } else if (family !== providerKind || hadBaseUrlOverride) {
-            const availability = await familyAvailability(config);
-            if (!availability[family]) {
-              ws.send(
-                JSON.stringify({
-                  type: "model_unavailable",
-                  model: msg.model,
-                  family,
-                  message:
-                    family === "anthropic"
-                      ? "No Anthropic API key configured. Add one in Settings to use Claude models."
-                      : "No base URL configured for an OpenAI-compatible provider. Add one in Settings to use this model.",
-                }),
-              );
-              return;
-            }
-            provider = buildProvider(family, config);
-            providerKind = family;
-          }
-          // Persisted alongside model so a resume (crash, restart, page
-          // reload) reconstructs the SAME provider/endpoint this session
-          // actually last talked to, instead of always defaulting back to
-          // the global/project config's provider — a real, reproduced bug:
-          // a session last using a local model kept that model's name on
-          // resume, but session.persist() had nowhere to remember it was
-          // local at all, so the freshly reconnected session silently sent
-          // that (to it, meaningless) local model name to the default
-          // remote provider instead, which naturally rejected it. Cleared
-          // (not left stale) when this switch has no baseUrl of its own —
-          // e.g. switching back to a normal remote model after a local one.
-          session.providerKind = providerKind;
-          session.providerBaseUrl = typeof msg.baseUrl === "string" && msg.baseUrl ? msg.baseUrl : undefined;
-          session.model = msg.model;
-          // Real, reported gap: picking a different locally-served text
-          // model (e.g. switching between several Bonsai sizes) didn't
-          // start that service with the newly-picked one — only the very
-          // first process-startup check ever ensured something was running.
-          // A no-op unless config.localServices has an entry for msg.model.
-          const localSwitch = await ensureLocalTextModelForSwitch(config, msg.model, adapter);
-          if (localSwitch.handled && !localSwitch.ok) {
-            // The local service switch was attempted and failed — whatever's
-            // actually running at that baseUrl is still the OLD model, so
-            // committing session.model/providerKind here would make the UI
-            // show the new model as active while every message keeps
-            // getting answered by the old one underneath it. Roll the
-            // session back to what was actually working before this message
-            // arrived, and tell the client the switch didn't happen instead
-            // of silently acking it.
-            session.model = previousModel;
-            providerKind = previousProviderKind;
-            session.providerKind = previousProviderKind;
-            session.providerBaseUrl = previousProviderBaseUrl;
-            provider = previousProvider;
-            session.effort = previousEffort;
-            ws.send(
-              JSON.stringify({
-                type: "error",
-                text: `Couldn't switch to ${msg.model}: ${
-                  localSwitch.status.state === "start-failed" ? localSwitch.status.message : "the local service switch failed."
-                }`,
-              }),
-            );
-            sendSessionInfo();
-            return;
-          }
-          // Keeps the auto-approval classifier (if enabled) classifying
-          // against the model this session actually just switched to,
-          // rather than a stale provider captured at connection time.
-          permissions.setProvider(provider);
-          // A manual pick through this plain picker is a distinct action
-          // from an effort tier (see set_effort below) — the "effort" badge
-          // shouldn't keep claiming Faible/Moyen/Fort once the user has
-          // overridden it by hand.
-          const hadEffort = Boolean(session.effort);
-          session.effort = undefined;
-          if (typeof msg.baseUrl === "string" && msg.baseUrl && isLocalBaseUrl(msg.baseUrl)) {
-            // Real, reported crashes from picking a local model directly
-            // through this plain picker (bypassing the Effort tiers, whose
-            // whole job is protecting against exactly this): qwen3:4b's
-            // default 4096-token context can't hold this project's own
-            // ~40k-token system-prompt-plus-full-tool-list, and some models
-            // (gemma2, yi-coder) don't support tool calling at all — both
-            // failed outright. Applying the same protective tool budget the
-            // Effort tiers use — derived from the model's real, reported
-            // capabilities, not a guess — closes that gap here too, instead
-            // of only warning about it after the user already hit the wall.
-            const supportsTools = await lookupOllamaToolSupport(msg.model);
-            session.disabledTools.clear();
-            if (supportsTools === false) {
-              for (const t of tools.list()) session.disabledTools.add(t.name);
-            } else if (supportsTools === true) {
-              for (const t of tools.list()) if (!MINIMAL_TOOL_SET.includes(t.name)) session.disabledTools.add(t.name);
-            }
-            // undefined (unknown runtime, e.g. LM Studio/llama.cpp/vLLM
-            // that doesn't expose Ollama's capabilities field, or the
-            // lookup itself failed) — no signal to act on, leave as-is.
+          case "mcp_connect":
+            return handleMcpConnect(msg);
+          case "mcp_enable":
+          case "mcp_disable":
+            return handleMcpEnableDisable(msg);
+          case "mcp_reload":
+            return handleMcpReload();
+          case "set_tool_enabled":
+            return handleSetToolEnabled(msg);
+          case "tools_status":
             sendToolsStatus();
-          } else if (hadEffort) {
-            session.disabledTools.clear();
-            sendToolsStatus();
-          }
-          sendSessionInfo();
-          // Real, reported case: switching to a local model and sending one
-          // message crashed the whole machine — not this project's bug in
-          // the usual sense, but a real consequence of this project's own
-          // behavior: every call includes the full tool list (100+ tools,
-          // several tens of thousands of tokens on its own, before any
-          // conversation). A local runtime (Ollama, Docker Model Runner,
-          // llama.cpp, ...) has to allocate KV-cache proportional to
-          // whatever context that prompt needs — on constrained hardware
-          // (no/limited GPU, modest RAM) that allocation can exhaust memory
-          // badly enough to take the whole system down, not just fail
-          // cleanly the way a remote API would. Warned here, proactively,
-          // the moment a local model is selected — before the crash, not
-          // only after it via the "context size exceeded" error message.
-          // Once per connection, not once per switch — the risk is exactly
-          // the same for every local model (it's about the tool list this
-          // agent always sends, not about which specific model you picked),
-          // so repeating it on every single switch just becomes noise
-          // someone trying several local models in a row has to scroll
-          // past — a real, reported annoyance.
-          if (!warnedAboutLocalModelThisConnection && session.providerBaseUrl && isLocalBaseUrl(session.providerBaseUrl)) {
-            warnedAboutLocalModelThisConnection = true;
-            const enabledToolCount = tools.list().filter((t) => !session.disabledTools.has(t.name)).length;
-            adapter.writeSystem(
-              `⚠ ${msg.model} is a local model — every message sent here includes this agent's full system prompt ` +
-                `and tool list (currently ${enabledToolCount} tools, tens of thousands of tokens on its own, before ` +
-                "any conversation). On a machine with limited RAM/no GPU, a local runtime trying to allocate enough " +
-                "context for that can exhaust memory badly enough to freeze or crash the whole system, not just fail " +
-                "cleanly. If that happens, use /tools (or the Tools panel here) to disable most tools before trying " +
-                "a local model again — a handful of tools is a much smaller, safer prompt than the full set.",
-            );
-          }
-        } else if (msg.type === "set_effort" && typeof msg.level === "string") {
-          // Shortcut past manually picking a model + remembering to strip
-          // tools every time: one message picks a model, a max_tokens cap,
-          // and a curated tool budget together (see effort-tiers.ts for why
-          // each tier's exact settings are what they are).
-          const tier = getEffortTier(msg.level);
-          if (!tier) {
-            ws.send(JSON.stringify({ type: "error", text: `Unknown effort level: ${msg.level}` }));
             return;
-          }
-          // Same rollback snapshot as set_model above, for the same reason —
-          // a tier whose model is local-server-served can fail the switch at
-          // ensureLocalTextModelForSwitch below just as easily as the plain
-          // picker can.
-          const previousModel = session.model;
-          const previousProviderKind = providerKind;
-          const previousProviderBaseUrl = session.providerBaseUrl;
-          const previousProvider = provider;
-          const previousEffort = session.effort;
-          if (tier.ollamaModel) {
-            const available = await isOllamaAvailable().catch(() => false);
-            const installed = available && (await listOllamaModels().catch(() => [])).some((m) => m.name === tier.ollamaModel);
-            if (!installed) {
-              ws.send(JSON.stringify({ type: "effort_needs_download", level: tier.id, ollamaModel: tier.ollamaModel }));
-              return;
-            }
-          }
-          // "high" has no fixed model/family of its own — it means "this
-          // project's already-configured default provider", whatever that
-          // is (Poolside via openai-compatible, Anthropic, ...), not a
-          // hardcoded family. Resolving it wrong here would mean "high"
-          // silently requiring an Anthropic key even for a project whose
-          // actual default is an openai-compatible endpoint like Poolside.
-          let resolvedModel = tier.model;
-          let resolvedFamily = tier.family;
-          if (isDefaultProviderTier(tier)) {
-            try {
-              const selected = selectProvider(config);
-              resolvedModel = selected.defaultModel;
-              resolvedFamily = selected.kind === "openai-compatible" ? "openai-compatible" : "anthropic";
-            } catch {
-              ws.send(
-                JSON.stringify({
-                  type: "model_unavailable",
-                  model: tier.model,
-                  family: "anthropic",
-                  message: "No default provider configured for this project. Set one in Settings first.",
-                }),
-              );
-              return;
-            }
-          }
-          if (tier.baseUrl) {
-            provider = new OpenAiCompatibleProvider({ baseUrl: tier.baseUrl, apiKey: undefined });
-            providerKind = "openai-compatible";
-          } else if (resolvedFamily) {
-            const availability = await familyAvailability(config);
-            if (!availability[resolvedFamily]) {
-              ws.send(
-                JSON.stringify({
-                  type: "model_unavailable",
-                  model: resolvedModel,
-                  family: resolvedFamily,
-                  message: resolvedFamily === "anthropic" ? "No Anthropic API key configured. Add one in Settings." : "No base URL configured. Add one in Settings.",
-                }),
-              );
-              return;
-            }
-            provider = buildProvider(resolvedFamily, config);
-            providerKind = resolvedFamily;
-          }
-          session.providerKind = providerKind;
-          session.providerBaseUrl = tier.baseUrl;
-          session.model = resolvedModel;
-          // Same local-model-switch check as the plain model picker above —
-          // a no-op unless this tier's model is one of
-          // config.localServices's entries.
-          const localSwitch = await ensureLocalTextModelForSwitch(config, resolvedModel, adapter);
-          if (localSwitch.handled && !localSwitch.ok) {
-            // Same rollback as set_model above: don't let the session/UI
-            // claim this effort tier's model is active when the local
-            // service switch it depends on actually failed.
-            session.model = previousModel;
-            providerKind = previousProviderKind;
-            session.providerKind = previousProviderKind;
-            session.providerBaseUrl = previousProviderBaseUrl;
-            provider = previousProvider;
-            session.effort = previousEffort;
-            ws.send(
-              JSON.stringify({
-                type: "error",
-                text: `Couldn't switch to effort level ${msg.level} (${resolvedModel}): ${
-                  localSwitch.status.state === "start-failed" ? localSwitch.status.message : "the local service switch failed."
-                }`,
-              }),
-            );
-            sendSessionInfo();
+          case "set_plan_mode":
+            return handleSetPlanMode(msg);
+          default:
             return;
-          }
-          // Same as set_model above — keep the classifier on the provider
-          // this effort tier actually switched to.
-          permissions.setProvider(provider);
-          session.maxTokens = tier.maxTokens;
-          session.effort = tier.id;
-          if (tier.toolBudget === "none") {
-            for (const t of tools.list()) session.disabledTools.add(t.name);
-          } else if (tier.toolBudget === "minimal") {
-            for (const t of tools.list()) {
-              if (MINIMAL_TOOL_SET.includes(t.name)) session.disabledTools.delete(t.name);
-              else session.disabledTools.add(t.name);
-            }
-          } else {
-            session.disabledTools.clear();
-          }
-          sendToolsStatus();
-          sendSessionInfo();
-        } else if (msg.type === "mcp_status") {
-          await sendMcpStatus();
-        } else if (msg.type === "mcp_connect" && typeof msg.name === "string") {
-          const existing = await loadMcpServers(CWD);
-          let config = existing.find((s) => s.name === msg.name);
-          if (!config) {
-            // Not yet in this project's mcp.json — if it's a known catalog
-            // entry (see mcp-catalog.ts), add it there first, same file
-            // write the CLI's own /mcp add does, then fall through to
-            // connect it below.
-            const fromCatalog = MCP_CATALOG.find((c) => c.name === msg.name);
-            if (fromCatalog) {
-              const file = path.join(CWD, ".finanfa-code", "mcp.json");
-              await mkdir(path.dirname(file), { recursive: true });
-              await writeFile(file, JSON.stringify({ servers: [...existing, fromCatalog] }, null, 2), "utf-8");
-              config = fromCatalog;
-            }
-          }
-          if (!config) {
-            adapter.writeError(`No MCP server named "${msg.name}" in .finanfa-code/mcp.json.`);
-          } else if (mcp.connectedServers().includes(msg.name)) {
-            adapter.writeSystem(`"${msg.name}" is already connected.`);
-          } else {
-            if (config.transport !== "stdio") adapter.writeSystem(`Connecting to "${msg.name}" — if it requires authorization, a browser tab will open on the server...`);
-            try {
-              await mcp.connect(config);
-              needsAuthSet.delete(msg.name);
-              await reloadMcpTools();
-              adapter.writeSystem(`Connected "${msg.name}".`);
-            } catch (err) {
-              adapter.writeError(`Failed to connect "${msg.name}": ${err instanceof Error ? err.message : err}`);
-            }
-          }
-          await sendMcpStatus();
-        } else if ((msg.type === "mcp_enable" || msg.type === "mcp_disable") && typeof msg.name === "string") {
-          if (!mcp.connectedServers().includes(msg.name)) {
-            adapter.writeError(`No connected MCP server named "${msg.name}".`);
-          } else if (msg.type === "mcp_enable") {
-            session.disabledMcpServers.delete(msg.name);
-          } else {
-            session.disabledMcpServers.add(msg.name);
-          }
-          await sendMcpStatus();
-        } else if (msg.type === "mcp_reload") {
-          await reloadMcpTools();
-          adapter.writeSystem("MCP tools reloaded.");
-          await sendMcpStatus();
-        } else if (msg.type === "set_tool_enabled" && typeof msg.name === "string" && typeof msg.enabled === "boolean") {
-          if (msg.enabled) session.disabledTools.delete(msg.name);
-          else session.disabledTools.add(msg.name);
-          sendToolsStatus();
-        } else if (msg.type === "tools_status") {
-          sendToolsStatus();
-        } else if (msg.type === "set_plan_mode" && typeof msg.enabled === "boolean") {
-          // Same gate as /plan in the CLI (see loop.ts's runOneToolCall):
-          // while on, only read-only tools and exit_plan_mode run. Pushed
-          // as a status update immediately, not just on the next turn's
-          // ui.setStatus — the client shouldn't have to send a message
-          // first to see the toggle actually took effect.
-          session.planMode = msg.enabled;
-          adapter.setStatus({
-            tokens: session.usage.inputTokens + session.usage.outputTokens,
-            costUsd: session.costUsd,
-            model: session.model,
-            planMode: session.planMode,
-          });
         }
       }
     });
