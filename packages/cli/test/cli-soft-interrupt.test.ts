@@ -24,6 +24,29 @@ function makeUi(): UIAdapter {
   };
 }
 
+/** Everything each case below needs — factored out since the four tests only differ in isBusy()/which signal/how many times it fires, not in what they build or assert against. */
+function makeFixture(dir: string) {
+  const session = new AgentSession({ cwd: dir, model: "m", systemPrompt: "s" });
+  const mcp = new McpClientManager();
+  const browser = new BrowserManager();
+  const ui = makeUi();
+  return {
+    session,
+    mcp,
+    browser,
+    ui,
+    disconnectAllSpy: vi.spyOn(mcp, "disconnectAll").mockResolvedValue(undefined),
+    persistSpy: vi.spyOn(session, "persist").mockResolvedValue(undefined),
+  };
+}
+
+/** registerShutdownHandlers's own listener is async (it awaits session.persist()/mcp.disconnectAll() before process.exit) — one setImmediate per await level lets each of those actually resolve before assertions run. */
+function flushMicrotasks(times = 1): Promise<void> {
+  let p = Promise.resolve();
+  for (let i = 0; i < times; i++) p = p.then(() => new Promise((resolve) => setImmediate(resolve)));
+  return p;
+}
+
 // registerShutdownHandlers registers real process.on("SIGINT"/"SIGTERM")
 // listeners — removed after every test so one test's handler can't fire on
 // a later test's signal, and process.exit is stubbed throughout this file
@@ -46,17 +69,13 @@ describe("registerShutdownHandlers: a Ctrl+C (SIGINT) while a turn is busy stops
   });
 
   it("aborts the in-flight turn's controller(s) and keeps the process alive, instead of the full shutdown sequence", async () => {
-    const session = new AgentSession({ cwd: dir, model: "m", systemPrompt: "s" });
+    const { session, mcp, browser, ui, disconnectAllSpy } = makeFixture(dir);
     const controller = new AbortController();
     session.activeAbortControllers.add(controller);
-    const mcp = new McpClientManager();
-    const browser = new BrowserManager();
-    const disconnectAllSpy = vi.spyOn(mcp, "disconnectAll");
-    const ui = makeUi();
 
     registerShutdownHandlers(() => session, mcp, browser, ui, () => true);
     process.emit("SIGINT");
-    await new Promise((resolve) => setImmediate(resolve));
+    await flushMicrotasks();
 
     expect(controller.signal.aborted).toBe(true);
     expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("stopping the current turn"));
@@ -65,17 +84,11 @@ describe("registerShutdownHandlers: a Ctrl+C (SIGINT) while a turn is busy stops
   });
 
   it("falls through to the full shutdown (persist, disconnect MCP, exit) when nothing is in flight", async () => {
-    const session = new AgentSession({ cwd: dir, model: "m", systemPrompt: "s" });
-    const mcp = new McpClientManager();
-    const browser = new BrowserManager();
-    const disconnectAllSpy = vi.spyOn(mcp, "disconnectAll").mockResolvedValue(undefined);
-    const persistSpy = vi.spyOn(session, "persist").mockResolvedValue(undefined);
-    const ui = makeUi();
+    const { session, mcp, browser, ui, disconnectAllSpy, persistSpy } = makeFixture(dir);
 
     registerShutdownHandlers(() => session, mcp, browser, ui, () => false);
     process.emit("SIGINT");
-    await new Promise((resolve) => setImmediate(resolve));
-    await new Promise((resolve) => setImmediate(resolve));
+    await flushMicrotasks(2);
 
     expect(persistSpy).toHaveBeenCalled();
     expect(disconnectAllSpy).toHaveBeenCalled();
@@ -83,36 +96,24 @@ describe("registerShutdownHandlers: a Ctrl+C (SIGINT) while a turn is busy stops
   });
 
   it("a second Ctrl+C within 1s forces the full shutdown even while busy — an escape hatch if the soft interrupt doesn't unstick things", async () => {
-    const session = new AgentSession({ cwd: dir, model: "m", systemPrompt: "s" });
-    const mcp = new McpClientManager();
-    const browser = new BrowserManager();
-    const disconnectAllSpy = vi.spyOn(mcp, "disconnectAll").mockResolvedValue(undefined);
-    vi.spyOn(session, "persist").mockResolvedValue(undefined);
-    const ui = makeUi();
+    const { session, mcp, browser, ui, disconnectAllSpy } = makeFixture(dir);
 
     registerShutdownHandlers(() => session, mcp, browser, ui, () => true);
     process.emit("SIGINT");
-    await new Promise((resolve) => setImmediate(resolve));
+    await flushMicrotasks();
     process.emit("SIGINT");
-    await new Promise((resolve) => setImmediate(resolve));
-    await new Promise((resolve) => setImmediate(resolve));
+    await flushMicrotasks(2);
 
     expect(disconnectAllSpy).toHaveBeenCalled();
     expect(exitSpy).toHaveBeenCalledWith(0);
   });
 
   it("SIGTERM always does the full shutdown, even while busy — not a user-initiated 'stop this turn' signal", async () => {
-    const session = new AgentSession({ cwd: dir, model: "m", systemPrompt: "s" });
-    const mcp = new McpClientManager();
-    const browser = new BrowserManager();
-    const disconnectAllSpy = vi.spyOn(mcp, "disconnectAll").mockResolvedValue(undefined);
-    vi.spyOn(session, "persist").mockResolvedValue(undefined);
-    const ui = makeUi();
+    const { session, mcp, browser, ui, disconnectAllSpy } = makeFixture(dir);
 
     registerShutdownHandlers(() => session, mcp, browser, ui, () => true);
     process.emit("SIGTERM");
-    await new Promise((resolve) => setImmediate(resolve));
-    await new Promise((resolve) => setImmediate(resolve));
+    await flushMicrotasks(2);
 
     expect(disconnectAllSpy).toHaveBeenCalled();
     expect(exitSpy).toHaveBeenCalledWith(0);
