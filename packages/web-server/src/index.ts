@@ -1591,6 +1591,24 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
       // Returns false (having already sent model_unavailable) when the
       // target family isn't configured at all; true otherwise, including
       // the plain "nothing needs to change" case.
+      // Shared by resolveProviderForSetModel/applyProviderForEffortTier
+      // below — both need the exact same "check this family is actually
+      // configured, send model_unavailable and bail out if not, otherwise
+      // rebuild provider/providerKind against it" sequence, just with a
+      // different model name and wording in the error. Factored out after
+      // SonarCloud flagged the near-identical duplicate as New Code
+      // Duplication once both existed.
+      async function rebuildProviderForFamily(family: ProviderFamily, modelForError: string, noKeyMessage: string): Promise<boolean> {
+        const availability = await familyAvailability(config);
+        if (!availability[family]) {
+          ws.send(JSON.stringify({ type: "model_unavailable", model: modelForError, family, message: noKeyMessage }));
+          return false;
+        }
+        provider = buildProvider(family, config);
+        providerKind = family;
+        return true;
+      }
+
       async function resolveProviderForSetModel(msg: { type: string; [key: string]: unknown }, hadBaseUrlOverride: boolean): Promise<boolean> {
         const family: ProviderFamily = msg.family === "openai-compatible" ? "openai-compatible" : "anthropic";
         if (typeof msg.baseUrl === "string" && msg.baseUrl) {
@@ -1615,23 +1633,13 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
         // never heard of it (404). hadBaseUrlOverride forces a rebuild even
         // within the same family when switching away from one.
         if (family !== providerKind || hadBaseUrlOverride) {
-          const availability = await familyAvailability(config);
-          if (!availability[family]) {
-            ws.send(
-              JSON.stringify({
-                type: "model_unavailable",
-                model: msg.model,
-                family,
-                message:
-                  family === "anthropic"
-                    ? "No Anthropic API key configured. Add one in Settings to use Claude models."
-                    : "No base URL configured for an OpenAI-compatible provider. Add one in Settings to use this model.",
-              }),
-            );
-            return false;
-          }
-          provider = buildProvider(family, config);
-          providerKind = family;
+          return rebuildProviderForFamily(
+            family,
+            msg.model as string,
+            family === "anthropic"
+              ? "No Anthropic API key configured. Add one in Settings to use Claude models."
+              : "No base URL configured for an OpenAI-compatible provider. Add one in Settings to use this model.",
+          );
         }
         return true;
       }
@@ -1806,20 +1814,11 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           return true;
         }
         if (resolvedFamily) {
-          const availability = await familyAvailability(config);
-          if (!availability[resolvedFamily]) {
-            ws.send(
-              JSON.stringify({
-                type: "model_unavailable",
-                model: resolvedModel,
-                family: resolvedFamily,
-                message: resolvedFamily === "anthropic" ? "No Anthropic API key configured. Add one in Settings." : "No base URL configured. Add one in Settings.",
-              }),
-            );
-            return false;
-          }
-          provider = buildProvider(resolvedFamily, config);
-          providerKind = resolvedFamily;
+          return rebuildProviderForFamily(
+            resolvedFamily,
+            resolvedModel,
+            resolvedFamily === "anthropic" ? "No Anthropic API key configured. Add one in Settings." : "No base URL configured. Add one in Settings.",
+          );
         }
         return true;
       }
