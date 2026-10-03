@@ -6,7 +6,16 @@ export type TimelineItem =
   | { kind: "user"; id: string; text: string; images?: Attachment[] }
   | { kind: "assistant"; id: string; text: string; streaming: boolean }
   | { kind: "log"; id: string; variant: "system" | "error"; text: string }
-  | { kind: "tool_call"; id: string; toolName: string; description: string; riskLevel: ToolRiskLevel }
+  | {
+      kind: "tool_call";
+      id: string;
+      toolCallId: string;
+      toolName: string;
+      description: string;
+      riskLevel: ToolRiskLevel;
+      /** Filled in once the matching "tool_result" message arrives (by toolCallId) — undefined while the call is still running. Same shape as the VS Code webview's TimelineItem. */
+      result?: { isError: boolean; content: string };
+    }
   | { kind: "media"; id: string; mediaKind: "audio" | "image"; path: string; mimeType: string };
 
 export interface PermissionRequest {
@@ -163,7 +172,12 @@ export function useAgentSocket(
           setTimeline((t) => [...t, { kind: "log", id: uid(), variant: "error", text: msg.text }]);
           break;
         case "tool_call":
-          setTimeline((t) => [...t, { kind: "tool_call", id: uid(), toolName: msg.toolName, description: msg.description, riskLevel: msg.riskLevel }]);
+          setTimeline((t) => [...t, { kind: "tool_call", id: uid(), toolCallId: msg.toolCallId, toolName: msg.toolName, description: msg.description, riskLevel: msg.riskLevel }]);
+          break;
+        case "tool_result":
+          setTimeline((t) =>
+            t.map((item) => (item.kind === "tool_call" && item.toolCallId === msg.toolCallId ? { ...item, result: { isError: msg.isError, content: msg.content } } : item)),
+          );
           break;
         case "media":
           setTimeline((t) => [...t, { kind: "media", id: uid(), mediaKind: msg.kind, path: msg.path, mimeType: msg.mimeType }]);
