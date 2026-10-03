@@ -10,6 +10,14 @@ first tagged release.
 
 ### Added
 
+- Web UI tool calls now show their real result instead of only a one-line
+  description: each call is an expandable IN/OUT block (collapsed by
+  default) with the tool's actual output behind a click, errors in red.
+  The VS Code extension already had this (`writeToolResult` in its UI
+  adapter); the web server's own adapter never implemented the method, so
+  the browser UI received no tool result at all. New `tool_result` WS
+  event, correlated to its call by `toolCallId` exactly like the VS Code
+  webview already does.
 - The local text model server now actually restarts with the right model
   when you switch to a different locally-served one mid-session (the
   model picker, or an effort tier) — before this, only the very first
