@@ -248,24 +248,29 @@ export async function main(argv: string[]): Promise<void> {
   const tools = new ToolRegistry();
   registerBuiltins(tools, { sandbox: config.sandbox, config });
 
-  const skills = await loadSkills(cwd);
+  // None of these 7 loaders depend on each other's result (each just gates
+  // its own later tools.register/formatX call) — they were previously
+  // awaited one after another, serializing 7 separate fs round-trips for
+  // no reason. Same fix already applied to connectMcpServers this session.
+  const [skills, memories, customCommands, agentTypes, projectInstructions, scopedInstructions, designContract] = await Promise.all([
+    loadSkills(cwd),
+    loadMemories(cwd),
+    loadCustomCommands(cwd),
+    loadSubagentTypes(cwd),
+    loadProjectInstructions(cwd),
+    loadScopedInstructions(cwd),
+    loadDesignContract(cwd),
+  ]);
+
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
 
   tools.register(writeMemoryTool);
   tools.register(deleteMemoryTool);
-  const memories = await loadMemories(cwd);
   if (memories.length > 0) {
     tools.register(createReadMemoryTool(cwd));
     tools.register(findDuplicateMemoriesTool);
     tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
   }
-
-  const customCommands = await loadCustomCommands(cwd);
-  const agentTypes = await loadSubagentTypes(cwd);
-
-  const projectInstructions = await loadProjectInstructions(cwd);
-  const scopedInstructions = await loadScopedInstructions(cwd);
-  const designContract = await loadDesignContract(cwd);
 
   const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
   const systemPrompt =

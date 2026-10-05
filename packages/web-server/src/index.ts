@@ -1141,20 +1141,28 @@ async function buildTurnContext(
   const tools = new ToolRegistry();
   registerBuiltins(tools, { sandbox: config.sandbox, config });
 
-  const skills = await loadSkills(cwd);
+  // None of these 6 loaders depend on each other's result (each just gates
+  // its own later tools.register/formatX call) — previously awaited one
+  // after another, serializing 6 separate fs round-trips for no reason.
+  // Same fix as cli.ts's main()/acp.ts's createAcpSession.
+  const [skills, memories, projectInstructions, scopedInstructions, designContract, agentTypes] = await Promise.all([
+    loadSkills(cwd),
+    loadMemories(cwd),
+    loadProjectInstructions(cwd),
+    loadScopedInstructions(cwd),
+    loadDesignContract(cwd),
+    loadSubagentTypes(cwd),
+  ]);
+
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
   tools.register(writeMemoryTool);
   tools.register(deleteMemoryTool);
-  const memories = await loadMemories(cwd);
   if (memories.length > 0) {
     tools.register(createReadMemoryTool(cwd));
     tools.register(findDuplicateMemoriesTool);
     tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
   }
 
-  const projectInstructions = await loadProjectInstructions(cwd);
-  const scopedInstructions = await loadScopedInstructions(cwd);
-  const designContract = await loadDesignContract(cwd);
   const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
   const systemPrompt =
     baseSystemPromptFor(localModelLeanEnabled) +
@@ -1253,7 +1261,6 @@ async function buildTurnContext(
   const { needsAuth } = await connectMcpServers(cwd, mcp, opts.ui);
   for (const def of await mcp.listAllTools()) tools.register(def);
 
-  const agentTypes = await loadSubagentTypes(cwd);
   registerStatefulBuiltins(tools, { provider, permissions, ui: opts.ui, model, cwd, browser, designContract: designContract.content, systemPrompt, agentTypes });
 
   return { session, provider, providerKind, tools, permissions, mcp, browser, config, model, needsAuth };

@@ -173,22 +173,29 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
   const tools = new ToolRegistry();
   registerBuiltins(tools, { sandbox: config.sandbox, config });
 
-  const skills = await loadSkills(cwd);
+  // None of these 6 loaders depend on each other's result (each just gates
+  // its own later tools.register/formatX call) — previously awaited one
+  // after another, serializing 6 separate fs round-trips for no reason.
+  // Same fix as cli.ts's main()/acp.ts's createAcpSession/web-server's
+  // handleConnection.
+  const [skills, memories, agentTypes, projectInstructions, scopedInstructions, designContract] = await Promise.all([
+    loadSkills(cwd),
+    loadMemories(cwd),
+    loadSubagentTypes(cwd),
+    loadProjectInstructions(cwd),
+    loadScopedInstructions(cwd),
+    loadDesignContract(cwd),
+  ]);
+
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
 
   tools.register(writeMemoryTool);
   tools.register(deleteMemoryTool);
-  const memories = await loadMemories(cwd);
   if (memories.length > 0) {
     tools.register(createReadMemoryTool(cwd));
     tools.register(findDuplicateMemoriesTool);
     tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
   }
-
-  const agentTypes = await loadSubagentTypes(cwd);
-  const projectInstructions = await loadProjectInstructions(cwd);
-  const scopedInstructions = await loadScopedInstructions(cwd);
-  const designContract = await loadDesignContract(cwd);
 
   const systemPrompt =
     BASE_SYSTEM_PROMPT +

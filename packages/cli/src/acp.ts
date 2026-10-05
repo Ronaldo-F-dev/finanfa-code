@@ -278,20 +278,28 @@ async function createAcpSession(cwd: string, cx: ClientRequester, opts: CreateAc
   if (opts.clientCapabilities.fs?.writeTextFile) tools.replace(createAcpWriteFileTool(cx, sessionId, Boolean(opts.clientCapabilities.fs?.readTextFile)));
   if (opts.clientCapabilities.terminal) tools.replace(createAcpBashTool(cx, sessionId, config.sandbox));
 
-  const skills = await loadSkills(cwd);
+  // None of these 6 loaders depend on each other's result (each just gates
+  // its own later tools.register/formatX call) — previously awaited one
+  // after another, serializing 6 separate fs round-trips for no reason.
+  // Same fix as cli.ts's main().
+  const [skills, memories, projectInstructions, scopedInstructions, designContract, agentTypes] = await Promise.all([
+    loadSkills(cwd),
+    loadMemories(cwd),
+    loadProjectInstructions(cwd),
+    loadScopedInstructions(cwd),
+    loadDesignContract(cwd),
+    loadSubagentTypes(cwd),
+  ]);
+
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
   tools.register(writeMemoryTool);
   tools.register(deleteMemoryTool);
-  const memories = await loadMemories(cwd);
   if (memories.length > 0) {
     tools.register(createReadMemoryTool(cwd));
     tools.register(findDuplicateMemoriesTool);
     tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
   }
 
-  const projectInstructions = await loadProjectInstructions(cwd);
-  const scopedInstructions = await loadScopedInstructions(cwd);
-  const designContract = await loadDesignContract(cwd);
   const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
   const systemPrompt =
     baseSystemPromptFor(localModelLeanEnabled) +
@@ -328,7 +336,6 @@ async function createAcpSession(cwd: string, cx: ClientRequester, opts: CreateAc
   for (const def of await mcp.listAllTools()) tools.register(def);
 
   const browser = new BrowserManager();
-  const agentTypes = await loadSubagentTypes(cwd);
   registerStatefulBuiltins(tools, { provider, permissions, ui, model: session.model, cwd, browser, designContract: designContract.content, systemPrompt, agentTypes });
 
   return { cwd, session, provider, tools, permissions, systemPrompt, browser, ui, mcp, cancelRequested: false };
