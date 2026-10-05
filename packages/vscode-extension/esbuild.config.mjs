@@ -20,6 +20,20 @@ const external = [
   "@opentelemetry/sdk-trace-node",
   "@opentelemetry/semantic-conventions",
   "coap",
+  // Genuinely optional — only reachable behind a lazy `await import(...)`
+  // inside embedding-provider.ts's local-embeddings RAG path, never at
+  // activation time — same Phase 1 treatment as sharp/playwright-core/
+  // mysql2/pg below: kept external rather than bundled, which was
+  // inflating dist/extension.cjs with ~16MB of this package alone whether
+  // or not a single user ever triggers that path.
+  //
+  // NOT doing the same for cohere-ai: app.ts (selectProvider, on every
+  // activation's critical path) statically imports CohereProvider, which
+  // statically imports cohere-ai at its own top level — externalizing it
+  // broke activation outright (confirmed by bundle.test.ts: "Cannot find
+  // module 'cohere-ai'"), since there's no lazy boundary to hide behind
+  // the way there is for transformers.
+  "@huggingface/transformers",
   "diff",
   "docx",
   "exceljs",
