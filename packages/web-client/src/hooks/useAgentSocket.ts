@@ -139,6 +139,7 @@ export function useAgentSocket(
     streamingIdRef.current = null;
     thinkingIdRef.current = null;
     hadTitleRef.current = false;
+    setConnected(false);
 
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
     const qs = new URLSearchParams({ model });
@@ -147,7 +148,14 @@ export function useAgentSocket(
     const ws = new WebSocket(`${proto}//${location.host}/ws?${qs.toString()}`);
     wsRef.current = ws;
 
-    ws.onopen = () => setConnected(true);
+    // "Connected" means the server is actually ready to run a turn, not
+    // merely that the WebSocket handshake finished: buildTurnContext takes
+    // seconds (config, tool registration, MCP), and the composer used to
+    // enable in that window — a fast first message then raced the server's
+    // handler (queued server-side now, see index.ts's early-message queue,
+    // but the UI shouldn't invite the race either). session_info is the
+    // server's own ready signal. A project's queued first message in
+    // App.tsx keys off this same flag and needs the truthful one.
     ws.onclose = () => setConnected(false);
 
     // Closes the currently-open reasoning block, if any. Thinking always
@@ -224,6 +232,7 @@ export function useAgentSocket(
           setPermissionRequest({ requestId: msg.requestId, prompt: msg.prompt });
           break;
         case "session_info": {
+          setConnected(true);
           const wasTitled = hadTitleRef.current;
           hadTitleRef.current = Boolean(msg.title);
           setSessionInfo({ id: msg.id, title: msg.title, model: msg.model, providerKind: msg.providerKind, toolCount: msg.toolCount, effort: msg.effort });
