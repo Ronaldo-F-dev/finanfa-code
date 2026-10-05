@@ -17,6 +17,17 @@ import { loadMcpServers } from "./mcp/config.js";
 import type { UIAdapter } from "./ui/adapter.js";
 import { resolveProviderKindAlias } from "./core/model-capabilities.js";
 import { ensureLocalService, type LocalServiceStatus } from "./core/local-model-manager.js";
+import { loadSkills } from "./skills/loader.js";
+import type { Skill } from "./skills/loader.js";
+import { loadMemories } from "./memory/loader.js";
+import type { Memory } from "./memory/loader.js";
+import { loadSubagentTypes } from "./agents/loader.js";
+import type { SubagentType } from "./agents/loader.js";
+import { loadProjectInstructions } from "./core/project-instructions.js";
+import { loadScopedInstructions } from "./core/scoped-instructions.js";
+import type { ScopedInstruction } from "./core/scoped-instructions.js";
+import { loadDesignContract } from "./core/design-contract.js";
+import type { DesignContract } from "./core/design-contract.js";
 
 export const SECURITY_INSTRUCTION =
   "Security: help with authorized security testing, defensive security work, CTF challenges, and security " +
@@ -605,4 +616,36 @@ export async function connectMcpServers(cwd: string, mcp: McpClientManager, ui: 
     ui.writeSystem(`${needsAuth.length} MCP server(s) need authorization: ${needsAuth.join(", ")} — run /mcp connect <name> to use one.`);
   }
   return { needsAuth };
+}
+
+export interface StartupContext {
+  skills: Skill[];
+  memories: Memory[];
+  agentTypes: SubagentType[];
+  projectInstructions: string | undefined;
+  scopedInstructions: ScopedInstruction[];
+  designContract: DesignContract;
+}
+
+/**
+ * Loads the 6 independent, unrelated-to-each-other project config sources
+ * every entrypoint (cli.ts's main, acp.ts's createAcpSession, web-server's
+ * handleConnection, the VS Code extension's session-runner) needs before it
+ * can build its system prompt and register skill/memory tools — each one's
+ * own separate fs round-trip (readdir + readFile per file), previously
+ * awaited one after another in all 4 places (duplicated near-verbatim,
+ * which is what this extraction actually fixes — see connectMcpServers
+ * above for the same "awaited one after another for no reason" shape of
+ * bug, fixed the same way, for MCP servers instead of these 6 loaders).
+ */
+export async function loadStartupContext(cwd: string): Promise<StartupContext> {
+  const [skills, memories, agentTypes, projectInstructions, scopedInstructions, designContract] = await Promise.all([
+    loadSkills(cwd),
+    loadMemories(cwd),
+    loadSubagentTypes(cwd),
+    loadProjectInstructions(cwd),
+    loadScopedInstructions(cwd),
+    loadDesignContract(cwd),
+  ]);
+  return { skills, memories, agentTypes, projectInstructions, scopedInstructions, designContract };
 }

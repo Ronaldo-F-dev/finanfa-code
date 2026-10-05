@@ -10,7 +10,6 @@ import { PermissionManager, type PermissionManagerOptions } from "@finanfa/core/
 import { loadPermissionConfig } from "@finanfa/core/src/permissions/config.js";
 import { loadHooksConfig } from "@finanfa/core/src/hooks/config.js";
 import { resolveTrust } from "@finanfa/core/src/core/trust-gate.js";
-import { loadSubagentTypes } from "@finanfa/core/src/agents/loader.js";
 import { McpClientManager, MCP_TOOL_PREFIX } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadMcpServers } from "@finanfa/core/src/mcp/config.js";
 import { MCP_CATALOG } from "./mcp-catalog.js";
@@ -28,9 +27,8 @@ import {
   type MemoryType,
 } from "@finanfa/core/src/memory/loader.js";
 import { embeddingsConfigFromEnv } from "@finanfa/core/src/core/embeddings.js";
-import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
-import { loadScopedInstructions, formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
-import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
+import { formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
+import { formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import { loadConfig, saveGlobalConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
 import { CONFIG_KEYS, SECRET_KEYS, maskSecret } from "@finanfa/core/src/commands/builtin.js";
@@ -42,6 +40,7 @@ import {
   isLocalProviderConfig,
   ensureConfiguredLocalTextModel,
   ensureLocalTextModelForSwitch,
+  loadStartupContext,
 } from "@finanfa/core/src/app.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
 import {
@@ -1141,18 +1140,7 @@ async function buildTurnContext(
   const tools = new ToolRegistry();
   registerBuiltins(tools, { sandbox: config.sandbox, config });
 
-  // None of these 6 loaders depend on each other's result (each just gates
-  // its own later tools.register/formatX call) — previously awaited one
-  // after another, serializing 6 separate fs round-trips for no reason.
-  // Same fix as cli.ts's main()/acp.ts's createAcpSession.
-  const [skills, memories, projectInstructions, scopedInstructions, designContract, agentTypes] = await Promise.all([
-    loadSkills(cwd),
-    loadMemories(cwd),
-    loadProjectInstructions(cwd),
-    loadScopedInstructions(cwd),
-    loadDesignContract(cwd),
-    loadSubagentTypes(cwd),
-  ]);
+  const { skills, memories, agentTypes, projectInstructions, scopedInstructions, designContract } = await loadStartupContext(cwd);
 
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
   tools.register(writeMemoryTool);
