@@ -12,9 +12,13 @@ import { describe, expect, it, vi, beforeEach } from "vitest";
 // themselves must be created inside vi.hoisted() — referencing a
 // not-yet-initialized outer const directly from a hoisted factory throws
 // "Cannot access before initialization".
-const { executeCommand } = vi.hoisted(() => ({ executeCommand: vi.fn().mockResolvedValue(undefined) }));
+const { executeCommand, showInformationMessage } = vi.hoisted(() => ({
+  executeCommand: vi.fn().mockResolvedValue(undefined),
+  showInformationMessage: vi.fn().mockResolvedValue(undefined),
+}));
 vi.mock("vscode", () => ({
   commands: { executeCommand },
+  window: { showInformationMessage },
   workspace: { workspaceFolders: [{ uri: { fsPath: "/tmp/proj" } }] },
   Uri: { joinPath: (base: unknown, ...segs: string[]) => ({ toString: () => `${String(base)}/${segs.join("/")}` }) },
 }));
@@ -55,6 +59,8 @@ function makeWebviewView() {
       },
     },
     onDidDispose: vi.fn(),
+    onDidChangeVisibility: vi.fn(() => ({ dispose: vi.fn() })),
+    visible: true,
   };
   return { view, postMessage, trigger: (msg: unknown) => listener?.(msg) };
 }
@@ -66,6 +72,7 @@ function makeContext() {
 describe("ChatViewProvider.sendToChat", () => {
   beforeEach(() => {
     executeCommand.mockClear();
+    showInformationMessage.mockClear();
     createSessionRunnerMock.mockReset().mockResolvedValue({ session: { id: "s1" }, sendMessage: vi.fn() });
     createVscodeUiAdapterMock.mockReset().mockReturnValue({ adapter: {}, resolvePending: vi.fn() });
     createChatMessageHandlerMock.mockClear();
@@ -103,6 +110,40 @@ describe("ChatViewProvider.sendToChat", () => {
     await provider.sendToChat("explain this", { autoSend: true });
 
     expect(handleMock).toHaveBeenCalledWith({ type: "user_message", text: "explain this" });
+  });
+
+  it("notifies and sets a badge on the view when a turn finishes while the panel isn't visible, and clears the badge once it's shown again", async () => {
+    const provider = new ChatViewProvider({} as never, makeContext() as never);
+    const { view, trigger } = makeWebviewView();
+    (view as { visible: boolean }).visible = false;
+    provider.resolveWebviewView(view as never);
+    trigger({ type: "webview_ready" });
+    await vi.waitFor(() => expect(createChatMessageHandlerMock).toHaveBeenCalled());
+
+    const post = (createChatMessageHandlerMock.mock.calls[0] as unknown as unknown[])[2] as (msg: Record<string, unknown>) => void;
+    post({ type: "assistant_end" });
+
+    expect(showInformationMessage).toHaveBeenCalledWith(expect.stringContaining("new reply"), "Open");
+    expect((view as { badge?: { value: number } }).badge).toEqual({ value: 1, tooltip: expect.any(String) });
+
+    const visibilityCb = (view.onDidChangeVisibility as ReturnType<typeof vi.fn>).mock.calls[0]?.[0] as () => void;
+    (view as { visible: boolean }).visible = true;
+    visibilityCb();
+
+    expect((view as { badge?: unknown }).badge).toBeUndefined();
+  });
+
+  it("does not notify when the panel is already visible — the reply is already on screen", async () => {
+    const provider = new ChatViewProvider({} as never, makeContext() as never);
+    const { view, trigger } = makeWebviewView();
+    provider.resolveWebviewView(view as never);
+    trigger({ type: "webview_ready" });
+    await vi.waitFor(() => expect(createChatMessageHandlerMock).toHaveBeenCalled());
+
+    const post = (createChatMessageHandlerMock.mock.calls[0] as unknown as unknown[])[2] as (msg: Record<string, unknown>) => void;
+    post({ type: "assistant_end" });
+
+    expect(showInformationMessage).not.toHaveBeenCalled();
   });
 
   it("delivers immediately as insert_into_composer (not a turn) when autoSend isn't requested", async () => {
