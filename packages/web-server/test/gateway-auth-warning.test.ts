@@ -1,9 +1,7 @@
 import { describe, expect, it, afterEach } from "vitest";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
-import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { spawnWebServer, killWebServer, type ServerOutput } from "./support/spawn-server.js";
+import { rm } from "node:fs/promises";
+import { spawnWebServer, killWebServer, createTempProject, type ServerOutput } from "./support/spawn-server.js";
 
 // Real end-to-end test of the startup warning added to index.ts's
 // httpServer.listen callback: it should fire when the server comes up
@@ -36,10 +34,7 @@ describe("Gateway auth startup warning (real subprocess)", () => {
   });
 
   it("warns on stdout/stderr when no gateway auth is configured", async () => {
-    projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-auth-warn-project-"));
-    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-auth-warn-home-"));
-    await mkdir(path.join(projectDir, ".finanfa-code"), { recursive: true });
-    await writeFile(path.join(projectDir, ".finanfa-code", "config.json"), JSON.stringify({ provider: "anthropic", apiKey: "unused-in-this-test" }));
+    ({ projectDir, homeDir } = await createTempProject("auth-warn"));
 
     const { child: c, output } = await spawnWebServer(projectDir, homeDir);
     child = c;
@@ -48,10 +43,7 @@ describe("Gateway auth startup warning (real subprocess)", () => {
   }, 30_000);
 
   it("does not warn when FINANFA_WEB_USERS is configured", async () => {
-    projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-auth-warn-project-"));
-    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-auth-warn-home-"));
-    await mkdir(path.join(projectDir, ".finanfa-code"), { recursive: true });
-    await writeFile(path.join(projectDir, ".finanfa-code", "config.json"), JSON.stringify({ provider: "anthropic", apiKey: "unused-in-this-test" }));
+    ({ projectDir, homeDir } = await createTempProject("auth-warn"));
 
     const { child: c, output } = await spawnWebServer(projectDir, homeDir, { FINANFA_WEB_USERS: "alice:tok-alice" });
     child = c;
