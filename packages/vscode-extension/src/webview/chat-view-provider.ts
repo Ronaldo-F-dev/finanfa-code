@@ -94,8 +94,25 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
       if (msg.type === "error" && typeof msg.text === "string" && msg.text.includes("anthropic-workspace-id")) {
         void this.promptForWorkspaceId(post);
       }
+      // A turn finishing while the user has switched to a different
+      // editor tab (or another sidebar view) would otherwise go
+      // completely unnoticed — webview.postMessage below still delivers
+      // the content, but nothing draws the eye back to it, unlike the
+      // CLI/web UIs where the reply is the only thing on screen. Only
+      // fires while NOT visible — a visible panel is already showing the
+      // reply as it streams, a second notification for it would be noise.
+      if (msg.type === "assistant_end" && !webviewView.visible) {
+        webviewView.badge = { value: (webviewView.badge?.value ?? 0) + 1, tooltip: "finanfa-code: new reply" };
+        void vscode.window.showInformationMessage("finanfa-code: new reply ready.", "Open").then((choice) => {
+          if (choice === "Open") void vscode.commands.executeCommand("finanfa.chatView.focus");
+        });
+      }
       void webviewView.webview.postMessage(msg);
     };
+
+    webviewView.onDidChangeVisibility(() => {
+      if (webviewView.visible) webviewView.badge = undefined;
+    });
 
     webviewView.webview.onDidReceiveMessage((msg: WebviewMessage) => {
       // needs_api_key intercepted here, not routed to message-handler.ts:
