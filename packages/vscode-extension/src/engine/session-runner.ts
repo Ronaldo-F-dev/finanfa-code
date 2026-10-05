@@ -11,16 +11,15 @@ import { CommandRegistry } from "@finanfa/core/src/commands/registry.js";
 import { registerBuiltinCommands } from "@finanfa/core/src/commands/builtin.js";
 import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
-import { formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
-import { formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool, createSearchMemoriesTool } from "@finanfa/core/src/memory/loader.js";
-import { embeddingsConfigFromEnv } from "@finanfa/core/src/core/embeddings.js";
+import { formatSkillIndex } from "@finanfa/core/src/skills/loader.js";
+import { formatMemoryIndex } from "@finanfa/core/src/memory/loader.js";
 import { formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import type { FinanfaConfig } from "@finanfa/core/src/core/config.js";
 import type { LlmProvider, NeutralImage } from "@finanfa/core/src/core/types.js";
 import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled } from "@finanfa/core/src/core/config.js";
-import { BASE_SYSTEM_PROMPT, selectProvider, selectVisionProvider, connectMcpServers, isLocalProviderConfig, loadStartupContext } from "@finanfa/core/src/app.js";
+import { BASE_SYSTEM_PROMPT, selectProvider, selectVisionProvider, connectMcpServers, isLocalProviderConfig, loadStartupContext, registerSkillAndMemoryTools } from "@finanfa/core/src/app.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
 import { isOllamaAvailable, listOllamaModels, pullOllamaModel as pullOllamaModelCore, type OllamaPullProgress } from "@finanfa/core/src/core/ollama-models.js";
 import { EFFORT_TIERS, getEffortTier, isDefaultProviderTier, MINIMAL_TOOL_SET } from "@finanfa/core/src/core/effort-tiers.js";
@@ -173,15 +172,7 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
 
   const { skills, memories, agentTypes, projectInstructions, scopedInstructions, designContract } = await loadStartupContext(cwd);
 
-  if (skills.length > 0) tools.register(createReadSkillTool(skills));
-
-  tools.register(writeMemoryTool);
-  tools.register(deleteMemoryTool);
-  if (memories.length > 0) {
-    tools.register(createReadMemoryTool(cwd));
-    tools.register(findDuplicateMemoriesTool);
-    tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
-  }
+  registerSkillAndMemoryTools(tools, skills, memories, cwd);
 
   const systemPrompt =
     BASE_SYSTEM_PROMPT +

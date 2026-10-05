@@ -13,20 +13,14 @@ import { resolveTrust } from "@finanfa/core/src/core/trust-gate.js";
 import { McpClientManager, MCP_TOOL_PREFIX } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadMcpServers } from "@finanfa/core/src/mcp/config.js";
 import { MCP_CATALOG } from "./mcp-catalog.js";
-import { loadSkills, formatSkillIndex, createReadSkillTool, writeSkill, deleteSkill } from "@finanfa/core/src/skills/loader.js";
+import { loadSkills, formatSkillIndex, writeSkill, deleteSkill } from "@finanfa/core/src/skills/loader.js";
 import {
   loadMemories,
   formatMemoryIndex,
-  createReadMemoryTool,
-  writeMemoryTool,
-  deleteMemoryTool,
-  findDuplicateMemoriesTool,
-  createSearchMemoriesTool,
   writeMemory,
   deleteMemory,
   type MemoryType,
 } from "@finanfa/core/src/memory/loader.js";
-import { embeddingsConfigFromEnv } from "@finanfa/core/src/core/embeddings.js";
 import { formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
@@ -41,6 +35,7 @@ import {
   ensureConfiguredLocalTextModel,
   ensureLocalTextModelForSwitch,
   loadStartupContext,
+  registerSkillAndMemoryTools,
 } from "@finanfa/core/src/app.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
 import {
@@ -1142,14 +1137,7 @@ async function buildTurnContext(
 
   const { skills, memories, agentTypes, projectInstructions, scopedInstructions, designContract } = await loadStartupContext(cwd);
 
-  if (skills.length > 0) tools.register(createReadSkillTool(skills));
-  tools.register(writeMemoryTool);
-  tools.register(deleteMemoryTool);
-  if (memories.length > 0) {
-    tools.register(createReadMemoryTool(cwd));
-    tools.register(findDuplicateMemoriesTool);
-    tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
-  }
+  registerSkillAndMemoryTools(tools, skills, memories, cwd);
 
   const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
   const systemPrompt =
