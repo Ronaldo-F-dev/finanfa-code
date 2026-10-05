@@ -90,6 +90,7 @@ import { startCloudflareTunnel } from "./cloudflare-tunnel.js";
 import { parseWebUsers, authenticateBearerToken, authenticateQueryToken } from "./auth.js";
 import { SessionTokenStore, defaultSessionStorePath } from "./session-token-store.js";
 import { loadUserStore, createUser, verifyUserPassword } from "./user-store.js";
+import { LoginRateLimiter } from "./login-rate-limiter.js";
 import { oidcConfigFromEnv, discoverOidcEndpoints, buildAuthorizationUrl, exchangeCodeForToken, fetchOidcUserInfo, OidcStateStore } from "./oidc.js";
 
 // The workspace the "default" project points at — the same "cwd" concept as
@@ -239,16 +240,26 @@ function buildProvider(family: ProviderFamily, config: FinanfaConfig): LlmProvid
 // logging into an account is harmless either way), but only matter once
 // it's on — a login's session token is otherwise never checked by
 // anything.
+const LOGIN_RATE_LIMITER = new LoginRateLimiter();
+
 app.post("/api/auth/login", async (req, res) => {
   const { username, password } = req.body as { username?: string; password?: string };
   if (!username || !password) {
     res.status(400).json({ error: "username and password are both required." });
     return;
   }
+  LOGIN_RATE_LIMITER.pruneExpired();
+  const retryAfterMs = LOGIN_RATE_LIMITER.retryAfterMs(req.ip ?? "unknown", username);
+  if (retryAfterMs > 0) {
+    res.status(429).set("Retry-After", String(Math.ceil(retryAfterMs / 1000))).json({ error: "Too many failed login attempts. Try again later." });
+    return;
+  }
   if (!(await verifyUserPassword(username, password))) {
+    LOGIN_RATE_LIMITER.recordFailure(req.ip ?? "unknown", username);
     res.status(401).json({ error: "Invalid username or password." });
     return;
   }
+  LOGIN_RATE_LIMITER.recordSuccess(req.ip ?? "unknown", username);
   res.json({ token: await AUTH_SESSIONS.issue(username), user: username });
 });
 
