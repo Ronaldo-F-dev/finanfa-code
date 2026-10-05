@@ -2047,6 +2047,28 @@ httpServer.listen(PORT, () => {
   const boundPort = (httpServer.address() as { port: number }).port;
   console.log(`finanfa-code-web server listening on http://localhost:${boundPort} (default workspace: ${DEFAULT_CWD})`);
 
+  // Real risk this is meant to surface before someone gets burned by it,
+  // not just a reminder: with GATEWAY_ENABLED off, every request/connection
+  // is treated as one shared, unauthenticated user — anyone who reaches this
+  // server's URL can drive the agent (including bash/file-write tools) as
+  // if they were sitting at the keyboard. Fine for local/loopback use (the
+  // "exactly as before this feature existed" default this deliberately
+  // doesn't change), genuinely dangerous the moment this process is reachable
+  // from outside localhost — e.g. deployed via fly.toml/render.yaml with no
+  // FINANFA_WEB_USERS/FINANFA_WEB_ACCOUNTS/OIDC configured. A warning, not a
+  // hard refusal to start: this file has no other signal (no NODE_ENV check
+  // elsewhere) to reliably distinguish "intentionally local-only" from
+  // "about to be deployed," and failing to start at all would be a worse
+  // surprise for the common local case than one loud log line.
+  if (!GATEWAY_ENABLED) {
+    console.warn(
+      "⚠ No gateway auth configured (FINANFA_WEB_USERS / FINANFA_WEB_ACCOUNTS=1 / OIDC) — every request is treated " +
+        "as one shared, unauthenticated user with full agent access (including shell/file tools). Safe for local-only " +
+        "use (127.0.0.1); before exposing this server publicly (a real domain, a cloud deploy, a tunnel), set one of " +
+        "those up first — see README's Setup section.",
+    );
+  }
+
   // Opt-in only (see cloudflare-tunnel.ts's own header comment) — a real
   // public HTTPS URL is what every webhook-based channel (Telegram,
   // Discord, ...) actually needs, previously only obtainable by running

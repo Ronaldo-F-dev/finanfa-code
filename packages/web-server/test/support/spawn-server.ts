@@ -13,22 +13,26 @@ export const webServerDir = path.dirname(fileURLToPath(import.meta.url)).replace
 
 const READY_LINE_RE = /listening on http:\/\/localhost:(\d+)/;
 
-function waitForServerReady(child: ChildProcessWithoutNullStreams): Promise<number> {
+/** Mutable accumulator kept alive past server startup — lets a caller assert on log lines (e.g. the no-gateway-auth startup warning) that may arrive in the same or a later chunk than the "listening on" line, without re-attaching a stream listener after the fact and racing already-delivered chunks. */
+export interface ServerOutput {
+  text: string;
+}
+
+function waitForServerReady(child: ChildProcessWithoutNullStreams, output: ServerOutput): Promise<number> {
   return new Promise<number>((resolve, reject) => {
     const timeout = setTimeout(() => reject(new Error("web server did not start in time")), 15_000);
-    let buf = "";
     child.stdout.on("data", (d: Buffer) => {
-      buf += d.toString();
-      const match = READY_LINE_RE.exec(buf);
+      output.text += d.toString();
+      const match = READY_LINE_RE.exec(output.text);
       if (match) {
         clearTimeout(timeout);
         resolve(Number(match[1]));
       }
     });
-    child.stderr.on("data", (d: Buffer) => (buf += d.toString()));
+    child.stderr.on("data", (d: Buffer) => (output.text += d.toString()));
     child.on("exit", (code) => {
       clearTimeout(timeout);
-      reject(new Error(`web server exited early (code ${code}): ${buf}`));
+      reject(new Error(`web server exited early (code ${code}): ${output.text}`));
     });
   });
 }
@@ -50,7 +54,11 @@ function waitForServerReady(child: ChildProcessWithoutNullStreams): Promise<numb
  * failure with no relation to the code under test). PORT=0 removes the
  * guesswork instead of just widening the ranges further.
  */
-export async function spawnWebServer(projectDir: string, homeDir: string): Promise<{ child: ChildProcessWithoutNullStreams; port: number }> {
+export async function spawnWebServer(
+  projectDir: string,
+  homeDir: string,
+  extraEnv: NodeJS.ProcessEnv = {},
+): Promise<{ child: ChildProcessWithoutNullStreams; port: number; output: ServerOutput }> {
   const env: NodeJS.ProcessEnv = { ...process.env, PORT: "0", FINANFA_WEB_CWD: projectDir, HOME: homeDir };
   // Real, reported bug found chasing spurious channel-image-attachment
   // failures: FINANFA_VISION_* wasn't in this list, so a dev shell's real
@@ -74,6 +82,13 @@ export async function spawnWebServer(projectDir: string, homeDir: string): Promi
     "FINANFA_VISION_MODEL",
   ])
     delete env[k];
+  // Deliberately NOT clearing FINANFA_WEB_USERS/FINANFA_WEB_ACCOUNTS here —
+  // gateway-auth.test.ts/gateway-accounts.test.ts already set/delete those
+  // directly on process.env themselves (before this function reads it via
+  // the spread above) as their own established pattern. extraEnv is purely
+  // additive on top, for a caller that wants to set something without
+  // touching process.env globally.
+  Object.assign(env, extraEnv);
 
   // detached: true (+ killWebServer's process-group kill below) — real bug
   // found running this suite repeatedly: `npx tsx src/index.ts` spawns tsx
@@ -85,8 +100,9 @@ export async function spawnWebServer(projectDir: string, homeDir: string): Promi
   // nothing to do with the code under test. Same shape of bug as
   // background-process.ts's own real orphan-process fix.
   const child = spawn("npx", ["tsx", "src/index.ts"], { cwd: webServerDir, env, detached: true }) as ChildProcessWithoutNullStreams;
-  const port = await waitForServerReady(child);
-  return { child, port };
+  const output: ServerOutput = { text: "" };
+  const port = await waitForServerReady(child, output);
+  return { child, port, output };
 }
 
 /** Kills the real server process AND the npx wrapper it was spawned through — see spawnWebServer's own comment on why a plain child.kill() alone isn't enough. */
