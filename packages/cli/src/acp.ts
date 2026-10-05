@@ -11,14 +11,13 @@ import { loadHooksConfig } from "@finanfa/core/src/hooks/config.js";
 import { resolveTrust } from "@finanfa/core/src/core/trust-gate.js";
 import { CommandRegistry } from "@finanfa/core/src/commands/registry.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
-import { formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
-import { formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool, createSearchMemoriesTool } from "@finanfa/core/src/memory/loader.js";
-import { embeddingsConfigFromEnv } from "@finanfa/core/src/core/embeddings.js";
+import { formatSkillIndex } from "@finanfa/core/src/skills/loader.js";
+import { formatMemoryIndex } from "@finanfa/core/src/memory/loader.js";
 import { formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled } from "@finanfa/core/src/core/config.js";
-import { baseSystemPromptFor, selectProvider, isLocalProviderConfig, connectMcpServers, loadStartupContext } from "@finanfa/core/src/app.js";
+import { baseSystemPromptFor, selectProvider, isLocalProviderConfig, connectMcpServers, loadStartupContext, registerSkillAndMemoryTools } from "@finanfa/core/src/app.js";
 import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
 import type { McpServerConfig } from "@finanfa/core/src/mcp/config.js";
 import type { LlmProvider } from "@finanfa/core/src/core/types.js";
@@ -278,14 +277,7 @@ async function createAcpSession(cwd: string, cx: ClientRequester, opts: CreateAc
 
   const { skills, memories, agentTypes, projectInstructions, scopedInstructions, designContract } = await loadStartupContext(cwd);
 
-  if (skills.length > 0) tools.register(createReadSkillTool(skills));
-  tools.register(writeMemoryTool);
-  tools.register(deleteMemoryTool);
-  if (memories.length > 0) {
-    tools.register(createReadMemoryTool(cwd));
-    tools.register(findDuplicateMemoriesTool);
-    tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
-  }
+  registerSkillAndMemoryTools(tools, skills, memories, cwd);
 
   const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
   const systemPrompt =
