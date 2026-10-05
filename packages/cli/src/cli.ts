@@ -21,9 +21,8 @@ import { registerBuiltinCommands } from "@finanfa/core/src/commands/builtin.js";
 import type { CommandOutcome } from "@finanfa/core/src/commands/types.js";
 import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
-import { formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
-import { formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool, createSearchMemoriesTool } from "@finanfa/core/src/memory/loader.js";
-import { embeddingsConfigFromEnv } from "@finanfa/core/src/core/embeddings.js";
+import { formatSkillIndex } from "@finanfa/core/src/skills/loader.js";
+import { formatMemoryIndex } from "@finanfa/core/src/memory/loader.js";
 import { loadCustomCommands, runCustomCommand, type CustomCommand } from "@finanfa/core/src/commands/custom-commands.js";
 import { formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
@@ -41,6 +40,7 @@ import {
   isLocalProviderConfig,
   ensureConfiguredLocalTextModel,
   loadStartupContext,
+  registerSkillAndMemoryTools,
 } from "@finanfa/core/src/app.js";
 
 export { BASE_SYSTEM_PROMPT, SECURITY_INSTRUCTION, connectMcpServers, registerShutdownHandlers };
@@ -256,15 +256,7 @@ export async function main(argv: string[]): Promise<void> {
     loadCustomCommands(cwd),
   ]);
 
-  if (skills.length > 0) tools.register(createReadSkillTool(skills));
-
-  tools.register(writeMemoryTool);
-  tools.register(deleteMemoryTool);
-  if (memories.length > 0) {
-    tools.register(createReadMemoryTool(cwd));
-    tools.register(findDuplicateMemoriesTool);
-    tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
-  }
+  registerSkillAndMemoryTools(tools, skills, memories, cwd);
 
   const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
   const systemPrompt =

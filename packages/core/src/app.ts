@@ -17,10 +17,12 @@ import { loadMcpServers } from "./mcp/config.js";
 import type { UIAdapter } from "./ui/adapter.js";
 import { resolveProviderKindAlias } from "./core/model-capabilities.js";
 import { ensureLocalService, type LocalServiceStatus } from "./core/local-model-manager.js";
-import { loadSkills } from "./skills/loader.js";
+import { loadSkills, createReadSkillTool } from "./skills/loader.js";
 import type { Skill } from "./skills/loader.js";
-import { loadMemories } from "./memory/loader.js";
+import { loadMemories, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool, createSearchMemoriesTool } from "./memory/loader.js";
 import type { Memory } from "./memory/loader.js";
+import { embeddingsConfigFromEnv } from "./core/embeddings.js";
+import { ToolRegistry } from "./tools/registry.js";
 import { loadSubagentTypes } from "./agents/loader.js";
 import type { SubagentType } from "./agents/loader.js";
 import { loadProjectInstructions } from "./core/project-instructions.js";
@@ -648,4 +650,23 @@ export async function loadStartupContext(cwd: string): Promise<StartupContext> {
     loadDesignContract(cwd),
   ]);
   return { skills, memories, agentTypes, projectInstructions, scopedInstructions, designContract };
+}
+
+/**
+ * Registers the skill/memory tools every entrypoint needs right after
+ * loadStartupContext — identical in cli.ts, acp.ts, web-server's
+ * handleConnection, and the VS Code extension's session-runner (each only
+ * registers the read-skill/search-memories tools when there's actually at
+ * least one skill/memory on disk, so a project with neither doesn't carry
+ * tools that could never return anything).
+ */
+export function registerSkillAndMemoryTools(tools: ToolRegistry, skills: Skill[], memories: Memory[], cwd: string): void {
+  if (skills.length > 0) tools.register(createReadSkillTool(skills));
+  tools.register(writeMemoryTool);
+  tools.register(deleteMemoryTool);
+  if (memories.length > 0) {
+    tools.register(createReadMemoryTool(cwd));
+    tools.register(findDuplicateMemoriesTool);
+    tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
+  }
 }
