@@ -21,14 +21,12 @@ import { registerBuiltinCommands } from "@finanfa/core/src/commands/builtin.js";
 import type { CommandOutcome } from "@finanfa/core/src/commands/types.js";
 import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
-import { loadSkills, formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
-import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool, createSearchMemoriesTool } from "@finanfa/core/src/memory/loader.js";
+import { formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
+import { formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool, createSearchMemoriesTool } from "@finanfa/core/src/memory/loader.js";
 import { embeddingsConfigFromEnv } from "@finanfa/core/src/core/embeddings.js";
 import { loadCustomCommands, runCustomCommand, type CustomCommand } from "@finanfa/core/src/commands/custom-commands.js";
-import { loadSubagentTypes } from "@finanfa/core/src/agents/loader.js";
-import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
-import { loadScopedInstructions, formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
-import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
+import { formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
+import { formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import type { LlmProvider } from "@finanfa/core/src/core/types.js";
 import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled } from "@finanfa/core/src/core/config.js";
@@ -42,6 +40,7 @@ import {
   connectMcpServers,
   isLocalProviderConfig,
   ensureConfiguredLocalTextModel,
+  loadStartupContext,
 } from "@finanfa/core/src/app.js";
 
 export { BASE_SYSTEM_PROMPT, SECURITY_INSTRUCTION, connectMcpServers, registerShutdownHandlers };
@@ -248,24 +247,24 @@ export async function main(argv: string[]): Promise<void> {
   const tools = new ToolRegistry();
   registerBuiltins(tools, { sandbox: config.sandbox, config });
 
-  const skills = await loadSkills(cwd);
+  // loadCustomCommands is CLI-only (no slash-command surface elsewhere),
+  // so it runs alongside loadStartupContext's own internal Promise.all
+  // rather than inside it — see loadStartupContext's own doc comment for
+  // why the other 6 are batched together once, shared by every entrypoint.
+  const [{ skills, memories, agentTypes, projectInstructions, scopedInstructions, designContract }, customCommands] = await Promise.all([
+    loadStartupContext(cwd),
+    loadCustomCommands(cwd),
+  ]);
+
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
 
   tools.register(writeMemoryTool);
   tools.register(deleteMemoryTool);
-  const memories = await loadMemories(cwd);
   if (memories.length > 0) {
     tools.register(createReadMemoryTool(cwd));
     tools.register(findDuplicateMemoriesTool);
     tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
   }
-
-  const customCommands = await loadCustomCommands(cwd);
-  const agentTypes = await loadSubagentTypes(cwd);
-
-  const projectInstructions = await loadProjectInstructions(cwd);
-  const scopedInstructions = await loadScopedInstructions(cwd);
-  const designContract = await loadDesignContract(cwd);
 
   const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
   const systemPrompt =

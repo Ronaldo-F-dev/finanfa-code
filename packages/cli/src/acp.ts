@@ -11,16 +11,14 @@ import { loadHooksConfig } from "@finanfa/core/src/hooks/config.js";
 import { resolveTrust } from "@finanfa/core/src/core/trust-gate.js";
 import { CommandRegistry } from "@finanfa/core/src/commands/registry.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
-import { loadSkills, formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
-import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool, createSearchMemoriesTool } from "@finanfa/core/src/memory/loader.js";
+import { formatSkillIndex, createReadSkillTool } from "@finanfa/core/src/skills/loader.js";
+import { formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool, createSearchMemoriesTool } from "@finanfa/core/src/memory/loader.js";
 import { embeddingsConfigFromEnv } from "@finanfa/core/src/core/embeddings.js";
-import { loadSubagentTypes } from "@finanfa/core/src/agents/loader.js";
-import { loadProjectInstructions, formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
-import { loadScopedInstructions, formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
-import { loadDesignContract } from "@finanfa/core/src/core/design-contract.js";
+import { formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
+import { formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled } from "@finanfa/core/src/core/config.js";
-import { baseSystemPromptFor, selectProvider, isLocalProviderConfig, connectMcpServers } from "@finanfa/core/src/app.js";
+import { baseSystemPromptFor, selectProvider, isLocalProviderConfig, connectMcpServers, loadStartupContext } from "@finanfa/core/src/app.js";
 import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
 import type { McpServerConfig } from "@finanfa/core/src/mcp/config.js";
 import type { LlmProvider } from "@finanfa/core/src/core/types.js";
@@ -278,20 +276,17 @@ async function createAcpSession(cwd: string, cx: ClientRequester, opts: CreateAc
   if (opts.clientCapabilities.fs?.writeTextFile) tools.replace(createAcpWriteFileTool(cx, sessionId, Boolean(opts.clientCapabilities.fs?.readTextFile)));
   if (opts.clientCapabilities.terminal) tools.replace(createAcpBashTool(cx, sessionId, config.sandbox));
 
-  const skills = await loadSkills(cwd);
+  const { skills, memories, agentTypes, projectInstructions, scopedInstructions, designContract } = await loadStartupContext(cwd);
+
   if (skills.length > 0) tools.register(createReadSkillTool(skills));
   tools.register(writeMemoryTool);
   tools.register(deleteMemoryTool);
-  const memories = await loadMemories(cwd);
   if (memories.length > 0) {
     tools.register(createReadMemoryTool(cwd));
     tools.register(findDuplicateMemoriesTool);
     tools.register(createSearchMemoriesTool(embeddingsConfigFromEnv()));
   }
 
-  const projectInstructions = await loadProjectInstructions(cwd);
-  const scopedInstructions = await loadScopedInstructions(cwd);
-  const designContract = await loadDesignContract(cwd);
   const localModelLeanEnabled = resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config));
   const systemPrompt =
     baseSystemPromptFor(localModelLeanEnabled) +
@@ -328,7 +323,6 @@ async function createAcpSession(cwd: string, cx: ClientRequester, opts: CreateAc
   for (const def of await mcp.listAllTools()) tools.register(def);
 
   const browser = new BrowserManager();
-  const agentTypes = await loadSubagentTypes(cwd);
   registerStatefulBuiltins(tools, { provider, permissions, ui, model: session.model, cwd, browser, designContract: designContract.content, systemPrompt, agentTypes });
 
   return { cwd, session, provider, tools, permissions, systemPrompt, browser, ui, mcp, cancelRequested: false };
