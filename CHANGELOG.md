@@ -10,6 +10,15 @@ first tagged release.
 
 ### Added
 
+- Web UI now shows the model's own reasoning as it streams: a collapsed
+  "Reasoning" block above the reply (same expandable-block shape as tool
+  calls) fills in live via a new `thinking_delta` WS event from
+  `writeThinkingDelta`. Anthropic extended thinking already reached the
+  core (`UIAdapter.writeThinkingDelta` + `loop.ts`), but no WebSocket
+  adapter implemented the method, so the browser never saw a single
+  reasoning chunk. The block deliberately reuses the tool-call block's
+  existing classes instead of shipping a second copy of the same visual
+  language.
 - Web UI tool calls now show their real result instead of only a one-line
   description: each call is an expandable IN/OUT block (collapsed by
   default) with the tool's actual output behind a click, errors in red.
