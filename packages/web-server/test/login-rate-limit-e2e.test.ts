@@ -1,9 +1,7 @@
 import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
-import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
-import { tmpdir } from "node:os";
-import path from "node:path";
-import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
+import { rm } from "node:fs/promises";
+import { spawnWebServer, killWebServer, createTempProject } from "./support/spawn-server.js";
 
 // Real end-to-end test of the login brute-force throttle (see
 // login-rate-limiter.ts) wired into POST /api/auth/login — proves the
@@ -18,10 +16,7 @@ describe("Login rate limiting (real subprocess)", () => {
   let port: number;
 
   beforeAll(async () => {
-    projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-rate-limit-project-"));
-    homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-rate-limit-home-"));
-    await mkdir(path.join(projectDir, ".finanfa-code"), { recursive: true });
-    await writeFile(path.join(projectDir, ".finanfa-code", "config.json"), JSON.stringify({ provider: "anthropic", apiKey: "unused-in-this-test" }));
+    ({ projectDir, homeDir } = await createTempProject("rate-limit"));
 
     process.env.FINANFA_WEB_ACCOUNTS = "1";
     ({ child, port } = await spawnWebServer(projectDir, homeDir));

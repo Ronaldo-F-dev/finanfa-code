@@ -1,4 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
+import { mkdtemp, mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { killProcessGroup } from "@finanfa/core/src/util/process.js";
@@ -108,4 +110,22 @@ export async function spawnWebServer(
 /** Kills the real server process AND the npx wrapper it was spawned through — see spawnWebServer's own comment on why a plain child.kill() alone isn't enough. */
 export function killWebServer(child: ChildProcessWithoutNullStreams | undefined): void {
   if (child) killProcessGroup(child);
+}
+
+/**
+ * Creates the pair of temp dirs spawnWebServer needs (a project dir with a
+ * `.finanfa-code/config.json`, and a separate `$HOME`) — extracted after
+ * the same three-line mkdtemp/mkdir/writeFile sequence (with only the temp
+ * prefix and config body differing) kept getting copy-pasted into each new
+ * e2e test file's beforeAll, which is exactly the kind of near-duplicate
+ * block SonarCloud's "Duplication on New Code" gate flags.
+ */
+const DEFAULT_TEST_CONFIG: Record<string, unknown> = { provider: "anthropic", apiKey: "unused-in-this-test" };
+
+export async function createTempProject(prefix: string, config: Record<string, unknown> = DEFAULT_TEST_CONFIG): Promise<{ projectDir: string; homeDir: string }> {
+  const projectDir = await mkdtemp(path.join(tmpdir(), `finanfa-web-${prefix}-project-`));
+  const homeDir = await mkdtemp(path.join(tmpdir(), `finanfa-web-${prefix}-home-`));
+  await mkdir(path.join(projectDir, ".finanfa-code"), { recursive: true });
+  await writeFile(path.join(projectDir, ".finanfa-code", "config.json"), JSON.stringify(config));
+  return { projectDir, homeDir };
 }
