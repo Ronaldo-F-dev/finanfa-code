@@ -38,6 +38,9 @@ export function createWebUiAdapter(ws: WebSocket): { adapter: UIAdapter; resolve
     writeToolResult(info) {
       send("tool_result", { ...info });
     },
+    writeThinkingDelta(text) {
+      send("thinking_delta", { text });
+    },
     writeError(text) {
       send("error", { text });
     },

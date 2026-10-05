@@ -64,6 +64,26 @@ export function ChatMessageView({ item, projectId }: { item: TimelineItem; proje
     );
   }
 
+  if (item.kind === "thinking") {
+    return (
+      <div className="row row-log">
+        {/* The model's reasoning streams before the reply — same expandable
+            block as a tool call, collapsed by default, deliberately reusing
+            that block's existing classes (only the dashed border and italic
+            label are thinking-specific, see index.css) instead of shipping a
+            second near-identical copy of the same visual language. */}
+        <details className="tool-call-details tool-call-thinking">
+          <summary className="tool-call">
+            <span className="tool-call-icon">✻</span>
+            <span className="tool-call-name">{t("thinking.title")}</span>
+            {item.streaming && <span className="tool-call-description">…</span>}
+          </summary>
+          <div className="tool-call-result">{item.text}</div>
+        </details>
+      </div>
+    );
+  }
+
   if (item.kind === "tool_call") {
     const icon = TOOL_RISK_ICON[item.riskLevel];
     return (

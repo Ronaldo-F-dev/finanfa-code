@@ -5,6 +5,7 @@ export type ToolRiskLevel = "safe" | "ask" | "dangerous";
 export type TimelineItem =
   | { kind: "user"; id: string; text: string; images?: Attachment[] }
   | { kind: "assistant"; id: string; text: string; streaming: boolean }
+  | { kind: "thinking"; id: string; text: string; streaming: boolean }
   | { kind: "log"; id: string; variant: "system" | "error"; text: string }
   | {
       kind: "tool_call";
@@ -114,6 +115,9 @@ export function useAgentSocket(
   const [resumeToken, setResumeToken] = useState(0);
   const wsRef = useRef<WebSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
+  // Same "one open block at a time" bookkeeping as streamingIdRef, for the
+  // reasoning block that streams before the reply (writeThinkingDelta).
+  const thinkingIdRef = useRef<string | null>(null);
   const onTitledRef = useRef(onTitled);
   onTitledRef.current = onTitled;
   // Whether *this* connection's session already had a title as of its last
@@ -133,6 +137,7 @@ export function useAgentSocket(
     setModelUnavailable(null);
     setTodos([]);
     streamingIdRef.current = null;
+    thinkingIdRef.current = null;
     hadTitleRef.current = false;
 
     const proto = location.protocol === "https:" ? "wss:" : "ws:";
@@ -145,10 +150,21 @@ export function useAgentSocket(
     ws.onopen = () => setConnected(true);
     ws.onclose = () => setConnected(false);
 
+    // Closes the currently-open reasoning block, if any. Thinking always
+    // precedes the reply (or an error/end), and a block left "streaming"
+    // forever would keep its live indicator on and look stuck.
+    const endThinking = (): void => {
+      const id = thinkingIdRef.current;
+      if (!id) return;
+      thinkingIdRef.current = null;
+      setTimeline((t) => t.map((item) => (item.kind === "thinking" && item.id === id ? { ...item, streaming: false } : item)));
+    };
+
     ws.onmessage = (event) => {
       const msg = JSON.parse(event.data as string);
       switch (msg.type) {
         case "assistant_delta": {
+          endThinking();
           if (!streamingIdRef.current) {
             const id = uid();
             streamingIdRef.current = id;
@@ -160,15 +176,28 @@ export function useAgentSocket(
           break;
         }
         case "assistant_end": {
+          endThinking();
           const id = streamingIdRef.current;
           streamingIdRef.current = null;
           if (id) setTimeline((t) => t.map((item) => (item.kind === "assistant" && item.id === id ? { ...item, streaming: false } : item)));
+          break;
+        }
+        case "thinking_delta": {
+          if (!thinkingIdRef.current) {
+            const id = uid();
+            thinkingIdRef.current = id;
+            setTimeline((t) => [...t, { kind: "thinking", id, text: msg.text, streaming: true }]);
+          } else {
+            const id = thinkingIdRef.current;
+            setTimeline((t) => t.map((item) => (item.kind === "thinking" && item.id === id ? { ...item, text: item.text + msg.text } : item)));
+          }
           break;
         }
         case "system":
           setTimeline((t) => [...t, { kind: "log", id: uid(), variant: "system", text: msg.text }]);
           break;
         case "error":
+          endThinking();
           setTimeline((t) => [...t, { kind: "log", id: uid(), variant: "error", text: msg.text }]);
           break;
         case "tool_call":
