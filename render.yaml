@@ -7,6 +7,13 @@
 # you're using — see README's Setup section) as a real secret in the
 # service's Environment tab, since `sync: false` here deliberately means
 # "don't commit this file's own value to the repo."
+#
+# Also set FINANFA_WEB_USERS (a username:token pair, e.g. you:some-long-
+# random-token) the same way — REQUIRED before this is reachable from
+# outside localhost, since without it anyone who finds this service's URL
+# can drive the agent (shell/file tools included) as a single shared,
+# unauthenticated user. FINANFA_WEB_ACCOUNTS=1 or OIDC also work — see
+# README's Setup section.
 services:
   - type: web
     name: finanfa-code
@@ -20,6 +27,8 @@ services:
       - key: FINANFA_WEB_CWD
         value: /workspace
       - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: FINANFA_WEB_USERS
         sync: false
     disk:
       name: finanfa-data

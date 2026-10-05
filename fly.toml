@@ -5,6 +5,12 @@
 #   fly launch --no-deploy               # creates the app, asks you to confirm/rename it below
 #   fly volumes create finanfa_data --size 1 --region <your-region>
 #   fly secrets set ANTHROPIC_API_KEY=sk-ant-...   # or whichever provider you're using — see README's Setup section
+#   fly secrets set FINANFA_WEB_USERS=you:some-long-random-token   # REQUIRED before this is reachable from outside
+#                                                                   # localhost — without it, anyone who finds this
+#                                                                   # app's URL can drive the agent (shell/file tools
+#                                                                   # included) as a single shared, unauthenticated
+#                                                                   # user. FINANFA_WEB_ACCOUNTS=1 or OIDC also work —
+#                                                                   # see README's Setup section.
 #   fly deploy
 #
 # `app` below is a placeholder — `fly launch` rewrites it to whatever name
