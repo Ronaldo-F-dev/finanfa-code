@@ -165,6 +165,10 @@ describe("web-server: a resumed session reconstructs the right provider, not jus
       expect(localServer.requestCount()).toBeGreaterThan(localRequestsBeforeRestart);
       expect(defaultServer.requestCount()).toBe(defaultRequestsBeforeRestart);
     },
-    30_000,
+    // Double the usual 30_000 every other single-spawn e2e test in this
+    // directory uses — this one does TWO full cold-start `npx tsx` server
+    // boots in a single test (the whole point: a real crash/restart), so
+    // it genuinely needs twice the margin, not just under contention.
+    60_000,
   );
 });
