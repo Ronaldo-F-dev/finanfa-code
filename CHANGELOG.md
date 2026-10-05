@@ -92,6 +92,15 @@ first tagged release.
 
 ### Fixed
 
+- **Real, reproduced bug**: a message sent the instant the web UI opened
+  could vanish with no error and no reply. The server only attaches its
+  WebSocket message handler after `buildTurnContext` finishes (seconds of
+  config, tool registration and MCP setup), and the browser enabled its
+  composer on socket open rather than on the server's own ready signal —
+  anything sent in between was silently dropped (same hole for a scripted
+  or Flutter client sending immediately on connect). The server now queues
+  messages that arrive before the handler exists and replays them in
+  arrival order; the composer waits for `session_info` before enabling.
 - **Real, reported bug**: a browser tab authorizing an MCP connector (e.g.
   Vercel) could pop open completely unprompted — no button clicked —
   sometimes hours into an unrelated conversation. The MCP SDK calls
