@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
+import { BrandLogo } from "./BrandLogo";
 
 interface ChannelField {
   key: string;
@@ -62,10 +63,13 @@ function ChannelCard({ channel, onSaved }: { channel: ChannelStatus; onSaved: ()
   return (
     <div className="project-card channel-card" onClick={() => setExpanded((v) => !v)}>
       <div className="channel-card-header">
-        <div className="channel-card-name">{channel.name}</div>
-        <span className={`channel-status-pill ${channel.configured ? "channel-status-on" : "channel-status-off"}`}>
-          {channel.configured ? t("channels.configured") : t("channels.notConfigured")}
-        </span>
+        <BrandLogo id={channel.id} size={40} />
+        <div className="channel-card-text">
+          <div className="channel-card-name">{channel.name}</div>
+          <span className={`channel-status-pill ${channel.configured ? "channel-status-on" : "channel-status-off"}`}>
+            {channel.configured ? t("channels.configured") : t("channels.notConfigured")}
+          </span>
+        </div>
       </div>
 
       {expanded && (
