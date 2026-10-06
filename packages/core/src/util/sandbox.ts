@@ -27,6 +27,13 @@ export interface SandboxConfig {
   mode?: SandboxMode;
   /** Additional host paths to mount read-write inside the sandbox, beyond DEFAULT_EXTRA_WRITABLE_PATHS. Skipped silently if a path doesn't exist. */
   extraWritablePaths?: string[];
+  /**
+   * "allow" (default, today's behavior): the sandboxed command shares the host network.
+   * "deny": it runs in its own empty network namespace (no interfaces beyond loopback), so
+   * nothing can be fetched or exfiltrated — at the price of breaking npm install/git push/curl
+   * inside `bash`. All-or-nothing: a per-domain allow-list would need a filtering proxy.
+   */
+  network?: "allow" | "deny";
 }
 
 export const DEFAULT_EXTRA_WRITABLE_PATHS: string[] = [
@@ -68,9 +75,10 @@ export function resetBwrapAvailabilityCacheForTests(): void {
  * today's unsandboxed behavior (a file written to /tmp in one call is still
  * readable in a later one).
  */
-export function buildBwrapArgs(cwd: string, extraWritablePaths: string[] = DEFAULT_EXTRA_WRITABLE_PATHS): string[] {
+export function buildBwrapArgs(cwd: string, extraWritablePaths: string[] = DEFAULT_EXTRA_WRITABLE_PATHS, network: "allow" | "deny" = "allow"): string[] {
   const args = ["--ro-bind", "/", "/", "--dev", "/dev", "--proc", "/proc", "--bind", "/tmp", "/tmp", "--bind", cwd, cwd, "--die-with-parent"];
   for (const p of extraWritablePaths) args.push("--bind-try", p, p);
+  if (network === "deny") args.push("--unshare-net");
   return args;
 }
 
