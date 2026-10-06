@@ -106,6 +106,9 @@ export const translations: Record<Language, Record<string, string>> = {
     "effort.cancel": "Cancel",
 
     // ModelPicker.tsx
+    "modelPicker.specialists": "Specialist models",
+    "modelPicker.legal": "Legal — SaulLM-7B",
+    "modelPicker.legalBlurb": "Law-specialised, no tools. Mostly UK/US/EU case law; slow on CPU. Downloads on first use.",
     "modelPicker.trigger": "model",
     "modelPicker.needsKey": "needs API key, set one in Settings",
     "modelPicker.blurbOpus": "For complex tasks",
@@ -387,6 +390,9 @@ export const translations: Record<Language, Record<string, string>> = {
     "effort.downloadAndUse": "Télécharger et activer",
     "effort.cancel": "Annuler",
 
+    "modelPicker.specialists": "Modèles spécialisés",
+    "modelPicker.legal": "Juridique — SaulLM-7B",
+    "modelPicker.legalBlurb": "Spécialisé en droit, sans outils. Corpus surtout UK/US/UE ; lent sur CPU. Téléchargé à la première utilisation.",
     "modelPicker.trigger": "modèle",
     "modelPicker.needsKey": "clé API requise, à définir dans Réglages",
     "modelPicker.blurbOpus": "Pour les tâches complexes",
