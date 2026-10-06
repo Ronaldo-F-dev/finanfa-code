@@ -26,7 +26,7 @@ describe("git tools (real git repo)", () => {
 
   beforeEach(async () => {
     dir = await mkdtemp(path.join(tmpdir(), "finanfa-git-test-"));
-    await execFileAsync("git", ["init", "-q"], { cwd: dir });
+    await execFileAsync("git", ["init", "-q", "-b", "master"], { cwd: dir });
     await execFileAsync("git", ["config", "user.email", "test@example.com"], { cwd: dir });
     await execFileAsync("git", ["config", "user.name", "Test"], { cwd: dir });
     await writeFile(path.join(dir, "a.txt"), "hello\n");
@@ -196,7 +196,7 @@ describe("git tools (real git repo)", () => {
 
     beforeEach(async () => {
       remoteDir = await mkdtemp(path.join(tmpdir(), "finanfa-git-remote-"));
-      await execFileAsync("git", ["init", "-q", "--bare"], { cwd: remoteDir });
+      await execFileAsync("git", ["init", "-q", "--bare", "-b", "master"], { cwd: remoteDir });
       await execFileAsync("git", ["remote", "add", "origin", remoteDir], { cwd: dir });
     });
 
