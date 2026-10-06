@@ -6,6 +6,7 @@ import { PDFParse } from "pdf-parse";
 import { Document, Packer, Paragraph, TextRun } from "docx";
 import { createConvertToPdfTool } from "../../src/tools/builtin/convert-to-pdf.js";
 import { BrowserManager } from "../../src/browser/manager.js";
+import { hasChromium, skipLocally } from "../helpers/environment.js";
 
 const PDF_MAGIC = Buffer.from("%PDF-");
 
@@ -19,7 +20,8 @@ async function extractPdfText(pdfPath: string): Promise<string> {
   }
 }
 
-describe("convert_to_pdf tool (real headless Chromium rendering)", () => {
+// Needs Playwright Chromium; skipped locally when it is not installed (always runs in CI).
+describe.skipIf(skipLocally(hasChromium()))("convert_to_pdf tool (real headless Chromium rendering)", () => {
   let dir: string;
   let browser: BrowserManager;
 
