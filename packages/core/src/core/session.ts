@@ -20,6 +20,8 @@ export interface SessionFile {
   title?: string;
   /** Standing objective set via /goal, kept in the model's context every turn (see systemPromptWithDate in loop.ts) until /goal clear. */
   goal?: string;
+  /** Output style chosen via /output-style (see output-styles.ts); undefined means the default. */
+  outputStyle?: string;
   /**
    * Which provider family/endpoint `model` actually belongs to — set by
    * the web UI's /model switcher (see web-server's "set_model"), undefined
@@ -93,6 +95,7 @@ export class AgentSession {
   readonly systemPrompt: string;
   title?: string;
   goal?: string;
+  outputStyle?: string;
   /** See SessionFile's own doc comment — set by the web UI's /model switcher whenever it changes provider, read back on resume so the right provider/endpoint is reconstructed instead of defaulting to the global/project config. */
   providerKind?: string;
   providerBaseUrl?: string;
@@ -189,6 +192,7 @@ export class AgentSession {
     session.usage = data.usage;
     session.title = data.title;
     session.goal = data.goal;
+    session.outputStyle = data.outputStyle;
     session.providerKind = data.providerKind;
     session.providerBaseUrl = data.providerBaseUrl;
     session.errorLog = data.errorLog ?? [];
@@ -292,6 +296,7 @@ export class AgentSession {
         usage: this.usage,
         title: this.title,
         goal: this.goal,
+        outputStyle: this.outputStyle,
         providerKind: this.providerKind,
         providerBaseUrl: this.providerBaseUrl,
         errorLog: this.errorLog,
