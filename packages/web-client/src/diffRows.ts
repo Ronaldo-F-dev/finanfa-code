@@ -55,7 +55,7 @@ export function buildDiffRows(before: string, after: string, context = 3): DiffR
   if (added === 0 && removed === 0) return { rows: [], added: 0, removed: 0 };
 
   // Keep every changed row, plus `context` rows on each side of it; collapse the rest.
-  const keep = new Array<boolean>(all.length).fill(false);
+  const keep = Array.from({ length: all.length }, () => false);
   all.forEach((row, i) => {
     if (row.kind === "ctx") return;
     for (let j = Math.max(0, i - context); j <= Math.min(all.length - 1, i + context); j++) keep[j] = true;
