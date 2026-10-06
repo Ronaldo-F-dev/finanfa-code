@@ -50,6 +50,11 @@ export const DEFAULT_PERMISSION_CONFIG: PermissionConfig = {
   rules: [],
 };
 
+/** Leaves the field unset when nothing is configured, so a config with no approvals looks exactly as it did before the field existed. */
+function nonEmpty(settings: AutoApproveSettings): AutoApproveSettings | undefined {
+  return Object.keys(settings).length > 0 ? settings : undefined;
+}
+
 async function readJsonIfExists(file: string): Promise<Partial<PermissionConfig> | undefined> {
   try {
     const raw = await readFile(file, "utf-8");
@@ -94,6 +99,6 @@ export async function loadPermissionConfig(cwd: string, trusted = true): Promise
     rules: [...(globalCfg?.rules ?? []), ...(projectCfg?.rules ?? [])],
     // Project-level setting wins over global, same precedence as defaultForRiskLevel above.
     autoApprovalClassifier: projectCfg?.autoApprovalClassifier ?? globalCfg?.autoApprovalClassifier,
-    autoApprove: parseAutoApprove(globalCfg?.autoApprove),
+    autoApprove: nonEmpty(parseAutoApprove(globalCfg?.autoApprove)),
   };
 }
