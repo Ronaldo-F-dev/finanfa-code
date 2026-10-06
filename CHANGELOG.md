@@ -92,6 +92,15 @@ first tagged release.
 
 ### Fixed
 
+- **Real, reproduced bug**: a message sent the instant the web UI opened
+  could vanish with no error and no reply. The server only attaches its
+  WebSocket message handler after `buildTurnContext` finishes (seconds of
+  config, tool registration and MCP setup), and the browser enabled its
+  composer on socket open rather than on the server's own ready signal —
+  anything sent in between was silently dropped (same hole for a scripted
+  or Flutter client sending immediately on connect). The server now queues
+  messages that arrive before the handler exists and replays them in
+  arrival order; the composer waits for `session_info` before enabling.
 - The web UI's per-code-block "Copy" button called
   `navigator.clipboard.writeText(...)` directly and assumed it worked:
   it silently did nothing (plus an unhandled rejection in the console)

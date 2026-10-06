@@ -1268,6 +1268,20 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
     }
   });
 
+  // Messages sent before the main handler below exists — it's only attached
+  // once buildTurnContext finishes (seconds of config, tool registration and
+  // MCP setup) — used to be silently dropped: the web UI enables its
+  // composer the moment the socket opens, so a fast first message vanished
+  // with no error and no reply, and a scripted/Flutter client doing the same
+  // hit the identical hole. Queue them here, then replay in arrival order
+  // once the real handler is attached. permission_response is already
+  // handled by the listener above; replaying it there is a harmless no-op.
+  const earlyMessages: Buffer[] = [];
+  let mainHandlerAttached = false;
+  ws.on("message", (raw: Buffer) => {
+    if (!mainHandlerAttached) earlyMessages.push(raw);
+  });
+
   const params = new URL(url, "http://localhost").searchParams;
   const requestedModel = params.get("model") ?? undefined;
   const requestedSessionId = params.get("session") ?? undefined;
@@ -2008,6 +2022,13 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
         }
       }
     });
+
+    // See the early-message queue near the top of handleConnection: the main
+    // handler above is now attached, so replay everything that arrived while
+    // it didn't exist yet. Synchronous and in arrival order — no later
+    // message can interleave with the replay.
+    mainHandlerAttached = true;
+    for (const raw of earlyMessages.splice(0)) ws.emit("message", raw);
 
     ws.on("close", () => {
       void (async () => {
