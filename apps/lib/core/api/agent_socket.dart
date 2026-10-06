@@ -45,6 +45,8 @@ class AgentSocket {
   final _todosController = StreamController<List<TodoItem>>.broadcast();
   final _localModelWarningController = StreamController<String?>.broadcast();
   final _connectionFailedController = StreamController<bool>.broadcast();
+  final _effortNeedsDownloadController =
+      StreamController<EffortNeedsDownload?>.broadcast();
 
   final List<TimelineItem> _timeline = [];
   bool _connected = false;
@@ -78,6 +80,18 @@ class AgentSocket {
   /// failed (onError/onDone/`channel.ready` rejecting); reset to `false`
   /// right as a fresh `connect()` attempt starts.
   Stream<bool> get connectionFailed => _connectionFailedController.stream;
+
+  /// A `set_effort` that picked a tier whose model isn't installed yet — the
+  /// UI shows a download prompt for it (mirrors the web client's
+  /// EffortSelector). `null` clears a previously shown prompt.
+  Stream<EffortNeedsDownload?> get effortNeedsDownload =>
+      _effortNeedsDownloadController.stream;
+
+  void clearEffortNeedsDownload() {
+    if (!_effortNeedsDownloadController.isClosed) {
+      _effortNeedsDownloadController.add(null);
+    }
+  }
 
   bool get isConnected => _connected;
 
@@ -269,6 +283,14 @@ class AgentSocket {
           ),
         );
         break;
+      case 'effort_needs_download':
+        _effortNeedsDownloadController.add(
+          EffortNeedsDownload(
+            level: msg['level'] as String,
+            ollamaModel: msg['ollamaModel'] as String,
+          ),
+        );
+        break;
       case 'history':
         final messages = msg['messages'] as List;
         final items = messages.map<TimelineItem>((raw) {
@@ -368,6 +390,7 @@ class AgentSocket {
       _todosController,
       _localModelWarningController,
       _connectionFailedController,
+      _effortNeedsDownloadController,
     ]) {
       await c.close();
     }

@@ -318,3 +318,31 @@ class ProjectItem {
     fileCount: (json["fileCount"] as num).toInt(),
   );
 }
+
+/// One server-sent event from `/api/ollama-models/pull` — mirrors the three
+/// events the web client consumes through its EventSource for the same URL.
+sealed class OllamaPullEvent {
+  const OllamaPullEvent();
+}
+
+class OllamaPullProgress extends OllamaPullEvent {
+  final int? completed;
+  final int? total;
+  const OllamaPullProgress({this.completed, this.total});
+
+  /// 0-100, or null while the server hasn't reported a total yet.
+  int? get percent {
+    final t = total;
+    if (t == null || t <= 0) return null;
+    return (((completed ?? 0) / t) * 100).round();
+  }
+}
+
+class OllamaPullDone extends OllamaPullEvent {
+  const OllamaPullDone();
+}
+
+class OllamaPullError extends OllamaPullEvent {
+  final String message;
+  const OllamaPullError(this.message);
+}
