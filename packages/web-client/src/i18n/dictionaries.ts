@@ -115,8 +115,8 @@ export const translations: Record<Language, Record<string, string>> = {
     // SettingsModal.tsx
     "settings.title": "Settings",
     "settings.appearance": "Appearance",
-    "settings.dark": "🌙 Dark",
-    "settings.light": "☀️ Light",
+    "settings.dark": "Dark",
+    "settings.light": "Light",
     "settings.language": "Language",
     "settings.modelsAndTokens": "Models & tokens",
     "settings.modelsHint": "Saved to ~/.finanfa-code/config.json. Adding a key here doesn't disturb whichever provider is already active — start a new chat (or switch models mid-chat) to use it.",
@@ -382,8 +382,8 @@ export const translations: Record<Language, Record<string, string>> = {
 
     "settings.title": "Réglages",
     "settings.appearance": "Apparence",
-    "settings.dark": "🌙 Sombre",
-    "settings.light": "☀️ Clair",
+    "settings.dark": "Sombre",
+    "settings.light": "Clair",
     "settings.language": "Langue",
     "settings.modelsAndTokens": "Modèles & jetons",
     "settings.modelsHint": "Enregistré dans ~/.finanfa-code/config.json. Ajouter une clé ici ne perturbe pas le provider actuellement actif — démarrez un nouveau chat (ou changez de modèle en cours de route) pour l'utiliser.",

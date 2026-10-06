@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
+import { Icon } from "./Icon";
 
 interface ConfigShape {
   provider?: string;
@@ -137,7 +138,15 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
-        <div className="modal-title">{t("settings.title")}</div>
+        <div className="panel-header">
+          <span className="panel-header-icon">
+            <Icon name="settings" size={20} />
+          </span>
+          <span className="panel-header-title">{t("settings.title")}</span>
+          <button className="panel-header-close" onClick={onClose} aria-label={t("settings.close")}>
+            ×
+          </button>
+        </div>
 
         <div className="side-panel-title settings-first-title">{t("settings.appearance")}</div>
         <div className="theme-switch">
@@ -152,10 +161,10 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
         <div className="side-panel-title">{t("settings.language")}</div>
         <div className="theme-switch">
           <button className={`btn btn-toggle ${language === "en" ? "btn-toggle-on" : ""}`} onClick={() => setLanguage("en")}>
-            🇬🇧 English
+            English
           </button>
           <button className={`btn btn-toggle ${language === "fr" ? "btn-toggle-on" : ""}`} onClick={() => setLanguage("fr")}>
-            🇫🇷 Français
+            Français
           </button>
         </div>
 

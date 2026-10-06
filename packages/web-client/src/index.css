@@ -2493,3 +2493,19 @@ details.tool-call-details > summary.tool-call::marker {
   margin-right: 8px;
   color: var(--accent);
 }
+
+.settings-modal .side-panel-title {
+  margin: 26px 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.settings-modal .settings-first-title {
+  margin-top: 4px;
+}
+.settings-modal .settings-hint {
+  font-size: 13px;
+  line-height: 1.5;
+}
