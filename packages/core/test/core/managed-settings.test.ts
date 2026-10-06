@@ -8,6 +8,7 @@ import { PermissionManager } from "../../src/permissions/manager.js";
 import { DEFAULT_PERMISSION_CONFIG } from "../../src/permissions/config.js";
 import { addMarketplace } from "../../src/plugins/manager.js";
 import type { ToolDefinition } from "../../src/core/types.js";
+import type { HookCommand } from "../../src/hooks/config.js";
 import type { UIAdapter } from "../../src/ui/adapter.js";
 
 function makeUi(answer = "n"): UIAdapter {
@@ -80,13 +81,13 @@ describe("managed hooks", () => {
   it("run before the user's own hooks", async () => {
     await setPolicy({ hooks: { PreToolUse: hook("managed-hook") } });
     const config = await loadHooksConfig(dir);
-    expect(config.PreToolUse?.map((m) => m.hooks[0].command)).toEqual(["managed-hook", "user-hook"]);
+    expect(config.PreToolUse?.map((m) => (m.hooks[0] as HookCommand).command)).toEqual(["managed-hook", "user-hook"]);
   });
 
   it("allowManagedHooksOnly drops the user's hooks entirely", async () => {
     await setPolicy({ hooks: { PreToolUse: hook("managed-hook") }, allowManagedHooksOnly: true });
     const config = await loadHooksConfig(dir);
-    expect(config.PreToolUse?.map((m) => m.hooks[0].command)).toEqual(["managed-hook"]);
+    expect(config.PreToolUse?.map((m) => (m.hooks[0] as HookCommand).command)).toEqual(["managed-hook"]);
   });
 
   it("allowManagedHooksOnly without managed hooks means no hooks at all", async () => {

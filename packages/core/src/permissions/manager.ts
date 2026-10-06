@@ -3,7 +3,8 @@ import type { UIAdapter } from "../ui/adapter.js";
 import type { PermissionConfig, PermissionDecision } from "./config.js";
 import type { HooksConfig } from "../hooks/config.js";
 import { loadManagedSettings } from "../core/managed-settings.js";
-import { runHooks, type HookOutcome, type HookPayload } from "../hooks/runner.js";
+import { AsyncLocalStorage } from "node:async_hooks";
+import { runHooks, type HookLlmRunner, type HookOutcome, type HookPayload } from "../hooks/runner.js";
 import type { HookEventName } from "../hooks/config.js";
 import { appendAuditEvent, type AuditDecisionSource } from "../observability/audit-log.js";
 import { classifyToolRisk, resolveClassifierModel, type AutoApprovalClassifierConfig } from "./classifier.js";
@@ -30,6 +31,10 @@ export class PermissionManager {
   private readonly yolo: boolean;
   private hooksConfig?: HooksConfig;
   private provider?: LlmProvider;
+  /** Set once the task tool exists (see registerStatefulBuiltins) — what a "agent" hook runs its read-only sub-agent with. */
+  private hookAgentRunner?: (prompt: string, timeoutMs: number) => Promise<string>;
+  /** True inside the run of a prompt/agent hook, so hooks never fire from within a hook's own model/agent calls (a PreToolUse agent hook whose agent calls a tool would otherwise recurse forever). Scoped per async call chain, so unrelated concurrent tool calls are unaffected. */
+  private readonly insideLlmHook = new AsyncLocalStorage<boolean>();
   private readonly sessionAllowlist = new Set<string>();
   /**
    * Runtime override for config.autoApprovalClassifier (see /permissions in
@@ -108,8 +113,7 @@ export class PermissionManager {
    */
   async runPostToolUseHook(tool: ToolDefinition, input: unknown, toolResponse: unknown, ctx: ToolContext): Promise<void> {
     if (!this.hooksConfig) return;
-    const outcome = await runHooks(
-      this.hooksConfig,
+    const outcome = await this.runHooksGuarded(
       "PostToolUse",
       { hook_event_name: "PostToolUse", session_id: ctx.sessionId, cwd: ctx.cwd, tool_name: tool.name, tool_input: input, tool_response: toolResponse },
       ctx.cwd,
@@ -128,10 +132,51 @@ export class PermissionManager {
    */
   async runUserPromptSubmitHook(prompt: string, cwd: string, sessionId: string): Promise<{ blockedReason?: string; prompt: string }> {
     if (!this.hooksConfig) return { prompt };
-    const outcome = await runHooks(this.hooksConfig, "UserPromptSubmit", { hook_event_name: "UserPromptSubmit", session_id: sessionId, cwd, prompt }, cwd);
+    const outcome = await this.runHooksGuarded("UserPromptSubmit", { hook_event_name: "UserPromptSubmit", session_id: sessionId, cwd, prompt }, cwd);
     if (outcome.decision === "block") return { blockedReason: outcome.reason ?? "Blocked by a UserPromptSubmit hook.", prompt };
     if (outcome.output) return { prompt: `${prompt}\n\n<user-prompt-submit-hook-context>\n${outcome.output}\n</user-prompt-submit-hook-context>` };
     return { prompt };
+  }
+
+  /** Lets the entry point say how an "agent" hook runs its sub-agent (the task tool's machinery). */
+  setHookAgentRunner(runner: (prompt: string, timeoutMs: number) => Promise<string>): void {
+    this.hookAgentRunner = runner;
+  }
+
+  /** What "prompt" and "agent" hooks call to reach a model: one cheap-model call, and the sub-agent runner. Every call is marked so hooks can't re-enter from inside it. */
+  private llmRunner(): HookLlmRunner {
+    const provider = this.provider;
+    const agentRunner = this.hookAgentRunner;
+    return {
+      prompt: provider
+        ? (prompt, model, timeoutMs) =>
+            this.insideLlmHook.run(true, async () => {
+              const controller = new AbortController();
+              const timer = setTimeout(() => controller.abort(), timeoutMs);
+              try {
+                const result = await provider.streamTurn({
+                  model: model ?? resolveClassifierModel(this.getAutoApprovalClassifier()),
+                  systemPrompt: "You are a strict, precise reviewer for an autonomous coding agent. Follow the instructions and output only the requested JSON.",
+                  messages: [{ role: "user", content: prompt }],
+                  tools: [],
+                  onTextDelta: () => {},
+                  signal: controller.signal,
+                  maxTokens: 400,
+                });
+                return result.assistantMessage.content;
+              } finally {
+                clearTimeout(timer);
+              }
+            })
+        : undefined,
+      agent: agentRunner ? (prompt, timeoutMs) => this.insideLlmHook.run(true, () => agentRunner(prompt, timeoutMs)) : undefined,
+    };
+  }
+
+  /** Every hook run goes through here: nothing fires from inside a prompt/agent hook's own run, and those hooks get a model to talk to. */
+  private async runHooksGuarded(event: HookEventName, payload: HookPayload, cwd: string): Promise<HookOutcome> {
+    if (!this.hooksConfig || this.insideLlmHook.getStore()) return {};
+    return runHooks(this.hooksConfig, event, payload, cwd, this.llmRunner());
   }
 
   /** Replaces the hooks config mid-session (see /plugin reload) — takes effect from the next hook call. */
@@ -155,7 +200,7 @@ export class PermissionManager {
   async runLifecycleHook(event: HookEventName, cwd: string, sessionId: string, extra: Partial<HookPayload> = {}): Promise<HookOutcome> {
     if (!this.hooksConfig?.[event]?.length) return {};
     try {
-      return await runHooks(this.hooksConfig, event, { ...extra, hook_event_name: event, session_id: sessionId, cwd }, cwd);
+      return await this.runHooksGuarded(event, { ...extra, hook_event_name: event, session_id: sessionId, cwd }, cwd);
     } catch {
       return {};
     }
@@ -164,8 +209,7 @@ export class PermissionManager {
   /** Returns a decision when a PreToolUse hook has an opinion (block/approve); undefined means the normal permission flow should decide instead. */
   private async checkPreToolUseHooks(tool: ToolDefinition, input: unknown, ctx: ToolContext): Promise<"allow" | "deny" | undefined> {
     if (!this.hooksConfig) return undefined;
-    const outcome = await runHooks(
-      this.hooksConfig,
+    const outcome = await this.runHooksGuarded(
       "PreToolUse",
       { hook_event_name: "PreToolUse", session_id: ctx.sessionId, cwd: ctx.cwd, tool_name: tool.name, tool_input: input },
       ctx.cwd,

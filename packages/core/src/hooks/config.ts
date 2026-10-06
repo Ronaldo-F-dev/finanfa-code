@@ -24,6 +24,7 @@ export const HOOK_EVENT_NAMES = [
 ] as const;
 export type HookEventName = (typeof HOOK_EVENT_NAMES)[number];
 
+/** Runs a shell command: gets the event payload as JSON on stdin; exit code 2 or {"decision":"block"} on stdout blocks. */
 export interface HookCommand {
   type: "command";
   command: string;
@@ -31,10 +32,39 @@ export interface HookCommand {
   timeout?: number;
 }
 
+/**
+ * Asks a language model a yes/no question about the event. `$ARGUMENTS` in
+ * `prompt` is replaced with the event payload as JSON (appended if absent).
+ * The model must answer with JSON: {"ok": true} or {"ok": false, "reason": "..."}.
+ * An LLM hook can only BLOCK or stay silent — it can never approve past a prompt.
+ */
+export interface HookPrompt {
+  type: "prompt";
+  prompt: string;
+  /** Model for this call; defaults to the cheap model the auto-approval classifier uses. */
+  model?: string;
+  /** Seconds. Defaults to 30. */
+  timeout?: number;
+}
+
+/**
+ * Like "prompt", but a read-only sub-agent investigates first (it can read files and search the
+ * project) before giving the same {"ok": ...} verdict — for checks a single model call can't make,
+ * like "do the tests for this change exist?". Hooks never fire inside the agent's own run.
+ */
+export interface HookAgent {
+  type: "agent";
+  prompt: string;
+  /** Seconds. Defaults to 120. */
+  timeout?: number;
+}
+
+export type HookHandler = HookCommand | HookPrompt | HookAgent;
+
 export interface HookMatcher {
   /** Regex tested against the tool name (PreToolUse/PostToolUse only). Omitted matches every tool. Ignored for every other event. */
   matcher?: string;
-  hooks: HookCommand[];
+  hooks: HookHandler[];
 }
 
 export type HooksConfig = { [E in HookEventName]?: HookMatcher[] };

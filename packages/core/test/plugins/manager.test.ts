@@ -12,7 +12,7 @@ import {
   setPluginEnabled,
   validatePlugin,
 } from "../../src/plugins/manager.js";
-import { loadHooksConfig } from "../../src/hooks/config.js";
+import { loadHooksConfig, type HookCommand } from "../../src/hooks/config.js";
 import { loadCustomCommands } from "../../src/commands/custom-commands.js";
 import { loadSubagentTypes } from "../../src/agents/loader.js";
 
@@ -74,7 +74,7 @@ describe("plugins/manager", () => {
     expect((await loadCustomCommands(cwd)).get("hello")?.content).toContain("Say hello");
     expect((await loadSubagentTypes(cwd)).map((a) => a.name)).toContain("helper");
     const hooks = await loadHooksConfig(cwd);
-    expect(hooks.SessionStart?.[0].hooks[0].command).toBe(`echo ${path.join(home, ".finanfa-code", "plugins", "greeter")}`);
+    expect((hooks.SessionStart?.[0].hooks[0] as HookCommand).command).toBe(`echo ${path.join(home, ".finanfa-code", "plugins", "greeter")}`);
   });
 
   it("lets the user's own command win over a plugin's of the same name", async () => {
@@ -120,6 +120,17 @@ describe("plugins/manager", () => {
     expect(issues.join("\n")).toMatch(/"name" must be/);
     expect(issues.join("\n")).toMatch(/unknown event "Nope"/);
     expect(issues.join("\n")).toMatch(/missing "description"/);
+
+    const badHooks = path.join(market, "plugins/badhooks");
+    await write(
+      path.join(badHooks, "hooks/hooks.json"),
+      JSON.stringify({
+        hooks: {
+          Stop: [{ hooks: [{ type: "command" }, { type: "prompt" }, { type: "bogus", prompt: "x" }, { type: "agent", prompt: "ok" }, { type: "prompt", prompt: "ok" }] }],
+        },
+      }),
+    );
+    expect((await validatePlugin(badHooks)).filter((i) => i.includes("hook is invalid"))).toHaveLength(3);
     expect(await validatePlugin(path.join(market, "plugins/greeter"))).toEqual([]);
     expect(await readFile(path.join(market, "marketplace.json"), "utf-8")).toContain("acme");
   });

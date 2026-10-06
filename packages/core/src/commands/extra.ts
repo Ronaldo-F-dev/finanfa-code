@@ -34,7 +34,10 @@ function handleHooks(ctx: CommandContext): CommandOutcome {
   for (const event of HOOK_EVENT_NAMES) {
     for (const matcher of config[event] ?? []) {
       const scope = matcher.matcher ? ` (matcher: ${matcher.matcher})` : "";
-      for (const hook of matcher.hooks) lines.push(`${event}${scope}: ${hook.command}`);
+      for (const hook of matcher.hooks) {
+        const what = hook.type === "command" ? hook.command : `[${hook.type}] ${hook.prompt.replace(/\s+/g, " ").slice(0, 80)}`;
+        lines.push(`${event}${scope}: ${what}`);
+      }
     }
   }
   ctx.ui.writeSystem(

@@ -26,6 +26,10 @@ first tagged release.
   `/feature-dev`, `/ralph-loop` and `/output-style` (`explanatory`,
   `learning`). A custom command named like one of these is now shadowed by
   the built-in.
+- Hooks of type `prompt` (one model call) and `agent` (a read-only
+  `hook-verifier` sub-agent) next to `command`: they answer `{"ok": …}`, can
+  only block (never approve), and never re-enter hooks. See
+  `docs/configuration.md`.
 - Managed (organization) settings read from `/etc/finanfa-code/managed-settings.json`
   (or `$FINANFA_MANAGED_SETTINGS`): always-run hooks, `allowManagedHooksOnly`,
   `disableYolo` and `strictKnownMarketplaces`; an unreadable file fails closed.
