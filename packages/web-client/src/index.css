@@ -2509,3 +2509,32 @@ details.tool-call-details > summary.tool-call::marker {
   font-size: 13px;
   line-height: 1.5;
 }
+
+.spinner {
+  display: inline-block;
+  width: 13px;
+  height: 13px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.7s linear infinite;
+  vertical-align: -2px;
+}
+.btn-with-spinner {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap;
+}
+.search-status {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 4px;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+.mcp-list-loading .mcp-row {
+  opacity: 0.45;
+  pointer-events: none;
+}

@@ -334,12 +334,18 @@ function DockerSection() {
             if (e.key === "Enter") runSearch(query);
           }}
         />
-        <button className="btn btn-ghost" onClick={() => runSearch(query)} disabled={searching}>
-          {searching ? "…" : t("models.search")}
+        <button className="btn btn-ghost btn-with-spinner" onClick={() => runSearch(query)} disabled={searching}>
+          {searching && <span className="spinner" aria-hidden="true" />}
+          {searching ? t("models.searching") : t("models.search")}
         </button>
       </div>
 
-      <div className="mcp-list">
+      <div className={`mcp-list ${searching ? "mcp-list-loading" : ""}`} aria-busy={searching}>
+        {searching && (
+          <div className="search-status">
+            <span className="spinner" aria-hidden="true" /> {t("models.searchingHub")}
+          </div>
+        )}
         {results.map((r) => (
           <div className="mcp-row" key={r.name}>
             <div className="mcp-row-main">
