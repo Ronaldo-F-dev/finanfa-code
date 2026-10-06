@@ -16,6 +16,9 @@ first tagged release.
 
 ### Added
 
+- Desktop app: it is named **Finanfa** with the brand icon in the Dock, menu bar and Cmd-Tab (on macOS the dev
+  run uses a generated, renamed copy of Electron), opens straight into `~/Finanfa` instead of asking for a folder
+  at launch, shows that folder in the window title, and has **File → Show workspace in Finder**.
 - Hooks: new `Stop` (can keep the turn going with feedback), `SessionStart`
   (stdout becomes context for the first prompt) and `PreCompact` events;
   `SubagentStop`, `SessionEnd` and `Notification` are accepted in the config

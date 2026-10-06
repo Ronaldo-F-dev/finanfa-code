@@ -15,13 +15,20 @@ npm install
 npm run dev:desktop      # builds the web client, then opens the app
 ```
 
-The first launch downloads the Electron binary (about 100 MB). It then asks which folder the
-agent works in (change it later from **File → Change workspace…**, or pass `--workspace=<dir>`).
+The first launch downloads the Electron binary (about 100 MB). On macOS it also builds, once, a copy of
+Electron named **Finanfa** with the brand icon (`packages/desktop/.dev/`, an APFS clone: instant and no extra
+disk) and runs the app from it — otherwise macOS shows "Electron" and Electron's own icon in the Dock, the menu
+bar and Cmd-Tab, because those come from the app bundle, not from the running code. A packaged build gets this
+for free; this only exists for `npm run dev:desktop`.
 
-| | |
-|---|---|
+The app opens straight into a working state: the agent works in **`~/Finanfa`**, created on first launch. That
+folder is the agent's "open project" — where its file tools read and write and where its commands run (the same
+way an editor opens a folder). Change it any time with **File → Change workspace…**, or pass
+`--workspace=<dir>`. The window title shows the folder in use.
+
 | `Cmd/Ctrl+Shift+Space` | show or hide the window from anywhere |
 | `Cmd/Ctrl+Shift+O` | change workspace |
+| **File → Show workspace in Finder** | open the agent's folder |
 | **File → Server log…** | the server's recent output (useful if something fails to start) |
 
 Provider keys and config come from the same places as everywhere else (`~/.finanfa-code/config.json`,
@@ -60,10 +67,12 @@ display (`xvfb-run`). Unit tests: `npx vitest run packages/desktop`.
 
 ## Troubleshooting
 
-- **The app opens in a strange folder, or never asks which folder to use.** The choice is remembered in
+- **The app opens in the wrong folder.** The choice is remembered in
   `~/Library/Application Support/finanfa-desktop/settings.json`. Change it with **File → Change workspace…**
-  (`Cmd+Shift+O`), or delete that file to be asked again. A remembered folder inside the system's temporary
-  directory is ignored and the app asks again.
+  (`Cmd+Shift+O`), or delete that file to go back to `~/Finanfa`. A remembered folder inside the system's
+  temporary directory is ignored.
+- **The Dock shows "Electron" or Electron's icon.** You are running the stock binary; use `npm run dev:desktop`
+  (it runs the "Finanfa" bundle). Delete `packages/desktop/.dev` to force it to be rebuilt.
 - **`Failed to create directory … Shared Dictionary/cache` / `Unable to create cache` in the terminal.** These come
   from Chromium's on-disk HTTP cache for the window, not from finanfa, and the app works without it. If a cache
   folder was left half-written (for example by an earlier run that was interrupted or ran in a restricted

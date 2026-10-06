@@ -11,3 +11,6 @@ dist/
 # for the apps/ client above — same reasoning, not part of this project's
 # own commits.
 /export/
+
+# macOS dev bundle named "Finanfa" (scripts/dev-app.mjs) — generated, never committed
+packages/desktop/.dev/
