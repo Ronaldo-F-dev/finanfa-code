@@ -74,7 +74,7 @@ describe("plugins/manager", () => {
     expect((await loadCustomCommands(cwd)).get("hello")?.content).toContain("Say hello");
     expect((await loadSubagentTypes(cwd)).map((a) => a.name)).toContain("helper");
     const hooks = await loadHooksConfig(cwd);
-    expect((hooks.SessionStart?.[0].hooks[0] as HookCommand).command).toBe(`echo ${path.join(home, ".finanfa-code", "plugins", "greeter")}`);
+    expect(((hooks.SessionStart ?? [])[0].hooks[0] as HookCommand).command).toBe(`echo ${path.join(home, ".finanfa-code", "plugins", "greeter")}`);
   });
 
   it("lets the user's own command win over a plugin's of the same name", async () => {
