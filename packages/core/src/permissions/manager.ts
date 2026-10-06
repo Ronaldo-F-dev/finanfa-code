@@ -27,7 +27,7 @@ export class PermissionManager {
   private readonly ui: UIAdapter;
   private readonly nonInteractive: boolean;
   private readonly yolo: boolean;
-  private readonly hooksConfig?: HooksConfig;
+  private hooksConfig?: HooksConfig;
   private provider?: LlmProvider;
   private readonly sessionAllowlist = new Set<string>();
   /**
@@ -130,7 +130,12 @@ export class PermissionManager {
     return { prompt };
   }
 
-  /** The hooks config this manager was built with (read-only view, for /hooks). */
+  /** Replaces the hooks config mid-session (see /plugin reload) — takes effect from the next hook call. */
+  setHooksConfig(config: HooksConfig): void {
+    this.hooksConfig = config;
+  }
+
+  /** The hooks config currently in effect (read-only view, for /hooks). */
   getHooksConfig(): HooksConfig {
     return this.hooksConfig ?? {};
   }
