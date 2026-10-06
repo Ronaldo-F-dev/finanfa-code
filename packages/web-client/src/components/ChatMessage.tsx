@@ -1,6 +1,7 @@
 import { marked } from "marked";
 import type { TimelineItem, ToolRiskLevel } from "../hooks/useAgentSocket";
 import { useLanguage } from "../i18n/LanguageContext";
+import { toolLabel } from "../i18n/toolNames";
 import { useState } from "react";
 import { copyTextToClipboard } from "../clipboard";
 
@@ -86,7 +87,7 @@ function UserMessage({ item, restorePoint, canRestore, onRestore }: { item: Extr
 }
 
 export function ChatMessageView({ item, projectId, restorePoint, canRestore = false, onRestore }: { item: TimelineItem; projectId?: string } & Partial<RestoreProps>) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   if (item.kind === "user") {
     return <UserMessage item={item} restorePoint={restorePoint} canRestore={canRestore} onRestore={onRestore} />;
   }
@@ -141,7 +142,7 @@ export function ChatMessageView({ item, projectId, restorePoint, canRestore = fa
         <details className="tool-call-details">
           <summary className={`tool-call tool-call-${item.riskLevel}`}>
             <span className="tool-call-icon">{icon}</span>
-            <span className="tool-call-name">{item.toolName}</span>
+            <span className="tool-call-name" title={item.toolName}>{toolLabel(item.toolName, language)}</span>
             {item.description && <span className="tool-call-description">{item.description}</span>}
           </summary>
           <pre className={`tool-call-result${item.result?.isError ? " tool-call-result-error" : ""}`}>

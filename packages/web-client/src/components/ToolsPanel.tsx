@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ToolStatus } from "../hooks/useAgentSocket";
 import { useLanguage } from "../i18n/LanguageContext";
+import { toolLabel } from "../i18n/toolNames";
 import { Icon } from "./Icon";
 
 const RISK_DOT: Record<string, string> = { safe: "mcp-dot-on", ask: "mcp-dot-auth", dangerous: "tool-dot-danger" };
@@ -35,7 +36,7 @@ export function ToolsPanel({
   onToggle: (name: string, enabled: boolean) => void;
   onRefresh: () => void;
 }) {
-  const { t } = useLanguage();
+  const { t, language } = useLanguage();
   const [query, setQuery] = useState("");
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
 
@@ -56,11 +57,11 @@ export function ToolsPanel({
     const byRisk = new Map<string, ToolStatus[]>();
     for (const risk of RISK_ORDER) byRisk.set(risk, []);
     for (const tl of tools) {
-      if (q && !tl.name.toLowerCase().includes(q)) continue;
+      if (q && !tl.name.toLowerCase().includes(q) && !toolLabel(tl.name, language).toLowerCase().includes(q)) continue;
       (byRisk.get(tl.riskLevel) ?? byRisk.set(tl.riskLevel, []).get(tl.riskLevel)!).push(tl);
     }
     return byRisk;
-  }, [tools, q]);
+  }, [tools, q, language]);
 
   function toggleGroup(risk: string) {
     setExpanded((cur) => {
@@ -128,7 +129,7 @@ export function ToolsPanel({
                       <div className="mcp-row" key={tl.name}>
                         <div className="mcp-row-main">
                           <div>
-                            <div className="mcp-name">{tl.name}</div>
+                            <div className="mcp-name" title={tl.name}>{toolLabel(tl.name, language)}</div>
                           </div>
                         </div>
                         <div className="mcp-row-actions">
