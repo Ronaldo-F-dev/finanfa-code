@@ -2,6 +2,7 @@ import { marked } from "marked";
 import type { TimelineItem, ToolRiskLevel } from "../hooks/useAgentSocket";
 import { useLanguage } from "../i18n/LanguageContext";
 import { toolLabel } from "../i18n/toolNames";
+import { stripEmDashes } from "../typography";
 import { useState } from "react";
 import { copyTextToClipboard } from "../clipboard";
 
@@ -94,7 +95,7 @@ export function ChatMessageView({ item, projectId, restorePoint, canRestore = fa
 
   if (item.kind === "assistant") {
     const copyLabel = t("chatMessage.copy");
-    const html = withCopyButtons(marked.parse(item.text || (item.streaming ? "" : "")) as string, copyLabel);
+    const html = withCopyButtons(marked.parse(stripEmDashes(item.text)) as string, copyLabel);
     return (
       <div className="row row-assistant">
         <div className="avatar">f</div>
