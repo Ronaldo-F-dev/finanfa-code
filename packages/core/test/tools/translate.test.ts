@@ -1,4 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { isOnline, skipLocally } from "../helpers/environment.js";
+
+// The Google Translate backend needs the network; those tests are skipped locally when offline.
+const online = await isOnline();
 
 // translate.ts reads FONIKA_AUTH_TOKEN/FONIKA_API_TOKEN once at module load
 // (so a missing config fails the same clear way every call, not a fresh
@@ -40,7 +44,7 @@ describe("translate_text tool", () => {
     expect(translateTextTool.riskLevel).toBe("safe");
   });
 
-  it(
+  it.skipIf(skipLocally(online))(
     "translates a real sentence into Fon via the free Google Translate backend (no config needed), with real " +
       "Fon orthography — verified directly, not assumed from the language merely being in Google's list",
     async () => {
@@ -53,7 +57,7 @@ describe("translate_text tool", () => {
     15_000,
   );
 
-  it(
+  it.skipIf(skipLocally(online))(
     "translates a real sentence into Yoruba via the free Google Translate backend",
     async () => {
       const { translateTextTool } = await importFreshWithEnv({});
@@ -76,7 +80,7 @@ describe("translate_text tool", () => {
     15_000,
   );
 
-  it(
+  it.skipIf(skipLocally(online))(
     "with 229Langues credentials present but the account's private backend unreachable, still falls back to " +
       "the free Google Translate backend rather than failing outright",
     async () => {
