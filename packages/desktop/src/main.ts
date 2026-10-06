@@ -1,12 +1,12 @@
-import { app, BrowserWindow, dialog, globalShortcut, Menu, session, shell, type MenuItemConstructorOptions } from "electron";
-import { realpathSync, statSync } from "node:fs";
+import { app, BrowserWindow, dialog, globalShortcut, Menu, nativeImage, session, shell, type MenuItemConstructorOptions } from "electron";
+import { mkdirSync, realpathSync, statSync } from "node:fs";
 import os from "node:os";
 import http from "node:http";
 import path from "node:path";
 import { isInternalUrl, isSafeExternalUrl } from "./navigation.js";
 import { buildServerSpawn, generateToken } from "./server-launch.js";
 import { startServer, type RunningServer } from "./server-supervisor.js";
-import { DEFAULT_BOUNDS, isUsableWorkspace, loadSettings, saveSettings, type DesktopSettings } from "./settings.js";
+import { DEFAULT_BOUNDS, defaultWorkspace, displayPath, isUsableWorkspace, loadSettings, saveSettings, type DesktopSettings } from "./settings.js";
 
 const SMOKE = process.argv.includes("--smoke");
 const DOCS_URL = "https://github.com/Ronaldo-F-dev/finanfa-code#readme";
@@ -19,6 +19,11 @@ let server: RunningServer | undefined;
 let serverOrigin = "";
 let mainWindow: BrowserWindow | undefined;
 let quitting = false;
+let workspaceInUse = "";
+
+function workspaceTitle(): string {
+  return workspaceInUse ? `Finanfa — ${displayPath(workspaceInUse, os.homedir())}` : "Finanfa";
+}
 
 /** Leaves the app, stopping the server and everything it started first — app.exit() alone skips before-quit and would orphan it. */
 async function exitApp(code: number): Promise<never> {
@@ -41,19 +46,17 @@ function isDirectory(p: string): boolean {
   }
 }
 
-/** --workspace=<dir>, else the last one used, else ask. Returns undefined if the user cancels. */
+const ICON_PATH = path.join(__dirname, "..", "assets", "icon.png");
+
+/** --workspace=<dir>, else the last one used, else ~/Finanfa (created) — never a dialog on launch; the menu changes it. */
 async function resolveWorkspace(): Promise<string | undefined> {
   const flag = process.argv.find((a) => a.startsWith("--workspace="))?.slice("--workspace=".length);
   if (flag && isDirectory(flag)) return path.resolve(flag);
   if (settings.workspace && isDirectory(settings.workspace) && isUsableWorkspace(realpathSync(settings.workspace), realpathSync(os.tmpdir()))) return settings.workspace;
   if (SMOKE) return app.getPath("temp");
-  const picked = await dialog.showOpenDialog({
-    title: "Choose the folder finanfa works in",
-    message: "The agent reads, edits and runs commands in this folder. You can change it later from the File menu.",
-    defaultPath: app.getPath("documents"),
-    properties: ["openDirectory", "createDirectory"],
-  });
-  return picked.canceled ? undefined : picked.filePaths[0];
+  const fallback = defaultWorkspace(os.homedir());
+  mkdirSync(fallback, { recursive: true });
+  return fallback;
 }
 
 function splashHtml(text: string): string {
@@ -72,7 +75,8 @@ function createWindow(): BrowserWindow {
     minHeight: 360,
     show: !SMOKE,
     backgroundColor: "#0f1115",
-    title: "finanfa",
+    title: "Finanfa",
+    icon: ICON_PATH, // Windows and Linux; macOS takes the icon from the app bundle (and the dock call below)
     webPreferences: {
       partition: PARTITION,
       // The page is the web UI and nothing more: no Node, isolated, sandboxed.
@@ -82,6 +86,12 @@ function createWindow(): BrowserWindow {
     },
   });
   if (b.maximized) win.maximize();
+
+  // The web page sets its own <title> ("finanfa AI"); keep the folder the agent works in visible instead.
+  win.on("page-title-updated", (event) => {
+    event.preventDefault();
+    win.setTitle(workspaceTitle());
+  });
 
   const remember = () => {
     // A smoke run is a test: it must never write the real user's settings (it once stored the temp dir as their workspace).
@@ -127,6 +137,7 @@ function buildMenu(): void {
       label: "File",
       submenu: [
         { label: "Change workspace…", accelerator: "CmdOrCtrl+Shift+O", click: () => void changeWorkspace() },
+        { label: "Show workspace in Finder", click: () => void shell.openPath(workspaceInUse) },
         { label: "Server log…", click: () => showServerLog() },
         { type: "separator" },
         mac ? { role: "close" } : { role: "quit" },
@@ -202,6 +213,8 @@ async function start(): Promise<void> {
   const workspace = await resolveWorkspace();
   log(`workspace: ${workspace}`);
   if (!workspace) return app.quit();
+  workspaceInUse = workspace;
+  if (process.platform === "darwin") app.dock?.setIcon(nativeImage.createFromPath(ICON_PATH)); // covers a run outside the named bundle
   if (!SMOKE && workspace !== settings.workspace) {
     settings = { ...settings, workspace };
     await saveSettings(settingsFile, settings);
