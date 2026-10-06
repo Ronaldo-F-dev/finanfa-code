@@ -40,6 +40,10 @@ export default defineConfig({
           environment: "node",
           include: ["packages/**/*.test.{ts,tsx}"],
           exclude: ["**/node_modules/**", "packages/web-server/test/**"],
+          // Many suites here spawn real subprocesses (fake ssh/rsync/iw/tmux binaries, git, ...).
+          // With every file running concurrently, the 5s default is too tight on a loaded machine:
+          // different, unrelated tests timed out on each full run and passed alone every time.
+          testTimeout: 20_000,
         },
       },
     ],
