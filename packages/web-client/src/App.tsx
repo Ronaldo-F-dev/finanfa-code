@@ -106,6 +106,16 @@ export default function App() {
   }, [activeProjectId]);
 
   const onTitled = useCallback(() => setSidebarRefreshToken((t) => t + 1), []);
+  // The note about a restore needs addNote, which the hook below returns — hence the ref.
+  const addNoteRef = useRef<((variant: "system" | "error", text: string) => void) | null>(null);
+  const onRewound = useCallback(
+    (info: { text?: string; revertedFiles: number }) => {
+      // Offer the restored message again, so it can be edited and re-sent.
+      if (info.text !== undefined) setInput(info.text);
+      addNoteRef.current?.("system", t(info.revertedFiles > 0 ? "rewind.done" : "rewind.doneNoFiles", { count: info.revertedFiles }));
+    },
+    [t],
+  );
   const {
     connected,
     timeline,
@@ -119,6 +129,9 @@ export default function App() {
     todos,
     modelUnavailable,
     effortNeedsDownload,
+    restorePoints,
+    rewind,
+    addNote,
     sendMessage,
     answerPermission,
     interrupt,
@@ -134,7 +147,8 @@ export default function App() {
     requestToolsStatus,
     setPlanMode,
     setEffort,
-  } = useAgentSocket(connectModel || undefined, activeSessionId, activeProjectId, onTitled);
+  } = useAgentSocket(connectModel || undefined, activeSessionId, activeProjectId, onTitled, onRewound);
+  addNoteRef.current = addNote;
 
   // The server's session_info is the source of truth for what model the
   // *active connection* is actually using — after a resume, after a live
@@ -443,7 +457,14 @@ export default function App() {
               </div>
             )}
             {timeline.map((item) => (
-              <ChatMessageView key={item.id} item={item} projectId={activeProjectId} />
+              <ChatMessageView
+                key={item.id}
+                item={item}
+                projectId={activeProjectId}
+                restorePoint={item.kind === "user" && item.clientId ? restorePoints.get(item.clientId) : undefined}
+                canRestore={connected && !busy.active}
+                onRestore={rewind}
+              />
             ))}
             {busy.active && (
               <BusyIndicator label={busy.label} isLocalModel={models.some((m) => Boolean(m.baseUrl) && m.localModelId === model)} />
