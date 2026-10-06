@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
+import { Icon } from "./Icon";
 
 export interface ProjectItem {
   id: string;
@@ -39,7 +40,7 @@ export function ProjectsListView({ onOpenProject }: { onOpenProject: (id: string
 
   return (
     <div className="page">
-      <div className="page-header">
+      <div className="page-header page-header-stack">
         <h1>{t("projects.title")}</h1>
         <p className="page-sub">{t("projects.sub")}</p>
       </div>
@@ -57,10 +58,14 @@ export function ProjectsListView({ onOpenProject }: { onOpenProject: (id: string
         </button>
       </div>
 
+      {projects.length === 0 && <div className="page-empty">{t("projects.empty")}</div>}
+
       <div className="project-grid">
         {projects.map((p) => (
           <div key={p.id} className="project-card" onClick={() => onOpenProject(p.id)}>
-            <div className="project-card-icon">📁</div>
+            <div className="project-card-icon row-tile">
+              <Icon name="projects" size={18} />
+            </div>
             <div className="project-card-name">{p.name}</div>
             <div className="mcp-meta">{t(p.fileCount === 1 ? "projects.fileCount" : "projects.fileCountPlural", { count: p.fileCount })}</div>
           </div>

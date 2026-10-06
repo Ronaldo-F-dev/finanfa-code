@@ -1,4 +1,4 @@
-import { Brain, Cpu, FolderOpen, Globe, Image as ImageIcon, ListChecks, Paperclip, Plug, Radio, Search, Settings, ShieldCheck, SquarePen, Wrench, type LucideIcon } from "lucide-react";
+import { Brain, FilePen, Terminal, Cpu, FolderOpen, Globe, Image as ImageIcon, ListChecks, Paperclip, Plug, Radio, Search, Settings, ShieldCheck, SquarePen, Wrench, type LucideIcon } from "lucide-react";
 
 /** The app's navigation icons, one consistent set instead of a mix of emoji (which render at different sizes and styles per platform). */
 const ICONS = {
@@ -16,6 +16,8 @@ const ICONS = {
   image: ImageIcon,
   research: Search,
   attach: Paperclip,
+  edits: FilePen,
+  terminal: Terminal,
 } satisfies Record<string, LucideIcon>;
 
 export type IconName = keyof typeof ICONS;

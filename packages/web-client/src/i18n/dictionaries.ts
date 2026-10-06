@@ -115,8 +115,8 @@ export const translations: Record<Language, Record<string, string>> = {
     // SettingsModal.tsx
     "settings.title": "Settings",
     "settings.appearance": "Appearance",
-    "settings.dark": "🌙 Dark",
-    "settings.light": "☀️ Light",
+    "settings.dark": "Dark",
+    "settings.light": "Light",
     "settings.language": "Language",
     "settings.modelsAndTokens": "Models & tokens",
     "settings.modelsHint": "Saved to ~/.finanfa-code/config.json. Adding a key here doesn't disturb whichever provider is already active — start a new chat (or switch models mid-chat) to use it.",
@@ -198,8 +198,8 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // ModelsPanel.tsx
     "models.title": "Models",
-    "models.tabOllama": "🦙 Ollama",
-    "models.tabDocker": "🧩 Docker Model Runner",
+    "models.tabOllama": "Ollama",
+    "models.tabDocker": "Docker Model Runner",
     "models.ollamaUnavailable": "Ollama isn't reachable at localhost:11434 — install it from ollama.com and make sure it's running to manage models here.",
     "models.autoConfigHint": "Pulled models run locally and show up automatically in the model picker — nothing else to configure.",
     "models.installed": "Installed",
@@ -262,6 +262,7 @@ export const translations: Record<Language, Record<string, string>> = {
     "projects.sub": "Isolated workspaces — files, chats, and reference material stay scoped to the project they belong to.",
     "projects.newNamePlaceholder": "New project name…",
     "projects.create": "+ Create project",
+    "projects.empty": "No project yet — name one above to give a topic its own files and chats.",
     "projects.fileCount": "{count} file",
     "projects.fileCountPlural": "{count} files",
 
@@ -381,8 +382,8 @@ export const translations: Record<Language, Record<string, string>> = {
 
     "settings.title": "Réglages",
     "settings.appearance": "Apparence",
-    "settings.dark": "🌙 Sombre",
-    "settings.light": "☀️ Clair",
+    "settings.dark": "Sombre",
+    "settings.light": "Clair",
     "settings.language": "Langue",
     "settings.modelsAndTokens": "Modèles & jetons",
     "settings.modelsHint": "Enregistré dans ~/.finanfa-code/config.json. Ajouter une clé ici ne perturbe pas le provider actuellement actif — démarrez un nouveau chat (ou changez de modèle en cours de route) pour l'utiliser.",
@@ -460,8 +461,8 @@ export const translations: Record<Language, Record<string, string>> = {
     "tools.noMatch": 'Aucun outil ne correspond à "{query}".',
 
     "models.title": "Modèles",
-    "models.tabOllama": "🦙 Ollama",
-    "models.tabDocker": "🧩 Docker Model Runner",
+    "models.tabOllama": "Ollama",
+    "models.tabDocker": "Docker Model Runner",
     "models.ollamaUnavailable": "Ollama n'est pas joignable sur localhost:11434 — installez-le depuis ollama.com et assurez-vous qu'il tourne pour gérer les modèles ici.",
     "models.autoConfigHint": "Les modèles téléchargés tournent en local et apparaissent automatiquement dans le sélecteur de modèle — rien d'autre à configurer.",
     "models.installed": "Installés",
@@ -522,6 +523,7 @@ export const translations: Record<Language, Record<string, string>> = {
     "projects.sub": "Espaces de travail isolés — fichiers, discussions et documents de référence restent limités au projet auquel ils appartiennent.",
     "projects.newNamePlaceholder": "Nom du nouveau projet…",
     "projects.create": "+ Créer un projet",
+    "projects.empty": "Aucun projet pour l'instant — nommez-en un ci-dessus pour donner à un sujet ses propres fichiers et discussions.",
     "projects.fileCount": "{count} fichier",
     "projects.fileCountPlural": "{count} fichiers",
 

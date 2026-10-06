@@ -1,8 +1,8 @@
 import type { ApprovalSettings } from "../hooks/useAgentSocket";
 import { useLanguage } from "../i18n/LanguageContext";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 
-const CATEGORY_ICON: Record<string, string> = { edits: "✏️", terminal: "⌨️", mcp: "🔌" };
+const CATEGORY_ICON: Record<string, IconName> = { edits: "edits", terminal: "terminal", mcp: "connectors" };
 
 /**
  * Which kinds of tool call the agent may run without asking each time. Everything else still prompts, and an
@@ -44,7 +44,7 @@ export function ApprovalsPanel({
                 <div className="mcp-row-main">
                   <div>
                     <div className="mcp-name">
-                      {CATEGORY_ICON[category] ?? "•"} {t(`approvals.${category}.name`)}
+                      <span className="approval-icon">{CATEGORY_ICON[category] && <Icon name={CATEGORY_ICON[category]} size={16} />}</span>{t(`approvals.${category}.name`)}
                     </div>
                     <div className="settings-hint approvals-desc">{t(`approvals.${category}.desc`)}</div>
                     {category === "terminal" && <div className="approvals-warning">{t("approvals.terminal.warning")}</div>}
