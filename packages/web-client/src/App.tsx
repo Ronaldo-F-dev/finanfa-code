@@ -18,6 +18,7 @@ import { ProjectsListView } from "./components/ProjectsListView";
 import { ProjectDetailView, type StartChatOptions } from "./components/ProjectDetailView";
 import { useLanguage } from "./i18n/LanguageContext";
 import { readViewFromUrl, readActiveProjectIdFromUrl, readActiveSessionIdFromUrl, buildUrlSearch, type View } from "./urlState";
+import { Icon } from "./components/Icon";
 
 const IMAGE_TYPES = ["image/png", "image/jpeg", "image/gif", "image/webp"];
 
@@ -513,13 +514,14 @@ export default function App() {
                   {toolsMenuOpen && <div className="composer-tools-backdrop" onClick={() => setToolsMenuOpen(false)} />}
                   <div className={`composer-tools-group ${toolsMenuOpen ? "composer-tools-open" : ""}`}>
                     <button className="btn btn-ghost attach-btn" onClick={() => fileInputRef.current?.click()} disabled={!connected || uploading} title={t("app.attachTitle")}>
-                      📎
+                      <Icon name="attach" size={16} />
                     </button>
                     <button
                       className={`btn btn-toggle ${webSearchEnabled ? "btn-toggle-on" : ""}`}
                       onClick={toggleWebSearch}
                       title={webSearchEnabled ? t("app.webOnTitle") : t("app.webOffTitle")}
                     >
+                      <Icon name="web" size={15} />
                       {t("app.web")}
                     </button>
                     <button
@@ -527,6 +529,7 @@ export default function App() {
                       onClick={toggleImageGen}
                       title={imageGenEnabled ? t("app.imageOnTitle") : t("app.imageOffTitle")}
                     >
+                      <Icon name="image" size={15} />
                       {t("app.image")}
                     </button>
                     <button
@@ -534,6 +537,7 @@ export default function App() {
                       onClick={() => setDeepResearch((v) => !v)}
                       title={t("app.deepResearchTitle")}
                     >
+                      <Icon name="research" size={15} />
                       {t("app.deepResearch")}
                     </button>
                     <ModelPicker
