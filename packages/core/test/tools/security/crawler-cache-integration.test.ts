@@ -5,6 +5,7 @@ import { securityScanCrawlerTool } from "../../../src/tools/builtin/security/cra
 import { securityScanBflaTool } from "../../../src/tools/builtin/security/bfla.js";
 import { securityScanCsrfTool } from "../../../src/tools/builtin/security/csrf.js";
 import { clearSiteMapCacheForTests } from "../../../src/tools/builtin/security/site-map-cache.js";
+import { hasChromium, skipLocally } from "../../helpers/environment.js";
 
 const ctx = { cwd: "/tmp", sessionId: "test", signal: new AbortController().signal };
 
@@ -14,7 +15,8 @@ const ctx = { cwd: "/tmp", sessionId: "test", signal: new AbortController().sign
 // results automatically, with no observedEndpoints/fieldNames passed in —
 // this is the "crawler auto-feeds the other tools" behavior cyberlens's
 // own ScanContext provided, now backed by site-map-cache.ts.
-describe("security_scan_crawler feeds bfla/csrf automatically via the shared session cache", () => {
+// Needs Playwright Chromium; skipped locally when it is not installed (always runs in CI).
+describe.skipIf(skipLocally(hasChromium()))("security_scan_crawler feeds bfla/csrf automatically via the shared session cache", () => {
   let server: http.Server;
   let baseUrl: string;
 
