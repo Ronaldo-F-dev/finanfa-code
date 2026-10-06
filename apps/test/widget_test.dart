@@ -4,6 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:finanfa/core/server_connection.dart';
 import 'package:finanfa/main.dart';
+import 'package:finanfa/state/language_provider.dart';
 import 'package:finanfa/state/server_connection_provider.dart';
 
 /// In-memory stand-in for FlutterSecureStorage — the real plugin talks to a
@@ -20,6 +21,16 @@ class _FakeConnectionStore implements ServerConnectionStore {
   Future<void> clear() async => _saved = null;
 }
 
+/// Pins the UI to English. The real notifier reads the device locale, so on
+/// a French machine the label asserted below rendered "URL du serveur" and
+/// the test failed for a reason that had nothing to do with what it checks.
+/// Skipping `build()`'s async SharedPreferences load also keeps this test
+/// free of the platform channel no widget test registers.
+class _EnglishLanguage extends LanguageNotifier {
+  @override
+  String build() => 'en';
+}
+
 void main() {
   testWidgets('shows the connect screen when no server is configured yet', (
     WidgetTester tester,
@@ -27,6 +38,7 @@ void main() {
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
+          languageProvider.overrideWith(_EnglishLanguage.new),
           serverConnectionStoreProvider.overrideWithValue(
             _FakeConnectionStore(),
           ),
@@ -37,6 +49,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('finanfa'), findsOneWidget);
-    expect(find.widgetWithText(TextField, 'Server URL'), findsOneWidget);
+    // The label sits above the field, uppercased (LabeledField), rather than
+    // as a Material floating label inside it — the old
+    // widgetWithText(TextField, ...) finder dates from before that widget
+    // existed and could never match again.
+    expect(find.text('SERVER URL'), findsOneWidget);
+    expect(find.byType(TextField), findsOneWidget);
   });
 }
