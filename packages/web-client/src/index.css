@@ -2395,3 +2395,69 @@ details.tool-call-details > summary.tool-call::marker {
     text-align: left;
   }
 }
+
+/* Shared polish for the workspace panels (Memory, Models, Tools, Tasks…):
+   same card rhythm as Connectors / Channels — roomy rows, quiet section
+   labels, empty states that read as a card rather than a stray line. */
+.panel-modal .sidebar-section-label,
+.panel-modal .side-panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0;
+  margin: 22px 0 10px;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+}
+.panel-modal .memory-add-btn {
+  float: none;
+  padding: 2px 8px;
+  text-transform: none;
+  letter-spacing: 0;
+  font-size: 12px;
+  color: var(--accent);
+}
+.panel-modal .settings-hint {
+  font-size: 13px;
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+.panel-modal .sidebar-empty {
+  padding: 22px 16px;
+  text-align: center;
+  font-size: 13px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+.panel-modal .mcp-row {
+  padding: 14px 16px;
+  border-radius: 12px;
+}
+.panel-modal .panel-tabs {
+  margin-bottom: 16px;
+  gap: 8px;
+}
+.panel-modal .panel-tab {
+  padding: 8px 12px 12px;
+}
+.panel-modal .docker-models-search-row input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+/* Small icon tile used in place of emoji on model / tool rows */
+.row-tile {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  color: var(--accent);
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+}
