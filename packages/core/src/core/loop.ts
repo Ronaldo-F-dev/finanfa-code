@@ -823,6 +823,8 @@ export async function compactSession(session: AgentSession, provider: LlmProvide
       { role: "user", content: "[Earlier conversation compacted to save context — see the summary below]" },
       { role: "assistant", content: summary },
     ];
+    // Checkpoints point into the old message array; once it is replaced they would truncate the wrong place (or nothing) on rewind.
+    session.checkpoints = [];
     await session.persist();
     return { messagesBefore };
   } catch {
