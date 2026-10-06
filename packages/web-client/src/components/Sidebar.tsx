@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
+import { Icon } from "./Icon";
 
 export interface SessionListItem {
   id: string;
@@ -64,10 +65,12 @@ export function Sidebar({
   return (
     <aside className={`sidebar ${mobileOpen ? "sidebar-open" : ""}`}>
       <button className="sidebar-new" onClick={onNewChat}>
-        {t("sidebar.newChat")}
+        <Icon name="newChat" />
+          <span>{t("sidebar.newChat")}</span>
       </button>
       <button className="sidebar-project" onClick={onOpenProjects} title={t("sidebar.browseProjects")}>
-        {t("sidebar.projects")}
+        <Icon name="projects" />
+          <span>{t("sidebar.projects")}</span>
         {projectName ? ` — ${projectName}` : ""}
       </button>
 
@@ -87,28 +90,36 @@ export function Sidebar({
       <div className="sidebar-section-label sidebar-workspace-label">{t("sidebar.workspace")}</div>
       <div className="sidebar-menu">
         <button className="sidebar-settings" onClick={onOpenMemory}>
-          {t("sidebar.memory")}
+          <Icon name="memory" />
+          <span>{t("sidebar.memory")}</span>
         </button>
         <button className="sidebar-settings" onClick={onOpenMcp}>
-          {t("sidebar.connectors")}
+          <Icon name="connectors" />
+          <span>{t("sidebar.connectors")}</span>
         </button>
         <button className="sidebar-settings" onClick={onOpenModels}>
-          {t("sidebar.models")}
+          <Icon name="models" />
+          <span>{t("sidebar.models")}</span>
         </button>
         <button className="sidebar-settings" onClick={onOpenTools}>
-          {t("sidebar.tools")}
+          <Icon name="tools" />
+          <span>{t("sidebar.tools")}</span>
         </button>
         <button className="sidebar-settings" onClick={onOpenApprovals}>
-          {t("sidebar.approvals")}
+          <Icon name="approvals" />
+          <span>{t("sidebar.approvals")}</span>
         </button>
         <button className="sidebar-settings" onClick={onOpenTodos}>
-          {t("sidebar.todos")}
+          <Icon name="tasks" />
+          <span>{t("sidebar.todos")}</span>
         </button>
         <button className="sidebar-settings" onClick={onOpenChannels}>
-          {t("sidebar.channels")}
+          <Icon name="channels" />
+          <span>{t("sidebar.channels")}</span>
         </button>
         <button className="sidebar-settings" onClick={onOpenSettings}>
-          {t("sidebar.settings")}
+          <Icon name="settings" />
+          <span>{t("sidebar.settings")}</span>
         </button>
       </div>
     </aside>
