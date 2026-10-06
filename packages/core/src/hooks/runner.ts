@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { SHELL } from "../util/process.js";
+import { SHELL, killProcessGroup } from "../util/process.js";
 import type { HookCommand, HookEventName, HookMatcher, HooksConfig } from "./config.js";
 
 export interface HookPayload {
@@ -42,11 +42,14 @@ function matchesTool(matcher: HookMatcher, toolName: string | undefined): boolea
 
 function runOneCommand(command: HookCommand, payload: HookPayload, cwd: string): Promise<HookOutcome> {
   return new Promise((resolve) => {
-    const child = spawn(command.command, { cwd, shell: SHELL });
+    // detached + killProcessGroup: on timeout the whole process group must die,
+    // not just the shell — a hook's own child (e.g. `sleep`) would otherwise
+    // keep the stdout pipe open and delay "close" until it finished by itself.
+    const child = spawn(command.command, { cwd, shell: SHELL, detached: true });
     let stdout = "";
     let stderr = "";
     const timeoutMs = command.timeout !== undefined ? command.timeout * 1000 : DEFAULT_TIMEOUT_MS;
-    const timer = setTimeout(() => child.kill("SIGKILL"), timeoutMs);
+    const timer = setTimeout(() => killProcessGroup(child), timeoutMs);
 
     child.stdout?.on("data", (d) => (stdout += d));
     child.stderr?.on("data", (d) => (stderr += d));
