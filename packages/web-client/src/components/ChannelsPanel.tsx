@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
+import { BrandLogo } from "./BrandLogo";
+import { Icon } from "./Icon";
 
 interface ChannelField {
   key: string;
@@ -62,10 +64,13 @@ function ChannelCard({ channel, onSaved }: { channel: ChannelStatus; onSaved: ()
   return (
     <div className="project-card channel-card" onClick={() => setExpanded((v) => !v)}>
       <div className="channel-card-header">
-        <div className="channel-card-name">{channel.name}</div>
-        <span className={`channel-status-pill ${channel.configured ? "channel-status-on" : "channel-status-off"}`}>
-          {channel.configured ? t("channels.configured") : t("channels.notConfigured")}
-        </span>
+        <BrandLogo id={channel.id} size={40} />
+        <div className="channel-card-text">
+          <div className="channel-card-name">{channel.name}</div>
+          <span className={`channel-status-pill ${channel.configured ? "channel-status-on" : "channel-status-off"}`}>
+            {channel.configured ? t("channels.configured") : t("channels.notConfigured")}
+          </span>
+        </div>
       </div>
 
       {expanded && (
@@ -139,7 +144,9 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal panel-modal channels-panel" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
-          <span className="panel-header-icon">📡</span>
+          <span className="panel-header-icon">
+            <Icon name="channels" size={20} />
+          </span>
           <span className="panel-header-title">{t("channels.title")}</span>
           <button className="panel-header-close" onClick={onClose} aria-label={t("settings.close")}>
             ×

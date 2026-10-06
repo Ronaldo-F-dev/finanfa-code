@@ -46,6 +46,12 @@ body,
   margin: 0;
 }
 
+/* Thin, theme-coloured scrollbars: the default light bar is a white slab on the dark theme. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
@@ -75,22 +81,34 @@ body {
   flex-direction: column;
   background: var(--bg-elevated);
   border-right: 1px solid var(--border);
-  padding: 12px;
-  gap: 10px;
+  padding: 16px 14px;
+  gap: 14px;
 }
 
 /* Reference: ChatGPT's own sidebar treats "Projects" as a normal row in
    its primary nav list (icon + label, same size/weight/hover as every
    other row there) — not a small caption-style link floating above
    everything else, which is what this used to look like. */
+/* A navigation row: icon, then label. */
+.sidebar-new,
+.sidebar-project,
+.sidebar-settings {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.icon {
+  flex: none;
+}
+
 .sidebar-project {
   background: transparent;
   border: none;
   border-radius: 8px;
   color: var(--text-muted);
-  padding: 8px 10px;
+  padding: 9px 12px;
   text-align: left;
-  font-size: 13px;
+  font-size: 13.5px;
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -106,9 +124,9 @@ body {
   color: var(--text);
   border: none;
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 9px 12px;
   text-align: left;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -121,7 +139,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
-  padding: 4px 4px 0;
+  padding: 8px 12px 2px;
 }
 
 .sidebar-list {
@@ -195,7 +213,7 @@ body {
 .sidebar-menu {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .sidebar-settings {
@@ -203,9 +221,9 @@ body {
   border: none;
   border-radius: 8px;
   color: var(--text-muted);
-  padding: 8px 10px;
+  padding: 9px 12px;
   text-align: left;
-  font-size: 13px;
+  font-size: 13.5px;
   cursor: pointer;
 }
 .sidebar-settings:hover {
@@ -220,10 +238,11 @@ body {
 .mcp-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 16px;
-  max-height: 340px;
+  gap: 8px;
+  margin-bottom: 18px;
+  max-height: 380px;
   overflow-y: auto;
+  padding-right: 6px;
 }
 
 /* 90+ builtin tools vs. a handful of MCP servers — more scroll room. */
@@ -235,28 +254,50 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
-  border-radius: 8px;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
   border: 1px solid var(--border);
+  background: var(--bg);
+  transition: border-color 0.12s;
+}
+.mcp-row:hover {
+  border-color: var(--text-muted);
 }
 
 .mcp-row-main {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  min-width: 0;
 }
 
-.mcp-icon {
-  font-size: 18px;
-  width: 22px;
-  text-align: center;
-  flex-shrink: 0;
+/* Logo tile of a connector / channel (BrandLogo) */
+.brand-logo {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: none;
+  border-radius: 10px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
+  line-height: 1;
+  user-select: none;
+}
+.brand-logo-initials {
+  transform: translateY(-0.5px);
+}
+.mcp-text {
+  min-width: 0;
 }
 
 .mcp-dot {
+  display: inline-block;
   width: 8px;
   height: 8px;
+  margin-right: 8px;
   border-radius: 50%;
+  vertical-align: middle;
   flex-shrink: 0;
 }
 .mcp-dot-on {
@@ -270,12 +311,13 @@ body {
 }
 
 .mcp-name {
-  font-size: 13px;
-  font-weight: 500;
+  font-size: 14px;
+  font-weight: 600;
 }
 .mcp-meta {
-  font-size: 11.5px;
+  font-size: 12px;
   color: var(--text-muted);
+  margin-top: 2px;
 }
 
 /* Shared header for the sidebar's 4 panels (Memory, Connectors, Models,
@@ -284,13 +326,15 @@ body {
 .panel-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: -4px -4px 12px;
-  padding: 0 4px 12px;
+  gap: 12px;
+  margin: -4px -4px 16px;
+  padding: 0 4px 16px;
   border-bottom: 1px solid var(--border);
 }
 .panel-header-icon {
-  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
 }
 .panel-header-title {
   font-size: 16px;
@@ -547,7 +591,8 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 20px;
+  gap: 16px;
+  padding: 12px 24px;
   border-bottom: 1px solid var(--border);
   background: var(--bg-elevated);
   flex-shrink: 0;
@@ -589,7 +634,7 @@ body {
 .topbar-right {
   display: flex;
   align-items: center;
-  gap: 12px;
+  gap: 14px;
 }
 
 .cost-pill {
@@ -859,9 +904,14 @@ body {
   background: var(--bg);
   color: var(--text);
   border-radius: 8px;
-  padding: 6px 14px;
+  padding: 7px 14px;
   font-size: 13px;
   cursor: pointer;
+  transition: border-color 0.12s, background 0.12s;
+}
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 .btn:hover:not(:disabled) {
   border-color: var(--text-muted);
@@ -910,18 +960,20 @@ body {
 .row {
   max-width: 760px;
   margin: 0 auto;
-  padding: 6px 20px;
+  padding: 8px 24px;
   display: flex;
 }
 
 .row-user {
   justify-content: flex-end;
+  /* A user message opens a new exchange: leave room above it so replies and the next question don't run together. */
+  margin-top: 22px;
 }
 
 .bubble {
-  border-radius: 16px;
-  padding: 10px 16px;
-  line-height: 1.5;
+  border-radius: 18px;
+  padding: 11px 18px;
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
@@ -932,7 +984,7 @@ body {
 
 .row-assistant {
   align-items: flex-start;
-  gap: 12px;
+  gap: 14px;
 }
 
 .avatar {
@@ -955,21 +1007,84 @@ body {
   padding: 2px 0;
 }
 
+/* The markdown HTML has newlines between its blocks. Inside .bubble (white-space: pre-wrap, which is right for the
+   user's own text) every one of them showed up as a blank line, so paragraphs, lists and code blocks floated far apart. */
+.markdown {
+  white-space: normal;
+  line-height: 1.65;
+  overflow-wrap: anywhere;
+}
+.markdown > :first-child {
+  margin-top: 0;
+}
+.markdown > :last-child {
+  margin-bottom: 0;
+}
 .markdown p {
-  margin: 0 0 10px;
+  margin: 0 0 12px;
 }
 .markdown p:last-child {
   margin-bottom: 0;
 }
+.markdown h1,
+.markdown h2,
+.markdown h3,
+.markdown h4 {
+  margin: 20px 0 8px;
+  line-height: 1.3;
+  font-weight: 600;
+}
+.markdown h1 {
+  font-size: 1.35em;
+}
+.markdown h2 {
+  font-size: 1.2em;
+}
+.markdown h3,
+.markdown h4 {
+  font-size: 1.05em;
+}
+.markdown a {
+  color: var(--accent);
+}
+.markdown blockquote {
+  margin: 12px 0;
+  padding: 2px 0 2px 14px;
+  border-left: 3px solid var(--border);
+  color: var(--text-muted);
+}
+.markdown hr {
+  border: none;
+  border-top: 1px solid var(--border);
+  margin: 18px 0;
+}
+.markdown table {
+  display: block;
+  overflow-x: auto;
+  border-collapse: collapse;
+  margin: 12px 0;
+}
+.markdown th,
+.markdown td {
+  border: 1px solid var(--border);
+  padding: 6px 12px;
+  text-align: left;
+}
+.markdown th {
+  background: var(--bg-elevated);
+  font-weight: 600;
+}
 .markdown pre {
+  margin: 12px 0;
   position: relative;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 8px;
-  padding: 12px;
+  border-radius: 10px;
+  padding: 14px 16px;
   overflow-x: auto;
   font-family: var(--font-mono);
   font-size: 13px;
+  line-height: 1.55;
 }
 .code-copy-btn {
   position: absolute;
@@ -1006,7 +1121,14 @@ body {
 }
 .markdown ul,
 .markdown ol {
-  padding-left: 22px;
+  margin: 0 0 12px;
+  padding-left: 24px;
+}
+.markdown li {
+  margin: 4px 0;
+}
+.markdown li > p {
+  margin: 0;
 }
 
 .cursor {
@@ -1060,8 +1182,9 @@ body {
   gap: 8px;
   font-family: var(--font-mono);
   font-size: 12.5px;
-  padding: 3px 10px;
-  border-radius: 6px;
+  padding: 6px 12px;
+  margin: 4px 0;
+  border-radius: 8px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
 }
@@ -1105,9 +1228,9 @@ details.tool-call-details > summary.tool-call::marker {
   content: "";
 }
 .tool-call-result {
-  margin: 4px 0 0 10px;
-  padding: 8px 10px;
-  border-radius: 6px;
+  margin: 6px 0 8px 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   font-family: var(--font-mono);
@@ -1165,7 +1288,7 @@ details.tool-call-details > summary.tool-call::marker {
   max-width: 760px;
   width: 100%;
   margin: 0 auto;
-  padding: 12px 20px 20px;
+  padding: 14px 24px 22px;
   flex-shrink: 0;
 }
 
@@ -1173,14 +1296,14 @@ details.tool-call-details > summary.tool-call::marker {
   text-align: center;
   font-size: 11px;
   color: var(--text-muted);
-  margin-top: 6px;
+  margin-top: 10px;
 }
 
 .composer-box {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 10px 12px 8px;
+  border-radius: 18px;
+  padding: 12px 14px 10px;
 }
 .composer-box:focus-within {
   border-color: var(--accent);
@@ -1206,19 +1329,23 @@ details.tool-call-details > summary.tool-call::marker {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
 }
 
 .composer-toolbar-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
   position: relative;
 }
 
 .composer-tools-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .composer-plus-btn {
@@ -1230,9 +1357,15 @@ details.tool-call-details > summary.tool-call::marker {
 }
 
 .attach-btn {
-  padding: 6px 9px;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
   line-height: 1;
+}
+.btn-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .attachment-chips {
@@ -1297,10 +1430,11 @@ details.tool-call-details > summary.tool-call::marker {
 .modal {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 14px;
+  padding: 24px;
   max-width: 560px;
   width: 90%;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
 }
 
 .modal-wide {
@@ -1720,7 +1854,8 @@ details.tool-call-details > summary.tool-call::marker {
 
 .channels-grid {
   max-width: none;
-  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+  margin-bottom: 20px;
 }
 
 .channel-card {
@@ -1730,20 +1865,28 @@ details.tool-call-details > summary.tool-call::marker {
 .channel-card-header {
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 10px;
+  gap: 14px;
+}
+
+.channel-card-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 5px;
 }
 
 .channel-card-name {
   font-size: 14px;
   font-weight: 600;
+  line-height: 1.25;
 }
 
 .channel-status-pill {
-  font-size: 10.5px;
+  font-size: 11px;
   font-weight: 600;
   border-radius: 20px;
-  padding: 2px 9px;
+  padding: 2px 10px;
   white-space: nowrap;
 }
 .channel-status-on {

@@ -1,5 +1,6 @@
 import type { TodoItem, TodoStatus } from "../hooks/useAgentSocket";
 import { useLanguage } from "../i18n/LanguageContext";
+import { Icon } from "./Icon";
 
 const COLUMNS: { status: TodoStatus; labelKey: string }[] = [
   { status: "pending", labelKey: "todos.pending" },
@@ -24,7 +25,9 @@ export function TodoPanel({ todos, onClose }: { todos: TodoItem[]; onClose: () =
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal panel-modal" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
-          <span className="panel-header-icon">🗂️</span>
+          <span className="panel-header-icon">
+            <Icon name="tasks" size={20} />
+          </span>
           <span className="panel-header-title">{t("todos.title")}</span>
           <button className="panel-header-close" onClick={onClose} aria-label={t("settings.close")}>
             ×

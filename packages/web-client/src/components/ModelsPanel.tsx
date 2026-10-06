@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
+import { Icon } from "./Icon";
 
 interface OllamaModel {
   name: string;
@@ -387,7 +388,9 @@ export function ModelsPanel({ onClose }: { onClose: () => void }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal panel-modal" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
-          <span className="panel-header-icon">🧩</span>
+          <span className="panel-header-icon">
+            <Icon name="models" size={20} />
+          </span>
           <span className="panel-header-title">{t("models.title")}</span>
           <button className="panel-header-close" onClick={onClose} aria-label={t("settings.close")}>
             ×
