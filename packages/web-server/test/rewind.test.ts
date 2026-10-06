@@ -126,7 +126,7 @@ describe("rewinding to an earlier message (real subprocess, real WebSocket, scri
     const before = events.length;
     ws.send(JSON.stringify({ type: "rewind", checkpoint: 2 }));
     const rewound = await waitFor(events, (e) => e.type === "rewound" && events.indexOf(e) >= before);
-    expect(rewound).toMatchObject({ checkpoint: 2, preview: "make the second file", revertedFiles: 1 });
+    expect(rewound).toMatchObject({ checkpoint: 2, clientId: "msg-B", preview: "make the second file", revertedFiles: 1 });
     expect(await exists(path.join(projectDir, "second.txt"))).toBe(false);
     expect(await readFile(path.join(projectDir, "first.txt"), "utf-8")).toBe("one\n");
     const afterRewind = (await waitFor(events, (e) => e.type === "checkpoints" && events.indexOf(e) > events.indexOf(rewound))) as WsEvent;

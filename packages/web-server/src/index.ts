@@ -1600,13 +1600,15 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
         }
         turnInFlight = true; // same guard compaction uses: a message arriving mid-rewind would append to an array being cut
         try {
+          // Read before rewinding: the checkpoint is gone afterwards.
+          const clientId = typeof msg.checkpoint === "number" ? session.checkpoints[msg.checkpoint - 1]?.clientId : undefined;
           const result = typeof msg.checkpoint === "number" ? await rewindSession(session, msg.checkpoint) : undefined;
           if (!result) {
             adapter.writeError("That restore point no longer exists.");
             sendCheckpoints();
             return;
           }
-          ws.send(JSON.stringify({ type: "rewound", checkpoint: msg.checkpoint, preview: result.preview, revertedFiles: result.revertedFiles }));
+          ws.send(JSON.stringify({ type: "rewound", checkpoint: msg.checkpoint, clientId, preview: result.preview, revertedFiles: result.revertedFiles }));
           sendCheckpoints();
         } catch (err) {
           adapter.writeError(`Could not restore: ${err instanceof Error ? err.message : String(err)}`);
