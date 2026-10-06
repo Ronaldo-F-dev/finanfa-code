@@ -46,6 +46,12 @@ body,
   margin: 0;
 }
 
+/* Thin, theme-coloured scrollbars: the default light bar is a white slab on the dark theme. */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--border) transparent;
+}
+
 body {
   background: var(--bg);
   color: var(--text);
