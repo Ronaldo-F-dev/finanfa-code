@@ -35,6 +35,12 @@ first tagged release.
   text patch. The server sends the file's before/after with the approval request (omitted above
   400 KB, where the text preview remains). The approval headline now says "finanfa AI" rather than
   "finanfa-code", as the rest of the UI does.
+- **Restore to before a message** in the web UI and desktop app: each message you send in the current
+  conversation gets a "Restore" button (with a confirmation). It cuts the conversation back to just before
+  that message, undoes the file edits and writes the agent made since, and puts the message back in the
+  composer so you can edit and re-send it. Only changes made through the edit/write tools are undone — not
+  what a shell command did — and restore points last for the open conversation, not across a reload. The
+  same operation backs `/rewind` in the terminal, and is refused while the agent is working.
 - `Authorization: Bearer` is accepted for the WebSocket handshake, as well as `?token=`.
 - Hooks of type `prompt` (one model call) and `agent` (a read-only
   `hook-verifier` sub-agent) next to `command`: they answer `{"ok": …}`, can
@@ -162,6 +168,8 @@ first tagged release.
 
 ### Fixed
 
+- After `/compact`, `/rewind <n>` could undo file changes but leave the conversation untouched: checkpoints
+  kept indices into the message array compaction had just replaced. Compaction now clears them.
 - A configured local model runtime that isn't installed (e.g. `mlx_lm.server`) crashed the whole web
   server at startup (an unhandled `spawn` error); it is now a `start-failed` status with a message.
 - A hook that exceeded its timeout left its child processes running and kept
