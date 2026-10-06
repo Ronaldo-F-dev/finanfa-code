@@ -2040,7 +2040,11 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
         // what made deleting one look like it silently spawned another: the
         // *next* empty connection's close was writing a fresh ghost entry
         // around the same time. Real bug, not a UI issue.
-        if (session.messages.length > 0) await session.persist().catch(() => {});
+        if (session.messages.length > 0) {
+          await session.persist().catch(() => {});
+          // Same condition as SessionStart (a session that ran at least one turn), so the two stay paired.
+          await permissions.runLifecycleHook("SessionEnd", session.cwd, session.id, { source: "disconnect" });
+        }
         await mcp.disconnectAll().catch(() => {});
         await browser.close().catch(() => {});
       })();
