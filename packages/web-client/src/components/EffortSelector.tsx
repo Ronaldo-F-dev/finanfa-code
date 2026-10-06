@@ -29,6 +29,9 @@ export function getDefaultEffortPreference(): string | null {
   }
 }
 
+/** Presets that are a specialist model rather than a level of effort — offered from the model picker instead. */
+export const SPECIALIST_TIER_IDS = ["legal"];
+
 /**
  * Low/Medium/High shortcut past manually picking a model, remembering to
  * cap max_tokens, and remembering to strip most tools every time a small
@@ -59,7 +62,7 @@ export function EffortSelector({
   function refreshTiers() {
     fetch("/api/effort-tiers")
       .then((r) => r.json())
-      .then((d: { tiers: EffortTierInfo[] }) => setTiers(d.tiers))
+      .then((d: { tiers: EffortTierInfo[] }) => setTiers(d.tiers.filter((tier) => !SPECIALIST_TIER_IDS.includes(tier.id))))
       .catch(() => setTiers([]));
   }
 
