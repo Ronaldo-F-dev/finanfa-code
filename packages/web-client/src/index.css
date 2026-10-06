@@ -1239,7 +1239,7 @@ details.tool-call-details > summary.tool-call::marker {
   max-width: 760px;
   width: 100%;
   margin: 0 auto;
-  padding: 12px 20px 20px;
+  padding: 14px 24px 22px;
   flex-shrink: 0;
 }
 
@@ -1247,14 +1247,14 @@ details.tool-call-details > summary.tool-call::marker {
   text-align: center;
   font-size: 11px;
   color: var(--text-muted);
-  margin-top: 6px;
+  margin-top: 10px;
 }
 
 .composer-box {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 16px;
-  padding: 10px 12px 8px;
+  border-radius: 18px;
+  padding: 12px 14px 10px;
 }
 .composer-box:focus-within {
   border-color: var(--accent);
@@ -1280,19 +1280,23 @@ details.tool-call-details > summary.tool-call::marker {
   display: flex;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  margin-top: 6px;
 }
 
 .composer-toolbar-left {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
   position: relative;
 }
 
 .composer-tools-group {
   display: flex;
   align-items: center;
-  gap: 8px;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .composer-plus-btn {
