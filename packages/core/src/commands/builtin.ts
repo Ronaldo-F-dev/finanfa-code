@@ -3,7 +3,8 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { AgentSession } from "../core/session.js";
 import { loadMcpServers, type McpServerConfig } from "../mcp/config.js";
 import { MCP_TOOL_PREFIX } from "../mcp/client-manager.js";
-import { loadConfig, saveGlobalConfig, globalConfigPath, type FinanfaConfig } from "../core/config.js";
+import { loadConfig, saveGlobalConfig, globalConfigPath, updateGlobalConfig, type FinanfaConfig } from "../core/config.js";
+import { APPROVAL_CATEGORIES, type ApprovalCategory } from "../permissions/categories.js";
 import { loadMemories } from "../memory/loader.js";
 import { compactSession } from "../core/loop.js";
 import { revertFileRecord, rewindSession } from "../core/rewind.js";
@@ -90,10 +91,53 @@ function handlePlan(ctx: CommandContext): CommandOutcome {
  * land on "ask" (see PermissionManager.check), never the static
  * defaultForRiskLevel/rules behavior itself.
  */
-function handlePermissions(ctx: CommandContext): CommandOutcome {
-  const [sub, state, model] = ctx.args.trim().split(/\s+/);
+const CATEGORY_BLURB: Record<ApprovalCategory, string> = {
+  edits: "file edits and writes (write_file, edit_file, ...)",
+  terminal: "shell commands on this machine (bash, python_repl, background processes, tmux)",
+  mcp: "tools provided by MCP servers",
+};
+
+/** /permissions auto-approve [<category> on|off [save]] — approve a whole group of tool calls without a prompt each time. */
+async function handleAutoApprove(ctx: CommandContext, category: string | undefined, state: string | undefined, save: string | undefined): Promise<CommandOutcome> {
+  const usage = `Usage: /permissions auto-approve [${APPROVAL_CATEGORIES.join("|")} on|off [save]] (no args shows the current state)`;
+  if (!category) {
+    const current = ctx.permissions.getAutoApprove();
+    const lines = APPROVAL_CATEGORIES.map((c) => `  ${c}: ${current[c] ? "ON " : "off"} — ${CATEGORY_BLURB[c]}`);
+    const note = ctx.permissions.isAutoApproveForbidden() ? "\n(Disabled by this machine's managed settings.)" : "";
+    ctx.ui.writeSystem(`Approved without asking:\n${lines.join("\n")}${note}\nAn explicit permission rule for a tool, or a hook that blocks it, still applies.`);
+    return "continue";
+  }
+  if (!(APPROVAL_CATEGORIES as readonly string[]).includes(category) || (state !== "on" && state !== "off") || (save !== undefined && save !== "save")) {
+    ctx.ui.writeError(usage);
+    return "continue";
+  }
+  if (!ctx.permissions.setAutoApprove(category as ApprovalCategory, state === "on")) {
+    ctx.ui.writeError("Skipping approvals is disabled by this machine's managed settings.");
+    return "continue";
+  }
+  let persisted = "for this session";
+  if (save === "save") {
+    try {
+      await updateGlobalConfig({ autoApprove: ctx.permissions.getAutoApprove() });
+      persisted = "and saved to your global config";
+    } catch (err) {
+      ctx.ui.writeError(`Applied for this session, but could not save it: ${err instanceof Error ? err.message : String(err)}`);
+      return "continue";
+    }
+  }
+  ctx.ui.writeSystem(
+    `${category}: ${state === "on" ? "approved without asking" : "asking again"} ${persisted}.` +
+      (state === "on" && category === "terminal" ? " Shell commands now run without a prompt — review what the agent is doing." : ""),
+  );
+  return "continue";
+}
+
+async function handlePermissions(ctx: CommandContext): Promise<CommandOutcome> {
+  const [sub, state, model, fourth] = ctx.args.trim().split(/\s+/);
+  // /permissions auto-approve <category> <on|off> [save] — the words land in state / model / fourth.
+  if (sub === "auto-approve") return handleAutoApprove(ctx, state, model, fourth);
   if (sub !== "auto-classifier") {
-    ctx.ui.writeError("Usage: /permissions auto-classifier [on [model]|off] (no args shows current state)");
+    ctx.ui.writeError("Usage: /permissions auto-classifier [on [model]|off] | /permissions auto-approve [<category> on|off [save]]");
     return "continue";
   }
   if (state === "on") {
@@ -723,7 +767,7 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
   commands.register(
     "permissions",
     handlePermissions,
-    "Toggle the auto-approval classifier: /permissions auto-classifier [on [model]|off] (no args shows current state) — " +
-      "scores each call that would otherwise ask, auto-running low/medium risk (with a notice for medium) and still asking for high",
+    "Control approvals: /permissions auto-classifier [on [model]|off] scores each call that would otherwise ask (low/medium run, high still asks); " +
+      "/permissions auto-approve [edits|terminal|mcp on|off [save]] approves a whole group of tools without asking (no args shows the state)",
   );
 }
