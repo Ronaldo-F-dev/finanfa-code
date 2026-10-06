@@ -22,11 +22,16 @@ export function ModelPicker({
   model,
   onChange,
   onNeedsKey,
+  currentEffort,
+  onSelectLegal,
 }: {
   models: ModelOption[];
   model: string;
   onChange: (model: string, family: string, baseUrl?: string) => void;
   onNeedsKey: () => void;
+  currentEffort?: string;
+  /** Switches to the "legal" preset (SaulLM, no tools); the server asks for the download itself when the model is missing. */
+  onSelectLegal: () => void;
 }) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
@@ -71,6 +76,21 @@ export function ModelPicker({
               </button>
             );
           })}
+          <div className="model-picker-group">{t("modelPicker.specialists")}</div>
+          <button
+            type="button"
+            className="model-picker-item"
+            onClick={() => {
+              setOpen(false);
+              onSelectLegal();
+            }}
+          >
+            <div>
+              <div className="model-picker-name">{t("modelPicker.legal")}</div>
+              <div className="model-picker-blurb">{t("modelPicker.legalBlurb")}</div>
+            </div>
+            {currentEffort === "legal" && <span className="model-picker-check">✓</span>}
+          </button>
         </div>
       )}
     </div>
