@@ -101,6 +101,16 @@ first tagged release.
   or Flutter client sending immediately on connect). The server now queues
   messages that arrive before the handler exists and replays them in
   arrival order; the composer waits for `session_info` before enabling.
+- The web UI's per-code-block "Copy" button called
+  `navigator.clipboard.writeText(...)` directly and assumed it worked:
+  it silently did nothing (plus an unhandled rejection in the console)
+  when the Clipboard API is undefined — a non-secure context like plain
+  http on a LAN address, or an embedded webview — and when `writeText`
+  itself rejects (document not focused, permission denied).
+  `copyTextToClipboard` now reports whether the write actually landed, and
+  the button only shows its confirmation when it did. This is also the
+  line SonarCloud's Reliability rating kept flagging as new-code debt
+  every time this file was touched.
 - **Real, reported bug**: a browser tab authorizing an MCP connector (e.g.
   Vercel) could pop open completely unprompted — no button clicked —
   sometimes hours into an unrelated conversation. The MCP SDK calls
