@@ -14,6 +14,18 @@ export interface DesktopSettings {
   bounds?: WindowBounds;
 }
 
+/**
+ * Whether a remembered workspace may be reused as is. A folder inside the OS temp directory never is: nobody
+ * picks it as the place their agent should work, it only gets there by accident (a test run, a script) — and
+ * the agent would then read and write in a directory the system cleans up. The app asks again instead.
+ */
+export function isUsableWorkspace(dir: string, tmpDir: string): boolean {
+  const strip = (p: string) => path.resolve(p).replace(/^\/private(?=\/)/, "");
+  const target = strip(dir);
+  const tmp = strip(tmpDir);
+  return !(target === tmp || target.startsWith(tmp + path.sep));
+}
+
 export const DEFAULT_BOUNDS: WindowBounds = { width: 1280, height: 860 };
 
 /** Reads settings, tolerating a missing, corrupt or wrongly-typed file (a bad settings file must never stop the app from opening). */

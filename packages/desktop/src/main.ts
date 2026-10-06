@@ -1,11 +1,12 @@
 import { app, BrowserWindow, dialog, globalShortcut, Menu, session, shell, type MenuItemConstructorOptions } from "electron";
-import { statSync } from "node:fs";
+import { realpathSync, statSync } from "node:fs";
+import os from "node:os";
 import http from "node:http";
 import path from "node:path";
 import { isInternalUrl, isSafeExternalUrl } from "./navigation.js";
 import { buildServerSpawn, generateToken } from "./server-launch.js";
 import { startServer, type RunningServer } from "./server-supervisor.js";
-import { DEFAULT_BOUNDS, loadSettings, saveSettings, type DesktopSettings } from "./settings.js";
+import { DEFAULT_BOUNDS, isUsableWorkspace, loadSettings, saveSettings, type DesktopSettings } from "./settings.js";
 
 const SMOKE = process.argv.includes("--smoke");
 const DOCS_URL = "https://github.com/Ronaldo-F-dev/finanfa-code#readme";
@@ -44,7 +45,7 @@ function isDirectory(p: string): boolean {
 async function resolveWorkspace(): Promise<string | undefined> {
   const flag = process.argv.find((a) => a.startsWith("--workspace="))?.slice("--workspace=".length);
   if (flag && isDirectory(flag)) return path.resolve(flag);
-  if (settings.workspace && isDirectory(settings.workspace)) return settings.workspace;
+  if (settings.workspace && isDirectory(settings.workspace) && isUsableWorkspace(realpathSync(settings.workspace), realpathSync(os.tmpdir()))) return settings.workspace;
   if (SMOKE) return app.getPath("temp");
   const picked = await dialog.showOpenDialog({
     title: "Choose the folder finanfa works in",
@@ -83,7 +84,8 @@ function createWindow(): BrowserWindow {
   if (b.maximized) win.maximize();
 
   const remember = () => {
-    if (win.isDestroyed()) return;
+    // A smoke run is a test: it must never write the real user's settings (it once stored the temp dir as their workspace).
+    if (SMOKE || win.isDestroyed()) return;
     settings = { ...settings, bounds: { ...win.getNormalBounds(), maximized: win.isMaximized() } };
     void saveSettings(settingsFile, settings);
   };
@@ -200,7 +202,7 @@ async function start(): Promise<void> {
   const workspace = await resolveWorkspace();
   log(`workspace: ${workspace}`);
   if (!workspace) return app.quit();
-  if (workspace !== settings.workspace) {
+  if (!SMOKE && workspace !== settings.workspace) {
     settings = { ...settings, workspace };
     await saveSettings(settingsFile, settings);
   }

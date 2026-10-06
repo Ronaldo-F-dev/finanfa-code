@@ -58,6 +58,20 @@ UI renders, and an authenticated REST call and WebSocket both succeed, then exit
 To keep it away from your own config, run it with `HOME=$(mktemp -d)`. On a headless Linux box it needs a
 display (`xvfb-run`). Unit tests: `npx vitest run packages/desktop`.
 
+## Troubleshooting
+
+- **The app opens in a strange folder, or never asks which folder to use.** The choice is remembered in
+  `~/Library/Application Support/finanfa-desktop/settings.json`. Change it with **File → Change workspace…**
+  (`Cmd+Shift+O`), or delete that file to be asked again. A remembered folder inside the system's temporary
+  directory is ignored and the app asks again.
+- **`Failed to create directory … Shared Dictionary/cache` / `Unable to create cache` in the terminal.** These come
+  from Chromium's on-disk HTTP cache for the window, not from finanfa, and the app works without it. If a cache
+  folder was left half-written (for example by an earlier run that was interrupted or ran in a restricted
+  environment), delete `~/Library/Application Support/finanfa-desktop/Partitions` — it only holds that cache and the
+  theme/language choice; the workspace and window position are in `settings.json`, outside it.
+- `npm run smoke:desktop` never writes your settings; pass `--user-data-dir=<scratch dir>` to run it fully apart
+  from your real data.
+
 ## What is not done
 
 - **Installers and auto-update.** Packaging means bundling the server for Electron
