@@ -262,6 +262,7 @@ export const translations: Record<Language, Record<string, string>> = {
     "projects.sub": "Isolated workspaces — files, chats, and reference material stay scoped to the project they belong to.",
     "projects.newNamePlaceholder": "New project name…",
     "projects.create": "+ Create project",
+    "projects.empty": "No project yet — name one above to give a topic its own files and chats.",
     "projects.fileCount": "{count} file",
     "projects.fileCountPlural": "{count} files",
 
@@ -522,6 +523,7 @@ export const translations: Record<Language, Record<string, string>> = {
     "projects.sub": "Espaces de travail isolés — fichiers, discussions et documents de référence restent limités au projet auquel ils appartiennent.",
     "projects.newNamePlaceholder": "Nom du nouveau projet…",
     "projects.create": "+ Créer un projet",
+    "projects.empty": "Aucun projet pour l'instant — nommez-en un ci-dessus pour donner à un sujet ses propres fichiers et discussions.",
     "projects.fileCount": "{count} fichier",
     "projects.fileCountPlural": "{count} fichiers",
 

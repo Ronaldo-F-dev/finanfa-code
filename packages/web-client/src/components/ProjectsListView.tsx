@@ -40,7 +40,7 @@ export function ProjectsListView({ onOpenProject }: { onOpenProject: (id: string
 
   return (
     <div className="page">
-      <div className="page-header">
+      <div className="page-header page-header-stack">
         <h1>{t("projects.title")}</h1>
         <p className="page-sub">{t("projects.sub")}</p>
       </div>
@@ -57,6 +57,8 @@ export function ProjectsListView({ onOpenProject }: { onOpenProject: (id: string
           {t("projects.create")}
         </button>
       </div>
+
+      {projects.length === 0 && <div className="page-empty">{t("projects.empty")}</div>}
 
       <div className="project-grid">
         {projects.map((p) => (
