@@ -1,12 +1,16 @@
 import { describe, expect, it, afterEach } from "vitest";
 import { buildBwrapArgs, isBwrapAvailable, shouldSandbox, resetBwrapAvailabilityCacheForTests, DEFAULT_EXTRA_WRITABLE_PATHS } from "../../src/util/sandbox.js";
+import { hasCommand, isLinux, skipLocally } from "../helpers/environment.js";
+
+// bubblewrap is Linux-only; skipped elsewhere, and locally when bwrap is missing (required on Linux CI).
+const skipBwrap = !isLinux || skipLocally(hasCommand("bwrap"));
 
 describe("sandbox.ts", () => {
   afterEach(() => {
     resetBwrapAvailabilityCacheForTests();
   });
 
-  it("detects bwrap as available on this real Linux CI/dev machine", () => {
+  it.skipIf(skipBwrap)("detects bwrap as available on this real Linux CI/dev machine", () => {
     expect(isBwrapAvailable()).toBe(true);
   });
 
@@ -44,7 +48,7 @@ describe("sandbox.ts", () => {
     expect(shouldSandbox(undefined)).toBe(false);
   });
 
-  it("shouldSandbox is true for 'workspace-write' when bwrap is available", () => {
+  it.skipIf(skipBwrap)("shouldSandbox is true for 'workspace-write' when bwrap is available", () => {
     expect(shouldSandbox({ mode: "workspace-write" })).toBe(true);
   });
 });
