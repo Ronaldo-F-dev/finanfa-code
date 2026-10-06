@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { ToolRegistry } from "../../src/tools/registry.js";
 import { registerBuiltins } from "../../src/tools/builtin/index.js";
 import { isCommandAvailable } from "../../src/util/command-availability.js";
+import { hasCommand, skipLocally } from "../helpers/environment.js";
 
 // Verifies the real, current state of this actual environment (no mocked
 // availability): run_esptool/run_avrdude wrap CLIs genuinely not
@@ -20,7 +21,8 @@ describe("registerBuiltins: optional external-CLI tools are only registered when
     expect(registry.get("run_esptool")).toBeUndefined();
   });
 
-  it("DOES register run_avrdude when avrdude is genuinely installed system-wide (as it happens to be in this environment)", () => {
+  // Skipped locally when avrdude is missing; required in CI.
+  it.skipIf(skipLocally(hasCommand("avrdude")))("DOES register run_avrdude when avrdude is genuinely installed system-wide (as it happens to be in this environment)", () => {
     expect(isCommandAvailable("avrdude")).toBe(true);
 
     const registry = new ToolRegistry();
