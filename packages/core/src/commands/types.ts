@@ -5,6 +5,7 @@ import type { PermissionManager } from "../permissions/manager.js";
 import type { McpClientManager } from "../mcp/client-manager.js";
 import type { LlmProvider } from "../core/types.js";
 import type { CustomCommand } from "./custom-commands.js";
+import type { CommandRegistry } from "./registry.js";
 
 export interface CommandContext {
   session: AgentSession;
@@ -19,6 +20,8 @@ export interface CommandContext {
   setSession: (session: AgentSession) => void;
   /** Loaded .finanfa-code/commands/*.md shortcuts (see custom-commands.ts) — optional so direct unit tests of a builtin command don't need to supply it; only /help currently reads it, to list them alongside builtins. */
   customCommands?: Map<string, CustomCommand>;
+  /** The builtin command registry — optional for the same reason as customCommands; only /plugin reload reads it, to refresh the autocomplete list. */
+  commands?: CommandRegistry;
 }
 
 export type CommandOutcome = "continue" | "exit";
