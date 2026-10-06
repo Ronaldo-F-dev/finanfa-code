@@ -1,0 +1,11 @@
+{
+  "name": "finanfa-code",
+  "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
+  "postCreateCommand": "bash .devcontainer/post-create.sh",
+  "remoteUser": "node",
+  "customizations": {
+    "vscode": {
+      "extensions": ["dbaeumer.vscode-eslint", "oxc.oxc-vscode"]
+    }
+  }
+}
