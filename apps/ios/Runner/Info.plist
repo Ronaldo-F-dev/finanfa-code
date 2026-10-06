@@ -26,6 +26,15 @@
 	<string>$(FLUTTER_BUILD_NUMBER)</string>
 	<key>LSRequiresIPhoneOS</key>
 	<true/>
+	<!-- The self-hosted server this app connects to is commonly plain http on
+	     localhost or a LAN address, which App Transport Security refuses by
+	     default. NSAllowsLocalNetworking exempts local addresses only — a
+	     remote server is still required to speak https. -->
+	<key>NSAppTransportSecurity</key>
+	<dict>
+		<key>NSAllowsLocalNetworking</key>
+		<true/>
+	</dict>
 	<key>NSCameraUsageDescription</key>
 	<string>Finanfa peut utiliser l'appareil photo pour joindre une image à la conversation.</string>
 	<key>NSPhotoLibraryUsageDescription</key>

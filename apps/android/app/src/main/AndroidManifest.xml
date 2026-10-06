@@ -1,8 +1,18 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Release builds used to have no network access at all: Flutter's
+         generated debug/profile manifests carry the INTERNET permission for
+         the dev tooling, but the main (release) manifest never declared it.
+         usesCleartextTraffic is required too — Android 9+ blocks plain http
+         by default, and the self-hosted server this app connects to is
+         commonly an http:// URL on localhost or a LAN address (there is no
+         fixed domain to scope a network-security-config to: the address is
+         whatever the user typed on the connect screen). -->
+    <uses-permission android:name="android.permission.INTERNET" />
     <application
         android:label="Finanfa"
         android:name="${applicationName}"
-        android:icon="@mipmap/ic_launcher">
+        android:icon="@mipmap/ic_launcher"
+        android:usesCleartextTraffic="true">
         <activity
             android:name=".MainActivity"
             android:exported="true"
