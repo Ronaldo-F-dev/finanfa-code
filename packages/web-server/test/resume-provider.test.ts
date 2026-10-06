@@ -5,9 +5,9 @@ import type { AddressInfo } from "node:net";
 import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import WebSocket from "ws";
 import { projectHash } from "@finanfa/core/src/core/session.js";
 import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
+import { connectWebSocket, type WsEvent } from "./support/ws-harness.js";
 
 // Real, reported bug: a session's provider/endpoint was never persisted
 // alongside its model — only the bare model string was. Resuming a
@@ -26,11 +26,6 @@ import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
 // (simulating the crash/restart), start a fresh one, resume the same
 // session, send another message with the unchanged model — and confirm
 // it reaches the LOCAL server again, not the default one.
-interface WsEvent {
-  type: string;
-  [key: string]: unknown;
-}
-
 function fakeSseServer(label: string): { server: http.Server; baseUrl: Promise<string>; requestCount: () => number } {
   let count = 0;
   const server = http.createServer((req, res) => {
@@ -69,25 +64,6 @@ function waitFor(events: WsEvent[], predicate: (e: WsEvent) => boolean, timeoutM
     };
     check();
   });
-}
-
-async function connect(port: number): Promise<{ ws: WebSocket; events: WsEvent[] }> {
-  const events: WsEvent[] = [];
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
-  // Subscribed before awaiting "open", not after: the server sends
-  // session_info as soon as its connection handler is ready, and a listener
-  // attached only once the client observes "open" can miss it entirely (no
-  // replay on a plain ws client). Latent since this test was written, it
-  // started failing consistently once the server's startup got faster
-  // (parallel startup loaders) — empty-events timeouts instead of the
-  // assertion this test is actually about.
-  ws.on("message", (raw: Buffer) => events.push(JSON.parse(raw.toString()) as WsEvent));
-  await new Promise<void>((resolve, reject) => {
-    ws.on("open", () => resolve());
-    ws.on("error", reject);
-  });
-  await waitFor(events, (e) => e.type === "session_info");
-  return { ws, events };
 }
 
 describe("web-server: a resumed session reconstructs the right provider, not just the right model name", () => {
@@ -133,7 +109,8 @@ describe("web-server: a resumed session reconstructs the right provider, not jus
       let { child: firstChild, port: firstPort } = await spawnWebServer(projectDir, homeDir);
       child = firstChild;
 
-      const { ws, events } = await connect(firstPort);
+      const { ws, events } = await connectWebSocket(firstPort);
+      await waitFor(events, (e) => e.type === "session_info");
       const sessionInfo = events.find((e) => e.type === "session_info")!;
       const sessionId = sessionInfo.id as string;
 
@@ -170,14 +147,7 @@ describe("web-server: a resumed session reconstructs the right provider, not jus
       child = second.child;
 
       // --- Resume the same session on the fresh instance, send another message with the unchanged model ---
-      const resumedWs = new WebSocket(`ws://127.0.0.1:${second.port}/ws?session=${sessionId}`);
-      const resumedEvents: WsEvent[] = [];
-      // Same before-open subscription as connect() above.
-      resumedWs.on("message", (raw: Buffer) => resumedEvents.push(JSON.parse(raw.toString()) as WsEvent));
-      await new Promise<void>((resolve, reject) => {
-        resumedWs.on("open", () => resolve());
-        resumedWs.on("error", reject);
-      });
+      const { ws: resumedWs, events: resumedEvents } = await connectWebSocket(second.port, `?session=${sessionId}`);
       await waitFor(resumedEvents, (e) => e.type === "session_info");
 
       const resumedInfo = resumedEvents.find((e) => e.type === "session_info")!;
