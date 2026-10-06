@@ -1,10 +1,11 @@
 #!/usr/bin/env bash
 # Sets the container up like the CI "test" job (.github/workflows/ci.yml), so the
 # suites that exercise real external tools run here instead of being skipped.
+# (udev provides udevadm, which the serial port listing shells out to.)
 set -euo pipefail
 
 sudo apt-get update
-sudo apt-get install -y --no-install-recommends bubblewrap tesseract-ocr poppler-utils avrdude socat tmux ffmpeg git
+sudo apt-get install -y --no-install-recommends bubblewrap tesseract-ocr poppler-utils avrdude socat tmux ffmpeg git udev
 
 # Real-git-repo tests commit; give them an identity if the host didn't pass one in.
 git config --global user.email >/dev/null 2>&1 || git config --global user.email "dev@example.com"
