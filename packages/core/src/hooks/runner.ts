@@ -1,6 +1,7 @@
 import { spawn } from "node:child_process";
 import { SHELL, killProcessGroup } from "../util/process.js";
-import type { HookCommand, HookEventName, HookMatcher, HooksConfig } from "./config.js";
+import type { HookAgent, HookCommand, HookEventName, HookHandler, HookMatcher, HookPrompt, HooksConfig } from "./config.js";
+import { parseHookVerdict } from "./verdict.js";
 
 export interface HookPayload {
   hook_event_name: HookEventName;
@@ -27,6 +28,18 @@ export interface HookOutcome {
 }
 
 const DEFAULT_TIMEOUT_MS = 60_000;
+const DEFAULT_PROMPT_TIMEOUT_MS = 30_000;
+const DEFAULT_AGENT_TIMEOUT_MS = 120_000;
+/** The payload is embedded in an LLM prompt, so a huge tool_response must not blow up the request. */
+const MAX_PAYLOAD_CHARS = 20_000;
+
+/** What the manager gives the runner so "prompt" and "agent" hooks can reach a model. Either may be absent (no provider in this entry point). */
+export interface HookLlmRunner {
+  /** One model call; resolves with its reply text. */
+  prompt?: (prompt: string, model: string | undefined, timeoutMs: number) => Promise<string>;
+  /** A read-only sub-agent run; resolves with its final text. */
+  agent?: (prompt: string, timeoutMs: number) => Promise<string>;
+}
 
 function matchesTool(matcher: HookMatcher, toolName: string | undefined): boolean {
   if (!matcher.matcher) return true;
@@ -91,6 +104,54 @@ function runOneCommand(command: HookCommand, payload: HookPayload, cwd: string):
   });
 }
 
+function buildLlmPrompt(template: string, payload: HookPayload): string {
+  let json = JSON.stringify(payload, null, 2);
+  if (json.length > MAX_PAYLOAD_CHARS) json = `${json.slice(0, MAX_PAYLOAD_CHARS)}\n… (truncated)`;
+  const body = template.includes("$ARGUMENTS") ? template.replaceAll("$ARGUMENTS", json) : `${template}\n\nHook input:\n${json}`;
+  return (
+    `${body}\n\nAnswer with a single JSON object and nothing else: {"ok": true} if the check passes, ` +
+    `or {"ok": false, "reason": "<why, in one sentence>"} if it must be stopped.`
+  );
+}
+
+/**
+ * "prompt" and "agent" hooks. Deliberately weaker than command hooks: a model's answer can BLOCK
+ * (ok:false) or say nothing, never approve — letting an LLM waive a permission prompt would turn a
+ * guardrail into a bypass. Anything unusable (no model available, a failure, a reply without a
+ * verdict) is "no opinion" with a note, the same convention as a command hook that fails.
+ */
+async function runLlmHook(handler: HookPrompt | HookAgent, payload: HookPayload, runner: HookLlmRunner | undefined): Promise<HookOutcome> {
+  const isAgent = handler.type === "agent";
+  const label = `${handler.type} hook`;
+  const call = isAgent ? runner?.agent : runner?.prompt;
+  if (!call) return { output: `(${label} skipped: no model is available in this context)` };
+
+  const timeoutMs = handler.timeout !== undefined ? handler.timeout * 1000 : isAgent ? DEFAULT_AGENT_TIMEOUT_MS : DEFAULT_PROMPT_TIMEOUT_MS;
+  const text = buildLlmPrompt(handler.prompt, payload);
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    const reply = await Promise.race([
+      isAgent ? runner!.agent!(text, timeoutMs) : runner!.prompt!(text, (handler as HookPrompt).model, timeoutMs),
+      new Promise<never>((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`timed out after ${timeoutMs / 1000}s`)), timeoutMs);
+      }),
+    ]);
+    const verdict = parseHookVerdict(reply);
+    if (!verdict) return { output: `(${label} gave no verdict)` };
+    return verdict.ok ? {} : { decision: "block", reason: verdict.reason ?? `Blocked by a ${label}.` };
+  } catch (err) {
+    return { output: `(${label} failed: ${err instanceof Error ? err.message : String(err)})` };
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+function runOneHook(handler: HookHandler, payload: HookPayload, cwd: string, runner: HookLlmRunner | undefined): Promise<HookOutcome> {
+  if (handler.type === "command") return runOneCommand(handler, payload, cwd);
+  if (handler.type === "prompt" || handler.type === "agent") return runLlmHook(handler, payload, runner);
+  return Promise.resolve({ output: `(unknown hook type "${String((handler as { type?: unknown }).type)}" ignored)` });
+}
+
 /**
  * Runs every hook command matching `event`/`payload.tool_name`, in config
  * order, sequentially. A hook that returns a decision (block/approve)
@@ -98,13 +159,13 @@ function runOneCommand(command: HookCommand, payload: HookPayload, cwd: string):
  * nothing ever decides, returns any informational stdout collected along
  * the way, joined, with no decision.
  */
-export async function runHooks(config: HooksConfig, event: HookEventName, payload: HookPayload, cwd: string): Promise<HookOutcome> {
+export async function runHooks(config: HooksConfig, event: HookEventName, payload: HookPayload, cwd: string, runner?: HookLlmRunner): Promise<HookOutcome> {
   const matchers = config[event] ?? [];
   const outputs: string[] = [];
   for (const matcher of matchers) {
     if (!matchesTool(matcher, payload.tool_name)) continue;
     for (const command of matcher.hooks) {
-      const outcome = await runOneCommand(command, payload, cwd);
+      const outcome = await runOneHook(command, payload, cwd, runner);
       if (outcome.output) outputs.push(outcome.output);
       if (outcome.decision) return { decision: outcome.decision, reason: outcome.reason };
     }
