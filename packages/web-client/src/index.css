@@ -2461,3 +2461,13 @@ details.tool-call-details > summary.tool-call::marker {
   background: var(--bg-card);
   border: 1px solid var(--border);
 }
+.project-card-icon.row-tile {
+  font-size: inherit;
+  margin-bottom: 14px;
+}
+.project-grid {
+  gap: 16px;
+}
+.project-card {
+  padding: 20px;
+}
