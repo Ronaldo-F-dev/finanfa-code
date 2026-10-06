@@ -362,6 +362,7 @@ export async function main(argv: string[]): Promise<void> {
     } catch (err) {
       ui.writeError(err instanceof Error ? err.message : String(err));
     }
+    await permissions.runLifecycleHook("SessionEnd", deps.session.cwd, deps.session.id, { source: "prompt" });
     await deps.session.persist();
     await mcp.disconnectAll();
     await browser.close();
