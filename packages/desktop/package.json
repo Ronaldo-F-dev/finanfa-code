@@ -1,0 +1,15 @@
+{
+  "name": "@finanfa/desktop",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Desktop shell for finanfa-code: runs the web server in the background and shows the web UI in a native window.",
+  "main": "dist/main.cjs",
+  "scripts": {
+    "build": "node esbuild.config.mjs",
+    "start": "npm run build && electron .",
+    "smoke": "npm run build && electron . --smoke"
+  },
+  "devDependencies": {
+    "electron": "^44.5.1"
+  }
+}

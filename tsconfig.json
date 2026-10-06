@@ -25,6 +25,8 @@
     "packages/web-server/src",
     "packages/web-server/test",
     "packages/vscode-extension/src",
-    "packages/vscode-extension/test"
+    "packages/vscode-extension/test",
+    "packages/desktop/src",
+    "packages/desktop/test"
   ]
 }

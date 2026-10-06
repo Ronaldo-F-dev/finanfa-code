@@ -14,6 +14,8 @@
     "dev:web-server": "npm run dev -w @finanfa/web-server",
     "dev:web-client": "npm run dev -w @finanfa/web-client",
     "build:web-client": "npm run build -w @finanfa/web-client",
+    "dev:desktop": "npm run build:web-client && npm run start -w @finanfa/desktop",
+    "smoke:desktop": "npm run build:web-client && npm run smoke -w @finanfa/desktop",
     "typecheck": "tsc --noEmit && tsc --noEmit -p packages/web-client/tsconfig.json && tsc --noEmit -p packages/vscode-extension/webview-ui/tsconfig.json",
     "lint": "oxlint packages",
     "test": "vitest run",

@@ -61,6 +61,22 @@ export function authenticateBearerToken(users: Map<string, string>, sessions: Se
   return authenticateToken(users, sessions, authorizationHeader.slice("Bearer ".length));
 }
 
+/**
+ * WebSocket handshake auth: the `?token=` query parameter (what a page's `new WebSocket(url)` can set,
+ * since browsers don't allow custom headers there) OR a standard `Authorization: Bearer` header (what
+ * the desktop shell injects, and what any non-browser client can send). The query parameter wins when both are present.
+ */
+export function authenticateWebSocketRequest(
+  users: Map<string, string>,
+  sessions: SessionTokenStore,
+  requestUrl: string,
+  authorizationHeader: string | undefined,
+): string | undefined {
+  const queryToken = new URL(requestUrl, "http://localhost").searchParams.get("token");
+  if (queryToken) return authenticateQueryToken(users, sessions, queryToken);
+  return authenticateBearerToken(users, sessions, authorizationHeader);
+}
+
 export function authenticateQueryToken(users: Map<string, string>, sessions: SessionTokenStore, token: string | null): string | undefined {
   return authenticateToken(users, sessions, token ?? undefined);
 }

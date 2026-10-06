@@ -97,6 +97,14 @@ async function startService(key: string, service: LocalServiceConfig, healthUrl:
     stdio: "ignore",
   });
   managed.set(key, { child, refCount: 0 });
+  // A command that can't be started (not installed, not executable) is reported on the "error" event — an
+  // EventEmitter with no listener for it throws, which used to take the whole host process (e.g. the web
+  // server) down at startup just because a configured local model runtime was missing.
+  let spawnError: Error | undefined;
+  child.once("error", (err) => {
+    spawnError = err;
+    if (managed.get(key)?.child === child) managed.delete(key);
+  });
   child.once("exit", () => {
     const entry = managed.get(key);
     if (entry?.child === child) managed.delete(key);
@@ -106,8 +114,10 @@ async function startService(key: string, service: LocalServiceConfig, healthUrl:
   const deadline = Date.now() + readyTimeoutMs;
   while (Date.now() < deadline) {
     if (await probeHealth(healthUrl)) return { state: "started" };
+    if (spawnError) return { state: "start-failed", message: `could not start ${service.command}: ${spawnError.message}` };
     await sleep(POLL_INTERVAL_MS);
   }
+  if (spawnError) return { state: "start-failed", message: `could not start ${service.command}: ${spawnError.message}` };
   const entry = managed.get(key);
   if (entry) stopEntry(key, entry);
   return { state: "start-failed", message: `timed out after ${readyTimeoutMs}ms waiting for ${service.command} to answer ${healthUrl}` };

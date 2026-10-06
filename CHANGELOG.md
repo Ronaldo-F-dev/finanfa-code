@@ -26,6 +26,11 @@ first tagged release.
   `/feature-dev`, `/ralph-loop` and `/output-style` (`explanatory`,
   `learning`). A custom command named like one of these is now shadowed by
   the built-in.
+- A desktop app (`packages/desktop`, `npm run dev:desktop`): an Electron window around the web UI that
+  runs the server in the background on a free loopback port behind a per-launch token, stops it on quit
+  (and the server exits by itself if the app dies), and locks the window to one origin. Runs from a
+  checkout; installers are not built yet. See `docs/desktop.md`.
+- `Authorization: Bearer` is accepted for the WebSocket handshake, as well as `?token=`.
 - Hooks of type `prompt` (one model call) and `agent` (a read-only
   `hook-verifier` sub-agent) next to `command`: they answer `{"ok": …}`, can
   only block (never approve), and never re-enter hooks. See
@@ -152,6 +157,8 @@ first tagged release.
 
 ### Fixed
 
+- A configured local model runtime that isn't installed (e.g. `mlx_lm.server`) crashed the whole web
+  server at startup (an unhandled `spawn` error); it is now a `start-failed` status with a message.
 - A hook that exceeded its timeout left its child processes running and kept
   the call waiting; the whole process group is now killed.
 - `security_scan_tls` failed on any IP-address target (an IP literal was sent
