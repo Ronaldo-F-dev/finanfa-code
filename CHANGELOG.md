@@ -10,6 +10,22 @@ first tagged release.
 
 ### Added
 
+- Hooks: new `Stop` (can keep the turn going with feedback), `SessionStart`
+  (stdout becomes context for the first prompt) and `PreCompact` events;
+  `SubagentStop`, `SessionEnd` and `Notification` are accepted in the config
+  but not fired yet. See `docs/configuration.md`.
+- Directory plugins (commands, agents, skills, hooks) and marketplaces,
+  managed with `/plugin` (`marketplace add`, `search`, `install`, `remove`,
+  `enable`/`disable`, `test`). See `docs/plugins.md`.
+- New slash commands: `/hooks`, `/status`, `/diff [full]`, `/init`,
+  `/review`, `/agents`, `/bug`, `/commit`, `/commit-push-pr`,
+  `/feature-dev`, `/ralph-loop` and `/output-style` (`explanatory`,
+  `learning`). A custom command named like one of these is now shadowed by
+  the built-in.
+- Built-in read-only subagent types for the `task` tool: `code-explorer`,
+  `code-architect`, `code-reviewer`, `silent-failure-hunter`,
+  `test-analyzer`.
+
 - The terminal UI now shows the model's reasoning as it streams, dimmed
   and italic, above the reply — the Ink UI renders it live and commits it
   as its own log entry; the readline/`--prompt` path buffers it like the
