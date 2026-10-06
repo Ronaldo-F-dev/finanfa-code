@@ -20,7 +20,7 @@ tools (`bash` has no such boundary).
 ## Git
 
 - Safe: `git_status`, `git_diff`, `git_log`, `git_branch`, `git_fetch`
-- Ask: `git_add`, `git_commit`, `git_checkout`, `git_push`, `git_pull`, `git_stash`
+- Ask: `git_add`, `git_commit`, `git_checkout`, `git_push`, `git_pull`, `git_stash`, `git_worktree`
 
 ## Web & browser
 
