@@ -5,8 +5,8 @@ import type { AddressInfo } from "node:net";
 import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import WebSocket from "ws";
 import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
+import { connectWebSocket, type WsEvent } from "./support/ws-harness.js";
 
 // Real end-to-end test of the "tool_result" WS event (see web-ui-adapter.ts's
 // writeToolResult and loop.ts's call right after runOneToolCall): a real local
@@ -47,11 +47,6 @@ function sseServer(toolCallOnce: { name: string; input: Record<string, unknown> 
   return { server, baseUrl };
 }
 
-interface WsEvent {
-  type: string;
-  [key: string]: unknown;
-}
-
 function waitFor(events: WsEvent[], predicate: (e: WsEvent) => boolean, timeoutMs = 30_000): Promise<WsEvent> {
   const start = Date.now();
   return new Promise((resolve, reject) => {
@@ -63,26 +58,6 @@ function waitFor(events: WsEvent[], predicate: (e: WsEvent) => boolean, timeoutM
     };
     check();
   });
-}
-
-async function connect(port: number): Promise<{ ws: WebSocket; events: WsEvent[] }> {
-  const events: WsEvent[] = [];
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
-  // Subscribed before awaiting "open", not after: the server sends
-  // session_info as soon as the connection handler finishes its setup, and
-  // a listener attached only once the client observes "open" can miss it
-  // entirely (no message replay on a plain ws client) — same class of race
-  // the server's own early permission_response listener documents in
-  // index.ts. 30s, not 10s: this waits on a real subprocess's full
-  // buildTurnContext (config, ~180 tool registrations, skills/memory
-  // load) on a loaded machine, not a mocked function.
-  ws.on("message", (raw: Buffer) => events.push(JSON.parse(raw.toString()) as WsEvent));
-  await new Promise<void>((resolve, reject) => {
-    ws.on("open", () => resolve());
-    ws.on("error", reject);
-  });
-  await waitFor(events, (e) => e.type === "session_info", 30_000);
-  return { ws, events };
 }
 
 describe("a finished tool call pushes a structured 'tool_result' WS event correlated by toolCallId (real subprocess, real WebSocket, real SSE provider)", () => {
@@ -119,7 +94,8 @@ describe("a finished tool call pushes a structured 'tool_result' WS event correl
   it(
     "sends the tool call, then its real result with the same toolCallId and the read file's contents",
     async () => {
-      const { ws, events } = await connect(port);
+      const { ws, events } = await connectWebSocket(port);
+      await waitFor(events, (e) => e.type === "session_info");
       ws.send(JSON.stringify({ type: "user_message", text: "read hello.txt" }));
 
       const call = await waitFor(events, (e) => e.type === "tool_call");

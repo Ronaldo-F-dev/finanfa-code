@@ -3,8 +3,8 @@ import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { rm } from "node:fs/promises";
-import WebSocket from "ws";
 import { createTempProject, spawnWebServer, killWebServer } from "./support/spawn-server.js";
+import { connectWebSocket } from "./support/ws-harness.js";
 
 // Real end-to-end test of the "thinking_delta" WS event: a real local server
 // speaks Anthropic's Messages SSE protocol (an extended-thinking block first,
@@ -43,11 +43,6 @@ function fakeAnthropicServer(): { server: http.Server; baseUrl: Promise<string> 
   return { server, baseUrl };
 }
 
-interface WsEvent {
-  type: string;
-  text?: string;
-}
-
 describe("extended thinking streams to the web client as a thinking_delta event (real subprocess, real WebSocket, real Anthropic SDK)", () => {
   let projectDir: string;
   let homeDir: string;
@@ -76,16 +71,7 @@ describe("extended thinking streams to the web client as a thinking_delta event 
   it(
     "streams the reasoning chunks before the reply, in order",
     async () => {
-      const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
-      const events: WsEvent[] = [];
-      // Subscribed before awaiting "open" — the server can send session_info
-      // as soon as the connection handler is ready, and a listener attached
-      // only after the open event would miss it (no replay on a raw client).
-      ws.on("message", (raw: Buffer) => events.push(JSON.parse(raw.toString()) as WsEvent));
-      await new Promise<void>((resolve, reject) => {
-        ws.on("open", () => resolve());
-        ws.on("error", reject);
-      });
+      const { ws, events } = await connectWebSocket(port);
       await vi.waitFor(() => expect(events.some((e) => e.type === "session_info")).toBe(true), { timeout: 30_000 });
 
       ws.send(JSON.stringify({ type: "user_message", text: "what is 2+2?" }));

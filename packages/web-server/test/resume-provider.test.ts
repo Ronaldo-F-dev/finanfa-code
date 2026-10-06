@@ -1,12 +1,13 @@
-import { describe, expect, it, beforeAll, afterAll, afterEach } from "vitest";
+import { describe, expect, it, beforeAll, afterAll, afterEach, vi } from "vitest";
 import type { ChildProcessWithoutNullStreams } from "node:child_process";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, mkdir, writeFile, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import WebSocket from "ws";
+import { projectHash } from "@finanfa/core/src/core/session.js";
 import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
+import { connectWebSocket, type WsEvent } from "./support/ws-harness.js";
 
 // Real, reported bug: a session's provider/endpoint was never persisted
 // alongside its model — only the bare model string was. Resuming a
@@ -25,11 +26,6 @@ import { spawnWebServer, killWebServer } from "./support/spawn-server.js";
 // (simulating the crash/restart), start a fresh one, resume the same
 // session, send another message with the unchanged model — and confirm
 // it reaches the LOCAL server again, not the default one.
-interface WsEvent {
-  type: string;
-  [key: string]: unknown;
-}
-
 function fakeSseServer(label: string): { server: http.Server; baseUrl: Promise<string>; requestCount: () => number } {
   let count = 0;
   const server = http.createServer((req, res) => {
@@ -53,7 +49,11 @@ function fakeSseServer(label: string): { server: http.Server; baseUrl: Promise<s
   return { server, baseUrl, requestCount: () => count };
 }
 
-function waitFor(events: WsEvent[], predicate: (e: WsEvent) => boolean, timeoutMs = 10_000): Promise<WsEvent> {
+// 30s, not the 10s this same helper uses in most e2e files: this test boots
+// two real cold-start `npx tsx` servers, and 10s regularly wasn't enough for
+// a single session_info once the machine was loaded (the failed runs even
+// left orphan servers behind, which made the next run slower still).
+function waitFor(events: WsEvent[], predicate: (e: WsEvent) => boolean, timeoutMs = 30_000): Promise<WsEvent> {
   const start = Date.now();
   return new Promise((resolve, reject) => {
     const check = () => {
@@ -64,18 +64,6 @@ function waitFor(events: WsEvent[], predicate: (e: WsEvent) => boolean, timeoutM
     };
     check();
   });
-}
-
-async function connect(port: number): Promise<{ ws: WebSocket; events: WsEvent[] }> {
-  const events: WsEvent[] = [];
-  const ws = new WebSocket(`ws://127.0.0.1:${port}/ws`);
-  await new Promise<void>((resolve, reject) => {
-    ws.on("open", () => resolve());
-    ws.on("error", reject);
-  });
-  ws.on("message", (raw: Buffer) => events.push(JSON.parse(raw.toString()) as WsEvent));
-  await waitFor(events, (e) => e.type === "session_info");
-  return { ws, events };
 }
 
 describe("web-server: a resumed session reconstructs the right provider, not just the right model name", () => {
@@ -121,7 +109,8 @@ describe("web-server: a resumed session reconstructs the right provider, not jus
       let { child: firstChild, port: firstPort } = await spawnWebServer(projectDir, homeDir);
       child = firstChild;
 
-      const { ws, events } = await connect(firstPort);
+      const { ws, events } = await connectWebSocket(firstPort);
+      await waitFor(events, (e) => e.type === "session_info");
       const sessionInfo = events.find((e) => e.type === "session_info")!;
       const sessionId = sessionInfo.id as string;
 
@@ -130,11 +119,27 @@ describe("web-server: a resumed session reconstructs the right provider, not jus
       await waitFor(events, (e) => e.type === "assistant_end");
       expect(localServer.requestCount()).toBeGreaterThan(0);
       expect(defaultServer.requestCount()).toBe(0); // the switch actually took effect for this connection
+
+      // assistant_end reaches this client before the session is persisted:
+      // handleUserMessage's finally block runs only after a second, separate
+      // LLM call (maybeGenerateTitle), then awaits session.persist(). Killing
+      // the process 300ms later used to race that write, leaving the previous
+      // model in the session file and making this test fail intermittently in
+      // CI. Wait for the durable state instead of assuming a fixed delay is
+      // enough — the crash simulation below is then honest: no sleep, the
+      // process dies the instant the write this test depends on has landed.
+      const sessionFile = path.join(homeDir, ".finanfa-code", "sessions", projectHash(projectDir), `${sessionId}.json`);
+      await vi.waitFor(
+        async () => {
+          const raw = await readFile(sessionFile, "utf8").catch(() => "");
+          expect(raw).toContain("local-only-model");
+        },
+        { timeout: 15_000 },
+      );
       ws.close();
 
       // --- Simulate the crash/restart: kill this instance entirely, start a brand new one ---
       killWebServer(child);
-      await new Promise((r) => setTimeout(r, 300));
       const localRequestsBeforeRestart = localServer.requestCount();
       const defaultRequestsBeforeRestart = defaultServer.requestCount();
 
@@ -142,13 +147,7 @@ describe("web-server: a resumed session reconstructs the right provider, not jus
       child = second.child;
 
       // --- Resume the same session on the fresh instance, send another message with the unchanged model ---
-      const resumedWs = new WebSocket(`ws://127.0.0.1:${second.port}/ws?session=${sessionId}`);
-      const resumedEvents: WsEvent[] = [];
-      await new Promise<void>((resolve, reject) => {
-        resumedWs.on("open", () => resolve());
-        resumedWs.on("error", reject);
-      });
-      resumedWs.on("message", (raw: Buffer) => resumedEvents.push(JSON.parse(raw.toString()) as WsEvent));
+      const { ws: resumedWs, events: resumedEvents } = await connectWebSocket(second.port, `?session=${sessionId}`);
       await waitFor(resumedEvents, (e) => e.type === "session_info");
 
       const resumedInfo = resumedEvents.find((e) => e.type === "session_info")!;
