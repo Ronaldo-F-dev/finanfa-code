@@ -89,6 +89,18 @@ body {
    its primary nav list (icon + label, same size/weight/hover as every
    other row there) — not a small caption-style link floating above
    everything else, which is what this used to look like. */
+/* A navigation row: icon, then label. */
+.sidebar-new,
+.sidebar-project,
+.sidebar-settings {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+.icon {
+  flex: none;
+}
+
 .sidebar-project {
   background: transparent;
   border: none;
@@ -320,7 +332,9 @@ body {
   border-bottom: 1px solid var(--border);
 }
 .panel-header-icon {
-  font-size: 20px;
+  display: inline-flex;
+  align-items: center;
+  color: var(--accent);
 }
 .panel-header-title {
   font-size: 16px;
@@ -1343,9 +1357,15 @@ details.tool-call-details > summary.tool-call::marker {
 }
 
 .attach-btn {
-  padding: 6px 9px;
-  font-size: 14px;
+  display: inline-flex;
+  align-items: center;
+  padding: 7px 10px;
   line-height: 1;
+}
+.btn-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .attachment-chips {
