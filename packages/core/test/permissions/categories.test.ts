@@ -146,8 +146,10 @@ describe("loading and policy", () => {
     expect((await loadPermissionConfig(project, true)).autoApprove).toEqual({ edits: true });
   });
 
-  it("is empty when nothing is configured", async () => {
-    expect((await loadPermissionConfig(project)).autoApprove).toEqual({});
+  it("is left unset when nothing is configured, so existing configs are unchanged", async () => {
+    expect((await loadPermissionConfig(project)).autoApprove).toBeUndefined();
+    await writeJson(path.join(home, ".finanfa-code", "config.json"), { autoApprove: { bogus: true } });
+    expect((await loadPermissionConfig(project)).autoApprove).toBeUndefined();
   });
 
   it("is refused outright when managed settings set disableYolo", async () => {
