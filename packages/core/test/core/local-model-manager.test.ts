@@ -75,6 +75,18 @@ describe("local-model-manager (generic supervisor, real subprocess fake service)
     expect(result.state).toBe("start-failed");
   }, 5000);
 
+  it("reports start-failed at once, without crashing the host, when the command doesn't exist", async () => {
+    const port = freshPort();
+    const baseUrl = `http://127.0.0.1:${port}/v1`;
+    const started = Date.now();
+    const result = await ensureLocalService({ baseUrl }, { command: "/nonexistent/mlx_lm.server", args: ["--port", String(port)], readyTimeoutMs: 20_000 });
+    expect(result.state).toBe("start-failed");
+    expect(result).toMatchObject({ message: expect.stringContaining("could not start /nonexistent/mlx_lm.server") });
+    expect(Date.now() - started).toBeLessThan(5000); // it did not sit out the 20s ready timeout
+    // ...and nothing is left registered, so a later attempt (after the user installs it) starts clean.
+    expect((await ensureLocalService({ baseUrl }, { command: "/nonexistent/mlx_lm.server", readyTimeoutMs: 20_000 })).state).toBe("start-failed");
+  }, 15_000);
+
   it("idle-stop actually stops the process after the configured delay", async () => {
     const port = freshPort();
     const baseUrl = `http://127.0.0.1:${port}/v1`;
