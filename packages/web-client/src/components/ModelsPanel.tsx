@@ -353,8 +353,7 @@ function DockerSection() {
               <div>
                 <div className="mcp-name">{r.name}</div>
                 <div className="mcp-meta">
-                  {r.source} · {r.downloads.toLocaleString()} downloads
-                  {r.description ? ` · ${r.description}` : ""}
+                  {[r.size ? formatBytes(r.size) : null, r.source, `${r.downloads.toLocaleString()} downloads`, r.description].filter(Boolean).join(" · ")}
                 </div>
               </div>
             </div>
