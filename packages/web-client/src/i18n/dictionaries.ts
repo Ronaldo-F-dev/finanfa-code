@@ -330,10 +330,10 @@ export const translations: Record<Language, Record<string, string>> = {
     "sidebar.tools": "🧰 Outils",
     "sidebar.approvals": "✅ Approbations",
     "sidebar.todos": "🗂️ Tâches",
-    "sidebar.channels": "📡 Cannaux",
+    "sidebar.channels": "📡 Canaux",
     "sidebar.settings": "⚙ Réglages",
 
-    "channels.title": "Cannaux",
+    "channels.title": "Canaux",
     "channels.hint": "Contactez finanfa depuis Slack, Telegram, Discord, et plus — un message entrant lance un vrai tour de l'agent et la réponse est renvoyée. Configurer un cannal ici s'applique immédiatement, sans redémarrage, sauf si une vraie variable d'environnement est déjà définie pour ce champ.",
     "channels.configured": "Configuré",
     "channels.notConfigured": "Non configuré",
