@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import sharp from "sharp";
 import { ocrImageTool } from "../../src/tools/builtin/ocr-image.js";
+import { hasCommand, skipLocally } from "../helpers/environment.js";
 
 async function makeTextImage(dir: string, name: string, text: string): Promise<void> {
   const svg = `<svg width="400" height="100" xmlns="http://www.w3.org/2000/svg">
@@ -14,7 +15,8 @@ async function makeTextImage(dir: string, name: string, text: string): Promise<v
   await writeFile(path.join(dir, name), buffer);
 }
 
-describe("ocr_image tool (real tesseract execution)", () => {
+// Skipped locally when tesseract is missing; required in CI.
+describe.skipIf(skipLocally(hasCommand("tesseract")))("ocr_image tool (real tesseract execution)", () => {
   let dir: string;
 
   beforeEach(async () => {
