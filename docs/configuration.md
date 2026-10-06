@@ -54,6 +54,44 @@ A sub-agent never fires `Stop` or `SessionStart`. `SessionEnd` is not fired by c
 
 `/hooks` lists what is configured.
 
+### Hook handler types
+
+Each entry in a matcher's `hooks` array has a `type`:
+
+| `type` | What runs | How it decides |
+|---|---|---|
+| `command` | A shell command; the event payload is JSON on stdin | exit code 2, or `{"decision":"block"|"approve","reason":…}` on stdout |
+| `prompt` | One call to a language model | the model's JSON answer: `{"ok": true}` or `{"ok": false, "reason": "…"}` |
+| `agent` | A read-only sub-agent (`hook-verifier`: read files and search, no shell) that investigates first | the same `{"ok": …}` JSON, as the last thing it says |
+
+```json
+{
+  "hooks": {
+    "PreToolUse": [{
+      "matcher": "bash",
+      "hooks": [{ "type": "prompt", "prompt": "Does this command delete data outside the project? $ARGUMENTS" }]
+    }],
+    "Stop": [{
+      "hooks": [{ "type": "agent", "prompt": "Does every function changed in this session have a test?", "timeout": 90 }]
+    }]
+  }
+}
+```
+
+`$ARGUMENTS` in `prompt` becomes the event payload as JSON (appended when the
+placeholder is absent; payloads over 20k characters are truncated). `timeout` is
+in seconds (`prompt` 30, `agent` 120, `command` 60); `prompt` hooks also take an
+optional `model` (default: the cheap model the auto-approval classifier uses).
+
+Model-based hooks are deliberately weaker than command hooks: they can **block or
+stay silent, never approve** — letting a model waive a permission prompt would turn a
+guardrail into a bypass. If the model is unavailable, fails, times out or gives no
+verdict, the hook has no opinion (a note is shown). Hooks never fire from inside a
+`prompt`/`agent` hook's own run, so an agent hook whose agent calls tools cannot
+recurse. An `agent` hook needs a context that can run sub-agents; where there is none
+it is skipped with a note. Note that a timed-out `agent` hook stops being waited on, but
+its sub-agent runs on until it finishes.
+
 ## Managed settings (administrators)
 
 A file only an administrator can write, enforced on top of user and project
