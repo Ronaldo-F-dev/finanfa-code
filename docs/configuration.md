@@ -15,7 +15,7 @@ agent types each also have a global counterpart under `~/.finanfa-code/`
 | `mcp.json` | MCP server list — see [mcp.md](mcp.md) |
 | `plugins/<name>/index.js` | Arbitrary tool/command registration — see [plugins.md](plugins.md) |
 | `instructions/*.md` | Path-scoped project instructions |
-| `finanfa.md` (project root) | Free-form project instructions (the `CLAUDE.md`/`AGENTS.md` equivalent) |
+| `finanfa.md` (project root) | Free-form project instructions (the `CLAUDE.md` equivalent). If it is absent or empty, `AGENTS.md` is used instead; when both exist only `finanfa.md` is read |
 | `finanfa-design.md` (project root) | Design contract for `create_artifact` |
 
 ## Permissions and hooks (`settings.json`)
@@ -46,11 +46,11 @@ commands at these events, same convention as Claude Code:
 | `Stop` | the agent is about to finish its turn | the turn continues, the reason is fed back (once per turn; the payload's `stop_hook_active` says so) |
 | `SubagentStop` | a delegated sub-agent (the `task` tool) is about to finish | same as `Stop`, for the sub-agent's turn |
 | `SessionStart` | first turn of a new session | — (stdout is added to that first prompt as context) |
-| `SessionEnd` | the terminal REPL ends (`/exit`, EOF or a crash) | — |
+| `SessionEnd` | a session that ran at least one turn ends: terminal REPL exit or `--prompt` run (`source` `exit`/`prompt`), a web socket disconnecting (`disconnect`), the VS Code session being disposed (`dispose`) | — |
 | `Notification` | the agent is waiting for you to approve a tool call (fire-and-forget; payload `message`) | — |
 | `PreCompact` | before automatic context compaction | — |
 
-A sub-agent never fires `Stop` or `SessionStart`. `SessionEnd` is only fired by the terminal REPL for now, not by the web UI, the VS Code extension or chat channels.
+A sub-agent never fires `Stop` or `SessionStart`. `SessionEnd` is not fired by chat channels (each message is a self-contained run with no session end) or by the ACP bridge.
 
 `/hooks` lists what is configured.
 
