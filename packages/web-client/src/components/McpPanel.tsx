@@ -1,20 +1,7 @@
 import type { McpServerStatus } from "../hooks/useAgentSocket";
 import { useLanguage } from "../i18n/LanguageContext";
-
-// No real service logos available without pulling images from the network
-// (blocked here) — a recognizable emoji per known catalog entry beats a
-// blank/generic icon for every row. Falls back to a plain plug for a custom
-// server a project added itself under a name outside the catalog.
-const CONNECTOR_ICONS: Record<string, string> = {
-  github: "🐙",
-  notion: "📓",
-  canva: "🎨",
-  supabase: "⚡",
-  gmail: "✉️",
-  drive: "📁",
-  gamma: "📊",
-  vercel: "▲",
-};
+import { BrandLogo } from "./BrandLogo";
+import { resolveBrand } from "../brands";
 
 export function McpPanel({
   servers,
@@ -50,10 +37,12 @@ export function McpPanel({
           {servers.map((s) => (
             <div className="mcp-row" key={s.name}>
               <div className="mcp-row-main">
-                <span className="mcp-icon">{CONNECTOR_ICONS[s.name] ?? "🔌"}</span>
-                <span className={`mcp-dot ${s.connected ? "mcp-dot-on" : s.needsAuth ? "mcp-dot-auth" : "mcp-dot-off"}`} />
-                <div>
-                  <div className="mcp-name">{s.name}</div>
+                <BrandLogo id={s.name} />
+                <div className="mcp-text">
+                  <div className="mcp-name" title={s.name}>
+                    <span className={`mcp-dot ${s.connected ? "mcp-dot-on" : s.needsAuth ? "mcp-dot-auth" : "mcp-dot-off"}`} aria-hidden="true" />
+                    {resolveBrand(s.name).label}
+                  </div>
                   <div className="mcp-meta">
                     {s.transport}
                     {s.connected && s.disabled ? ` · ${t("mcp.disabled")}` : ""}
