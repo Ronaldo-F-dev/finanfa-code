@@ -156,7 +156,7 @@ function expandPluginRoot(config: HooksConfig, root: string): HooksConfig {
   for (const event of HOOK_EVENT_NAMES) {
     const matchers = config[event];
     if (!matchers) continue;
-    out[event] = matchers.map((m) => ({ ...m, hooks: m.hooks.map((h) => ({ ...h, command: h.command.replaceAll(PLUGIN_ROOT_VAR, root) })) }));
+    out[event] = matchers.map((m) => ({ ...m, hooks: m.hooks.map((h) => (h.type === "command" ? { ...h, command: h.command.replaceAll(PLUGIN_ROOT_VAR, root) } : h)) }));
   }
   return out;
 }
