@@ -29,6 +29,12 @@ describe("sandbox.ts", () => {
     expect(args).toContain("--die-with-parent");
   });
 
+  it("buildBwrapArgs shares the network by default and unshares it for network: deny", () => {
+    expect(buildBwrapArgs("/proj", [])).not.toContain("--unshare-net");
+    expect(buildBwrapArgs("/proj", [], "allow")).not.toContain("--unshare-net");
+    expect(buildBwrapArgs("/proj", [], "deny")).toContain("--unshare-net");
+  });
+
   it("buildBwrapArgs adds --bind-try for each extra writable path", () => {
     const args = buildBwrapArgs("/proj", ["/extra/one", "/extra/two"]);
     expect(args.filter((a) => a === "--bind-try")).toHaveLength(2);
