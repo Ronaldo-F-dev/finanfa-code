@@ -27,6 +27,16 @@ export interface FilePreview {
   after: string;
 }
 
+/** Which groups of tool calls are approved without asking, as the server reports them. */
+export interface ApprovalSettings {
+  /** category -> approved without asking. A missing category is "ask". */
+  settings: Record<string, boolean>;
+  /** An administrator's policy forbids skipping approvals: the switches are locked. */
+  forbidden: boolean;
+  /** Every category the server knows, in display order. */
+  categories: string[];
+}
+
 export interface PermissionRequest {
   requestId: number;
   prompt: string;
@@ -124,6 +134,7 @@ export function useAgentSocket(
   const [effortNeedsDownload, setEffortNeedsDownload] = useState<EffortNeedsDownload | null>(null);
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [resumeToken, setResumeToken] = useState(0);
+  const [approvals, setApprovals] = useState<ApprovalSettings>({ settings: {}, forbidden: false, categories: [] });
   // clientId of a user message -> the server's restore point number for it. Server-side these live in memory only,
   // so they cover the messages sent since this connection opened (not ones replayed from a saved session).
   const [restorePoints, setRestorePoints] = useState<Map<string, number>>(new Map());
@@ -272,6 +283,9 @@ export function useAgentSocket(
         case "effort_needs_download":
           setEffortNeedsDownload({ level: msg.level, ollamaModel: msg.ollamaModel });
           break;
+        case "auto_approve":
+          setApprovals({ settings: msg.settings ?? {}, forbidden: Boolean(msg.forbidden), categories: Array.isArray(msg.categories) ? msg.categories : [] });
+          break;
         case "checkpoints":
           setRestorePoints(restorePointsByClientId(msg.checkpoints));
           break;
@@ -350,6 +364,7 @@ export function useAgentSocket(
   const requestToolsStatus = useCallback(() => send({ type: "tools_status" }), [send]);
   const compact = useCallback(() => send({ type: "compact" }), [send]);
   const rewind = useCallback((checkpoint: number) => send({ type: "rewind", checkpoint }), [send]);
+  const setAutoApprove = useCallback((category: string, enabled: boolean) => send({ type: "set_auto_approve", category, enabled }), [send]);
   /** Appends a note to the conversation view that only this browser shows (nothing is sent to the agent). */
   const addNote = useCallback((variant: "system" | "error", text: string) => setTimeline((t) => [...t, { kind: "log", id: uid(), variant, text }]), []);
   const setPlanMode = useCallback((enabled: boolean) => send({ type: "set_plan_mode", enabled }), [send]);
@@ -367,6 +382,8 @@ export function useAgentSocket(
     modelUnavailable,
     effortNeedsDownload,
     todos,
+    approvals,
+    setAutoApprove,
     restorePoints,
     rewind,
     addNote,
