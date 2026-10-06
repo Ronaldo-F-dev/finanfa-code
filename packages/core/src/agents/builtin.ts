@@ -7,7 +7,21 @@ import type { SubagentType } from "./loader.js";
 // report, they never edit the working tree.
 const READ_ONLY_TOOLS = ["read_file", "grep", "glob", "bash"];
 
+/** Read-only on purpose: an "agent" hook must be able to look, never to change anything (no bash either). */
+export const HOOK_VERIFIER_TYPE: SubagentType = {
+  name: "hook-verifier",
+  description: "Used by \"agent\" hooks: investigates the project read-only, then answers a yes/no check as JSON",
+  systemPrompt:
+    "You verify one condition about an autonomous coding agent's action. You get the condition and the hook input as JSON. " +
+    "Inspect the project with your read-only tools (read files, search) as much as you need — never guess about code you can read. " +
+    'Finish with exactly one JSON object and nothing after it: {"ok": true} if the condition holds, or ' +
+    '{"ok": false, "reason": "<one sentence on what is wrong>"} if the action should be stopped. You never modify anything.',
+  tools: ["read_file", "grep", "glob"],
+  scope: "builtin",
+};
+
 export const BUILTIN_SUBAGENT_TYPES: SubagentType[] = [
+  HOOK_VERIFIER_TYPE,
   {
     name: "code-explorer",
     description: "Traces how a feature works end to end: entry points, call chains, data flow, key files",
