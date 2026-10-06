@@ -44,9 +44,13 @@ commands at these events, same convention as Claude Code:
 | `PostToolUse` | after a tool ran | only its reason is shown |
 | `UserPromptSubmit` | a prompt is submitted | the prompt is not sent |
 | `Stop` | the agent is about to finish its turn | the turn continues, the reason is fed back (once per turn; the payload's `stop_hook_active` says so) |
+| `SubagentStop` | a delegated sub-agent (the `task` tool) is about to finish | same as `Stop`, for the sub-agent's turn |
 | `SessionStart` | first turn of a new session | — (stdout is added to that first prompt as context) |
+| `SessionEnd` | the terminal REPL ends (`/exit`, EOF or a crash) | — |
+| `Notification` | the agent is waiting for you to approve a tool call (fire-and-forget; payload `message`) | — |
 | `PreCompact` | before automatic context compaction | — |
-| `SubagentStop`, `SessionEnd`, `Notification` | accepted in the config, not fired yet | — |
+
+A sub-agent never fires `Stop` or `SessionStart`. `SessionEnd` is only fired by the terminal REPL for now, not by the web UI, the VS Code extension or chat channels.
 
 `/hooks` lists what is configured.
 
