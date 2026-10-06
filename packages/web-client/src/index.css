@@ -75,8 +75,8 @@ body {
   flex-direction: column;
   background: var(--bg-elevated);
   border-right: 1px solid var(--border);
-  padding: 12px;
-  gap: 10px;
+  padding: 16px 14px;
+  gap: 14px;
 }
 
 /* Reference: ChatGPT's own sidebar treats "Projects" as a normal row in
@@ -88,9 +88,9 @@ body {
   border: none;
   border-radius: 8px;
   color: var(--text-muted);
-  padding: 8px 10px;
+  padding: 9px 12px;
   text-align: left;
-  font-size: 13px;
+  font-size: 13.5px;
   cursor: pointer;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -106,9 +106,9 @@ body {
   color: var(--text);
   border: none;
   border-radius: 8px;
-  padding: 8px 10px;
+  padding: 9px 12px;
   text-align: left;
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 600;
   cursor: pointer;
 }
@@ -121,7 +121,7 @@ body {
   text-transform: uppercase;
   letter-spacing: 0.04em;
   color: var(--text-muted);
-  padding: 4px 4px 0;
+  padding: 8px 12px 2px;
 }
 
 .sidebar-list {
@@ -195,7 +195,7 @@ body {
 .sidebar-menu {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .sidebar-settings {
@@ -203,9 +203,9 @@ body {
   border: none;
   border-radius: 8px;
   color: var(--text-muted);
-  padding: 8px 10px;
+  padding: 9px 12px;
   text-align: left;
-  font-size: 13px;
+  font-size: 13.5px;
   cursor: pointer;
 }
 .sidebar-settings:hover {
