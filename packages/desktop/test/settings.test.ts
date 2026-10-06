@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { isUsableWorkspace, loadSettings, saveSettings } from "../src/settings.js";
+import { defaultWorkspace, displayPath, isUsableWorkspace, loadSettings, saveSettings } from "../src/settings.js";
 
 async function tmpFile(): Promise<string> {
   return path.join(await mkdtemp(path.join(tmpdir(), "finanfa-desktop-settings-")), "nested", "settings.json");
@@ -49,5 +49,19 @@ describe("isUsableWorkspace", () => {
 
   it("does not mistake a sibling whose name merely starts the same for the temp dir", () => {
     expect(isUsableWorkspace("/var/folders/ab/xyz/Tools", "/var/folders/ab/xyz/T")).toBe(true);
+  });
+});
+
+describe("defaultWorkspace / displayPath", () => {
+  it("defaults to a visible Finanfa folder in the home directory", () => {
+    expect(defaultWorkspace("/Users/me")).toBe("/Users/me/Finanfa");
+    expect(isUsableWorkspace(defaultWorkspace("/Users/me"), "/var/folders/ab/T")).toBe(true);
+  });
+
+  it("shows a path under the home directory with a ~", () => {
+    expect(displayPath("/Users/me/Finanfa", "/Users/me")).toBe("~/Finanfa");
+    expect(displayPath("/Users/me", "/Users/me")).toBe("~");
+    expect(displayPath("/Volumes/Work/project", "/Users/me")).toBe("/Volumes/Work/project");
+    expect(displayPath("/Users/meagan/x", "/Users/me")).toBe("/Users/meagan/x"); // a sibling, not under the home
   });
 });

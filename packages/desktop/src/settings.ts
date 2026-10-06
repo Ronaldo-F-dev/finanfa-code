@@ -26,6 +26,23 @@ export function isUsableWorkspace(dir: string, tmpDir: string): boolean {
   return !(target === tmp || target.startsWith(tmp + path.sep));
 }
 
+/**
+ * Where the agent works when nobody chose a folder: a visible, ordinary folder in the home directory (not a hidden
+ * one, so its files can be found; not Documents or Desktop, where macOS interrupts the first run with a permission
+ * prompt). Created on first launch, so the app opens straight into a working state.
+ */
+export function defaultWorkspace(home: string): string {
+  return path.join(home, "Finanfa");
+}
+
+/** "/Users/me/Finanfa" -> "~/Finanfa" for display. */
+export function displayPath(p: string, home: string): string {
+  const resolved = path.resolve(p);
+  const base = path.resolve(home);
+  if (resolved === base) return "~";
+  return resolved.startsWith(base + path.sep) ? `~${resolved.slice(base.length)}` : resolved;
+}
+
 export const DEFAULT_BOUNDS: WindowBounds = { width: 1280, height: 860 };
 
 /** Reads settings, tolerating a missing, corrupt or wrongly-typed file (a bad settings file must never stop the app from opening). */
