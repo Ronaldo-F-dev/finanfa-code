@@ -910,18 +910,20 @@ body {
 .row {
   max-width: 760px;
   margin: 0 auto;
-  padding: 6px 20px;
+  padding: 8px 24px;
   display: flex;
 }
 
 .row-user {
   justify-content: flex-end;
+  /* A user message opens a new exchange: leave room above it so replies and the next question don't run together. */
+  margin-top: 22px;
 }
 
 .bubble {
-  border-radius: 16px;
-  padding: 10px 16px;
-  line-height: 1.5;
+  border-radius: 18px;
+  padding: 11px 18px;
+  line-height: 1.55;
   white-space: pre-wrap;
 }
 
@@ -932,7 +934,7 @@ body {
 
 .row-assistant {
   align-items: flex-start;
-  gap: 12px;
+  gap: 14px;
 }
 
 .avatar {
@@ -1130,8 +1132,9 @@ body {
   gap: 8px;
   font-family: var(--font-mono);
   font-size: 12.5px;
-  padding: 3px 10px;
-  border-radius: 6px;
+  padding: 6px 12px;
+  margin: 4px 0;
+  border-radius: 8px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
 }
@@ -1175,9 +1178,9 @@ details.tool-call-details > summary.tool-call::marker {
   content: "";
 }
 .tool-call-result {
-  margin: 4px 0 0 10px;
-  padding: 8px 10px;
-  border-radius: 6px;
+  margin: 6px 0 8px 12px;
+  padding: 10px 12px;
+  border-radius: 8px;
   background: var(--bg-elevated);
   border: 1px solid var(--border);
   font-family: var(--font-mono);
