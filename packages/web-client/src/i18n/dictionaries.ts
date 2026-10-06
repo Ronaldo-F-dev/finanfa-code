@@ -198,8 +198,8 @@ export const translations: Record<Language, Record<string, string>> = {
 
     // ModelsPanel.tsx
     "models.title": "Models",
-    "models.tabOllama": "🦙 Ollama",
-    "models.tabDocker": "🧩 Docker Model Runner",
+    "models.tabOllama": "Ollama",
+    "models.tabDocker": "Docker Model Runner",
     "models.ollamaUnavailable": "Ollama isn't reachable at localhost:11434 — install it from ollama.com and make sure it's running to manage models here.",
     "models.autoConfigHint": "Pulled models run locally and show up automatically in the model picker — nothing else to configure.",
     "models.installed": "Installed",
@@ -460,8 +460,8 @@ export const translations: Record<Language, Record<string, string>> = {
     "tools.noMatch": 'Aucun outil ne correspond à "{query}".',
 
     "models.title": "Modèles",
-    "models.tabOllama": "🦙 Ollama",
-    "models.tabDocker": "🧩 Docker Model Runner",
+    "models.tabOllama": "Ollama",
+    "models.tabDocker": "Docker Model Runner",
     "models.ollamaUnavailable": "Ollama n'est pas joignable sur localhost:11434 — installez-le depuis ollama.com et assurez-vous qu'il tourne pour gérer les modèles ici.",
     "models.autoConfigHint": "Les modèles téléchargés tournent en local et apparaissent automatiquement dans le sélecteur de modèle — rien d'autre à configurer.",
     "models.installed": "Installés",
