@@ -179,8 +179,10 @@ A **marketplace** is a git repo or local folder with a `marketplace.json`
 /plugin test <dir>          # validate a plugin folder
 ```
 
-Changes apply on the next start; there is no hot reload yet. Review a
-plugin before installing it — its hooks run shell commands.
+`install`, `remove`, `enable`, `disable` and `/plugin reload` re-read hooks
+and slash commands immediately. A plugin's **subagent types and skills** are
+bound at startup, so they need a restart. Review a plugin before installing
+it — its hooks run shell commands.
 
 ## What plugins can't do (yet)
 
