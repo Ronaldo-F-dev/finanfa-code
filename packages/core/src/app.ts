@@ -23,7 +23,7 @@ import { loadMemories, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, 
 import type { Memory } from "./memory/loader.js";
 import { embeddingsConfigFromEnv } from "./core/embeddings.js";
 import { ToolRegistry } from "./tools/registry.js";
-import { loadSubagentTypes } from "./agents/loader.js";
+import { loadAllSubagentTypes } from "./agents/loader.js";
 import type { SubagentType } from "./agents/loader.js";
 import { loadProjectInstructions } from "./core/project-instructions.js";
 import { loadScopedInstructions } from "./core/scoped-instructions.js";
@@ -644,7 +644,7 @@ export async function loadStartupContext(cwd: string): Promise<StartupContext> {
   const [skills, memories, agentTypes, projectInstructions, scopedInstructions, designContract] = await Promise.all([
     loadSkills(cwd),
     loadMemories(cwd),
-    loadSubagentTypes(cwd),
+    loadAllSubagentTypes(cwd),
     loadProjectInstructions(cwd),
     loadScopedInstructions(cwd),
     loadDesignContract(cwd),

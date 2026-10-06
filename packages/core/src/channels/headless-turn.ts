@@ -11,7 +11,7 @@ import { loadPlugins } from "../plugins/loader.js";
 import { loadSkills, formatSkillIndex, createReadSkillTool } from "../skills/loader.js";
 import { loadMemories, formatMemoryIndex, createReadMemoryTool, writeMemoryTool, deleteMemoryTool, findDuplicateMemoriesTool, createSearchMemoriesTool } from "../memory/loader.js";
 import { embeddingsConfigFromEnv } from "../core/embeddings.js";
-import { loadSubagentTypes } from "../agents/loader.js";
+import { loadAllSubagentTypes } from "../agents/loader.js";
 import { loadProjectInstructions, formatProjectInstructions } from "../core/project-instructions.js";
 import { loadScopedInstructions, formatScopedInstructions } from "../core/scoped-instructions.js";
 import { loadDesignContract } from "../core/design-contract.js";
@@ -178,7 +178,7 @@ export async function runHeadlessTurn(
 
   const browser = new BrowserManager();
   try {
-    const agentTypes = await loadSubagentTypes(cwd);
+    const agentTypes = await loadAllSubagentTypes(cwd);
     registerStatefulBuiltins(tools, {
       provider,
       permissions,
