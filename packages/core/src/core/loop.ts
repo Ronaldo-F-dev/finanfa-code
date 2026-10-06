@@ -933,6 +933,7 @@ export async function runTurn(
     const estimatedTokens = estimateRequestTokens(systemPromptWithDate(session), session.messages, activeTools);
     if (estimatedTokens > AUTO_COMPACT_TOKEN_THRESHOLD) {
       ui.writeSystem(`(context is very large — ~${estimatedTokens.toLocaleString()} tokens — compacting automatically before continuing)`);
+      await permissions.runLifecycleHook("PreCompact", session.cwd, session.id, { source: "auto" });
       const compacted = await compactSession(session, provider);
       if (compacted) ui.writeSystem(`Compacted ${compacted.messagesBefore} earlier messages into a summary to stay within context.`);
     }
