@@ -8,6 +8,12 @@ first tagged release.
 
 ## Unreleased
 
+### Changed
+
+- The "install scripts not yet covered by allowScripts" warning npm 11.19 prints on every `npm install` is
+  gone: `package.json` now records `allowScripts` — all six packages that have install scripts are denied,
+  since the build, tests, desktop app, serial ports and local embeddings all work without running them.
+
 ### Added
 
 - Hooks: new `Stop` (can keep the turn going with feedback), `SessionStart`

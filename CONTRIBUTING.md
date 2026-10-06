@@ -29,6 +29,15 @@ npm install
 Requires Node.js **22.5.0+** (CI runs the latest 22.x — see
 `.github/workflows/ci.yml`).
 
+npm 11.19+ no longer runs dependencies' install scripts unless they are listed in `allowScripts` in
+`package.json`, and says so at the end of every `npm install`. This repo records the decision: the six
+packages that have such scripts (`esbuild`, `fsevents`, `onnxruntime-node`, `protobufjs`,
+`@serialport/bindings-cpp`, `@vscode/vsce-sign`) are **denied**, because everything here — build, tests, the
+desktop app, serial ports, local embeddings — works with their prebuilt binaries without running them.
+If a new dependency needs its script, review it and run `npm install-scripts approve <pkg>`. Publishing the
+VS Code extension is the one case that may need `npm install-scripts approve @vscode/vsce-sign` on the
+publisher's machine. Older npm versions ignore the field.
+
 ## Before opening a PR
 
 ```bash
