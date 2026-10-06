@@ -6,8 +6,8 @@
   "main": "dist/main.cjs",
   "scripts": {
     "build": "node esbuild.config.mjs",
-    "start": "npm run build && electron .",
-    "smoke": "npm run build && electron . --smoke"
+    "start": "npm run build && node scripts/start.mjs",
+    "smoke": "npm run build && node scripts/start.mjs --smoke"
   },
   "devDependencies": {
     "electron": "^44.5.1"
