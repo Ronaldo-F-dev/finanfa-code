@@ -3,10 +3,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { checkPythonTypesTool } from "../../src/tools/builtin/check-python-types.js";
+import { hasCommand, skipLocally } from "../helpers/environment.js";
 
 const PYRIGHT_TIMEOUT = 30_000;
 
-describe("check_python_types tool (real pyright execution)", () => {
+// Skipped locally when pyright is missing; required in CI.
+describe.skipIf(skipLocally(hasCommand("pyright")))("check_python_types tool (real pyright execution)", () => {
   let dir: string;
 
   beforeEach(async () => {
