@@ -427,35 +427,40 @@ async function runSlashCommand(deps: ReplDeps, trimmed: string): Promise<Command
 async function repl(deps: ReplDeps): Promise<void> {
   const { ui, provider, tools, permissions, visionRoute, busy } = deps;
 
-  for (;;) {
-    const input = await ui.askUser("\n> ");
-    const trimmed = input.trim();
-    if (trimmed === "") continue;
+  try {
+    for (;;) {
+      const input = await ui.askUser("\n> ");
+      const trimmed = input.trim();
+      if (trimmed === "") continue;
 
-    if (trimmed.startsWith("/")) {
-      if ((await runSlashCommand(deps, trimmed)) === "exit") return;
-      continue;
-    }
+      if (trimmed.startsWith("/")) {
+        if ((await runSlashCommand(deps, trimmed)) === "exit") return;
+        continue;
+      }
 
-    busy.current = true;
-    try {
-      await runTurn(deps.session, provider, ui, tools, permissions, trimmed, visionRoute);
-      // Real reported bug: awaiting this here blocked the REPL from
-      // showing the next "> " prompt at all until title generation
-      // finished — its own extra provider.streamTurn call, which runs
-      // with no busy indicator of any kind (maybeGenerateTitle never
-      // touches ui.setBusy). Against a slow local model, this made typing
-      // a second message look like finanfa had frozen (or was ignoring
-      // input entirely) for as long as that invisible call took — now
-      // worse than before, since the timeout fixes elsewhere in this
-      // session let it legitimately run for minutes instead of failing
-      // fast. Title generation is best-effort (see its own docstring) and
-      // persists itself on success — nothing here needs to wait on it.
-      void maybeGenerateTitle(deps.session, provider);
-    } catch (err) {
-      ui.writeError(err instanceof Error ? err.message : String(err));
-    } finally {
-      busy.current = false;
+      busy.current = true;
+      try {
+        await runTurn(deps.session, provider, ui, tools, permissions, trimmed, visionRoute);
+        // Real reported bug: awaiting this here blocked the REPL from
+        // showing the next "> " prompt at all until title generation
+        // finished — its own extra provider.streamTurn call, which runs
+        // with no busy indicator of any kind (maybeGenerateTitle never
+        // touches ui.setBusy). Against a slow local model, this made typing
+        // a second message look like finanfa had frozen (or was ignoring
+        // input entirely) for as long as that invisible call took — now
+        // worse than before, since the timeout fixes elsewhere in this
+        // session let it legitimately run for minutes instead of failing
+        // fast. Title generation is best-effort (see its own docstring) and
+        // persists itself on success — nothing here needs to wait on it.
+        void maybeGenerateTitle(deps.session, provider);
+      } catch (err) {
+        ui.writeError(err instanceof Error ? err.message : String(err));
+      } finally {
+        busy.current = false;
+      }
     }
+  } finally {
+    // SessionEnd: the REPL is over (/exit, EOF or a crash) — a hook can flush logs, notify, clean up.
+    await permissions.runLifecycleHook("SessionEnd", deps.session.cwd, deps.session.id, { source: "exit" });
   }
 }
