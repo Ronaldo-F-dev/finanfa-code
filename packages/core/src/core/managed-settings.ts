@@ -1,5 +1,4 @@
 import { readFileSync } from "node:fs";
-import os from "node:os";
 import path from "node:path";
 import { HOOK_EVENT_NAMES, type HooksConfig } from "../hooks/config.js";
 
