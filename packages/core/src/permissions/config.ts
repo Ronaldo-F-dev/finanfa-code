@@ -3,6 +3,7 @@ import path from "node:path";
 import os from "node:os";
 import type { ToolRiskLevel } from "../core/types.js";
 import type { AutoApprovalClassifierConfig } from "./classifier.js";
+import { parseAutoApprove, type AutoApproveSettings } from "./categories.js";
 
 export type PermissionDecision = "allow" | "ask" | "deny";
 
@@ -32,6 +33,12 @@ export interface PermissionConfig {
    * send to "ask" is scored per-call by a real classifier LLM call first.
    */
   autoApprovalClassifier?: AutoApprovalClassifierConfig;
+  /**
+   * Categories of tool calls approved without asking (see categories.ts). Read ONLY from the user's own global
+   * config, never from a project's settings.json: this removes prompts, and a repository must not be able to
+   * switch that on for whoever opens it. An explicit rule for a tool still wins over it.
+   */
+  autoApprove?: AutoApproveSettings;
 }
 
 export const DEFAULT_PERMISSION_CONFIG: PermissionConfig = {
@@ -42,6 +49,11 @@ export const DEFAULT_PERMISSION_CONFIG: PermissionConfig = {
   },
   rules: [],
 };
+
+/** Leaves the field unset when nothing is configured, so a config with no approvals looks exactly as it did before the field existed. */
+function nonEmpty(settings: AutoApproveSettings): AutoApproveSettings | undefined {
+  return Object.keys(settings).length > 0 ? settings : undefined;
+}
 
 async function readJsonIfExists(file: string): Promise<Partial<PermissionConfig> | undefined> {
   try {
@@ -87,5 +99,6 @@ export async function loadPermissionConfig(cwd: string, trusted = true): Promise
     rules: [...(globalCfg?.rules ?? []), ...(projectCfg?.rules ?? [])],
     // Project-level setting wins over global, same precedence as defaultForRiskLevel above.
     autoApprovalClassifier: projectCfg?.autoApprovalClassifier ?? globalCfg?.autoApprovalClassifier,
+    autoApprove: nonEmpty(parseAutoApprove(globalCfg?.autoApprove)),
   };
 }

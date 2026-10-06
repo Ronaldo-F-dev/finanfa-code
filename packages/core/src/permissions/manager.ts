@@ -7,6 +7,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { runHooks, type HookLlmRunner, type HookOutcome, type HookPayload } from "../hooks/runner.js";
 import type { HookEventName } from "../hooks/config.js";
 import { appendAuditEvent, type AuditDecisionSource } from "../observability/audit-log.js";
+import { APPROVAL_CATEGORIES, approvalCategoryOf, type ApprovalCategory, type AutoApproveSettings } from "./categories.js";
 import { classifyToolRisk, resolveClassifierModel, type AutoApprovalClassifierConfig } from "./classifier.js";
 
 export type AskAnswer = "allow" | "deny" | "always" | "always-tool";
@@ -31,6 +32,9 @@ export class PermissionManager {
   private readonly yolo: boolean;
   private hooksConfig?: HooksConfig;
   private provider?: LlmProvider;
+  /** Categories approved without asking (see categories.ts). Empty when managed settings forbid skipping prompts. */
+  private autoApprove: AutoApproveSettings;
+  private readonly autoApproveForbidden: boolean;
   /** Set once the task tool exists (see registerStatefulBuiltins) — what a "agent" hook runs its read-only sub-agent with. */
   private hookAgentRunner?: (prompt: string, timeoutMs: number) => Promise<string>;
   /** True inside the run of a prompt/agent hook, so hooks never fire from within a hook's own model/agent calls (a PreToolUse agent hook whose agent calls a tool would otherwise recurse forever). Scoped per async call chain, so unrelated concurrent tool calls are unaffected. */
@@ -57,6 +61,27 @@ export class PermissionManager {
     if (opts.yolo && yoloForbidden) opts.ui.writeError("--yolo is disabled by this machine's managed settings — tool calls will still ask for approval.");
     this.hooksConfig = opts.hooksConfig;
     this.provider = opts.provider;
+    // disableYolo in the managed settings is the administrator's "nothing may skip the prompts" switch: it covers
+    // per-category auto-approval as well as --yolo.
+    this.autoApproveForbidden = yoloForbidden;
+    this.autoApprove = yoloForbidden ? {} : { ...opts.config.autoApprove };
+  }
+
+  /** The categories currently approved without asking. */
+  getAutoApprove(): AutoApproveSettings {
+    return { ...this.autoApprove };
+  }
+
+  /** True when an administrator's managed settings forbid skipping prompts, so no category can be switched on. */
+  isAutoApproveForbidden(): boolean {
+    return this.autoApproveForbidden;
+  }
+
+  /** Switches a category on or off for this session. Refused (returns false) under the managed-settings policy. */
+  setAutoApprove(category: ApprovalCategory, enabled: boolean): boolean {
+    if (this.autoApproveForbidden || !APPROVAL_CATEGORIES.includes(category)) return false;
+    this.autoApprove = { ...this.autoApprove, [category]: enabled };
+    return true;
   }
 
   /** Turns the auto-approval classifier mode on/off (or changes its model) at runtime — see /permissions. Passing undefined explicitly turns it off for this session, regardless of what config says. */
@@ -245,6 +270,12 @@ export class PermissionManager {
     }
 
     const ruleDecision = this.matchRule(tool, riskKey, ctx.cwd);
+    // A category the user approved wholesale covers any call of its tools that no explicit rule speaks for: a rule
+    // naming this tool (allow, ask or deny) is the more specific statement and always wins over the general one.
+    if (ruleDecision === undefined) {
+      const category = approvalCategoryOf(tool.name);
+      if (category && this.autoApprove[category]) return this.record(tool, riskKey, ctx, "allow", "category_auto_approve");
+    }
     const decision = ruleDecision ?? this.config.defaultForRiskLevel[tool.riskLevel];
 
     if (decision !== "ask") return this.record(tool, riskKey, ctx, decision, ruleDecision ? "rule" : "default_for_risk_level");

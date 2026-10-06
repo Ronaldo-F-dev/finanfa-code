@@ -35,6 +35,11 @@ first tagged release.
   text patch. The server sends the file's before/after with the approval request (omitted above
   400 KB, where the text preview remains). The approval headline now says "finanfa AI" rather than
   "finanfa-code", as the rest of the UI does.
+- **Approve a category of tool calls without asking**: file edits, terminal commands and MCP tools can each
+  be switched on from **Approvals** in the web UI / desktop app, with `/permissions auto-approve` in the
+  terminal, or `autoApprove` in the global config (`save` makes the terminal change permanent). An explicit
+  rule for a tool and a blocking hook still win; the setting is read only from the user's global config, and
+  `disableYolo` in the managed settings locks it. Calls approved this way are audited as `category_auto_approve`.
 - **Restore to before a message** in the web UI and desktop app: each message you send in the current
   conversation gets a "Restore" button (with a confirmation). It cuts the conversation back to just before
   that message, undoes the file edits and writes the agent made since, and puts the message back in the

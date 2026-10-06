@@ -5,6 +5,7 @@ import { WebSocketServer, type WebSocket } from "ws";
 import { AgentSession } from "@finanfa/core/src/core/session.js";
 import { runTurn, maybeGenerateTitle, runCompactCommand, isLoopGuardStopMessage } from "@finanfa/core/src/core/loop.js";
 import { rewindSession } from "@finanfa/core/src/core/rewind.js";
+import { APPROVAL_CATEGORIES, type ApprovalCategory } from "@finanfa/core/src/permissions/categories.js";
 import { ToolRegistry } from "@finanfa/core/src/tools/registry.js";
 import { registerBuiltins, registerStatefulBuiltins } from "@finanfa/core/src/tools/builtin/index.js";
 import { PermissionManager, type PermissionManagerOptions } from "@finanfa/core/src/permissions/manager.js";
@@ -25,7 +26,7 @@ import {
 import { formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
-import { loadConfig, saveGlobalConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
+import { loadConfig, saveGlobalConfig, updateGlobalConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled, type FinanfaConfig } from "@finanfa/core/src/core/config.js";
 import { CONFIG_KEYS, SECRET_KEYS, maskSecret } from "@finanfa/core/src/commands/builtin.js";
 import {
   baseSystemPromptFor,
@@ -1404,6 +1405,11 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
       );
     }
 
+    /** Which groups of tool calls are approved without asking, and whether an administrator's policy forbids changing that. */
+    function sendAutoApprove(): void {
+      ws.send(JSON.stringify({ type: "auto_approve", settings: permissions.getAutoApprove(), forbidden: permissions.isAutoApproveForbidden(), categories: APPROVAL_CATEGORIES }));
+    }
+
     async function reloadMcpTools(): Promise<void> {
       tools.unregisterByPrefix(MCP_TOOL_PREFIX);
       for (const def of await mcp.listAllTools()) tools.register(def);
@@ -1424,6 +1430,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
     // on every connection, same as sendMcpStatus() right above, so the
     // client already has real tool data by the time anyone opens the panel.
     sendToolsStatus();
+    sendAutoApprove();
     // Replay past turns for a resumed session — tool activity itself isn't
     // replayed (it isn't stored as display-ready text), only the user/
     // assistant exchange, same as reopening a ChatGPT/Claude.ai thread.
@@ -1585,6 +1592,23 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           turnInFlight = false;
           await session.persist().catch((err) => adapter.writeError(`Failed to save session: ${err instanceof Error ? err.message : err}`));
         }
+      }
+
+      /** Switches a category of tool calls on or off, here and in the user's global config (so the next conversation starts the same way). */
+      async function handleSetAutoApprove(msg: { type: string; [key: string]: unknown }): Promise<void> {
+        const category = msg.category;
+        if (typeof category !== "string" || !(APPROVAL_CATEGORIES as readonly string[]).includes(category) || typeof msg.enabled !== "boolean") return;
+        if (!permissions.setAutoApprove(category as ApprovalCategory, msg.enabled)) {
+          adapter.writeError("Skipping approvals is disabled by this machine's managed settings.");
+          sendAutoApprove();
+          return;
+        }
+        try {
+          await updateGlobalConfig({ autoApprove: permissions.getAutoApprove() });
+        } catch (err) {
+          adapter.writeError(`Applied for this conversation, but could not save the setting: ${err instanceof Error ? err.message : String(err)}`);
+        }
+        sendAutoApprove();
       }
 
       /** The restore points the browser may offer: one per message the user sent in this connection (they are not kept across a reload). */
@@ -2083,6 +2107,8 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
             return handleCompact();
           case "rewind":
             return handleRewind(msg);
+          case "set_auto_approve":
+            return handleSetAutoApprove(msg);
           case "set_model":
             return handleSetModel(msg);
           case "set_effort":

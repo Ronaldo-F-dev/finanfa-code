@@ -21,6 +21,7 @@ export function Sidebar({
   onOpenMemory,
   onOpenModels,
   onOpenTools,
+  onOpenApprovals,
   onOpenTodos,
   onOpenChannels,
 }: {
@@ -37,6 +38,7 @@ export function Sidebar({
   onOpenMemory: () => void;
   onOpenModels: () => void;
   onOpenTools: () => void;
+  onOpenApprovals: () => void;
   onOpenTodos: () => void;
   onOpenChannels: () => void;
 }) {
@@ -95,6 +97,9 @@ export function Sidebar({
         </button>
         <button className="sidebar-settings" onClick={onOpenTools}>
           {t("sidebar.tools")}
+        </button>
+        <button className="sidebar-settings" onClick={onOpenApprovals}>
+          {t("sidebar.approvals")}
         </button>
         <button className="sidebar-settings" onClick={onOpenTodos}>
           {t("sidebar.todos")}

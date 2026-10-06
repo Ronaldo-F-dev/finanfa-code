@@ -50,6 +50,35 @@ Organization-wide guardrails (managed hooks, refusing `--yolo`, an allow-list
 of plugin marketplaces) are set in the managed settings file — see
 `docs/configuration.md`.
 
+## Approving a whole category of tool calls
+
+Instead of answering one prompt per call, you can let a *kind* of call through:
+
+| Category | Covers |
+|---|---|
+| `edits` | `write_file`, `edit_file`, `multi_edit_file`, `edit_notebook`, `write_document`, `edit_document`, `write_spreadsheet`, `edit_spreadsheet` |
+| `terminal` | `bash`, `python_repl`, `start_background_process`, `tmux_new_session`, `tmux_send_keys` — commands on this machine |
+| `mcp` | every tool provided by an MCP server |
+
+Everything else (git, remote hosts, containers, deployments, messaging, web requests...) keeps its usual
+behaviour. Switch them from the web UI / desktop app (**Approvals** in the sidebar), from the terminal with
+`/permissions auto-approve [edits|terminal|mcp on|off [save]]`, or in `~/.finanfa-code/config.json`:
+
+```json
+{ "autoApprove": { "edits": true } }
+```
+
+How it ranks against the other mechanisms, from first to last: a **hook** that blocks wins; then
+`--yolo`; then the "always allow" answers given this session; then an **explicit permission rule** for the
+tool (allow, ask or deny — a rule for a specific tool is more specific than a category); then the category
+switch; then the defaults. Each call approved this way is recorded in the audit log with source
+`category_auto_approve`.
+
+The setting is read **only** from your global config, never from a project's `settings.json`: a repository
+must not be able to turn prompts off for whoever opens it. `disableYolo` in the managed settings locks every
+switch (the UI shows them disabled, `/permissions` refuses). File edits stay undoable through **Restore** in
+the web UI; shell commands do not.
+
 ## Network exposure of the web server
 
 The web server drives an agent with shell and file tools, so it is built to be
