@@ -2,6 +2,7 @@
 // (the CLI, the web server) — system prompts, provider selection, and MCP
 // connect-at-startup. Kept here instead of duplicated per-frontend so a
 // prompt/config change only has to happen once.
+import { STYLE_PROMPT } from "./util/typography.js";
 import type { LlmProvider } from "./core/types.js";
 import { AnthropicProvider } from "./providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "./providers/openai-compatible-provider.js";
@@ -228,7 +229,7 @@ export const DEV_TOOLS_PROMPT =
   "know in advance); say so plainly rather than retrying repeatedly when that happens.";
 
 export const BASE_SYSTEM_PROMPT =
-  SECURITY_INSTRUCTION + CORE_BEHAVIOR_PROMPT + PATH_GUIDANCE_PROMPT + PROCESS_GUIDANCE_PROMPT + DOCUMENT_TOOLS_PROMPT + DEV_TOOLS_PROMPT;
+  SECURITY_INSTRUCTION + CORE_BEHAVIOR_PROMPT + PATH_GUIDANCE_PROMPT + PROCESS_GUIDANCE_PROMPT + DOCUMENT_TOOLS_PROMPT + DEV_TOOLS_PROMPT + STYLE_PROMPT;
 
 /**
  * Real, reported symptom: a tiny local model (Ternary-Bonsai 1.7B/4B via
@@ -265,7 +266,8 @@ export const LOCAL_MODEL_LEAN_SYSTEM_PROMPT =
   "same failure survives about 3 fix attempts, stop and explain what's blocking you instead of continuing to " +
   "guess. " +
   "When the user states a lasting preference or shares project context that isn't obvious from the code, use " +
-  "write_memory so the next session starts with it. ";
+  "write_memory so the next session starts with it. " +
+  STYLE_PROMPT;
 
 /** Picks BASE_SYSTEM_PROMPT vs LOCAL_MODEL_LEAN_SYSTEM_PROMPT — pass the exact same value already computed for session.localModelLeanEnabled (resolveLocalModelLeanEnabled(config, isLocalProviderConfig(config))) so the prompt and the tool-trimming gate never disagree about whether a session is "local". */
 export function baseSystemPromptFor(localModelLeanEnabled: boolean): string {
