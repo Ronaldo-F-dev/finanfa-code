@@ -38,12 +38,17 @@ npm test
 ```
 
 All three run in CI on every push/PR and must pass. A few real
-end-to-end tests need local tools not every machine has (Chromium via
-Playwright, `bwrap`, `tesseract`, `poppler-utils`, `ruff` via `uvx`,
-...) — see `.github/workflows/ci.yml` for the exact list CI installs.
-It's fine if a handful of those are red locally as long as the reason is
-one of those missing tools, not a real failure; CI is the source of
-truth.
+end-to-end suites need tools not every machine has (Chromium via
+Playwright, `bwrap`, `tesseract`, `poppler-utils`, `socat`, a docker
+daemon, network access, ...). Locally those suites are **skipped** when the
+tool is missing (see `packages/core/test/helpers/environment.ts`); when the
+`CI` environment variable is set they always run, so a missing tool there
+is a failure. `.github/workflows/ci.yml` lists exactly what CI installs.
+
+To get the same environment locally without installing all of that on your
+machine, open the repo in the dev container (`.devcontainer/`): it installs
+the CI's tools and Chromium. Run `CI=1 npm test` inside it to make the
+skipped suites run for real.
 
 ## Code style
 
