@@ -18,6 +18,8 @@ export interface ServerSpawnInput {
   workspace: string;
   /** Per-launch bearer token the window presents. */
   token: string;
+  /** The desktop app's own pid: the server exits when this process is gone, so a crashed or force-quit app never leaves a server running. */
+  parentPid: number;
   /** Extra environment for the server (provider keys, etc.) — typically process.env. */
   baseEnv: NodeJS.ProcessEnv;
 }
@@ -47,6 +49,7 @@ export function buildServerSpawn(input: ServerSpawnInput): ServerSpawn {
     FINANFA_WEB_HOST: "127.0.0.1",
     FINANFA_WEB_USERS: `desktop:${input.token}`,
     FINANFA_WEB_CWD: input.workspace,
+    FINANFA_PARENT_PID: String(input.parentPid),
   };
   // A source-checkout run serves the built web client from the repo; the packaged app finds it next to the server bundle.
   return { command: input.execPath, args: entry, env };

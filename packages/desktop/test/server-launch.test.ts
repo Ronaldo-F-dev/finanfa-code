@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { buildServerSpawn, generateToken, parseReadyPort } from "../src/server-launch.js";
 
-const base = { execPath: "/Apps/Finanfa/Finanfa", repoRoot: "/repo", workspace: "/work", token: "t0k3n", baseEnv: { ANTHROPIC_API_KEY: "k", PATH: "/bin" } } as const;
+const base = { parentPid: 4242, execPath: "/Apps/Finanfa/Finanfa", repoRoot: "/repo", workspace: "/work", token: "t0k3n", baseEnv: { ANTHROPIC_API_KEY: "k", PATH: "/bin" } } as const;
 
 describe("buildServerSpawn", () => {
   it("in a source checkout runs the TypeScript server through tsx, with Electron acting as Node", () => {
@@ -22,6 +22,7 @@ describe("buildServerSpawn", () => {
     expect(env.PORT).toBe("0");
     expect(env.FINANFA_WEB_USERS).toBe("desktop:t0k3n");
     expect(env.FINANFA_WEB_CWD).toBe("/work");
+    expect(env.FINANFA_PARENT_PID).toBe("4242");
   });
 
   it("keeps the user's environment (provider keys, PATH) but never lets it widen the bind or replace the token", () => {
