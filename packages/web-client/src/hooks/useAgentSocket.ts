@@ -1,9 +1,10 @@
+import { restorePointsByClientId, truncateBeforeUserMessage } from "../rewind";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 export type ToolRiskLevel = "safe" | "ask" | "dangerous";
 
 export type TimelineItem =
-  | { kind: "user"; id: string; text: string; images?: Attachment[] }
+  | { kind: "user"; id: string; text: string; images?: Attachment[]; /** Sent with the message so the server can tie its restore point to it. Absent on messages replayed from a saved session, which have none. */ clientId?: string }
   | { kind: "assistant"; id: string; text: string; streaming: boolean }
   | { kind: "thinking"; id: string; text: string; streaming: boolean }
   | { kind: "log"; id: string; variant: "system" | "error"; text: string }
@@ -102,6 +103,8 @@ export function useAgentSocket(
   sessionId: string | undefined,
   projectId: string | undefined,
   onTitled?: () => void,
+  /** Called after the server restored an earlier message: `text` is that message, so the composer can offer it again. */
+  onRewound?: (info: { text?: string; preview: string; revertedFiles: number }) => void,
 ) {
   const [connected, setConnected] = useState(false);
   const [timeline, setTimeline] = useState<TimelineItem[]>([]);
@@ -121,6 +124,12 @@ export function useAgentSocket(
   const [effortNeedsDownload, setEffortNeedsDownload] = useState<EffortNeedsDownload | null>(null);
   const [todos, setTodos] = useState<TodoItem[]>([]);
   const [resumeToken, setResumeToken] = useState(0);
+  // clientId of a user message -> the server's restore point number for it. Server-side these live in memory only,
+  // so they cover the messages sent since this connection opened (not ones replayed from a saved session).
+  const [restorePoints, setRestorePoints] = useState<Map<string, number>>(new Map());
+  // The latest timeline, readable from the socket handler (which closes over the first render's state).
+  const timelineRef = useRef<TimelineItem[]>(timeline);
+  timelineRef.current = timeline;
   const wsRef = useRef<WebSocket | null>(null);
   const streamingIdRef = useRef<string | null>(null);
   // Same "one open block at a time" bookkeeping as streamingIdRef, for the
@@ -128,6 +137,8 @@ export function useAgentSocket(
   const thinkingIdRef = useRef<string | null>(null);
   const onTitledRef = useRef(onTitled);
   onTitledRef.current = onTitled;
+  const onRewoundRef = useRef(onRewound);
+  onRewoundRef.current = onRewound;
   // Whether *this* connection's session already had a title as of its last
   // session_info — reset per connection, used only to tell "just got its
   // first auto-generated title" apart from "echoing the same title back".
@@ -136,6 +147,7 @@ export function useAgentSocket(
   useEffect(() => {
     if (!model) return;
     setTimeline([]);
+    setRestorePoints(new Map());
     setStatus(null);
     setBusy({ active: false });
     setPermissionRequest(null);
@@ -260,6 +272,15 @@ export function useAgentSocket(
         case "effort_needs_download":
           setEffortNeedsDownload({ level: msg.level, ollamaModel: msg.ollamaModel });
           break;
+        case "checkpoints":
+          setRestorePoints(restorePointsByClientId(msg.checkpoints));
+          break;
+        case "rewound": {
+          const { timeline: kept, text } = typeof msg.clientId === "string" ? truncateBeforeUserMessage(timelineRef.current, msg.clientId) : { timeline: timelineRef.current, text: undefined };
+          setTimeline(kept);
+          onRewoundRef.current?.({ text, preview: msg.preview, revertedFiles: msg.revertedFiles });
+          break;
+        }
         case "history": {
           const items: TimelineItem[] = (msg.messages as { role: "user" | "assistant" | "error"; content: string }[]).map((m) =>
             m.role === "error"
@@ -287,8 +308,9 @@ export function useAgentSocket(
   const sendMessage = useCallback((text: string, images?: Attachment[], deepResearch?: boolean) => {
     const ws = wsRef.current;
     if (!ws || ws.readyState !== WebSocket.OPEN) return;
-    setTimeline((t) => [...t, { kind: "user", id: uid(), text, images }]);
-    ws.send(JSON.stringify({ type: "user_message", text, images, deepResearch }));
+    const clientId = uid();
+    setTimeline((t) => [...t, { kind: "user", id: uid(), text, images, clientId }]);
+    ws.send(JSON.stringify({ type: "user_message", text, images, deepResearch, clientId }));
   }, []);
 
   const answerPermission = useCallback((requestId: number, answer: string) => {
@@ -327,6 +349,9 @@ export function useAgentSocket(
   const setEffort = useCallback((level: string) => send({ type: "set_effort", level }), [send]);
   const requestToolsStatus = useCallback(() => send({ type: "tools_status" }), [send]);
   const compact = useCallback(() => send({ type: "compact" }), [send]);
+  const rewind = useCallback((checkpoint: number) => send({ type: "rewind", checkpoint }), [send]);
+  /** Appends a note to the conversation view that only this browser shows (nothing is sent to the agent). */
+  const addNote = useCallback((variant: "system" | "error", text: string) => setTimeline((t) => [...t, { kind: "log", id: uid(), variant, text }]), []);
   const setPlanMode = useCallback((enabled: boolean) => send({ type: "set_plan_mode", enabled }), [send]);
 
   return {
@@ -342,6 +367,9 @@ export function useAgentSocket(
     modelUnavailable,
     effortNeedsDownload,
     todos,
+    restorePoints,
+    rewind,
+    addNote,
     sendMessage,
     answerPermission,
     interrupt,
