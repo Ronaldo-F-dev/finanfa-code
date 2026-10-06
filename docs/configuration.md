@@ -54,6 +54,34 @@ A sub-agent never fires `Stop` or `SessionStart`. `SessionEnd` is only fired by 
 
 `/hooks` lists what is configured.
 
+## Managed settings (administrators)
+
+A file only an administrator can write, enforced on top of user and project
+settings. It can restrict or add guardrails; nothing in it grants a permission.
+
+Location: `/etc/finanfa-code/managed-settings.json` (macOS/Linux),
+`%ProgramData%\finanfa-code\managed-settings.json` (Windows), or the path in
+`$FINANFA_MANAGED_SETTINGS`.
+
+```json
+{
+  "hooks": { "PreToolUse": [{ "matcher": "bash", "hooks": [{ "type": "command", "command": "/opt/policy/check.sh" }] }] },
+  "allowManagedHooksOnly": true,
+  "disableYolo": true,
+  "strictKnownMarketplaces": ["https://git.example.com/approved-plugins.git"]
+}
+```
+
+| Field | Effect |
+|---|---|
+| `hooks` | Always run, before the user's, the project's and plugins' hooks |
+| `allowManagedHooksOnly` | Only the managed hooks run; user, project and plugin hooks are ignored |
+| `disableYolo` | `--yolo` is refused (tool calls still ask) |
+| `strictKnownMarketplaces` | `/plugin marketplace add` accepts only these exact sources (`[]` forbids adding any) |
+
+If the file exists but can't be parsed, the strictest settings apply instead
+of none. The file is read once at startup.
+
 A project is untrusted by default the first time you open it — you're
 asked once whether to trust its `settings.json`. Declining ignores its
 rules/hooks/plugins for that run.
