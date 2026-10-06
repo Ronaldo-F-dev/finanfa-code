@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { mkdtemp } from "node:fs/promises";
+import { mkdtemp, realpath } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { runHooks, type HookPayload } from "../../src/hooks/runner.js";
@@ -89,7 +89,8 @@ describe("hooks/runner (real subprocess execution, real shell commands)", () => 
   });
 
   it("runs the hook with the given cwd", async () => {
-    const dir = await mkdtemp(path.join(tmpdir(), "finanfa-hook-cwd-"));
+    // realpath: on macOS tmpdir() is under the /var -> /private/var symlink, and `pwd` reports the resolved path.
+    const dir = await realpath(await mkdtemp(path.join(tmpdir(), "finanfa-hook-cwd-")));
     const config: HooksConfig = { PreToolUse: [{ hooks: [{ type: "command", command: "cat > /dev/null; pwd" }] }] };
     const outcome = await runHooks(config, "PreToolUse", basePayload({ tool_name: "bash" }), dir);
     expect(outcome.output).toBe(dir);
