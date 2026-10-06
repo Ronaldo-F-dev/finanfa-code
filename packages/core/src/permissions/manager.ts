@@ -2,7 +2,8 @@ import type { ToolContext, ToolDefinition, LlmProvider, FilePreview } from "../c
 import type { UIAdapter } from "../ui/adapter.js";
 import type { PermissionConfig, PermissionDecision } from "./config.js";
 import type { HooksConfig } from "../hooks/config.js";
-import { runHooks } from "../hooks/runner.js";
+import { runHooks, type HookOutcome, type HookPayload } from "../hooks/runner.js";
+import type { HookEventName } from "../hooks/config.js";
 import { appendAuditEvent, type AuditDecisionSource } from "../observability/audit-log.js";
 import { classifyToolRisk, resolveClassifierModel, type AutoApprovalClassifierConfig } from "./classifier.js";
 
@@ -127,6 +128,28 @@ export class PermissionManager {
     if (outcome.decision === "block") return { blockedReason: outcome.reason ?? "Blocked by a UserPromptSubmit hook.", prompt };
     if (outcome.output) return { prompt: `${prompt}\n\n<user-prompt-submit-hook-context>\n${outcome.output}\n</user-prompt-submit-hook-context>` };
     return { prompt };
+  }
+
+  /** The hooks config this manager was built with (read-only view, for /hooks). */
+  getHooksConfig(): HooksConfig {
+    return this.hooksConfig ?? {};
+  }
+
+  /**
+   * Runs the hooks for a lifecycle event that isn't tied to a tool call
+   * (Stop, SubagentStop, SessionStart, SessionEnd, Notification,
+   * PreCompact). Never throws: a broken hook must not break the session.
+   * Callers decide what a "block" means — for Stop it forces the turn to
+   * continue with the hook's reason as feedback; for the rest it is only
+   * surfaced as a message.
+   */
+  async runLifecycleHook(event: HookEventName, cwd: string, sessionId: string, extra: Partial<HookPayload> = {}): Promise<HookOutcome> {
+    if (!this.hooksConfig?.[event]?.length) return {};
+    try {
+      return await runHooks(this.hooksConfig, event, { ...extra, hook_event_name: event, session_id: sessionId, cwd }, cwd);
+    } catch {
+      return {};
+    }
   }
 
   /** Returns a decision when a PreToolUse hook has an opinion (block/approve); undefined means the normal permission flow should decide instead. */
