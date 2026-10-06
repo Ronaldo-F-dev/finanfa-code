@@ -11,6 +11,7 @@ import { McpPanel } from "./components/McpPanel";
 import { MemoryPanel } from "./components/MemoryPanel";
 import { ModelsPanel } from "./components/ModelsPanel";
 import { ToolsPanel } from "./components/ToolsPanel";
+import { ApprovalsPanel } from "./components/ApprovalsPanel";
 import { TodoPanel } from "./components/TodoPanel";
 import { ChannelsPanel } from "./components/ChannelsPanel";
 import { ProjectsListView } from "./components/ProjectsListView";
@@ -61,6 +62,7 @@ export default function App() {
   const [memoryOpen, setMemoryOpen] = useState(false);
   const [modelsOpen, setModelsOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
+  const [approvalsOpen, setApprovalsOpen] = useState(false);
   const [todosOpen, setTodosOpen] = useState(false);
   const [channelsOpen, setChannelsOpen] = useState(false);
   const [sidebarRefreshToken, setSidebarRefreshToken] = useState(0);
@@ -129,6 +131,8 @@ export default function App() {
     todos,
     modelUnavailable,
     effortNeedsDownload,
+    approvals,
+    setAutoApprove,
     restorePoints,
     rewind,
     addNote,
@@ -373,6 +377,10 @@ export default function App() {
           setToolsOpen(true);
           setSidebarOpen(false);
         }}
+        onOpenApprovals={() => {
+          setApprovalsOpen(true);
+          setSidebarOpen(false);
+        }}
         onOpenTodos={() => {
           setTodosOpen(true);
           setSidebarOpen(false);
@@ -567,6 +575,7 @@ export default function App() {
       )}
       {memoryOpen && <MemoryPanel projectId={activeProjectId} onClose={() => setMemoryOpen(false)} />}
       {modelsOpen && <ModelsPanel onClose={() => setModelsOpen(false)} />}
+      {approvalsOpen && <ApprovalsPanel approvals={approvals} connected={connected} onClose={() => setApprovalsOpen(false)} onSet={setAutoApprove} />}
       {toolsOpen && (
         <ToolsPanel tools={toolsStatus} connected={connected} onClose={() => setToolsOpen(false)} onToggle={setToolEnabled} onRefresh={requestToolsStatus} />
       )}
