@@ -1,6 +1,9 @@
 {
   "name": "finanfa-code",
   "image": "mcr.microsoft.com/devcontainers/javascript-node:22-bookworm",
+  // Docker's default seccomp profile blocks the user namespaces bubblewrap needs, so the
+  // bash sandbox suite fails inside the container without this.
+  "runArgs": ["--security-opt", "seccomp=unconfined"],
   "postCreateCommand": "bash .devcontainer/post-create.sh",
   "remoteUser": "node",
   "customizations": {
