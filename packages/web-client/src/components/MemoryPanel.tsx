@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
+import { Icon } from "./Icon";
 
 type Scope = "project" | "global";
 
@@ -95,7 +96,9 @@ export function MemoryPanel({ projectId, onClose }: { projectId: string | undefi
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal panel-modal" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
-          <span className="panel-header-icon">🧠</span>
+          <span className="panel-header-icon">
+            <Icon name="memory" size={20} />
+          </span>
           <span className="panel-header-title">{t("memory.title")}</span>
           <button className="panel-header-close" onClick={onClose} aria-label={t("settings.close")}>
             ×

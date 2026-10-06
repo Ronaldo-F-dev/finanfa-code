@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
 import { BrandLogo } from "./BrandLogo";
+import { Icon } from "./Icon";
 
 interface ChannelField {
   key: string;
@@ -143,7 +144,9 @@ export function ChannelsPanel({ onClose }: { onClose: () => void }) {
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal panel-modal channels-panel" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
-          <span className="panel-header-icon">📡</span>
+          <span className="panel-header-icon">
+            <Icon name="channels" size={20} />
+          </span>
           <span className="panel-header-title">{t("channels.title")}</span>
           <button className="panel-header-close" onClick={onClose} aria-label={t("settings.close")}>
             ×

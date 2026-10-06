@@ -1,5 +1,6 @@
 import type { ApprovalSettings } from "../hooks/useAgentSocket";
 import { useLanguage } from "../i18n/LanguageContext";
+import { Icon } from "./Icon";
 
 const CATEGORY_ICON: Record<string, string> = { edits: "✏️", terminal: "⌨️", mcp: "🔌" };
 
@@ -24,7 +25,9 @@ export function ApprovalsPanel({
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal panel-modal" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
-          <span className="panel-header-icon">✅</span>
+          <span className="panel-header-icon">
+            <Icon name="approvals" size={20} />
+          </span>
           <span className="panel-header-title">{t("approvals.title")}</span>
           <button className="panel-header-close" onClick={onClose} aria-label={t("settings.close")}>
             ×

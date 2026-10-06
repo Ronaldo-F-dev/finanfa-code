@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ToolStatus } from "../hooks/useAgentSocket";
 import { useLanguage } from "../i18n/LanguageContext";
+import { Icon } from "./Icon";
 
 const RISK_ICON: Record<string, string> = { safe: "🟢", ask: "🟡", dangerous: "🔴" };
 const RISK_ORDER = ["safe", "ask", "dangerous"];
@@ -78,7 +79,9 @@ export function ToolsPanel({
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal panel-modal" onClick={(e) => e.stopPropagation()}>
         <div className="panel-header">
-          <span className="panel-header-icon">🧰</span>
+          <span className="panel-header-icon">
+            <Icon name="tools" size={20} />
+          </span>
           <span className="panel-header-title">{t("tools.title")}</span>
           <button className="panel-header-close" onClick={onClose} aria-label={t("settings.close")}>
             ×
