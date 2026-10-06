@@ -2,6 +2,8 @@ import { readFile, readdir } from "node:fs/promises";
 import os from "node:os";
 import path from "node:path";
 import matter from "gray-matter";
+import { pluginContentDirs } from "../plugins/manager.js";
+import { BUILTIN_SUBAGENT_TYPES } from "./builtin.js";
 
 // Real Claude Code's custom subagent types (.claude/agents/*.md): a
 // markdown file defines a named persona the `task` tool can delegate to —
@@ -11,7 +13,7 @@ import matter from "gray-matter";
 // as skills (frontmatter + gray-matter, global+project merge, project
 // wins), so a user already familiar with skills/commands needs to learn
 // nothing new here.
-export type SubagentScope = "project" | "global";
+export type SubagentScope = "project" | "global" | "builtin";
 
 export interface SubagentType {
   name: string;
@@ -73,11 +75,21 @@ async function readAgentsFromDir(dir: string, scope: SubagentScope): Promise<Sub
 
 /** Project-local (.finanfa-code/agents) wins over global (~/.finanfa-code/agents) on a name collision — same precedence as skills/custom commands. */
 export async function loadSubagentTypes(cwd: string): Promise<SubagentType[]> {
-  const [global, project] = await Promise.all([
+  const [global, project, plugin] = await Promise.all([
     readAgentsFromDir(globalAgentsDir(), "global"),
     readAgentsFromDir(projectAgentsDir(cwd), "project"),
+    pluginContentDirs(cwd, "agents").then((dirs) => Promise.all(dirs.map((d) => readAgentsFromDir(d, "global")))).then((l) => l.flat()),
   ]);
-  const byName = new Map(global.map((a) => [a.name, a]));
+  // Plugin-provided types are the lowest precedence: the user's own global/project type wins a name collision.
+  const byName = new Map(plugin.map((a) => [a.name, a]));
+  for (const a of global) byName.set(a.name, a);
   for (const a of project) byName.set(a.name, a);
+  return [...byName.values()];
+}
+
+/** Every subagent type the `task` tool can use: the built-in ones, overridden by same-named types from plugins, the user's global dir and the project (see loadSubagentTypes). */
+export async function loadAllSubagentTypes(cwd: string): Promise<SubagentType[]> {
+  const byName = new Map(BUILTIN_SUBAGENT_TYPES.map((a) => [a.name, a]));
+  for (const a of await loadSubagentTypes(cwd)) byName.set(a.name, a);
   return [...byName.values()];
 }

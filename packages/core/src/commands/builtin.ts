@@ -9,6 +9,7 @@ import { compactSession } from "../core/loop.js";
 import { findKnownModelNote } from "../core/known-local-models.js";
 import type { CommandContext, CommandOutcome } from "./types.js";
 import type { CommandRegistry } from "./registry.js";
+import { registerExtraCommands } from "./extra.js";
 
 async function reloadMcpTools(ctx: CommandContext): Promise<void> {
   ctx.tools.unregisterByPrefix(MCP_TOOL_PREFIX);
@@ -606,6 +607,7 @@ async function handleModels(ctx: CommandContext): Promise<CommandOutcome> {
 }
 
 export function registerBuiltinCommands(commands: CommandRegistry): void {
+  registerExtraCommands(commands);
   commands.register(
     "exit",
     (ctx) => {

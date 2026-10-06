@@ -12,6 +12,7 @@ import type {
   ToolContext,
   ToolDefinition,
 } from "./types.js";
+import { findOutputStyle } from "./output-styles.js";
 import { compactForProvider, CHARS_PER_TOKEN_ESTIMATE } from "./context.js";
 import { mcpToolServerName } from "../mcp/client-manager.js";
 import { withSpan } from "../observability/tracing.js";
@@ -58,6 +59,8 @@ function systemPromptWithDate(session: AgentSession): string {
       "don't ask the user to repeat it. If something they ask for conflicts with it, say so rather than quietly " +
       "picking one.";
   }
+  const style = session.outputStyle ? findOutputStyle(session.outputStyle) : undefined;
+  if (style?.prompt) prompt += `\n\n${style.prompt}`;
   return prompt;
 }
 
@@ -878,7 +881,15 @@ export async function runTurn(
     ui.writeError(hookOutcome.blockedReason);
     return;
   }
-  session.messages.push({ role: "user", content: hookOutcome.prompt, images });
+  // SessionStart: fires once, on the first turn of a session that has no
+  // history yet. Its plain stdout is appended to that first prompt as extra
+  // context (how real hooks of this kind inject project state or a style).
+  let promptContent = hookOutcome.prompt;
+  if (session.messages.length === 0) {
+    const startOutcome = await permissions.runLifecycleHook("SessionStart", session.cwd, session.id, { source: "startup" });
+    if (startOutcome.output) promptContent = `${promptContent}\n\n<session-start-hook-context>\n${startOutcome.output}\n</session-start-hook-context>`;
+  }
+  session.messages.push({ role: "user", content: promptContent, images });
   // Recorded here, not after the turn finishes — a checkpoint marks "right
   // before this message and anything it caused," so /rewind can restore
   // that state even if the turn itself is later interrupted or errors out.
@@ -892,6 +903,7 @@ export async function runTurn(
   // primary model may not support image input at all.
   let nextCallNeedsVision = Boolean(images?.length);
   const guard = new LoopGuard();
+  let stopHookActive = false;
 
   for (;;) {
     const iterationStop = guard.checkIterationLimit();
@@ -924,6 +936,7 @@ export async function runTurn(
     const estimatedTokens = estimateRequestTokens(systemPromptWithDate(session), session.messages, activeTools);
     if (estimatedTokens > AUTO_COMPACT_TOKEN_THRESHOLD) {
       ui.writeSystem(`(context is very large — ~${estimatedTokens.toLocaleString()} tokens — compacting automatically before continuing)`);
+      await permissions.runLifecycleHook("PreCompact", session.cwd, session.id, { source: "auto" });
       const compacted = await compactSession(session, provider);
       if (compacted) ui.writeSystem(`Compacted ${compacted.messagesBefore} earlier messages into a summary to stay within context.`);
     }
@@ -1110,6 +1123,20 @@ export async function runTurn(
               "changed, or run, verify that yourself before trusting it.)",
           );
         }
+        // A Stop hook can refuse to let the turn end: "block" feeds its
+        // reason back as a new user message and the loop continues. Only
+        // honored once per turn so a hook that always blocks can't loop
+        // forever (the payload's stop_hook_active tells the hook so).
+        const stopOutcome = await permissions.runLifecycleHook("Stop", session.cwd, session.id, { stop_hook_active: stopHookActive });
+        if (stopOutcome.decision === "block" && !stopHookActive) {
+          stopHookActive = true;
+          const reason = stopOutcome.reason ?? "A Stop hook asked the agent to keep going.";
+          ui.writeSystem(`(Stop hook: ${reason})`);
+          session.messages.push({ role: "user", content: `<stop-hook-feedback>\n${reason}\n</stop-hook-feedback>` });
+          await session.persist();
+          continue;
+        }
+        if (stopOutcome.output) ui.writeSystem(stopOutcome.output);
         return;
       }
 

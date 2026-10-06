@@ -36,8 +36,19 @@ agent types each also have a global counterpart under `~/.finanfa-code/`
 — both must match when both are given. `cwdPrefix` scopes a rule to part
 of a monorepo, e.g. auto-allowing `bash` inside one already-reviewed
 directory without loosening it everywhere else. `hooks` runs shell
-commands on `PreToolUse`/`PostToolUse`/`UserPromptSubmit`, same
-convention as Claude Code.
+commands at these events, same convention as Claude Code:
+
+| Event | When | A `block` decision (exit 2, or `{"decision":"block"}`) |
+|---|---|---|
+| `PreToolUse` | before a tool runs | the tool never runs |
+| `PostToolUse` | after a tool ran | only its reason is shown |
+| `UserPromptSubmit` | a prompt is submitted | the prompt is not sent |
+| `Stop` | the agent is about to finish its turn | the turn continues, the reason is fed back (once per turn; the payload's `stop_hook_active` says so) |
+| `SessionStart` | first turn of a new session | — (stdout is added to that first prompt as context) |
+| `PreCompact` | before automatic context compaction | — |
+| `SubagentStop`, `SessionEnd`, `Notification` | accepted in the config, not fired yet | — |
+
+`/hooks` lists what is configured.
 
 A project is untrusted by default the first time you open it — you're
 asked once whether to trust its `settings.json`. Declining ignores its

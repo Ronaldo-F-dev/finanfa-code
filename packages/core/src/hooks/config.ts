@@ -1,6 +1,7 @@
 import { readFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
+import { loadPluginHooks } from "../plugins/manager.js";
 
 // Claude Code's own hooks feature: user- or project-configured shell
 // commands that run at specific points in the agent loop (before a tool
@@ -9,7 +10,18 @@ import os from "node:os";
 // Claude Code's hooks.json/settings.json `hooks` field so a user already
 // familiar with that convention (matcher + array of {type: "command",
 // command, timeout?}) can reuse the same mental model here.
-export type HookEventName = "PreToolUse" | "PostToolUse" | "UserPromptSubmit";
+export const HOOK_EVENT_NAMES = [
+  "PreToolUse",
+  "PostToolUse",
+  "UserPromptSubmit",
+  "Stop",
+  "SubagentStop",
+  "SessionStart",
+  "SessionEnd",
+  "Notification",
+  "PreCompact",
+] as const;
+export type HookEventName = (typeof HOOK_EVENT_NAMES)[number];
 
 export interface HookCommand {
   type: "command";
@@ -19,16 +31,12 @@ export interface HookCommand {
 }
 
 export interface HookMatcher {
-  /** Regex tested against the tool name (PreToolUse/PostToolUse only). Omitted matches every tool. Ignored for UserPromptSubmit. */
+  /** Regex tested against the tool name (PreToolUse/PostToolUse only). Omitted matches every tool. Ignored for every other event. */
   matcher?: string;
   hooks: HookCommand[];
 }
 
-export interface HooksConfig {
-  PreToolUse?: HookMatcher[];
-  PostToolUse?: HookMatcher[];
-  UserPromptSubmit?: HookMatcher[];
-}
+export type HooksConfig = { [E in HookEventName]?: HookMatcher[] };
 
 export const EMPTY_HOOKS_CONFIG: HooksConfig = {};
 
@@ -71,11 +79,17 @@ export async function loadHooksConfig(cwd: string, trusted = true): Promise<Hook
   const projectFile = path.join(cwd, ".finanfa-code", "settings.json");
 
   const [globalHooks, projectHooks] = await Promise.all([readHooksFromFile(globalFile), trusted ? readHooksFromFile(projectFile) : Promise.resolve(undefined)]);
-  if (!globalHooks && !projectHooks) return EMPTY_HOOKS_CONFIG;
+  const pluginHooks = await loadPluginHooks(cwd, trusted);
+  if (!globalHooks && !projectHooks && pluginHooks.length === 0) return EMPTY_HOOKS_CONFIG;
 
-  return {
-    PreToolUse: mergeEvent(globalHooks?.PreToolUse, projectHooks?.PreToolUse),
-    PostToolUse: mergeEvent(globalHooks?.PostToolUse, projectHooks?.PostToolUse),
-    UserPromptSubmit: mergeEvent(globalHooks?.UserPromptSubmit, projectHooks?.UserPromptSubmit),
-  };
+  // Order: the user's global hooks, then the project's, then plugins'. Hooks
+  // run in this order and the first one to decide wins, so a plugin's hook
+  // can never pre-empt (e.g. approve past) a hook the user wrote themselves.
+  const merged: HooksConfig = {};
+  for (const event of HOOK_EVENT_NAMES) {
+    const fromPlugins = pluginHooks.flatMap((h) => h[event] ?? []);
+    const entries = mergeEvent(mergeEvent(globalHooks?.[event], projectHooks?.[event]), fromPlugins.length > 0 ? fromPlugins : undefined);
+    if (entries) merged[event] = entries;
+  }
+  return merged;
 }
