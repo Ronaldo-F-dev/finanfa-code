@@ -878,7 +878,15 @@ export async function runTurn(
     ui.writeError(hookOutcome.blockedReason);
     return;
   }
-  session.messages.push({ role: "user", content: hookOutcome.prompt, images });
+  // SessionStart: fires once, on the first turn of a session that has no
+  // history yet. Its plain stdout is appended to that first prompt as extra
+  // context (how real hooks of this kind inject project state or a style).
+  let promptContent = hookOutcome.prompt;
+  if (session.messages.length === 0) {
+    const startOutcome = await permissions.runLifecycleHook("SessionStart", session.cwd, session.id, { source: "startup" });
+    if (startOutcome.output) promptContent = `${promptContent}\n\n<session-start-hook-context>\n${startOutcome.output}\n</session-start-hook-context>`;
+  }
+  session.messages.push({ role: "user", content: promptContent, images });
   // Recorded here, not after the turn finishes — a checkpoint marks "right
   // before this message and anything it caused," so /rewind can restore
   // that state even if the turn itself is later interrupted or errors out.
