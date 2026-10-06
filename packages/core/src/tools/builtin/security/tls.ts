@@ -1,3 +1,4 @@
+import { isIP } from "node:net";
 import tls from "node:tls";
 import type { ToolDefinition } from "../../../core/types.js";
 import { severityFromScore } from "./cvss.js";
@@ -23,7 +24,8 @@ interface TlsInfo {
 function probeTls(hostname: string, port: number): Promise<TlsInfo | undefined> {
   return new Promise((resolve) => {
     const socket = tls.connect(
-      { host: hostname, port, servername: hostname, timeout: PROBE_TIMEOUT_MS, rejectUnauthorized: false },
+      // SNI must be a hostname: Node throws when servername is an IP literal, which turned every scan of an IP target into an error.
+      { host: hostname, port, ...(isIP(hostname) ? {} : { servername: hostname }), timeout: PROBE_TIMEOUT_MS, rejectUnauthorized: false },
       () => {
         const cert = socket.getPeerCertificate();
         const cipher = socket.getCipher();
