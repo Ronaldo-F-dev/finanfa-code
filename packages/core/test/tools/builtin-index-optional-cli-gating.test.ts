@@ -44,14 +44,11 @@ describe("registerBuiltins: optional external-CLI tools are only registered when
     expect(registry.get("mqtt_subscribe")).toBeDefined();
   });
 
-  it("DOES register run_docker/run_kubectl when both are genuinely installed (as they happen to be in this environment)", () => {
-    expect(isCommandAvailable("docker")).toBe(true);
-    expect(isCommandAvailable("kubectl")).toBe(true);
-
+  it("registers run_docker/run_kubectl exactly when those CLIs are installed — consistent either way", () => {
     const registry = new ToolRegistry();
     registerBuiltins(registry);
-    expect(registry.get("run_docker")).toBeDefined();
-    expect(registry.get("run_kubectl")).toBeDefined();
+    expect(registry.get("run_docker") !== undefined).toBe(isCommandAvailable("docker"));
+    expect(registry.get("run_kubectl") !== undefined).toBe(isCommandAvailable("kubectl"));
   });
 
   it("registers read_1password_secret/read_vault_secret only if isCommandAvailable agrees they should — consistent either way", () => {
