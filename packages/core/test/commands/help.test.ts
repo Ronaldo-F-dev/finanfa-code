@@ -50,11 +50,11 @@ describe("/help command", () => {
 
   it("also lists custom commands, when any are given", async () => {
     const customCommands = new Map<string, CustomCommand>([
-      ["review", { name: "review", description: "Review the current diff", content: "x", scope: "project" }],
+      ["ship", { name: "ship", description: "Review the current diff", content: "x", scope: "project" }],
     ]);
     const ctx = baseCtx(customCommands);
     await commands.get("help")!(ctx);
-    expect(ctx.ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/review — Review the current diff"));
+    expect(ctx.ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/ship — Review the current diff"));
   });
 
   it("does not list a custom command that shares a name with a builtin (it's shadowed)", async () => {
