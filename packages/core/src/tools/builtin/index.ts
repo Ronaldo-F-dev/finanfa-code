@@ -98,6 +98,7 @@ import { createBrowserTools } from "./browser.js";
 import { createSerialTools } from "./serial.js";
 import { SerialManager } from "../../serial/manager.js";
 import { createListUsbDevicesTool, createRunAdbCommandTool, createRunIosSshCommandTool } from "./usb-devices.js";
+import { HOOK_VERIFIER_TYPE } from "../../agents/builtin.js";
 import { createBackgroundProcessTools } from "./background-process.js";
 import { BackgroundProcessManager } from "../../core/background-process.js";
 import { createPythonReplTool } from "./python-repl.js";
@@ -397,7 +398,18 @@ export interface StatefulToolDeps {
  * this is the single place that shows the full builtin tool surface.
  */
 export function registerStatefulBuiltins(registry: ToolRegistry, deps: StatefulToolDeps): void {
-  registry.register(createTaskTool({ ...deps, tools: registry }));
+  // The "hook-verifier" type must exist whatever the entry point passed, or an agent hook's sub-agent would fall back to the full toolset.
+  const agentTypes = deps.agentTypes?.some((a) => a.name === HOOK_VERIFIER_TYPE.name) ? deps.agentTypes : [...(deps.agentTypes ?? []), HOOK_VERIFIER_TYPE];
+  const taskTool = createTaskTool({ ...deps, agentTypes, tools: registry });
+  registry.register(taskTool);
+  // "agent" hooks run a read-only sub-agent through the same machinery as the task tool.
+  deps.permissions.setHookAgentRunner(async (prompt, timeoutMs) => {
+    const result = await taskTool.handler(
+      { prompt, description: "hook check", agentType: "hook-verifier" },
+      { cwd: deps.cwd, sessionId: "hook-agent", signal: AbortSignal.timeout(timeoutMs) },
+    );
+    return result.content;
+  });
   for (const tool of createWorkflowTools({ ...deps, tools: registry })) registry.register(tool);
   const redteamDeps = { provider: deps.provider, model: deps.model, systemPrompt: deps.systemPrompt };
   registry.register(createPromptInjectionScanTool(redteamDeps));
