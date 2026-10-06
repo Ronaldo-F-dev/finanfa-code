@@ -3,6 +3,7 @@ import { mkdtemp, rm, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { BrowserManager } from "../../src/browser/manager.js";
+import { hasChromium, skipLocally } from "../helpers/environment.js";
 
 const FIXTURE_HTML = `<!doctype html>
 <html>
@@ -15,7 +16,8 @@ const FIXTURE_HTML = `<!doctype html>
 </body>
 </html>`;
 
-describe("BrowserManager (real Chromium via Playwright)", () => {
+// Needs Playwright Chromium; skipped locally when it is not installed (always runs in CI).
+describe.skipIf(skipLocally(hasChromium()))("BrowserManager (real Chromium via Playwright)", () => {
   let dir: string;
   let fixtureUrl: string;
   let manager: BrowserManager;
