@@ -2,10 +2,12 @@ import { describe, expect, it, beforeAll, afterAll } from "vitest";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { securityScanClickjackingTool } from "../../../src/tools/builtin/security/clickjacking.js";
+import { hasChromium, skipLocally } from "../../helpers/environment.js";
 
 const ctx = { cwd: "/tmp", sessionId: "test", signal: new AbortController().signal };
 
-describe("security_scan_clickjacking tool (real Chromium, real local HTTP server)", () => {
+// Needs Playwright Chromium; skipped locally when it is not installed (always runs in CI).
+describe.skipIf(skipLocally(hasChromium()))("security_scan_clickjacking tool (real Chromium, real local HTTP server)", () => {
   let server: http.Server;
   let baseUrl: string;
 
