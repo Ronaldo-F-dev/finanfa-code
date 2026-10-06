@@ -545,6 +545,8 @@ export default function App() {
                       model={model}
                       onChange={(m, family, baseUrl) => switchModel(m, family, baseUrl)}
                       onNeedsKey={() => setSettingsOpen(true)}
+                      currentEffort={sessionInfo?.effort}
+                      onSelectLegal={() => setEffort("legal")}
                     />
                     <EffortSelector
                       currentEffort={sessionInfo?.effort}
