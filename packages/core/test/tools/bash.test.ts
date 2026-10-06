@@ -3,6 +3,7 @@ import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createBashTool } from "../../src/tools/builtin/bash.js";
+import { hasCommand, isLinux, skipLocally } from "../helpers/environment.js";
 
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
 
@@ -115,7 +116,8 @@ describe("bash tool", () => {
   });
 });
 
-describe("bash tool — OS-level sandbox (real bubblewrap, workspace-write mode)", () => {
+// bubblewrap is Linux-only; skipped elsewhere, and locally when bwrap is missing (required on Linux CI).
+describe.skipIf(!isLinux || skipLocally(hasCommand("bwrap")))("bash tool — OS-level sandbox (real bubblewrap, workspace-write mode)", () => {
   const sandboxedTool = createBashTool({ mode: "workspace-write" });
   let dir: string;
 
