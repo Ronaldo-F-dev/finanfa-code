@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { PDFDocument, StandardFonts, rgb } from "pdf-lib";
 import { convertPdfToImageTool } from "../../src/tools/builtin/convert-pdf-to-image.js";
+import { hasCommand, skipLocally } from "../helpers/environment.js";
 
 const PNG_MAGIC = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
@@ -27,7 +28,8 @@ async function exists(p: string): Promise<boolean> {
   }
 }
 
-describe("convert_pdf_to_image tool (real pdftoppm execution)", () => {
+// Skipped locally when pdftoppm is missing; required in CI.
+describe.skipIf(skipLocally(hasCommand("pdftoppm")))("convert_pdf_to_image tool (real pdftoppm execution)", () => {
   let dir: string;
 
   beforeEach(async () => {
