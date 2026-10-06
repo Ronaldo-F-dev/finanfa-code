@@ -45,6 +45,10 @@ interface ChannelStatusField {
 // priority whenever it's known.
 let publicTunnelUrl: string | undefined;
 
+export function getPublicTunnelUrl(): string | undefined {
+  return publicTunnelUrl;
+}
+
 export function setPublicTunnelUrl(url: string): void {
   publicTunnelUrl = url;
 }

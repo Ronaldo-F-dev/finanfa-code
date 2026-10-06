@@ -12,6 +12,13 @@ import { mkdir, readFile, writeFile, rm, readdir, stat } from "node:fs/promises"
 export const DEFAULT_PROJECT_ID = "default";
 export const PROJECTS_ROOT = path.join(os.homedir(), ".finanfa-code", "web-projects");
 
+/** Project ids are minted by createProject (randomUUID) or the special "default" — nothing else is ever a valid id. */
+const PROJECT_ID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+export function isValidProjectId(id: string): boolean {
+  return id === DEFAULT_PROJECT_ID || PROJECT_ID_RE.test(id);
+}
+
 export interface ProjectMeta {
   id: string;
   name: string;
@@ -78,7 +85,7 @@ export async function createProject(name: string): Promise<ProjectMeta> {
 
 export async function deleteProject(id: string): Promise<void> {
   if (id === DEFAULT_PROJECT_ID) throw new Error("Cannot delete the default workspace.");
-  if (!/^[0-9a-f-]{36}$/.test(id)) throw new Error("Invalid project id.");
+  if (!isValidProjectId(id)) throw new Error("Invalid project id.");
   const list = await loadIndex();
   const next = list.filter((p) => p.id !== id);
   await saveIndex(next);
@@ -88,11 +95,14 @@ export async function deleteProject(id: string): Promise<void> {
 /** Real directory this project's agent operates on — always validated against a known project id first (see resolveCwd in index.ts), never built from raw untrusted input directly. */
 export function resolveProjectDir(id: string, defaultCwd: string): string {
   if (id === DEFAULT_PROJECT_ID) return defaultCwd;
+  // Defense in depth: ids reach here from URLs and query strings, and "../.." would otherwise walk out of PROJECTS_ROOT.
+  if (!isValidProjectId(id)) throw new Error("Invalid project id.");
   return path.join(PROJECTS_ROOT, id);
 }
 
 export async function projectExists(id: string): Promise<boolean> {
   if (id === DEFAULT_PROJECT_ID) return true;
+  if (!isValidProjectId(id)) return false;
   try {
     const st = await stat(path.join(PROJECTS_ROOT, id));
     return st.isDirectory();

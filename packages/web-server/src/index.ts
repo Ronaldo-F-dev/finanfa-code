@@ -55,7 +55,6 @@ import type { PermissionDecision } from "@finanfa/core/src/permissions/config.js
 import { PRICING } from "@finanfa/core/src/core/pricing.js";
 import { createWebUiAdapter } from "./web-ui-adapter.js";
 import type { UIAdapter } from "@finanfa/core/src/ui/adapter.js";
-import { resolveAllowedPath } from "@finanfa/core/src/tools/builtin/path-guard.js";
 import { initTracing } from "@finanfa/core/src/observability/tracing.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
 import { CommandRegistry } from "@finanfa/core/src/commands/registry.js";
@@ -79,7 +78,8 @@ import { registerMatrixChannelRoutes } from "./channels-matrix.js";
 import { registerLineChannelRoutes } from "./channels-line.js";
 import { registerFeishuChannelRoutes } from "./channels-feishu.js";
 import { registerTeamsChannelRoutes } from "./channels-teams.js";
-import { registerChannelsConfigRoutes, applyPersistedChannelSecrets, setPublicTunnelUrl } from "./channels-config-api.js";
+import { registerChannelsConfigRoutes, applyPersistedChannelSecrets, getPublicTunnelUrl, setPublicTunnelUrl } from "./channels-config-api.js";
+import { checkRequestHost, checkWebSocketOrigin, hostnameOf, isLoopbackBind, parseAllowedOrigins, resolveWorkspaceFile, type OriginPolicy } from "./security.js";
 import { startCloudflareTunnel } from "./cloudflare-tunnel.js";
 import { parseWebUsers, authenticateBearerToken, authenticateQueryToken } from "./auth.js";
 import { SessionTokenStore, defaultSessionStorePath } from "./session-token-store.js";
@@ -122,7 +122,30 @@ const OIDC_STATES = new OidcStateStore();
  */
 const GATEWAY_ENABLED = Boolean(WEB_USERS) || process.env.FINANFA_WEB_ACCOUNTS === "1" || Boolean(OIDC_CONFIG);
 
+/**
+ * Address the server listens on. Loopback by default: this server drives an agent with shell and
+ * file tools, so it must not be reachable from the network unless that is asked for. A deployment
+ * (Docker, Fly, Render) sets FINANFA_WEB_HOST=0.0.0.0 and puts gateway auth in front.
+ */
+const BIND_HOST = process.env.FINANFA_WEB_HOST ?? "127.0.0.1";
+const ORIGIN_POLICY: OriginPolicy = {
+  loopbackBound: isLoopbackBind(BIND_HOST),
+  allowedOrigins: parseAllowedOrigins(process.env.FINANFA_ALLOWED_ORIGINS),
+  extraHostnames: () => {
+    const tunnel = getPublicTunnelUrl();
+    return tunnel ? [hostnameOf(new URL(tunnel).host) ?? ""] : [];
+  },
+};
+
 const app = express();
+// DNS-rebinding guard, before anything else: see checkRequestHost.
+app.use((req, res, next) => {
+  if (checkRequestHost(req.headers.host, ORIGIN_POLICY)) {
+    next();
+    return;
+  }
+  res.status(403).json({ error: "Unexpected Host header. Add this server's public origin to FINANFA_ALLOWED_ORIGINS." });
+});
 app.use(
   express.json({
     limit: "25mb", // images arrive as base64 JSON — comfortably over a typical photo's encoded size
@@ -141,7 +164,6 @@ applyPersistedChannelSecrets(startupConfig);
 // Once per process, not per-connection/per-session — see
 // ensureConfiguredLocalTextModel's own header comment.
 await ensureConfiguredLocalTextModel(startupConfig, { writeSystem: (s) => console.log(s), writeError: (s) => console.error(s) });
-registerChannelsConfigRoutes(app);
 registerSlackChannelRoutes(app, DEFAULT_CWD);
 registerTelegramChannelRoutes(app, DEFAULT_CWD);
 registerDiscordChannelRoutes(app, DEFAULT_CWD);
@@ -352,6 +374,12 @@ if (GATEWAY_ENABLED) {
     next();
   });
 }
+
+// Channel credentials (bot tokens, signing secrets) are read and WRITTEN here, so these routes must
+// sit behind the gate above — registered before it, anyone could overwrite a channel's token and take
+// the bot over even with gateway auth on. The channels' own inbound webhooks stay registered earlier
+// (they carry their own signature verification, not a bearer token).
+registerChannelsConfigRoutes(app);
 
 app.get("/api/models", async (req, res) => {
   const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
@@ -992,9 +1020,9 @@ app.delete("/api/projects/:id/files/:name", async (req, res) => {
 // Serves a raw file from a project's workspace (e.g. an MP3 text_to_speech
 // just wrote) so the browser can play/view it inline — distinct from the
 // knowledge-file routes above, which are scoped to the knowledge/
-// subfolder specifically. resolveAllowedPath re-validates the path stays
-// within that project's own cwd (or the server's home dir), same guard
-// every tool's file access already goes through.
+// subfolder specifically. Unlike the agent's own file tools, this is
+// reachable without a permission prompt (and without auth unless the
+// gateway is on), so it is confined to the project directory.
 app.get("/api/workspace-file", async (req, res) => {
   const relPath = req.query.path;
   if (typeof relPath !== "string" || relPath.length === 0) {
@@ -1003,7 +1031,8 @@ app.get("/api/workspace-file", async (req, res) => {
   }
   try {
     const cwd = await resolveCwd(typeof req.query.project === "string" ? req.query.project : undefined);
-    const fullPath = resolveAllowedPath(cwd, relPath);
+    // Confined to the project (symlinks resolved, credential locations refused) — see resolveWorkspaceFile.
+    const fullPath = await resolveWorkspaceFile(cwd, relPath);
     res.type(path.extname(fullPath) || "application/octet-stream");
     res.sendFile(fullPath);
   } catch (err) {
@@ -1061,7 +1090,19 @@ app.get(/^(?!\/api|\/ws).*/, (_req, res) => {
 });
 
 const httpServer = createServer(app);
-const wss = new WebSocketServer({ server: httpServer, path: "/ws" });
+// Browsers let any web page open a WebSocket to any host, so the handshake's Origin is checked —
+// otherwise a random site open in the same browser could drive the agent. See checkWebSocketOrigin.
+const wss = new WebSocketServer({
+  server: httpServer,
+  path: "/ws",
+  verifyClient: (info, done) => {
+    if (checkWebSocketOrigin(info.origin, info.req.headers.host, ORIGIN_POLICY) && checkRequestHost(info.req.headers.host, ORIGIN_POLICY)) {
+      done(true);
+      return;
+    }
+    done(false, 403, "Forbidden origin");
+  },
+});
 
 wss.on("connection", (ws: WebSocket, req) => {
   const url = req.url ?? "";
@@ -2057,14 +2098,14 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
 
 await initTracing();
 
-httpServer.listen(PORT, () => {
+httpServer.listen(PORT, BIND_HOST, () => {
   // Log the REAL bound port, not the requested one — with PORT=0 (used by
   // the e2e test suite to get a genuinely free, OS-assigned port instead
   // of guessing an unused one in a fixed range) they're different, and
   // spawn-server.ts's waitForServerReady parses this exact line to learn
   // which port the server actually ended up on.
   const boundPort = (httpServer.address() as { port: number }).port;
-  console.log(`finanfa-code-web server listening on http://localhost:${boundPort} (default workspace: ${DEFAULT_CWD})`);
+  console.log(`finanfa-code-web server listening on http://localhost:${boundPort} (bound to ${BIND_HOST}; default workspace: ${DEFAULT_CWD})`);
 
   // Real risk this is meant to surface before someone gets burned by it,
   // not just a reminder: with GATEWAY_ENABLED off, every request/connection
@@ -2086,6 +2127,9 @@ httpServer.listen(PORT, () => {
         "use (127.0.0.1); before exposing this server publicly (a real domain, a cloud deploy, a tunnel), set one of " +
         "those up first — see README's Setup section.",
     );
+    if (!ORIGIN_POLICY.loopbackBound) {
+      console.warn(`⚠ ...and it is bound to ${BIND_HOST}, i.e. reachable from the network. Set FINANFA_WEB_HOST=127.0.0.1, or configure gateway auth.`);
+    }
   }
 
   // Opt-in only (see cloudflare-tunnel.ts's own header comment) — a real

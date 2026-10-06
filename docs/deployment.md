@@ -7,7 +7,9 @@ export ANTHROPIC_API_KEY=sk-ant-...
 docker compose up --build
 ```
 
-Serves the same web app on `http://localhost:4600`. `./workspace` on the
+Serves the same web app on `http://localhost:4600` (the port is published on
+this machine only; publish `"4600:4600"` instead to reach it from your network,
+and configure gateway auth first). `./workspace` on the
 host is the agent's project directory inside the container;
 `~/.finanfa-code` config/sessions persist in a named volume across
 restarts. Set `FINANFA_PROVIDER`/`FINANFA_BASE_URL`/`FINANFA_MODEL`/`FINANFA_API_KEY`
