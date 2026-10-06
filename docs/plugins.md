@@ -145,6 +145,43 @@ so `registerCommands` only has an effect in the terminal (`finanfa-code`
 CLI). It's still safe to define — the web server just never calls it —
 but don't rely on a plugin's commands being reachable from the browser.
 
+## Directory plugins and marketplaces
+
+Besides code plugins (`index.js`, above), a plugin can be a plain folder
+that contributes content — no code to trust beyond the hooks it ships:
+
+```
+my-plugin/
+  plugin.json          optional: { "name", "version", "description" }
+  commands/*.md        slash commands (same format as .finanfa-code/commands)
+  agents/*.md          subagent types (same format as .finanfa-code/agents)
+  skills/*.md          skills (same format as .finanfa-code/skills)
+  hooks/hooks.json     { "hooks": { "<event>": [{ "matcher"?, "hooks": [...] }] } }
+```
+
+`${FINANFA_PLUGIN_ROOT}` inside a hook command expands to the plugin's
+folder, so a hook can ship and call its own scripts. Installed plugins
+live in `~/.finanfa-code/plugins/<name>/`; a project can also carry its own
+under `.finanfa-code/plugins/` (its hooks only run once the project is
+trusted). Anything the user wrote themselves wins a name collision with a
+plugin's, and a user's hooks are consulted before a plugin's.
+
+A **marketplace** is a git repo or local folder with a `marketplace.json`
+(`{ "name", "plugins": [{ "name", "description"?, "source" }] }`, where
+`source` is a path inside the marketplace, a git URL, or
+`{ "source": "git", "url" }`).
+
+```
+/plugin marketplace add <git-url|dir>
+/plugin search [text]
+/plugin install <plugin>[@<marketplace>]
+/plugin list | enable <p> | disable <p> | remove <p>
+/plugin test <dir>          # validate a plugin folder
+```
+
+Changes apply on the next start; there is no hot reload yet. Review a
+plugin before installing it — its hooks run shell commands.
+
 ## What plugins can't do (yet)
 
 - **No provider/channel plugins.** `LlmProvider` implementations
@@ -152,9 +189,9 @@ but don't rely on a plugin's commands being reachable from the browser.
   `selectProvider` in `packages/core/src/app.ts` and aren't
   plugin-loadable — adding a new backend today means adding a provider
   class in core, not dropping a file in `.finanfa-code/plugins/`.
-- **No manifest/versioning.** A plugin is just a directory name and an
-  `index.js`; there's no `plugin.json` (version, description, author) and
-  no compatibility check against the host's API surface. If you're
+- **No compatibility checking.** A code plugin is just a directory name
+  and an `index.js`; `plugin.json` carries a version and description but
+  nothing checks it against the host's API surface. If you're
   publishing a plugin for others to install, document its expected
   `ToolDefinition`/`CommandHandler` shape yourself for now.
 - **No sandboxing.** A plugin runs with the same Node.js process
