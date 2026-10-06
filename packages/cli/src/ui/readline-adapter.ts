@@ -51,6 +51,10 @@ export function createReadlineAdapter(): UIAdapter {
   // message is known, so we show the "thinking" spinner for the full
   // duration and print the rendered result once endAssistantMessage() fires.
   let assistantBuffer = "";
+  // Streamed model reasoning (UIAdapter.writeThinkingDelta), kept separate
+  // from the assistant buffer and printed first, dimmed, whenever the turn's
+  // buffered output is flushed — same buffering rationale as assistantBuffer.
+  let thinkingBuffer = "";
 
   function elapsedSuffix(): string {
     return busySince !== undefined ? ` ${Math.floor((Date.now() - busySince) / 1000)}s` : "";
@@ -65,7 +69,19 @@ export function createReadlineAdapter(): UIAdapter {
     atLineStart = true;
   }
 
+  function flushThinkingBuffer(): void {
+    if (thinkingBuffer.length === 0) return;
+    clearSpinner();
+    if (!atLineStart) stdout.write("\n");
+    stdout.write(`\x1b[2m\x1b[3m${thinkingBuffer}\x1b[0m\n`);
+    atLineStart = true;
+    thinkingBuffer = "";
+  }
+
   function flushAssistantBuffer(): void {
+    // Reasoning always precedes the reply it belongs to — flush it first so
+    // it lands above the answer, in the same order it was generated.
+    flushThinkingBuffer();
     if (assistantBuffer.length === 0) return;
     clearSpinner();
     if (!atLineStart) stdout.write("\n");
@@ -76,6 +92,9 @@ export function createReadlineAdapter(): UIAdapter {
   }
 
   return {
+    writeThinkingDelta(text: string): void {
+      thinkingBuffer += text;
+    },
     writeAssistantDelta(text: string): void {
       assistantBuffer += text;
     },

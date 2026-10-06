@@ -10,6 +10,13 @@ first tagged release.
 
 ### Added
 
+- The terminal UI now shows the model's reasoning as it streams, dimmed
+  and italic, above the reply — the Ink UI renders it live and commits it
+  as its own log entry; the readline/`--prompt` path buffers it like the
+  assistant text and prints it when the turn's output is flushed.
+  `UIAdapter.writeThinkingDelta` existed and `loop.ts` already called it,
+  but no CLI adapter implemented the method, so terminal users never saw
+  a single reasoning chunk (the web UI got the same treatment earlier).
 - Web UI now shows the model's own reasoning as it streams: a collapsed
   "Reasoning" block above the reply (same expandable-block shape as tool
   calls) fills in live via a new `thinking_delta` WS event from
