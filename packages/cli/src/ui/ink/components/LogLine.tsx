@@ -12,6 +12,8 @@ export function LogLine({ item }: { item: LogItem }) {
       return <Text color="cyan">{"> "}{item.text}</Text>;
     case "assistant":
       return <RenderedMarkdown text={item.text} />;
+    case "thinking":
+      return <MultilineText text={item.text} dimColor italic />;
     case "system":
       return <MultilineText text={item.text} dimColor />;
     case "error":

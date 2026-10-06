@@ -273,4 +273,22 @@ describe("Ink App", () => {
     expect(lastFrame()).not.toContain("**hello**");
     expect(lastFrame()).toContain("hello");
   });
+
+  it("renders a committed thinking block", () => {
+    const store = new UiStore();
+    store.pushLog({ kind: "thinking", text: "let me check the files first" });
+
+    const { lastFrame } = render(<App store={store} onSubmit={vi.fn()} />);
+
+    expect(lastFrame()).toContain("let me check the files first");
+  });
+
+  it("renders the live-streaming thinking text", () => {
+    const store = new UiStore();
+    store.appendThinkingDelta("weighing the options");
+
+    const { lastFrame } = render(<App store={store} onSubmit={vi.fn()} />);
+
+    expect(lastFrame()).toContain("weighing the options");
+  });
 });

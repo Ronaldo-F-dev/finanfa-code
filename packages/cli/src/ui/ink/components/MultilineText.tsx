@@ -9,13 +9,13 @@ function colorForLine(line: string): string | undefined {
 }
 
 /** Renders multi-line text as separate <Text> rows, coloring unified-diff +/- lines. */
-export function MultilineText({ text, dimColor }: { text: string; dimColor?: boolean }) {
+export function MultilineText({ text, dimColor, italic }: { text: string; dimColor?: boolean; italic?: boolean }) {
   const lines = text.split("\n");
   return (
     <Box flexDirection="column">
       {lines.map((line, i) => (
         // eslint-disable-next-line react/no-array-index-key
-        <Text key={i} color={colorForLine(line)} dimColor={dimColor}>
+        <Text key={i} color={colorForLine(line)} dimColor={dimColor} italic={italic}>
           {line.length > 0 ? line : " "}
         </Text>
       ))}
