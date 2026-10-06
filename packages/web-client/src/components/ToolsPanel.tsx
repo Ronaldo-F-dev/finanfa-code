@@ -3,7 +3,7 @@ import type { ToolStatus } from "../hooks/useAgentSocket";
 import { useLanguage } from "../i18n/LanguageContext";
 import { Icon } from "./Icon";
 
-const RISK_ICON: Record<string, string> = { safe: "🟢", ask: "🟡", dangerous: "🔴" };
+const RISK_DOT: Record<string, string> = { safe: "mcp-dot-on", ask: "mcp-dot-auth", dangerous: "tool-dot-danger" };
 const RISK_ORDER = ["safe", "ask", "dangerous"];
 const RISK_LABEL_KEYS: Record<string, string> = { safe: "tools.riskSafe", ask: "tools.riskAsk", dangerous: "tools.riskDangerous" };
 
@@ -109,7 +109,7 @@ export function ToolsPanel({
                 <div className="tool-group-header">
                   <button type="button" className="tool-group-toggle" onClick={() => toggleGroup(risk)}>
                     <span className={`tool-group-chevron ${isOpen ? "tool-group-chevron-open" : ""}`}>▸</span>
-                    <span className="tool-group-icon">{RISK_ICON[risk]}</span>
+                    <span className="tool-group-icon"><span className={`mcp-dot ${RISK_DOT[risk]}`} /></span>
                     <span className="tool-group-label">{t(RISK_LABEL_KEYS[risk] ?? risk)}</span>
                     <span className="tool-group-count">
                       {list.filter((tl) => tl.enabled).length}/{list.length}

@@ -2484,3 +2484,12 @@ details.tool-call-details > summary.tool-call::marker {
   border: 1px dashed var(--border);
   border-radius: 12px;
 }
+.tool-dot-danger {
+  background: var(--danger);
+}
+.approval-icon {
+  display: inline-flex;
+  vertical-align: -3px;
+  margin-right: 8px;
+  color: var(--accent);
+}
