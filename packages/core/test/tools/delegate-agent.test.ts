@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { mkdtemp, mkdir, rm, chmod } from "node:fs/promises";
+import { mkdtemp, realpath, mkdir, rm, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -34,7 +34,7 @@ describe("delegate_to_claude_code tool (real subprocess, fake claude binary stan
       await mkdir(path.join(projectDir, "sub"));
       const tool = createDelegateToClaudeCodeTool({ binary: FAKE_CLAUDE_SCRIPT });
       const result = await tool.handler({ args: ["-p", "hello"], cwd: "sub" }, { ...ctx, cwd: projectDir });
-      expect(result.content).toContain(`cwd=${path.join(projectDir, "sub")}`);
+      expect(result.content).toContain(`cwd=${await realpath(path.join(projectDir, "sub"))}`);
     } finally {
       await rm(projectDir, { recursive: true, force: true });
     }
@@ -79,7 +79,7 @@ describe("delegate_to_codex tool (real subprocess, fake codex binary stand-in)",
       await mkdir(path.join(projectDir, "sub"));
       const tool = createDelegateToCodexTool({ binary: FAKE_CODEX_SCRIPT });
       const result = await tool.handler({ args: ["exec", "hello"], cwd: "sub" }, { ...ctx, cwd: projectDir });
-      expect(result.content).toContain(`cwd=${path.join(projectDir, "sub")}`);
+      expect(result.content).toContain(`cwd=${await realpath(path.join(projectDir, "sub"))}`);
     } finally {
       await rm(projectDir, { recursive: true, force: true });
     }
