@@ -192,6 +192,25 @@ export function resolveLocalModelLeanEnabled(config: FinanfaConfig, isLocalProvi
 // Computed lazily (not memoized as a module constant) so it reflects the
 // current $HOME/os.homedir() at call time rather than whatever it was when
 // this module first loaded — matters for tests that override $HOME.
+/**
+ * Sets some top-level keys of the user's global config file, leaving everything else in it exactly as it is
+ * (permission rules, hooks and any key this version doesn't know). Unlike saveGlobalConfig it never rewrites the
+ * file from a merged view, so what a project or the environment contributed can't leak into it.
+ */
+export async function updateGlobalConfig(patch: Record<string, unknown>): Promise<void> {
+  const file = globalConfigPath();
+  let existing: Record<string, unknown> = {};
+  try {
+    existing = JSON.parse(await readFile(file, "utf-8")) as Record<string, unknown>;
+  } catch (err) {
+    // A missing file starts fresh; one that exists but can't be parsed is NOT overwritten — that would destroy it.
+    if ((err as NodeJS.ErrnoException)?.code !== "ENOENT") throw new Error(`${file} could not be read as JSON; fix it before changing settings (${err instanceof Error ? err.message : String(err)})`);
+  }
+  await mkdir(path.dirname(file), { recursive: true });
+  await writeFile(file, JSON.stringify({ ...existing, ...patch }, null, 2), "utf-8");
+  await chmod(file, 0o600);
+}
+
 export function globalConfigPath(): string {
   return path.join(os.homedir(), ".finanfa-code", "config.json");
 }
