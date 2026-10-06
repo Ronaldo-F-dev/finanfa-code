@@ -82,7 +82,7 @@ export interface FinanfaConfig {
    * unsandboxed (this project's original behavior). `{mode:
    * "workspace-write"}` confines writes to the command's cwd plus a
    * curated set of dev-tool cache dirs; the rest of the filesystem is
-   * read-only, network stays shared.
+   * read-only, network stays shared unless `network: "deny"` is set.
    */
   sandbox?: SandboxConfig;
   /**
