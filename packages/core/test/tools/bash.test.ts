@@ -168,6 +168,13 @@ describe.skipIf(!isLinux || skipLocally(hasCommand("bwrap")))("bash tool — OS-
     expect(result.isError).toBe(false);
   });
 
+  it("network: deny puts the command in an empty network namespace (only loopback is left)", async () => {
+    const isolatedTool = createBashTool({ mode: "workspace-write", network: "deny" });
+    // /proc/net/dev lists the interfaces of the reader's own network namespace; with --unshare-net only `lo` can remain.
+    const result = await isolatedTool.handler({ command: 'echo "OTHER_IFACES=$(tail -n +3 /proc/net/dev | cut -d: -f1 | tr -d " " | grep -vxc lo)"' }, { ...ctx, cwd: dir });
+    expect(result.content).toContain("OTHER_IFACES=0");
+  });
+
   it("still kills a backgrounded, non-redirected grandchild on timeout (process-group kill reaches inside the sandbox)", async () => {
     const started = Date.now();
     const result = await sandboxedTool.handler({ command: "sleep 5 & echo done", timeout_ms: 300 }, { ...ctx, cwd: dir });
