@@ -168,11 +168,16 @@ describe.skipIf(!isLinux || skipLocally(hasCommand("bwrap")))("bash tool — OS-
     expect(result.isError).toBe(false);
   });
 
-  it("network: deny puts the command in an empty network namespace (only loopback is left)", async () => {
+  it("network: deny leaves the command with no real network interface and no route", async () => {
     const isolatedTool = createBashTool({ mode: "workspace-write", network: "deny" });
-    // /proc/net/dev lists the interfaces of the reader's own network namespace; with --unshare-net only `lo` can remain.
-    const result = await isolatedTool.handler({ command: 'echo "OTHER_IFACES=$(tail -n +3 /proc/net/dev | cut -d: -f1 | tr -d " " | grep -vxc lo)"' }, { ...ctx, cwd: dir });
-    expect(result.content).toContain("OTHER_IFACES=0");
+    // /proc/net/{dev,route} describe the reader's own network namespace. A fresh one still lists the
+    // kernel's built-in fallback devices (tunl0, gre0, ...), so only real interface names are counted.
+    const command =
+      `echo "REAL_IFACES=$(tail -n +3 /proc/net/dev | cut -d: -f1 | tr -d ' ' | grep -Ec '^(eth|en|wl|ww|docker|br-|veth|tun[0-9]|tap)')"; ` +
+      `echo "ROUTES=$(tail -n +2 /proc/net/route | wc -l | tr -d ' ')"`;
+    const result = await isolatedTool.handler({ command }, { ...ctx, cwd: dir });
+    expect(result.content).toContain("REAL_IFACES=0");
+    expect(result.content).toContain("ROUTES=0");
   });
 
   it("still kills a backgrounded, non-redirected grandchild on timeout (process-group kill reaches inside the sandbox)", async () => {
