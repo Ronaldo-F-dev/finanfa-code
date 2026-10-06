@@ -892,6 +892,7 @@ export async function runTurn(
   // primary model may not support image input at all.
   let nextCallNeedsVision = Boolean(images?.length);
   const guard = new LoopGuard();
+  let stopHookActive = false;
 
   for (;;) {
     const iterationStop = guard.checkIterationLimit();
@@ -1110,6 +1111,20 @@ export async function runTurn(
               "changed, or run, verify that yourself before trusting it.)",
           );
         }
+        // A Stop hook can refuse to let the turn end: "block" feeds its
+        // reason back as a new user message and the loop continues. Only
+        // honored once per turn so a hook that always blocks can't loop
+        // forever (the payload's stop_hook_active tells the hook so).
+        const stopOutcome = await permissions.runLifecycleHook("Stop", session.cwd, session.id, { stop_hook_active: stopHookActive });
+        if (stopOutcome.decision === "block" && !stopHookActive) {
+          stopHookActive = true;
+          const reason = stopOutcome.reason ?? "A Stop hook asked the agent to keep going.";
+          ui.writeSystem(`(Stop hook: ${reason})`);
+          session.messages.push({ role: "user", content: `<stop-hook-feedback>\n${reason}\n</stop-hook-feedback>` });
+          await session.persist();
+          continue;
+        }
+        if (stopOutcome.output) ui.writeSystem(stopOutcome.output);
         return;
       }
 
