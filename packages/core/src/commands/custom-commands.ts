@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import matter from "gray-matter";
 import { runTurn, maybeGenerateTitle } from "../core/loop.js";
+import { pluginContentDirs } from "../plugins/manager.js";
 import type { CommandContext, CommandOutcome } from "./types.js";
 
 // Real Claude Code's custom slash commands: a markdown file becomes a
@@ -63,11 +64,14 @@ async function readCommandsFromDir(dir: string, scope: CustomCommandScope): Prom
 
 /** Project-local commands (.finanfa-code/commands) win over global (~/.finanfa-code/commands) ones with the same name — same precedence as skills. */
 export async function loadCustomCommands(cwd: string): Promise<Map<string, CustomCommand>> {
-  const [global, project] = await Promise.all([
+  const [global, project, plugin] = await Promise.all([
     readCommandsFromDir(globalCommandsDir(), "global"),
     readCommandsFromDir(projectCommandsDir(cwd), "project"),
+    pluginContentDirs(cwd, "commands").then((dirs) => Promise.all(dirs.map((d) => readCommandsFromDir(d, "global")))).then((l) => l.flat()),
   ]);
-  const byName = new Map(global.map((c) => [c.name, c]));
+  // Plugin-provided commands are the lowest precedence: the user's own global/project command wins a name collision.
+  const byName = new Map(plugin.map((c) => [c.name, c]));
+  for (const c of global) byName.set(c.name, c);
   for (const c of project) byName.set(c.name, c);
   return byName;
 }
