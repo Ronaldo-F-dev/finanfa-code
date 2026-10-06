@@ -4,6 +4,7 @@ import express from "express";
 import { WebSocketServer, type WebSocket } from "ws";
 import { AgentSession } from "@finanfa/core/src/core/session.js";
 import { runTurn, maybeGenerateTitle, runCompactCommand, isLoopGuardStopMessage } from "@finanfa/core/src/core/loop.js";
+import { rewindSession } from "@finanfa/core/src/core/rewind.js";
 import { ToolRegistry } from "@finanfa/core/src/tools/registry.js";
 import { registerBuiltins, registerStatefulBuiltins } from "@finanfa/core/src/tools/builtin/index.js";
 import { PermissionManager, type PermissionManagerOptions } from "@finanfa/core/src/permissions/manager.js";
@@ -1507,6 +1508,12 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           for (const controller of session.activeAbortControllers) controller.abort();
           return;
         }
+        // A restore asked for mid-turn is refused on the spot. Queued like everything else it would run once the turn
+        // is over — and quietly rewind past the very message that was just answered, which nobody asked for.
+        if (peek.type === "rewind" && turnInFlight) {
+          adapter.writeError("A turn is in progress — wait for it to finish (or interrupt) before restoring an earlier point.");
+          return;
+        }
       } catch {
         // Malformed JSON — falls through to the queue below, which already
         // reports this the same way it always has.
@@ -1546,8 +1553,12 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
             : msg.text;
           let nextText: string = text;
           let nextImages = images;
+          // The id the browser gave this message, recorded on the turn's checkpoint so its "restore" button can find it.
+          // Only the user's own message carries one — the auto-continue turns below are not messages the user sent.
+          let clientId = typeof msg.clientId === "string" && msg.clientId.length > 0 && msg.clientId.length <= 64 ? msg.clientId : undefined;
           for (let turn = 1; turn <= WEB_MAX_AUTO_CONTINUE_TURNS; turn++) {
-            await runTurn(session, provider, adapter, tools, permissions, nextText, undefined, nextImages);
+            await runTurn(session, provider, adapter, tools, permissions, nextText, undefined, nextImages, { clientId });
+            clientId = undefined;
             const last = session.messages.at(-1);
             const stoppedByGuard = last?.role === "assistant" && typeof last.content === "string" && isLoopGuardStopMessage(last.content);
             if (!stoppedByGuard || turn === WEB_MAX_AUTO_CONTINUE_TURNS) break;
@@ -1564,6 +1575,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           // confusing "turn already in progress", for a call the client
           // has no visibility into at all.
           turnInFlight = false;
+          sendCheckpoints();
           const hadTitle = Boolean(session.title);
           await maybeGenerateTitle(session, provider);
           if (!hadTitle && session.title) sendSessionInfo();
@@ -1572,6 +1584,34 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
         } finally {
           turnInFlight = false;
           await session.persist().catch((err) => adapter.writeError(`Failed to save session: ${err instanceof Error ? err.message : err}`));
+        }
+      }
+
+      /** The restore points the browser may offer: one per message the user sent in this connection (they are not kept across a reload). */
+      function sendCheckpoints(): void {
+        ws.send(JSON.stringify({ type: "checkpoints", checkpoints: session.checkpoints.map((c, i) => ({ number: i + 1, preview: c.preview, clientId: c.clientId })) }));
+      }
+
+      /** Restores the conversation and every edit/write-tool file change to right before checkpoint `msg.checkpoint`. */
+      async function handleRewind(msg: { type: string; [key: string]: unknown }): Promise<void> {
+        if (turnInFlight) {
+          adapter.writeError("A turn is in progress — wait for it to finish (or interrupt) before restoring an earlier point.");
+          return;
+        }
+        turnInFlight = true; // same guard compaction uses: a message arriving mid-rewind would append to an array being cut
+        try {
+          const result = typeof msg.checkpoint === "number" ? await rewindSession(session, msg.checkpoint) : undefined;
+          if (!result) {
+            adapter.writeError("That restore point no longer exists.");
+            sendCheckpoints();
+            return;
+          }
+          ws.send(JSON.stringify({ type: "rewound", checkpoint: msg.checkpoint, preview: result.preview, revertedFiles: result.revertedFiles }));
+          sendCheckpoints();
+        } catch (err) {
+          adapter.writeError(`Could not restore: ${err instanceof Error ? err.message : String(err)}`);
+        } finally {
+          turnInFlight = false;
         }
       }
 
@@ -1603,7 +1643,10 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           // it to replace them with just the two-message summary now
           // actually in session.messages, same replay path a resumed
           // session's initial "history" event already uses.
-          if (result.replacedMessages) ws.send(JSON.stringify({ type: "history", replace: true, messages: result.replacedMessages }));
+          if (result.replacedMessages) {
+            ws.send(JSON.stringify({ type: "history", replace: true, messages: result.replacedMessages }));
+            sendCheckpoints(); // compaction cleared them: the browser must drop its restore buttons
+          }
         } finally {
           turnInFlight = false;
         }
@@ -2036,6 +2079,8 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
             return handlePermissionResponse(msg);
           case "compact":
             return handleCompact();
+          case "rewind":
+            return handleRewind(msg);
           case "set_model":
             return handleSetModel(msg);
           case "set_effort":
