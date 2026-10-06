@@ -32,7 +32,8 @@ export type AuditDecisionSource =
   | "non_interactive"
   | "prepare_error"
   | "user_prompt"
-  | "auto_approval_classifier";
+  | "auto_approval_classifier"
+  | "category_auto_approve";
 
 export interface AuditEvent {
   ts: string;
