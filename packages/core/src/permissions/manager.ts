@@ -2,6 +2,7 @@ import type { ToolContext, ToolDefinition, LlmProvider, FilePreview } from "../c
 import type { UIAdapter } from "../ui/adapter.js";
 import type { PermissionConfig, PermissionDecision } from "./config.js";
 import type { HooksConfig } from "../hooks/config.js";
+import { loadManagedSettings } from "../core/managed-settings.js";
 import { runHooks, type HookOutcome, type HookPayload } from "../hooks/runner.js";
 import type { HookEventName } from "../hooks/config.js";
 import { appendAuditEvent, type AuditDecisionSource } from "../observability/audit-log.js";
@@ -45,7 +46,10 @@ export class PermissionManager {
     this.config = opts.config;
     this.ui = opts.ui;
     this.nonInteractive = opts.nonInteractive ?? false;
-    this.yolo = opts.yolo ?? false;
+    // An administrator's disableYolo wins over the --yolo flag, which can only ever relax prompts.
+    const yoloForbidden = loadManagedSettings().disableYolo === true;
+    this.yolo = (opts.yolo ?? false) && !yoloForbidden;
+    if (opts.yolo && yoloForbidden) opts.ui.writeError("--yolo is disabled by this machine's managed settings — tool calls will still ask for approval.");
     this.hooksConfig = opts.hooksConfig;
     this.provider = opts.provider;
   }
