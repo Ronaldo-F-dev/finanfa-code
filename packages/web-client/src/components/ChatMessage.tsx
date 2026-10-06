@@ -1,6 +1,7 @@
 import { marked } from "marked";
 import type { TimelineItem, ToolRiskLevel } from "../hooks/useAgentSocket";
 import { useLanguage } from "../i18n/LanguageContext";
+import { copyTextToClipboard } from "../clipboard";
 
 marked.setOptions({ breaks: true });
 
@@ -19,7 +20,8 @@ function handleMarkdownClick(e: React.MouseEvent<HTMLDivElement>, copyLabel: str
   const pre = btn.closest("pre");
   const code = pre?.querySelector("code");
   const text = (code ?? pre)?.textContent?.replace(new RegExp(`^${copyLabel}`), "") ?? "";
-  navigator.clipboard.writeText(text).then(() => {
+  void copyTextToClipboard(text, navigator.clipboard).then((copied) => {
+    if (!copied) return;
     btn.textContent = copiedLabel;
     setTimeout(() => {
       btn.textContent = copyLabel;
