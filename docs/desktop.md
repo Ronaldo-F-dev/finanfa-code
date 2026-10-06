@@ -63,6 +63,7 @@ display (`xvfb-run`). Unit tests: `npx vitest run packages/desktop`.
 - **Installers and auto-update.** Packaging means bundling the server for Electron
   (native modules such as `sharp` and `serialport`, `playwright`, the built web client) and signing
   per platform; that is its own piece of work.
-- **App-specific UI** — approval toggles per category, a checkpoint/rewind control, per-feature model
-  choice, a live diff view. The window shows today's web UI.
+- **More app-specific UI** — approval toggles per category and per-feature model choice. The window shows
+  the web UI, which already has a diff view when you approve a file edit and a "Restore" button to go back to
+  before any message of the current conversation (undoing the file edits made since).
 - Notifications, a tray icon, "start at login".

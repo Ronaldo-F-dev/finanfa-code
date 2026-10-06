@@ -823,6 +823,8 @@ export async function compactSession(session: AgentSession, provider: LlmProvide
       { role: "user", content: "[Earlier conversation compacted to save context — see the summary below]" },
       { role: "assistant", content: summary },
     ];
+    // Checkpoints point into the old message array; once it is replaced they would truncate the wrong place (or nothing) on rewind.
+    session.checkpoints = [];
     await session.persist();
     return { messagesBefore };
   } catch {
@@ -869,6 +871,8 @@ export async function runCompactCommand(session: AgentSession, provider: LlmProv
 export interface RunTurnOptions {
   /** True when this turn is a delegated sub-agent's (see the task tool): it fires SubagentStop instead of Stop, and never SessionStart — those belong to the user's own session. */
   subagent?: boolean;
+  /** Recorded on this turn's checkpoint, so a UI can find the checkpoint for the message it showed. */
+  clientId?: string;
 }
 
 export async function runTurn(
@@ -903,6 +907,7 @@ export async function runTurn(
     messageIndex: session.messages.length,
     historySize: session.history.size,
     preview: hookOutcome.prompt.slice(0, 60),
+    ...(options.clientId ? { clientId: options.clientId } : {}),
   });
   // Same as a tool-produced image (browser_screenshot, view_image) — route
   // the very next call through visionRoute if one is configured, since the

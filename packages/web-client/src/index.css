@@ -1312,6 +1312,57 @@ details.tool-call-details > summary.tool-call::marker {
   margin-bottom: 10px;
 }
 
+/* --- Restore ("go back to before this message") --- */
+.user-column {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  max-width: 100%;
+}
+.restore-btn {
+  margin-top: 4px;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 6px;
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.row-user:hover .restore-btn,
+.restore-btn:focus-visible {
+  opacity: 1;
+}
+.restore-btn:hover:not(:disabled) {
+  color: var(--text);
+  background: var(--bg-elevated);
+}
+.restore-btn:disabled {
+  cursor: not-allowed;
+}
+@media (hover: none) {
+  .restore-btn {
+    opacity: 0.8;
+  }
+}
+.restore-confirm {
+  margin-top: 6px;
+  max-width: 420px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font-size: 13px;
+}
+.restore-confirm-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
 /* --- Diff view (permission prompts for file edits) --- */
 .diff {
   border: 1px solid var(--border);

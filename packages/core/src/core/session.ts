@@ -79,6 +79,15 @@ export function sessionDir(cwd: string): string {
   return path.join(sessionsRoot(), projectHash(cwd));
 }
 
+/** A restore point recorded each time a user message is sent — see AgentSession.checkpoints. */
+export interface Checkpoint {
+  messageIndex: number;
+  historySize: number;
+  preview: string;
+  /** Set by a UI that wants to tie the checkpoint to the message it displayed (the web UI's per-message "restore" button). */
+  clientId?: string;
+}
+
 export class AgentSession {
   readonly id: string;
   readonly cwd: string;
@@ -160,7 +169,7 @@ export class AgentSession {
    * historySize is where to call session.history.revertTo() to undo every
    * file change made since.
    */
-  checkpoints: { messageIndex: number; historySize: number; preview: string }[] = [];
+  checkpoints: Checkpoint[] = [];
   /** See SessionFile's own doc comment. Persisted (unlike checkpoints/history above) — the whole point is surviving a resume. */
   errorLog: { text: string; afterMessageIndex: number }[] = [];
   /** See SessionFile's own doc comment — set by the effort-tier picker, read back on resume. */

@@ -10,6 +10,10 @@ import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
 import * as acp from "@agentclientprotocol/sdk";
 
+// Every test here starts the real CLI as a subprocess (through tsx, several seconds of startup alone) and one starts two.
+// With the other test files running in parallel those startups stretch well past the old 30s, and they passed alone every time.
+const ACP_TEST_TIMEOUT_MS = 120_000;
+
 // Real end-to-end test of `finanfa --acp`: a real spawned CLI subprocess
 // speaking real newline-delimited JSON-RPC over its actual stdin/stdout
 // (run in-process the way cli-prompt-mode.test.ts does main() would hijack
@@ -150,7 +154,7 @@ describe("finanfa --acp (real subprocess, real ACP client from the official SDK,
       expect(result.chunks.join("")).toBe("PONG");
       await rm(projectDir, { recursive: true, force: true });
     },
-    30_000,
+    ACP_TEST_TIMEOUT_MS,
   );
 
   it(
@@ -203,7 +207,7 @@ describe("finanfa --acp (real subprocess, real ACP client from the official SDK,
       expect(result.toolCallStatuses).toContain("completed");
       await rm(projectDir, { recursive: true, force: true });
     },
-    30_000,
+    ACP_TEST_TIMEOUT_MS,
   );
 
   it(
@@ -267,7 +271,7 @@ describe("finanfa --acp (real subprocess, real ACP client from the official SDK,
       expect(result.stopReason).toBe("end_turn");
       await rm(projectDir, { recursive: true, force: true });
     },
-    30_000,
+    ACP_TEST_TIMEOUT_MS,
   );
 
   it(
@@ -312,7 +316,7 @@ describe("finanfa --acp (real subprocess, real ACP client from the official SDK,
       expect(result.toolCallUpdates).toContain("echo: hi there");
       await rm(projectDir, { recursive: true, force: true });
     },
-    30_000,
+    ACP_TEST_TIMEOUT_MS,
   );
 
   it(
@@ -368,7 +372,7 @@ describe("finanfa --acp (real subprocess, real ACP client from the official SDK,
       expect(result.stopReason).toBe("end_turn");
       await rm(projectDir, { recursive: true, force: true });
     },
-    30_000,
+    ACP_TEST_TIMEOUT_MS,
   );
 
   it(
@@ -412,7 +416,7 @@ describe("finanfa --acp (real subprocess, real ACP client from the official SDK,
       expect(result.stopReason).toBe("end_turn");
       await rm(projectDir, { recursive: true, force: true });
     },
-    30_000,
+    ACP_TEST_TIMEOUT_MS,
   );
 
   it(
@@ -470,6 +474,6 @@ describe("finanfa --acp (real subprocess, real ACP client from the official SDK,
 
       await rm(projectDir, { recursive: true, force: true });
     },
-    30_000,
+    ACP_TEST_TIMEOUT_MS,
   );
 });

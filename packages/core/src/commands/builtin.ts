@@ -1,11 +1,12 @@
 import path from "node:path";
-import { mkdir, rm, writeFile } from "node:fs/promises";
+import { mkdir, writeFile } from "node:fs/promises";
 import { AgentSession } from "../core/session.js";
 import { loadMcpServers, type McpServerConfig } from "../mcp/config.js";
 import { MCP_TOOL_PREFIX } from "../mcp/client-manager.js";
 import { loadConfig, saveGlobalConfig, globalConfigPath, type FinanfaConfig } from "../core/config.js";
 import { loadMemories } from "../memory/loader.js";
 import { compactSession } from "../core/loop.js";
+import { revertFileRecord, rewindSession } from "../core/rewind.js";
 import { findKnownModelNote } from "../core/known-local-models.js";
 import type { CommandContext, CommandOutcome } from "./types.js";
 import type { CommandRegistry } from "./registry.js";
@@ -250,16 +251,6 @@ function parseMcpAddArgs(name: string, rest: string): McpServerConfig | undefine
   return { name, transport: "stdio", command, args };
 }
 
-/** Writes one EditRecord's "before" content back to disk (or deletes the file if it didn't exist before that change) — shared by /undo and /rewind. */
-async function revertFileRecord(record: { path: string; before: string | undefined }): Promise<void> {
-  if (record.before === undefined) {
-    await rm(record.path, { force: true });
-  } else {
-    await mkdir(path.dirname(record.path), { recursive: true });
-    await writeFile(record.path, record.before, "utf-8");
-  }
-}
-
 async function handleUndo(ctx: CommandContext): Promise<CommandOutcome> {
   const record = ctx.session.history.pop();
   if (!record) {
@@ -302,16 +293,9 @@ async function handleRewind(ctx: CommandContext): Promise<CommandOutcome> {
     return "continue";
   }
 
-  const checkpoint = checkpoints[index - 1]!;
-  const reverted = ctx.session.history.revertTo(checkpoint.historySize);
-  for (const record of reverted) await revertFileRecord(record);
-
-  ctx.session.messages = ctx.session.messages.slice(0, checkpoint.messageIndex - 1);
-  ctx.session.checkpoints = checkpoints.slice(0, index - 1);
-  await ctx.session.persist();
-
+  const result = (await rewindSession(ctx.session, index))!;
   ctx.ui.writeSystem(
-    `Rewound to right before "${checkpoint.preview}" — reverted ${reverted.length} file change(s), conversation now has ${ctx.session.messages.length} message(s).`,
+    `Rewound to right before "${result.preview}" — reverted ${result.revertedFiles} file change(s), conversation now has ${result.remainingMessages} message(s).`,
   );
   return "continue";
 }
