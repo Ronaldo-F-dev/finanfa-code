@@ -36,6 +36,20 @@ can confine `bash`'s writes to its own cwd plus a curated set of dev-tool
 cache directories, leaving the rest of the filesystem read-only. Off by
 default; see `sandbox` in `.finanfa-code/settings.json`.
 
+By default the sandboxed command shares the host network (blocking it would
+break `npm install`, `git push` and `curl`). Set `"network": "deny"` to run it
+in an empty network namespace — only loopback remains — when nothing it does
+should reach the network. It is all-or-nothing: there is no per-domain
+allow-list.
+
+```json
+{ "sandbox": { "mode": "workspace-write", "network": "deny" } }
+```
+
+Organization-wide guardrails (managed hooks, refusing `--yolo`, an allow-list
+of plugin marketplaces) are set in the managed settings file — see
+`docs/configuration.md`.
+
 ## Folder trust
 
 A project is untrusted the first time it's opened — you're asked once
