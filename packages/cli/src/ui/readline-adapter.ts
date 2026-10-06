@@ -2,6 +2,7 @@ import * as readline from "node:readline/promises";
 import { stdin, stdout } from "node:process";
 import type { CommandInfo, StatusInfo, UIAdapter } from "@finanfa/core/src/ui/adapter.js";
 import type { ToolRiskLevel } from "@finanfa/core/src/core/types.js";
+import { stripEmDashes } from "@finanfa/core/src/util/typography.js";
 import { renderMarkdown } from "./markdown.js";
 
 const SPINNER_FRAMES = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
@@ -85,7 +86,7 @@ export function createReadlineAdapter(): UIAdapter {
     if (assistantBuffer.length === 0) return;
     clearSpinner();
     if (!atLineStart) stdout.write("\n");
-    stdout.write(renderMarkdown(assistantBuffer));
+    stdout.write(renderMarkdown(stripEmDashes(assistantBuffer)));
     stdout.write("\n");
     atLineStart = true;
     assistantBuffer = "";
