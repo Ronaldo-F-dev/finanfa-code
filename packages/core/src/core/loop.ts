@@ -12,6 +12,7 @@ import type {
   ToolContext,
   ToolDefinition,
 } from "./types.js";
+import { findOutputStyle } from "./output-styles.js";
 import { compactForProvider, CHARS_PER_TOKEN_ESTIMATE } from "./context.js";
 import { mcpToolServerName } from "../mcp/client-manager.js";
 import { withSpan } from "../observability/tracing.js";
@@ -58,6 +59,8 @@ function systemPromptWithDate(session: AgentSession): string {
       "don't ask the user to repeat it. If something they ask for conflicts with it, say so rather than quietly " +
       "picking one.";
   }
+  const style = session.outputStyle ? findOutputStyle(session.outputStyle) : undefined;
+  if (style?.prompt) prompt += `\n\n${style.prompt}`;
   return prompt;
 }
 
