@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { loadSettings, saveSettings } from "../src/settings.js";
+import { isUsableWorkspace, loadSettings, saveSettings } from "../src/settings.js";
 
 async function tmpFile(): Promise<string> {
   return path.join(await mkdtemp(path.join(tmpdir(), "finanfa-desktop-settings-")), "nested", "settings.json");
@@ -31,5 +31,23 @@ describe("desktop settings", () => {
     await saveSettings(file, {}); // creates the directory
     await writeFile(file, JSON.stringify({ workspace: "/w", bounds: { width: 10, height: 10 } }));
     expect(await loadSettings(file)).toEqual({ workspace: "/w" });
+  });
+});
+
+describe("isUsableWorkspace", () => {
+  it("accepts a real project folder", () => {
+    expect(isUsableWorkspace("/Users/me/Documents/project", "/var/folders/ab/xyz/T")).toBe(true);
+    expect(isUsableWorkspace("/Users/me/Desktop/finanfa-code", "/tmp")).toBe(true);
+  });
+
+  it("refuses the OS temp directory itself and anything inside it, with or without macOS's /private prefix", () => {
+    expect(isUsableWorkspace("/var/folders/ab/xyz/T/", "/var/folders/ab/xyz/T")).toBe(false);
+    expect(isUsableWorkspace("/var/folders/ab/xyz/T/scratch", "/var/folders/ab/xyz/T")).toBe(false);
+    expect(isUsableWorkspace("/private/var/folders/ab/xyz/T/scratch", "/var/folders/ab/xyz/T")).toBe(false);
+    expect(isUsableWorkspace("/var/folders/ab/xyz/T/scratch", "/private/var/folders/ab/xyz/T")).toBe(false);
+  });
+
+  it("does not mistake a sibling whose name merely starts the same for the temp dir", () => {
+    expect(isUsableWorkspace("/var/folders/ab/xyz/Tools", "/var/folders/ab/xyz/T")).toBe(true);
   });
 });
