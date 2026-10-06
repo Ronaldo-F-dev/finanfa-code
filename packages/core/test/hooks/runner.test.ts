@@ -100,3 +100,25 @@ describe("hooks/runner (real subprocess execution, real shell commands)", () => 
     expect(outcome).toEqual({});
   });
 });
+
+describe("hooks/runner lifecycle events", () => {
+  it("blocks a Stop hook via exit 2 and passes stop_hook_active in the payload", async () => {
+    const config: HooksConfig = {
+      Stop: [{ hooks: [{ type: "command", command: `grep -q '"stop_hook_active":true' && echo 'already active' >&2 && exit 2; echo 'tests still failing' >&2; exit 2` }] }],
+    };
+    const first = await runHooks(config, "Stop", basePayload({ hook_event_name: "Stop", stop_hook_active: false }), "/tmp");
+    expect(first).toEqual({ decision: "block", reason: "tests still failing" });
+    const second = await runHooks(config, "Stop", basePayload({ hook_event_name: "Stop", stop_hook_active: true }), "/tmp");
+    expect(second.reason).toBe("already active");
+  });
+
+  it("surfaces SessionStart stdout as informational output", async () => {
+    const config: HooksConfig = { SessionStart: [{ hooks: [{ type: "command", command: "cat > /dev/null; echo 'branch: main'" }] }] };
+    const outcome = await runHooks(config, "SessionStart", basePayload({ hook_event_name: "SessionStart", source: "startup" }), "/tmp");
+    expect(outcome).toEqual({ output: "branch: main" });
+  });
+
+  it("returns nothing for an event with no configured hooks", async () => {
+    expect(await runHooks({}, "PreCompact", basePayload({ hook_event_name: "PreCompact" }), "/tmp")).toEqual({});
+  });
+});
