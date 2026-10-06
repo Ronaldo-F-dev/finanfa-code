@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { realpath } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 import { createEmbeddedDevTools } from "../../src/tools/builtin/embedded-dev.js";
 
@@ -26,7 +27,7 @@ describe("run_arduino_cli / run_platformio (real subprocess, fake embedded-CLI s
     const result = await arduinoCli.handler({ args: ["compile", "--fqbn", "arduino:avr:uno", "my_sketch"] }, ctx);
     expect(result.isError).toBe(false);
     expect(result.content).toContain("ran: compile --fqbn arduino:avr:uno my_sketch");
-    expect(result.content).toContain(`cwd=${ctx.cwd}`);
+    expect(result.content).toContain(`cwd=${await realpath(ctx.cwd)}`);
   });
 
   it("run_platformio reports a real non-zero exit as isError, with the real stderr", async () => {
