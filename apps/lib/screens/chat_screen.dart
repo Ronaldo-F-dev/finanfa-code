@@ -21,6 +21,7 @@ import '../widgets/content_width.dart';
 import '../widgets/permission_sheet.dart';
 import '../widgets/picker_sheets.dart';
 import '../widgets/timeline_tile.dart';
+import '../widgets/todo_board.dart';
 import 'artifacts_screen.dart';
 import 'channels_screen.dart';
 import 'connectors_screen.dart';
@@ -423,6 +424,9 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
             ),
           if (controller.modelUnavailable case final m?)
             _Banner(text: m.message, color: c.danger),
+          // The agent's todo_write checklist — received and stored all
+          // along, previously never rendered in the app.
+          TodoBoard(todos: controller.todos, title: t(ref, 'todos.title')),
           Expanded(
             child: ContentWidth(
               child: !controller.connected && _openedSessionId != null
