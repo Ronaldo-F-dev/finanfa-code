@@ -89,6 +89,12 @@ export function App({
         {(item, i) => <LogLine key={i} item={item} />}
       </Static>
 
+      {store.thinkingStreaming.length > 0 && (
+        <Text dimColor italic>
+          {store.thinkingStreaming}
+        </Text>
+      )}
+
       {store.streaming.length > 0 && <RenderedMarkdown text={store.streaming} />}
 
       {store.busy && (

@@ -29,11 +29,16 @@ export function createInkAdapter(): UIAdapter {
   );
 
   return {
+    writeThinkingDelta(text: string): void {
+      store.appendThinkingDelta(text);
+    },
     writeAssistantDelta(text: string): void {
       if (store.busy) store.setBusy(false);
+      store.commitThinking();
       store.appendDelta(text);
     },
     endAssistantMessage(): void {
+      store.commitThinking();
       store.commitStreaming();
     },
     writeBanner(version: string): void {
@@ -41,16 +46,19 @@ export function createInkAdapter(): UIAdapter {
     },
     writeSystem(text: string): void {
       store.setBusy(false);
+      store.commitThinking();
       store.commitStreaming();
       store.pushLog({ kind: "system", text });
     },
     writeToolCall(info): void {
       store.setBusy(false);
+      store.commitThinking();
       store.commitStreaming();
       store.pushLog({ kind: "tool", ...info });
     },
     writeError(text: string): void {
       store.setBusy(false);
+      store.commitThinking();
       store.commitStreaming();
       store.pushLog({ kind: "error", text });
     },

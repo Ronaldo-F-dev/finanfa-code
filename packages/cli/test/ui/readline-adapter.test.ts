@@ -228,4 +228,19 @@ describe("readline UIAdapter writeToolCall", () => {
     const written = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
     expect(written).toContain("noop");
   });
+
+  it("prints the model's reasoning dimmed when the turn's output is flushed, not before", () => {
+    const ui = createReadlineAdapter();
+    ui.writeThinkingDelta!("weighing ");
+    ui.writeThinkingDelta!("the options");
+    // Buffered exactly like the assistant text: markdown/terminal output
+    // isn't printed mid-stream, it's written once the turn's output is known.
+    expect(writeSpy.mock.calls.map((c: any[]) => c[0]).join("")).not.toContain("weighing the options");
+
+    ui.endAssistantMessage();
+
+    const written = writeSpy.mock.calls.map((c: any[]) => c[0]).join("");
+    expect(written).toContain("weighing the options");
+    expect(written).toContain("\x1b[2m\x1b[3m"); // dim + italic
+  });
 });

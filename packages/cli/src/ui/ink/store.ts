@@ -5,6 +5,7 @@ import type { ToolRiskLevel } from "@finanfa/core/src/core/types.js";
 export type LogItem =
   | { kind: "user"; text: string }
   | { kind: "assistant"; text: string }
+  | { kind: "thinking"; text: string }
   | { kind: "system"; text: string }
   | { kind: "error"; text: string }
   | { kind: "banner"; version: string }
@@ -18,6 +19,10 @@ export interface PendingPrompt {
 export class UiStore extends EventEmitter {
   log: LogItem[] = [];
   streaming = "";
+  // Streamed model reasoning (UIAdapter.writeThinkingDelta) — kept separate
+  // from `streaming` so the two never interleave in one buffer; committed as
+  // a "thinking" log entry the moment the turn moves past it.
+  thinkingStreaming = "";
   status: StatusInfo | undefined;
   prompt: PendingPrompt | undefined;
   commands: CommandInfo[] = [];
@@ -38,6 +43,19 @@ export class UiStore extends EventEmitter {
   appendDelta(text: string): void {
     this.streaming += text;
     this.emit("change");
+  }
+
+  appendThinkingDelta(text: string): void {
+    this.thinkingStreaming += text;
+    this.emit("change");
+  }
+
+  /** Commits the streamed reasoning as its own log entry — called when the turn moves past thinking (reply text, a tool call, an error, or turn end), so it renders above whatever comes next. */
+  commitThinking(): void {
+    if (this.thinkingStreaming.length > 0) {
+      this.pushLog({ kind: "thinking", text: this.thinkingStreaming });
+      this.thinkingStreaming = "";
+    }
   }
 
   commitStreaming(): void {
