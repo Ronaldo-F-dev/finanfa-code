@@ -5,6 +5,7 @@ import path from "node:path";
 import { promisify } from "node:util";
 import matter from "gray-matter";
 import { HOOK_EVENT_NAMES, type HooksConfig } from "../hooks/config.js";
+import { loadManagedSettings } from "../core/managed-settings.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -269,6 +270,10 @@ async function readMarketplaceFile(root: string): Promise<Marketplace> {
 export async function addMarketplace(source: string): Promise<Marketplace> {
   const trimmed = source.trim();
   if (!trimmed) throw new Error("a marketplace source (git URL or directory) is required");
+  const allowed = loadManagedSettings().strictKnownMarketplaces;
+  if (allowed && !allowed.includes(trimmed)) {
+    throw new Error(allowed.length === 0 ? "managed settings forbid adding marketplaces" : `managed settings only allow these marketplaces: ${allowed.join(", ")}`);
+  }
 
   let dir: string;
   let cloned = false;

@@ -15,7 +15,7 @@ describe("loadProjectInstructions", () => {
     await rm(dir, { recursive: true, force: true });
   });
 
-  it("returns undefined, silently, when finanfa.md doesn't exist", async () => {
+  it("returns undefined, silently, when neither finanfa.md nor AGENTS.md exists", async () => {
     const errorSpy = vi.spyOn(console, "error").mockImplementation(() => {});
     try {
       expect(await loadProjectInstructions(dir)).toBeUndefined();
@@ -28,6 +28,23 @@ describe("loadProjectInstructions", () => {
   it("returns the trimmed content of a real finanfa.md", async () => {
     await writeFile(path.join(dir, "finanfa.md"), "\n\n  Always use pnpm, never npm.  \n\n");
     expect(await loadProjectInstructions(dir)).toBe("Always use pnpm, never npm.");
+  });
+
+  it("falls back to AGENTS.md, saying where the content came from", async () => {
+    await writeFile(path.join(dir, "AGENTS.md"), "Run tests with `npm test`.");
+    expect(await loadProjectInstructions(dir)).toBe("(Loaded from AGENTS.md.)\n\nRun tests with `npm test`.");
+  });
+
+  it("prefers finanfa.md over AGENTS.md when both have content, without merging them", async () => {
+    await writeFile(path.join(dir, "finanfa.md"), "mine");
+    await writeFile(path.join(dir, "AGENTS.md"), "theirs");
+    expect(await loadProjectInstructions(dir)).toBe("mine");
+  });
+
+  it("uses AGENTS.md when finanfa.md exists but is empty", async () => {
+    await writeFile(path.join(dir, "finanfa.md"), "  \n");
+    await writeFile(path.join(dir, "AGENTS.md"), "theirs");
+    expect(await loadProjectInstructions(dir)).toBe("(Loaded from AGENTS.md.)\n\ntheirs");
   });
 
   it("treats a whitespace-only file the same as missing", async () => {
@@ -58,7 +75,7 @@ describe("formatProjectInstructions", () => {
 
   it("wraps real instructions in a clearly labeled section", () => {
     const formatted = formatProjectInstructions("Always use pnpm.");
-    expect(formatted).toContain("# Project instructions (finanfa.md)");
+    expect(formatted).toContain("# Project instructions");
     expect(formatted).toContain("Always use pnpm.");
   });
 });

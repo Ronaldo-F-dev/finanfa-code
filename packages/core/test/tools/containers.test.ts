@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createContainerTools } from "../../src/tools/builtin/containers.js";
 import { isCommandAvailable } from "../../src/util/command-availability.js";
+import { hasCommand, skipLocally } from "../helpers/environment.js";
 
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
 
@@ -35,7 +36,8 @@ describe.skipIf(!isCommandAvailable("docker"))("run_docker (real docker binary)"
   }, 20_000);
 });
 
-describe.skipIf(!isCommandAvailable("kubectl"))("run_kubectl (real kubectl binary)", () => {
+// Gated: skipped locally when kubectl is missing; required in CI.
+describe.skipIf(skipLocally(hasCommand("kubectl")))("run_kubectl (real kubectl binary)", () => {
   it("has 'dangerous' risk level, scoped riskKey by subcommand", () => {
     const [, kubectl] = createContainerTools();
     expect(kubectl.riskLevel).toBe("dangerous");
@@ -52,7 +54,7 @@ describe.skipIf(!isCommandAvailable("kubectl"))("run_kubectl (real kubectl binar
 
   it("reports a real connection-refused error when no cluster is reachable, not a thrown exception", async () => {
     const [, kubectl] = createContainerTools();
-    const result = await kubectl.handler({ args: ["get", "pods"] }, ctx);
+    const result = await kubectl.handler({ args: ["--server=https://127.0.0.1:1", "get", "pods"] }, ctx); // unreachable server, even if the local kubeconfig has a live cluster
     expect(result.isError).toBe(true);
     expect(result.content.toLowerCase()).toMatch(/connection|refused|unable to connect/);
   }, 20_000);

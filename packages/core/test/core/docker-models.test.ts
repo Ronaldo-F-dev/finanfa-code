@@ -1,7 +1,11 @@
 import { describe, expect, it, beforeAll } from "vitest";
 import { isDockerModelRunnerAvailable, listDockerModels, searchDockerModels, pullDockerModel, deleteDockerModel } from "../../src/core/docker-models.js";
+import { hasDockerDaemon, isOnline, skipLocally } from "../helpers/environment.js";
 
-describe("core/docker-models (real `docker model` CLI, when present in this environment)", () => {
+// Needs a docker daemon and the network (model catalog); skipped locally when either is missing.
+const dockerReady = hasDockerDaemon() && (await isOnline());
+
+describe.skipIf(skipLocally(dockerReady))("core/docker-models (real `docker model` CLI, when present in this environment)", () => {
   let available = false;
 
   beforeAll(async () => {

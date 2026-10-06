@@ -1,4 +1,7 @@
 import path from "node:path";
+import { loadCustomCommands } from "./custom-commands.js";
+import { loadHooksConfig } from "../hooks/config.js";
+import { isTrustedWithoutPrompt } from "../core/trust-gate.js";
 import {
   addMarketplace,
   discoverPlugins,
@@ -21,11 +24,41 @@ const USAGE = [
   "  /plugin remove <plugin>                   uninstall",
   "  /plugin enable|disable <plugin>",
   "  /plugin test <directory>                  validate a plugin folder",
+  "  /plugin reload                            re-read hooks and slash commands now",
   "  /plugin marketplace add <git-url|dir>     register a marketplace",
   "  /plugin marketplace list|update <name>|remove <name>",
 ].join("\n");
 
-const RESTART_NOTE = "Restart finanfa-code (or start a new session) for the change to take effect.";
+const RESTART_NOTE = "Plugin slash commands and hooks are active now; plugin subagent types and skills need a restart.";
+
+/**
+ * Re-reads hooks (user, project and plugin) and slash commands in place, so a
+ * plugin change shows up without restarting. Subagent types and skills are
+ * bound at startup (the task tool and the system prompt capture them), so
+ * those still need a restart — the caller says so via RESTART_NOTE.
+ */
+async function reloadPluginContent(ctx: CommandContext): Promise<string> {
+  const trusted = await isTrustedWithoutPrompt(ctx.cwd);
+  const hooks = await loadHooksConfig(ctx.cwd, trusted);
+  ctx.permissions.setHooksConfig(hooks);
+  const hookCount = Object.values(hooks).reduce((n, matchers) => n + (matchers ?? []).reduce((m, x) => m + x.hooks.length, 0), 0);
+
+  let commandNote = "";
+  if (ctx.customCommands) {
+    const fresh = await loadCustomCommands(ctx.cwd);
+    ctx.customCommands.clear();
+    for (const [name, command] of fresh) ctx.customCommands.set(name, command);
+    if (ctx.commands) {
+      const builtin = ctx.commands;
+      ctx.ui.setCommands([
+        ...builtin.list(),
+        ...[...fresh.values()].filter((c) => !builtin.get(c.name)).map((c) => ({ name: c.name, description: c.description })),
+      ]);
+    }
+    commandNote = `, ${fresh.size} custom command(s)`;
+  }
+  return `${hookCount} hook(s)${commandNote}`;
+}
 
 async function handleMarketplace(ctx: CommandContext, words: string[]): Promise<void> {
   const [action, ...rest] = words;
@@ -71,18 +104,25 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "install": {
       if (!arg) return ctx.ui.writeError("Usage: /plugin install <plugin>[@<marketplace>]");
       const plugin = await installPlugin(arg);
-      return ctx.ui.writeSystem(`Installed "${plugin.name}". Review what it ships (hooks run shell commands) in ${plugin.dir}. ${RESTART_NOTE}`);
+      const loaded = await reloadPluginContent(ctx);
+      return ctx.ui.writeSystem(`Installed "${plugin.name}". Review what it ships (hooks run shell commands) in ${plugin.dir}. Reloaded: ${loaded}. ${RESTART_NOTE}`);
     }
     case "remove":
     case "uninstall": {
       if (!arg) return ctx.ui.writeError("Usage: /plugin remove <plugin>");
-      return (await removePlugin(arg)) ? ctx.ui.writeSystem(`Removed "${arg}". ${RESTART_NOTE}`) : ctx.ui.writeError(`No installed plugin named "${arg}" (project plugins are removed by deleting their folder).`);
+      if (!(await removePlugin(arg))) {
+        return ctx.ui.writeError(`No installed plugin named "${arg}" (project plugins are removed by deleting their folder).`);
+      }
+      return ctx.ui.writeSystem(`Removed "${arg}". Reloaded: ${await reloadPluginContent(ctx)}. ${RESTART_NOTE}`);
     }
     case "enable":
     case "disable": {
       if (!arg) return ctx.ui.writeError(`Usage: /plugin ${sub} <plugin>`);
-      return (await setPluginEnabled(arg, sub === "enable", ctx.cwd)) ? ctx.ui.writeSystem(`${sub === "enable" ? "Enabled" : "Disabled"} "${arg}". ${RESTART_NOTE}`) : ctx.ui.writeError(`No plugin named "${arg}" — see /plugin list.`);
+      if (!(await setPluginEnabled(arg, sub === "enable", ctx.cwd))) return ctx.ui.writeError(`No plugin named "${arg}" — see /plugin list.`);
+      return ctx.ui.writeSystem(`${sub === "enable" ? "Enabled" : "Disabled"} "${arg}". Reloaded: ${await reloadPluginContent(ctx)}. ${RESTART_NOTE}`);
     }
+    case "reload":
+      return ctx.ui.writeSystem(`Reloaded: ${await reloadPluginContent(ctx)}. ${RESTART_NOTE}`);
     case "test": {
       if (!arg) return ctx.ui.writeError("Usage: /plugin test <directory>");
       const dir = path.resolve(ctx.cwd, arg);

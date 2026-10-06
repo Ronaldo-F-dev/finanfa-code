@@ -119,6 +119,33 @@ async function handleAgents(ctx: CommandContext): Promise<CommandOutcome> {
   return "continue";
 }
 
+/** /tasks [stop <name>] — the background processes the agent started (dev servers, watchers), driven through the same tools the model uses. */
+async function handleTasks(ctx: CommandContext): Promise<CommandOutcome> {
+  const [sub, name] = ctx.args.trim().split(/\s+/).filter(Boolean);
+  const toolCtx = { cwd: ctx.cwd, sessionId: ctx.session.id, signal: new AbortController().signal };
+  if (sub === "stop") {
+    const stop = ctx.tools.get("stop_background_process");
+    if (!name || !stop) {
+      ctx.ui.writeError(name ? "Background process tools are not available in this session." : "Usage: /tasks [stop <name>]");
+      return "continue";
+    }
+    const result = await stop.handler({ name }, toolCtx);
+    (result.isError ? ctx.ui.writeError : ctx.ui.writeSystem).call(ctx.ui, result.content);
+    return "continue";
+  }
+  if (sub !== undefined) {
+    ctx.ui.writeError("Usage: /tasks [stop <name>]");
+    return "continue";
+  }
+  const list = ctx.tools.get("list_background_processes");
+  if (!list) {
+    ctx.ui.writeError("Background process tools are not available in this session.");
+    return "continue";
+  }
+  ctx.ui.writeSystem((await list.handler({}, toolCtx)).content);
+  return "continue";
+}
+
 async function handleBug(ctx: CommandContext): Promise<CommandOutcome> {
   let version = "unknown";
   try {
@@ -149,5 +176,6 @@ export function registerExtraCommands(commands: CommandRegistry): void {
   commands.register("review", handleReview, "Review uncommitted changes, or a given commit/branch/PR: /review [target] — read-only");
   commands.register("agents", handleAgents, "List the custom subagent types available to the task tool");
   commands.register("plugin", handlePlugin, "Manage plugins and marketplaces: /plugin [list|search|install|remove|enable|disable|test|marketplace] — run /plugin for usage");
+  commands.register("tasks", handleTasks, "List the background processes the agent started, or stop one: /tasks [stop <name>]");
   commands.register("bug", handleBug, "Print the issue tracker link and diagnostics for a bug report");
 }

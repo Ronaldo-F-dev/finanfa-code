@@ -48,7 +48,7 @@ describe("extra slash commands", () => {
   registerBuiltinCommands(commands);
 
   it("registers every new command", () => {
-    for (const name of ["hooks", "status", "diff", "init", "review", "agents", "bug"]) expect(commands.get(name)).toBeTypeOf("function");
+    for (const name of ["hooks", "status", "diff", "init", "review", "agents", "bug", "tasks"]) expect(commands.get(name)).toBeTypeOf("function");
   });
 
   it("/hooks lists configured hooks per event and explains how to add them when empty", async () => {
@@ -113,5 +113,39 @@ describe("extra slash commands", () => {
     const text = vi.mocked(ui.writeSystem).mock.calls[0][0];
     expect(text).toContain("github.com/Ronaldo-F-dev/finanfa-code/issues/new");
     expect(text).toContain("model: test-model");
+  });
+
+  it("/tasks lists background processes and stops one by name, through the same tools the model uses", async () => {
+    const { ctx, ui } = makeCtx("/tmp", "");
+    const tools = new ToolRegistry();
+    const stopped: string[] = [];
+    tools.register({
+      name: "list_background_processes",
+      description: "",
+      riskLevel: "safe",
+      inputSchema: { type: "object" },
+      handler: async () => ({ content: "dev-server (pid 1)", isError: false }),
+    });
+    tools.register({
+      name: "stop_background_process",
+      description: "",
+      riskLevel: "dangerous",
+      inputSchema: { type: "object" },
+      handler: async (input: { name: string }) => {
+        stopped.push(input.name);
+        return { content: `Stopped ${input.name}`, isError: false };
+      },
+    });
+    const withTools = { ...(ctx as object), tools } as never;
+
+    await commands.get("tasks")!(withTools);
+    expect(ui.writeSystem).toHaveBeenLastCalledWith("dev-server (pid 1)");
+
+    await commands.get("tasks")!({ ...(withTools as object), args: "stop dev-server" } as never);
+    expect(stopped).toEqual(["dev-server"]);
+    expect(ui.writeSystem).toHaveBeenLastCalledWith("Stopped dev-server");
+
+    await commands.get("tasks")!({ ...(withTools as object), args: "stop" } as never);
+    expect(ui.writeError).toHaveBeenLastCalledWith("Usage: /tasks [stop <name>]");
   });
 });

@@ -67,7 +67,7 @@ export interface RunSubprocessResult {
  * doesn't put its children in a separate session/process group.
  */
 function spawnSandboxed(command: string, opts: RunSubprocessOptions): ChildProcess {
-  const bwrapArgs = buildBwrapArgs(opts.cwd, opts.sandbox?.extraWritablePaths);
+  const bwrapArgs = buildBwrapArgs(opts.cwd, opts.sandbox?.extraWritablePaths, opts.sandbox?.network);
   const shellPath = typeof SHELL === "string" ? SHELL : "/bin/sh";
   const argv = opts.args ? [...bwrapArgs, "--", command, ...opts.args] : [...bwrapArgs, "--", shellPath, "-c", command];
   return spawn("bwrap", argv, { cwd: opts.cwd, detached: true });

@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
 import { securityScanReconTool } from "../../../src/tools/builtin/security/recon.js";
+import { isOnline, skipLocally } from "../../helpers/environment.js";
+
+// Real DNS/WHOIS/HTTP need the network; skipped locally when offline.
+const online = await isOnline();
 
 const ctx = { cwd: "/tmp", sessionId: "test", signal: new AbortController().signal };
 
@@ -13,7 +17,7 @@ describe("security_scan_recon tool (real DNS/WHOIS/HTTP against real domains)", 
     expect(result.isError).toBe(true);
   });
 
-  it(
+  it.skipIf(skipLocally(online))(
     "gathers real DNS records, a real WHOIS referral chain, and a real server banner for example.com",
     async () => {
       const result = await securityScanReconTool.handler({ url: "https://example.com" }, ctx);

@@ -15,7 +15,7 @@ agent types each also have a global counterpart under `~/.finanfa-code/`
 | `mcp.json` | MCP server list — see [mcp.md](mcp.md) |
 | `plugins/<name>/index.js` | Arbitrary tool/command registration — see [plugins.md](plugins.md) |
 | `instructions/*.md` | Path-scoped project instructions |
-| `finanfa.md` (project root) | Free-form project instructions (the `CLAUDE.md`/`AGENTS.md` equivalent) |
+| `finanfa.md` (project root) | Free-form project instructions (the `CLAUDE.md` equivalent). If it is absent or empty, `AGENTS.md` is used instead; when both exist only `finanfa.md` is read |
 | `finanfa-design.md` (project root) | Design contract for `create_artifact` |
 
 ## Permissions and hooks (`settings.json`)
@@ -46,13 +46,41 @@ commands at these events, same convention as Claude Code:
 | `Stop` | the agent is about to finish its turn | the turn continues, the reason is fed back (once per turn; the payload's `stop_hook_active` says so) |
 | `SubagentStop` | a delegated sub-agent (the `task` tool) is about to finish | same as `Stop`, for the sub-agent's turn |
 | `SessionStart` | first turn of a new session | — (stdout is added to that first prompt as context) |
-| `SessionEnd` | the terminal REPL ends (`/exit`, EOF or a crash) | — |
+| `SessionEnd` | a session that ran at least one turn ends: terminal REPL exit or `--prompt` run (`source` `exit`/`prompt`), a web socket disconnecting (`disconnect`), the VS Code session being disposed (`dispose`) | — |
 | `Notification` | the agent is waiting for you to approve a tool call (fire-and-forget; payload `message`) | — |
 | `PreCompact` | before automatic context compaction | — |
 
-A sub-agent never fires `Stop` or `SessionStart`. `SessionEnd` is only fired by the terminal REPL for now, not by the web UI, the VS Code extension or chat channels.
+A sub-agent never fires `Stop` or `SessionStart`. `SessionEnd` is not fired by chat channels (each message is a self-contained run with no session end) or by the ACP bridge.
 
 `/hooks` lists what is configured.
+
+## Managed settings (administrators)
+
+A file only an administrator can write, enforced on top of user and project
+settings. It can restrict or add guardrails; nothing in it grants a permission.
+
+Location: `/etc/finanfa-code/managed-settings.json` (macOS/Linux),
+`%ProgramData%\finanfa-code\managed-settings.json` (Windows), or the path in
+`$FINANFA_MANAGED_SETTINGS`.
+
+```json
+{
+  "hooks": { "PreToolUse": [{ "matcher": "bash", "hooks": [{ "type": "command", "command": "/opt/policy/check.sh" }] }] },
+  "allowManagedHooksOnly": true,
+  "disableYolo": true,
+  "strictKnownMarketplaces": ["https://git.example.com/approved-plugins.git"]
+}
+```
+
+| Field | Effect |
+|---|---|
+| `hooks` | Always run, before the user's, the project's and plugins' hooks |
+| `allowManagedHooksOnly` | Only the managed hooks run; user, project and plugin hooks are ignored |
+| `disableYolo` | `--yolo` is refused (tool calls still ask) |
+| `strictKnownMarketplaces` | `/plugin marketplace add` accepts only these exact sources (`[]` forbids adding any) |
+
+If the file exists but can't be parsed, the strictest settings apply instead
+of none. The file is read once at startup.
 
 A project is untrusted by default the first time you open it — you're
 asked once whether to trust its `settings.json`. Declining ignores its

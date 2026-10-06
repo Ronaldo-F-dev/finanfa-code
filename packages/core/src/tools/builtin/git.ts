@@ -18,7 +18,7 @@ const NETWORK_TIMEOUT_MS = 120_000;
  * puts in a diff path or commit message can be interpreted as a shell
  * command, unlike the general-purpose `bash` tool.
  */
-function runGit(cwd: string, sessionId: string, args: string[], timeoutMs = TIMEOUT_MS): Promise<ToolResult> {
+export function runGit(cwd: string, sessionId: string, args: string[], timeoutMs = TIMEOUT_MS): Promise<ToolResult> {
   return new Promise((resolve) => {
     // Force the C locale so output (status labels, etc.) is consistent and
     // parseable regardless of the host machine's configured locale.

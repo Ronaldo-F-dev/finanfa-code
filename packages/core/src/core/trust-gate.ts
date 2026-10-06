@@ -27,6 +27,17 @@ async function projectHasGatedFiles(cwd: string): Promise<boolean> {
 }
 
 /**
+ * The same decision as resolveTrust, but never prompting: used to re-read
+ * config mid-session (e.g. /plugin reload), where asking again would be
+ * wrong. A folder the user declined earlier this session stays untrusted,
+ * since a decline is never remembered and so can't be told apart from "never
+ * asked" except by the presence of gated files.
+ */
+export async function isTrustedWithoutPrompt(cwd: string): Promise<boolean> {
+  return (await isFolderTrusted(cwd)) || !(await projectHasGatedFiles(cwd));
+}
+
+/**
  * Resolves whether this project's .finanfa-code/settings.json should be
  * trusted this run, prompting the user the first time only when there's
  * actually something to trust or distrust — a project with no such file

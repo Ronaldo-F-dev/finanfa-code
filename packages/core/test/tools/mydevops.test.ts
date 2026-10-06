@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeAll } from "vitest";
-import { mkdtemp, rm, chmod } from "node:fs/promises";
+import { mkdtemp, realpath, rm, chmod } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -40,7 +40,7 @@ describe("run_mydevops tool (real subprocess, fake mydevops binary stand-in)", (
       await import("node:fs/promises").then((fs) => fs.mkdir(path.join(projectDir, subDir)));
       const tool = createMydevopsTool({ binary: FAKE_MYDEVOPS_SCRIPT });
       const result = await tool.handler({ subcommand: "whoami", cwd: subDir }, { ...ctx, cwd: projectDir });
-      expect(result.content).toContain(`cwd=${path.join(projectDir, subDir)}`);
+      expect(result.content).toContain(`cwd=${await realpath(path.join(projectDir, subDir))}`);
     } finally {
       await rm(projectDir, { recursive: true, force: true });
     }

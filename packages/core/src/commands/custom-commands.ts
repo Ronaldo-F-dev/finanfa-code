@@ -76,6 +76,11 @@ export async function loadCustomCommands(cwd: string): Promise<Map<string, Custo
   return byName;
 }
 
+/** Names of custom commands that a builtin of the same name hides (the builtin always wins) — so the user can be told, instead of the command silently never running. */
+export function shadowedCommandNames(customCommands: Map<string, CustomCommand>, isBuiltin: (name: string) => boolean): string[] {
+  return [...customCommands.keys()].filter(isBuiltin).sort();
+}
+
 export function expandCustomCommand(command: CustomCommand, args: string): string {
   if (command.content.includes("$ARGUMENTS")) return command.content.replaceAll("$ARGUMENTS", args);
   return args ? `${command.content}\n\n${args}` : command.content;

@@ -3,6 +3,7 @@ import { mkdtemp, rm, readdir } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createBashTool } from "../../src/tools/builtin/bash.js";
+import { hasCommand, isLinux, skipLocally } from "../helpers/environment.js";
 
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
 
@@ -115,7 +116,8 @@ describe("bash tool", () => {
   });
 });
 
-describe("bash tool — OS-level sandbox (real bubblewrap, workspace-write mode)", () => {
+// bubblewrap is Linux-only; skipped elsewhere, and locally when bwrap is missing (required on Linux CI).
+describe.skipIf(!isLinux || skipLocally(hasCommand("bwrap")))("bash tool — OS-level sandbox (real bubblewrap, workspace-write mode)", () => {
   const sandboxedTool = createBashTool({ mode: "workspace-write" });
   let dir: string;
 
@@ -164,6 +166,13 @@ describe("bash tool — OS-level sandbox (real bubblewrap, workspace-write mode)
   it("still has network access (workspace-write doesn't isolate the network namespace)", async () => {
     const result = await sandboxedTool.handler({ command: "getent hosts localhost" }, { ...ctx, cwd: dir });
     expect(result.isError).toBe(false);
+  });
+
+  it("network: deny puts the command in an empty network namespace (only loopback is left)", async () => {
+    const isolatedTool = createBashTool({ mode: "workspace-write", network: "deny" });
+    // /proc/net/dev lists the interfaces of the reader's own network namespace; with --unshare-net only `lo` can remain.
+    const result = await isolatedTool.handler({ command: 'echo "OTHER_IFACES=$(tail -n +3 /proc/net/dev | cut -d: -f1 | tr -d " " | grep -vxc lo)"' }, { ...ctx, cwd: dir });
+    expect(result.content).toContain("OTHER_IFACES=0");
   });
 
   it("still kills a backgrounded, non-redirected grandchild on timeout (process-group kill reaches inside the sandbox)", async () => {

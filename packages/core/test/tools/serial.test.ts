@@ -6,6 +6,7 @@ import path from "node:path";
 import { SerialPort } from "serialport";
 import { SerialManager } from "../../src/serial/manager.js";
 import { createSerialTools } from "../../src/tools/builtin/serial.js";
+import { hasCommand, skipLocally } from "../helpers/environment.js";
 
 const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal };
 
@@ -14,7 +15,8 @@ const ctx = { cwd: "/tmp", sessionId: "s", signal: new AbortController().signal 
 // other), so this exercises the actual serialport library and OS tty
 // layer, not a mock. This is the same technique real embedded-tooling
 // projects use to test serial code without physical hardware attached.
-describe("serial_* tools (real serialport, real socat-linked PTY pair)", () => {
+// Skipped locally when socat is missing; required in CI.
+describe.skipIf(skipLocally(hasCommand("socat")))("serial_* tools (real serialport, real socat-linked PTY pair)", () => {
   let socatProcess: ChildProcess;
   let dir: string;
   let ourPortPath: string;

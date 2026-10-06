@@ -21,10 +21,19 @@ describe("web-server /api/docker-models/* (real subprocess, real `docker model` 
   let dmrAvailable = false;
 
   beforeAll(async () => {
-    dmrAvailable = await isDockerModelRunnerAvailable();
-
     projectDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-dockermodels-project-"));
     homeDir = await mkdtemp(path.join(tmpdir(), "finanfa-web-dockermodels-home-"));
+
+    // The server runs with this empty HOME, so it can't see the machine's docker config/context. Ask the
+    // same question in the same environment, or a developer machine with docker would "expect" an
+    // availability the server (correctly) never reports.
+    const realHome = process.env.HOME;
+    process.env.HOME = homeDir;
+    try {
+      dmrAvailable = await isDockerModelRunnerAvailable();
+    } finally {
+      process.env.HOME = realHome;
+    }
 
     ({ child, port } = await spawnWebServer(projectDir, homeDir));
   }, 30_000);

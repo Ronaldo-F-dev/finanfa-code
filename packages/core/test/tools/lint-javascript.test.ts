@@ -3,10 +3,12 @@ import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { lintJavascriptTool } from "../../src/tools/builtin/lint-javascript.js";
+import { hasCommand, skipLocally } from "../helpers/environment.js";
 
 const ESLINT_TIMEOUT = 60_000;
 
-describe("lint_javascript tool (real eslint execution)", () => {
+// Skipped locally when eslint is missing; required in CI.
+describe.skipIf(skipLocally(hasCommand("eslint")))("lint_javascript tool (real eslint execution)", () => {
   let dir: string;
 
   beforeEach(async () => {

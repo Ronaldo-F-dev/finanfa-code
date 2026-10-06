@@ -19,6 +19,7 @@ import { todoWriteTool } from "./todo-write.js";
 import { exitPlanModeTool } from "./exit-plan-mode.js";
 import { viewImageTool } from "./view-image.js";
 import { gitTools } from "./git.js";
+import { gitWorktree } from "./git-worktree.js";
 import { repoMapTool } from "./repo-map.js";
 import { createMydevopsTool } from "./mydevops.js";
 import { createDelegateToClaudeCodeTool, createDelegateToCodexTool } from "./delegate-agent.js";
@@ -369,6 +370,7 @@ export function registerBuiltins(registry: ToolRegistry, opts?: { sandbox?: Sand
   registry.register(generateNginxConfigTool);
   if (isCommandAvailable("nginx")) registry.register(createTestNginxConfigTool());
   for (const tool of gitTools) registry.register(tool);
+  registry.register(gitWorktree);
   for (const tool of createRagTools(opts?.config ?? {})) registry.register(tool);
 }
 

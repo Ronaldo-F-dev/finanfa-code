@@ -2,6 +2,7 @@ import { readFile } from "node:fs/promises";
 import path from "node:path";
 import os from "node:os";
 import { loadPluginHooks } from "../plugins/manager.js";
+import { loadManagedSettings } from "../core/managed-settings.js";
 
 // Claude Code's own hooks feature: user- or project-configured shell
 // commands that run at specific points in the agent loop (before a tool
@@ -75,20 +76,27 @@ function mergeEvent(global: HookMatcher[] | undefined, project: HookMatcher[] | 
  * unless it opts into the gate.
  */
 export async function loadHooksConfig(cwd: string, trusted = true): Promise<HooksConfig> {
+  const managed = loadManagedSettings();
+  // allowManagedHooksOnly: an administrator's hooks are the only ones that run —
+  // the user's, the project's and plugins' are not even read.
+  if (managed.allowManagedHooksOnly) return managed.hooks ?? EMPTY_HOOKS_CONFIG;
+
   const globalFile = path.join(os.homedir(), ".finanfa-code", "config.json");
   const projectFile = path.join(cwd, ".finanfa-code", "settings.json");
 
   const [globalHooks, projectHooks] = await Promise.all([readHooksFromFile(globalFile), trusted ? readHooksFromFile(projectFile) : Promise.resolve(undefined)]);
   const pluginHooks = await loadPluginHooks(cwd, trusted);
-  if (!globalHooks && !projectHooks && pluginHooks.length === 0) return EMPTY_HOOKS_CONFIG;
+  if (!globalHooks && !projectHooks && pluginHooks.length === 0 && !managed.hooks) return EMPTY_HOOKS_CONFIG;
 
-  // Order: the user's global hooks, then the project's, then plugins'. Hooks
-  // run in this order and the first one to decide wins, so a plugin's hook
+  // Order: managed hooks, then the user's global hooks, then the project's,
+  // then plugins'. Hooks run in this order and the first one to decide wins,
+  // so an administrator's guardrail is consulted first, and a plugin's hook
   // can never pre-empt (e.g. approve past) a hook the user wrote themselves.
   const merged: HooksConfig = {};
   for (const event of HOOK_EVENT_NAMES) {
     const fromPlugins = pluginHooks.flatMap((h) => h[event] ?? []);
-    const entries = mergeEvent(mergeEvent(globalHooks?.[event], projectHooks?.[event]), fromPlugins.length > 0 ? fromPlugins : undefined);
+    const user = mergeEvent(mergeEvent(globalHooks?.[event], projectHooks?.[event]), fromPlugins.length > 0 ? fromPlugins : undefined);
+    const entries = mergeEvent(managed.hooks?.[event], user);
     if (entries) merged[event] = entries;
   }
   return merged;

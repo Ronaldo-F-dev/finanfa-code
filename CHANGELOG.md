@@ -26,6 +26,21 @@ first tagged release.
   `/feature-dev`, `/ralph-loop` and `/output-style` (`explanatory`,
   `learning`). A custom command named like one of these is now shadowed by
   the built-in.
+- Managed (organization) settings read from `/etc/finanfa-code/managed-settings.json`
+  (or `$FINANFA_MANAGED_SETTINGS`): always-run hooks, `allowManagedHooksOnly`,
+  `disableYolo` and `strictKnownMarketplaces`; an unreadable file fails closed.
+- `sandbox.network: "deny"` runs `bash` in an empty network namespace (Linux
+  with bubblewrap).
+- `AGENTS.md` is used as project instructions when `finanfa.md` is absent or
+  empty.
+- `git_worktree` tool (list, add, remove) and a `/tasks` command for
+  background processes.
+- `/plugin reload`, and install/remove/enable/disable now apply hooks and
+  slash commands immediately; the startup warning lists custom commands that
+  a built-in of the same name hides.
+- `SessionEnd` also fires for `--prompt` runs, web socket disconnects and
+  the VS Code session dispose.
+- A CodeQL workflow.
 - Built-in read-only subagent types for the `task` tool: `code-explorer`,
   `code-architect`, `code-reviewer`, `silent-failure-hunter`,
   `test-analyzer`.
@@ -119,6 +134,10 @@ first tagged release.
 
 ### Fixed
 
+- A hook that exceeded its timeout left its child processes running and kept
+  the call waiting; the whole process group is now killed.
+- `security_scan_tls` failed on any IP-address target (an IP literal was sent
+  as the TLS servername).
 - **Real, reproduced bug**: a message sent the instant the web UI opened
   could vanish with no error and no reply. The server only attaches its
   WebSocket message handler after `buildTurnContext` finishes (seconds of

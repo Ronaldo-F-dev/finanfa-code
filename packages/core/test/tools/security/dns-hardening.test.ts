@@ -3,6 +3,10 @@ import dgram from "node:dgram";
 import net from "node:net";
 import type { AddressInfo } from "node:net";
 import { securityScanDnsHardeningTool, checkDnssec, udpDnsQuery, parseAxfrStream, attemptZoneTransferAgainst } from "../../../src/tools/builtin/security/dns-hardening.js";
+import { isOnline, skipLocally } from "../../helpers/environment.js";
+
+// Real DNS lookups need the network; skipped locally when offline.
+const online = await isOnline();
 
 const ctx = { cwd: "/tmp", sessionId: "test", signal: new AbortController().signal };
 
@@ -16,7 +20,7 @@ describe("security_scan_dns_hardening tool (real DNS queries against real domain
     expect(result.isError).toBe(true);
   });
 
-  it(
+  it.skipIf(skipLocally(online))(
     "discovers real, well-known subdomains for google.com (www, mail at least)",
     async () => {
       const result = await securityScanDnsHardeningTool.handler({ url: "https://google.com" }, ctx);
@@ -27,7 +31,7 @@ describe("security_scan_dns_hardening tool (real DNS queries against real domain
     20_000,
   );
 
-  it(
+  it.skipIf(skipLocally(online))(
     "confirms real DNSSEC on cloudflare.com by querying a real public resolver (1.1.1.1) directly",
     async () => {
       // Isolated from the full tool/AXFR path: this sandbox's outbound TCP:53
@@ -40,7 +44,7 @@ describe("security_scan_dns_hardening tool (real DNS queries against real domain
     15_000,
   );
 
-  it(
+  it.skipIf(skipLocally(online))(
     "flags DNSSEC Not Enabled for a nonexistent subdomain (real NXDOMAIN response)",
     async () => {
       const result = await securityScanDnsHardeningTool.handler({ url: "https://this-really-does-not-exist-finanfa-test-99999.example.com" }, ctx);
