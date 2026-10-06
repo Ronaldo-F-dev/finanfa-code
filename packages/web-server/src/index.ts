@@ -81,7 +81,7 @@ import { registerTeamsChannelRoutes } from "./channels-teams.js";
 import { registerChannelsConfigRoutes, applyPersistedChannelSecrets, getPublicTunnelUrl, setPublicTunnelUrl } from "./channels-config-api.js";
 import { checkRequestHost, checkWebSocketOrigin, hostnameOf, isLoopbackBind, parseAllowedOrigins, resolveWorkspaceFile, type OriginPolicy } from "./security.js";
 import { startCloudflareTunnel } from "./cloudflare-tunnel.js";
-import { parseWebUsers, authenticateBearerToken, authenticateQueryToken } from "./auth.js";
+import { parseWebUsers, authenticateBearerToken, authenticateWebSocketRequest } from "./auth.js";
 import { SessionTokenStore, defaultSessionStorePath } from "./session-token-store.js";
 import { loadUserStore, createUser, verifyUserPassword } from "./user-store.js";
 import { LoginRateLimiter } from "./login-rate-limiter.js";
@@ -1107,10 +1107,9 @@ const wss = new WebSocketServer({
 wss.on("connection", (ws: WebSocket, req) => {
   const url = req.url ?? "";
   if (GATEWAY_ENABLED) {
-    const token = new URL(url, "http://localhost").searchParams.get("token");
-    const user = authenticateQueryToken(WEB_USERS ?? new Map(), AUTH_SESSIONS, token);
+    const user = authenticateWebSocketRequest(WEB_USERS ?? new Map(), AUTH_SESSIONS, url, req.headers.authorization);
     if (!user) {
-      ws.close(4001, "Missing or invalid ?token=");
+      ws.close(4001, "Missing or invalid ?token= or Authorization: Bearer header");
       return;
     }
     void handleConnection(ws, url, user);
