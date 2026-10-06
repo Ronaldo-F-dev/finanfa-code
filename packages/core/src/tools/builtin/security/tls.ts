@@ -24,6 +24,9 @@ interface TlsInfo {
 function probeTls(hostname: string, port: number): Promise<TlsInfo | undefined> {
   return new Promise((resolve) => {
     const socket = tls.connect(
+      // rejectUnauthorized: false is deliberate: this is a scanner that must connect to hosts whose certificate is
+      // expired, self-signed or otherwise invalid in order to inspect (and report on) it. The connection only reads
+      // the certificate, protocol and cipher metadata — nothing is sent over it and nothing it returns is trusted.
       // SNI must be a hostname: Node throws when servername is an IP literal, which turned every scan of an IP target into an error.
       { host: hostname, port, ...(isIP(hostname) ? {} : { servername: hostname }), timeout: PROBE_TIMEOUT_MS, rejectUnauthorized: false },
       () => {
