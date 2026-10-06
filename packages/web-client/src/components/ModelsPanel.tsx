@@ -133,7 +133,7 @@ function OllamaSection() {
         {installed.map((m) => (
           <div className="mcp-row" key={m.name}>
             <div className="mcp-row-main">
-              <span className="mcp-icon">🦙</span>
+              <span className="row-tile"><Icon name="models" size={18} /></span>
               <div>
                 <div className="mcp-name">
                   {m.name} {m.supportsTools && <span className="model-badge">tools</span>}
@@ -305,7 +305,7 @@ function DockerSection() {
               return (
                 <div className="mcp-row" key={m.id}>
                   <div className="mcp-row-main">
-                    <span className="mcp-icon">🧩</span>
+                    <span className="row-tile"><Icon name="models" size={18} /></span>
                     <div>
                       <div className="mcp-name">{tag}</div>
                       <div className="mcp-meta">{[m.parameters, m.quantization, m.size].filter(Boolean).join(" · ")}</div>
@@ -343,7 +343,7 @@ function DockerSection() {
         {results.map((r) => (
           <div className="mcp-row" key={r.name}>
             <div className="mcp-row-main">
-              <span className="mcp-icon">{r.official ? "✅" : "🧩"}</span>
+              <span className="row-tile"><Icon name="models" size={18} /></span>
               <div>
                 <div className="mcp-name">{r.name}</div>
                 <div className="mcp-meta">
