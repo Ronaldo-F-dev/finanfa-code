@@ -230,6 +230,11 @@ export const translations: Record<Language, Record<string, string>> = {
     "permission.allowOnce": "Allow once",
     "permission.alwaysAllowThis": "Always allow this",
     "permission.alwaysAllowTool": "Always allow tool",
+    "diff.newFile": "new file",
+    "diff.label": "Changes to {path}",
+    "diff.hidden": "{count} unchanged lines",
+    "diff.tooLarge": "This change is too large to show as a diff.",
+    "diff.noChanges": "No changes to the file contents.",
 
     // ProjectsListView.tsx
     "projects.title": "Projects",
@@ -465,6 +470,11 @@ export const translations: Record<Language, Record<string, string>> = {
     "permission.allowOnce": "Autoriser une fois",
     "permission.alwaysAllowThis": "Toujours autoriser ceci",
     "permission.alwaysAllowTool": "Toujours autoriser cet outil",
+    "diff.newFile": "nouveau fichier",
+    "diff.label": "Modifications de {path}",
+    "diff.hidden": "{count} lignes inchangées",
+    "diff.tooLarge": "Cette modification est trop volumineuse pour être affichée en diff.",
+    "diff.noChanges": "Le contenu du fichier ne change pas.",
 
     "projects.title": "Projets",
     "projects.sub": "Espaces de travail isolés — fichiers, discussions et documents de référence restent limités au projet auquel ils appartiennent.",

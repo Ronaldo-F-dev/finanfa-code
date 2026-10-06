@@ -19,9 +19,17 @@ export type TimelineItem =
     }
   | { kind: "media"; id: string; mediaKind: "audio" | "image"; path: string; mimeType: string };
 
+/** Before/after contents of the file a tool is about to change — present for edits, so the approval can show a real diff. */
+export interface FilePreview {
+  path: string;
+  before: string;
+  after: string;
+}
+
 export interface PermissionRequest {
   requestId: number;
   prompt: string;
+  filePreview?: FilePreview;
 }
 
 export interface StatusInfo {
@@ -229,7 +237,7 @@ export function useAgentSocket(
           setStatus(msg.status);
           break;
         case "ask":
-          setPermissionRequest({ requestId: msg.requestId, prompt: msg.prompt });
+          setPermissionRequest({ requestId: msg.requestId, prompt: msg.prompt, filePreview: msg.filePreview });
           break;
         case "session_info": {
           setConnected(true);

@@ -1,5 +1,17 @@
 import type { WebSocket } from "ws";
 import type { CommandInfo, StatusInfo, UIAdapter } from "@finanfa/core/src/ui/adapter.js";
+import type { FilePreview } from "@finanfa/core/src/core/types.js";
+
+/** Same ceiling the client applies before diffing: above it the diff isn't sent at all (the approval prompt still carries the tool's own text preview). */
+export const MAX_FILE_PREVIEW_CHARS = 400_000;
+
+/** What of a tool's before/after file preview goes over the wire: all of it, or nothing when it would be huge. */
+export function filePreviewForClient(filePreview: FilePreview | undefined): FilePreview | undefined {
+  if (!filePreview) return undefined;
+  if (filePreview.before.length + filePreview.after.length > MAX_FILE_PREVIEW_CHARS) return undefined;
+  return { path: filePreview.path, before: filePreview.before, after: filePreview.after };
+}
+
 
 /**
  * UIAdapter implementation for the web frontend: instead of writing to a
@@ -63,11 +75,11 @@ export function createWebUiAdapter(ws: WebSocket): { adapter: UIAdapter; resolve
     setBusy(busy, label) {
       send("busy", { busy, label });
     },
-    askUser(prompt, kind = "input") {
+    askUser(prompt, kind = "input", _toolCallId, filePreview) {
       return new Promise<string>((resolve) => {
         const requestId = nextRequestId++;
         pending.set(requestId, resolve);
-        send("ask", { requestId, prompt, kind });
+        send("ask", { requestId, prompt, kind, filePreview: filePreviewForClient(filePreview) });
       });
     },
     close() {

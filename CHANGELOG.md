@@ -30,6 +30,11 @@ first tagged release.
   runs the server in the background on a free loopback port behind a per-launch token, stops it on quit
   (and the server exits by itself if the app dies), and locks the window to one origin. Runs from a
   checkout; installers are not built yet. See `docs/desktop.md`.
+- Approving a file edit or write in the web UI now shows a real diff (line numbers, added/removed
+  lines in colour, unchanged stretches collapsed, a "new file" badge) instead of the tool's raw
+  text patch. The server sends the file's before/after with the approval request (omitted above
+  400 KB, where the text preview remains). The approval headline now says "finanfa AI" rather than
+  "finanfa-code", as the rest of the UI does.
 - `Authorization: Bearer` is accepted for the WebSocket handshake, as well as `?token=`.
 - Hooks of type `prompt` (one model call) and `agent` (a read-only
   `hook-verifier` sub-agent) next to `command`: they answer `{"ok": …}`, can
