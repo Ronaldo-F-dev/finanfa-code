@@ -3,10 +3,12 @@ import http from "node:http";
 import type { AddressInfo } from "node:net";
 import { securityScanXssTool, mergeEngineFindings } from "../../../src/tools/builtin/security/xss.js";
 import type { Finding } from "../../../src/tools/builtin/security/types.js";
+import { hasChromium, skipLocally } from "../../helpers/environment.js";
 
 const ctx = { cwd: "/tmp", sessionId: "test", signal: new AbortController().signal };
 
-describe("security_scan_xss tool (real Chromium, real local HTTP server)", () => {
+// Needs Playwright Chromium; skipped locally when it is not installed (always runs in CI).
+describe.skipIf(skipLocally(hasChromium()))("security_scan_xss tool (real Chromium, real local HTTP server)", () => {
   let server: http.Server;
   let baseUrl: string;
 
