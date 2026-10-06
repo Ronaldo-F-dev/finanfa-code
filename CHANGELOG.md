@@ -14,6 +14,10 @@ first tagged release.
   (stdout becomes context for the first prompt) and `PreCompact` events;
   `SubagentStop`, `SessionEnd` and `Notification` are accepted in the config
   but not fired yet. See `docs/configuration.md`.
+- Hooks: `SubagentStop` (a delegated sub-agent finishing), `SessionEnd`
+  (terminal REPL exit) and `Notification` (waiting on a tool approval) now
+  fire. Sub-agents no longer fire `Stop`/`SessionStart` — those belong to
+  the user's own session.
 - Directory plugins (commands, agents, skills, hooks) and marketplaces,
   managed with `/plugin` (`marketplace add`, `search`, `install`, `remove`,
   `enable`/`disable`, `test`). See `docs/plugins.md`.

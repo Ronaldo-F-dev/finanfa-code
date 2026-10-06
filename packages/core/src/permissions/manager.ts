@@ -248,6 +248,10 @@ export class PermissionManager {
       this.ui.writeError(`Could not prepare "${tool.name}" for confirmation: ${message}`);
       return this.record(tool, riskKey, ctx, "deny", "prepare_error");
     }
+    // Notification hooks exist so a user can be pinged (sound, desktop
+    // notification) when the agent is waiting on them — fire-and-forget, so a
+    // slow hook never delays the prompt itself.
+    void this.runLifecycleHook("Notification", ctx.cwd, ctx.sessionId, { message: `Permission needed to run "${tool.name}"` });
     const answer = await this.promptUser(tool.name, summary, preview, toolCallId, filePreview);
 
     if (answer === "always") this.sessionAllowlist.add(key);

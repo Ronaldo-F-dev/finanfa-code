@@ -866,6 +866,11 @@ export async function runCompactCommand(session: AgentSession, provider: LlmProv
   return { replacedMessages: session.messages.filter((m) => m.role === "user" || m.role === "assistant").map((m) => ({ role: m.role, content: m.content })) };
 }
 
+export interface RunTurnOptions {
+  /** True when this turn is a delegated sub-agent's (see the task tool): it fires SubagentStop instead of Stop, and never SessionStart — those belong to the user's own session. */
+  subagent?: boolean;
+}
+
 export async function runTurn(
   session: AgentSession,
   provider: LlmProvider,
@@ -875,6 +880,7 @@ export async function runTurn(
   userInput: string,
   visionRoute?: VisionRoute,
   images?: NeutralImage[],
+  options: RunTurnOptions = {},
 ): Promise<void> {
   const hookOutcome = await permissions.runUserPromptSubmitHook(userInput, session.cwd, session.id);
   if (hookOutcome.blockedReason) {
@@ -885,7 +891,7 @@ export async function runTurn(
   // history yet. Its plain stdout is appended to that first prompt as extra
   // context (how real hooks of this kind inject project state or a style).
   let promptContent = hookOutcome.prompt;
-  if (session.messages.length === 0) {
+  if (session.messages.length === 0 && !options.subagent) {
     const startOutcome = await permissions.runLifecycleHook("SessionStart", session.cwd, session.id, { source: "startup" });
     if (startOutcome.output) promptContent = `${promptContent}\n\n<session-start-hook-context>\n${startOutcome.output}\n</session-start-hook-context>`;
   }
@@ -1127,7 +1133,7 @@ export async function runTurn(
         // reason back as a new user message and the loop continues. Only
         // honored once per turn so a hook that always blocks can't loop
         // forever (the payload's stop_hook_active tells the hook so).
-        const stopOutcome = await permissions.runLifecycleHook("Stop", session.cwd, session.id, { stop_hook_active: stopHookActive });
+        const stopOutcome = await permissions.runLifecycleHook(options.subagent ? "SubagentStop" : "Stop", session.cwd, session.id, { stop_hook_active: stopHookActive });
         if (stopOutcome.decision === "block" && !stopHookActive) {
           stopHookActive = true;
           const reason = stopOutcome.reason ?? "A Stop hook asked the agent to keep going.";
