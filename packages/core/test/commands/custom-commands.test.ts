@@ -2,7 +2,7 @@ import { describe, expect, it, vi, beforeEach, afterEach } from "vitest";
 import { mkdtemp, mkdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { loadCustomCommands, expandCustomCommand, runCustomCommand, type CustomCommand } from "../../src/commands/custom-commands.js";
+import { loadCustomCommands, expandCustomCommand, runCustomCommand, shadowedCommandNames, type CustomCommand } from "../../src/commands/custom-commands.js";
 import { AgentSession } from "../../src/core/session.js";
 import type { LlmProvider, StreamTurnResult } from "../../src/core/types.js";
 import { ToolRegistry } from "../../src/tools/registry.js";
@@ -83,6 +83,19 @@ describe("commands/custom-commands: loading", () => {
     } finally {
       errorSpy.mockRestore();
     }
+  });
+});
+
+describe("shadowedCommandNames", () => {
+  const command = (name: string): CustomCommand => ({ name, description: "", content: "x", scope: "project" });
+
+  it("lists, sorted, the custom commands a builtin of the same name hides", () => {
+    const customs = new Map([["review", command("review")], ["deploy", command("deploy")], ["init", command("init")]]);
+    expect(shadowedCommandNames(customs, (name) => name === "review" || name === "init")).toEqual(["init", "review"]);
+  });
+
+  it("returns nothing when no custom command collides", () => {
+    expect(shadowedCommandNames(new Map([["deploy", command("deploy")]]), () => false)).toEqual([]);
   });
 });
 
