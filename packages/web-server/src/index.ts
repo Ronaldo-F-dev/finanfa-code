@@ -2097,6 +2097,24 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
 
 await initTracing();
 
+/**
+ * When a parent process owns this server (the desktop app sets FINANFA_PARENT_PID), exit once it is gone:
+ * if the app crashes or is force-quit its child would otherwise keep running, with its port and its agent.
+ */
+function exitWhenParentIsGone(rawPid: string | undefined): void {
+  const parentPid = Number(rawPid);
+  if (!rawPid || !Number.isInteger(parentPid) || parentPid <= 1) return;
+  setInterval(() => {
+    try {
+      process.kill(parentPid, 0);
+    } catch (err) {
+      // EPERM means it exists but isn't ours to signal — still alive. Only ESRCH means gone.
+      if ((err as NodeJS.ErrnoException).code === "ESRCH") process.exit(0);
+    }
+  }, 2000).unref();
+}
+exitWhenParentIsGone(process.env.FINANFA_PARENT_PID);
+
 httpServer.listen(PORT, BIND_HOST, () => {
   // Log the REAL bound port, not the requested one — with PORT=0 (used by
   // the e2e test suite to get a genuinely free, OS-assigned port instead
