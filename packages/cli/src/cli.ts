@@ -23,7 +23,7 @@ import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
 import { formatSkillIndex } from "@finanfa/core/src/skills/loader.js";
 import { formatMemoryIndex } from "@finanfa/core/src/memory/loader.js";
-import { loadCustomCommands, runCustomCommand, type CustomCommand } from "@finanfa/core/src/commands/custom-commands.js";
+import { loadCustomCommands, runCustomCommand, shadowedCommandNames, type CustomCommand } from "@finanfa/core/src/commands/custom-commands.js";
 import { formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
@@ -374,6 +374,10 @@ export async function main(argv: string[]): Promise<void> {
   ui.writeSystem(`session ${session.id} · ${session.model} via ${providerKind} · ${tools.list().length} tools loaded`);
   if (mcp.connectedServers().length > 0) ui.writeSystem(`MCP servers: ${mcp.connectedServers().join(", ")}`);
   if (plugins.length > 0) ui.writeSystem(`Plugins: ${plugins.join(", ")}`);
+  const shadowed = shadowedCommandNames(customCommands, (name) => commands.get(name) !== undefined);
+  if (shadowed.length > 0) {
+    ui.writeSystem(`Custom command(s) hidden by a built-in of the same name: ${shadowed.map((n) => `/${n}`).join(", ")} — rename the file in .finanfa-code/commands to use them.`);
+  }
   if (opts.yolo) ui.writeSystem("⚠ --yolo: all tool calls will be auto-approved");
   if (visionRoute) ui.writeSystem(`Vision routing: image turns use ${visionRoute.model}`);
   ui.writeSystem(`Type / to see available commands, or /help for details.`);
