@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 
 import '../models/session_models.dart';
 import '../server_connection.dart';
+import '../sse.dart';
 
 /// Thrown for any non-2xx REST response — carries the server's own `error`
 /// message (every finanfa-code route reports failures as `{ error: "..." }`,
@@ -226,4 +227,41 @@ class FinanfaApiClient {
         .map((m) => OllamaModelInfo.fromJson(m as Map<String, dynamic>))
         .toList(),
   );
+
+  /// Streams `/api/ollama-models/pull`'s server-sent events — the one route
+  /// here that isn't plain request/response. The stream ends when the server
+  /// closes its response, so a caller can keep a progress UI alive for the
+  /// whole download; a server-side failure arrives as an [OllamaPullError]
+  /// value (the request itself succeeded), not a thrown exception.
+  Stream<OllamaPullEvent> pullModel(String name) async* {
+    final request = http.Request(
+      'GET',
+      _uri('/api/ollama-models/pull', {'name': name}),
+    );
+    request.headers.addAll(_headers);
+    final response = await _http.send(request);
+    if (response.statusCode != 200) {
+      throw FinanfaApiException(
+        response.statusCode,
+        'HTTP ${response.statusCode}',
+      );
+    }
+    final parser = SseParser();
+    await for (final chunk in response.stream.transform(utf8.decoder)) {
+      for (final event in parser.add(chunk)) {
+        switch (event.event) {
+          case 'progress':
+            final json = jsonDecode(event.data) as Map<String, dynamic>;
+            yield OllamaPullProgress(
+              completed: (json['completed'] as num?)?.toInt(),
+              total: (json['total'] as num?)?.toInt(),
+            );
+          case 'done':
+            yield const OllamaPullDone();
+          case 'error':
+            yield OllamaPullError(jsonDecode(event.data) as String);
+        }
+      }
+    }
+  }
 }

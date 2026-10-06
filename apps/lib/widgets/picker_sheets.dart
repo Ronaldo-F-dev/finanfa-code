@@ -2,7 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/models/session_models.dart';
+import '../i18n/strings.dart';
 import '../state/agent_session_provider.dart';
+import '../state/api_client_provider.dart';
 import '../state/language_provider.dart';
 import '../state/models_provider.dart';
 import '../theme.dart';
@@ -284,33 +286,9 @@ Future<void> showEffortPickerSheet(
                           style: TextStyle(color: c.textMuted),
                         ),
                       ),
-                      data: (tiers) => ListView(
-                        shrinkWrap: true,
-                        children: [
-                          for (final t in tiers)
-                            ListTile(
-                              title: Text(t.label),
-                              subtitle: Text(
-                                t.model,
-                                style: TextStyle(
-                                  color: c.textMuted,
-                                  fontSize: 12,
-                                ),
-                              ),
-                              trailing: !t.installed
-                                  ? Icon(
-                                      Icons.download_outlined,
-                                      color: c.textMuted,
-                                    )
-                                  : (t.id == currentEffort
-                                        ? Icon(Icons.check, color: c.accent)
-                                        : null),
-                              onTap: () {
-                                ref.read(agentSessionProvider).setEffort(t.id);
-                                Navigator.of(ctx).pop();
-                              },
-                            ),
-                        ],
+                      data: (tiers) => _EffortList(
+                        tiers: tiers,
+                        currentEffort: currentEffort,
                       ),
                     ),
                   ),
@@ -322,4 +300,144 @@ Future<void> showEffortPickerSheet(
       },
     ),
   );
+}
+
+/// The tier list itself, in its own stateful widget so a download in
+/// progress (percent, error) survives the surrounding sheet's rebuilds —
+/// mirrors the web client's EffortSelector, which keeps the same
+/// pulling/pullPercent/pullError state while an uninstalled tier's model
+/// downloads through GET /api/ollama-models/pull.
+class _EffortList extends ConsumerStatefulWidget {
+  final List<EffortTierOption> tiers;
+  final String? currentEffort;
+  const _EffortList({required this.tiers, required this.currentEffort});
+
+  @override
+  ConsumerState<_EffortList> createState() => _EffortListState();
+}
+
+class _EffortListState extends ConsumerState<_EffortList> {
+  String? _pulling;
+  int? _percent;
+  String? _error;
+
+  String _t(String key) => tr(ref.read(languageProvider), key);
+
+  Future<void> _pull(String model, String level) async {
+    setState(() {
+      _pulling = model;
+      _percent = 0;
+      _error = null;
+    });
+    final client = ref.read(apiClientProvider);
+    if (client == null) {
+      setState(() {
+        _error = _t('effort.downloadFailed');
+        _pulling = null;
+      });
+      return;
+    }
+    try {
+      await for (final event in client.pullModel(model)) {
+        if (!mounted) return;
+        if (event is OllamaPullProgress) {
+          setState(() => _percent = event.percent);
+        } else if (event is OllamaPullDone) {
+          ref.invalidate(effortTierListProvider);
+          ref.read(agentSessionProvider).clearEffortNeedsDownload();
+          ref.read(agentSessionProvider).setEffort(level);
+          Navigator.of(context).pop();
+          return;
+        } else if (event is OllamaPullError) {
+          setState(() {
+            _error = event.message;
+            _pulling = null;
+          });
+          return;
+        }
+      }
+    } catch (err) {
+      if (!mounted) return;
+      setState(() {
+        _error = err.toString();
+        _pulling = null;
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return StreamBuilder<EffortNeedsDownload?>(
+      stream: ref.read(agentSessionProvider).effortNeedsDownload,
+      builder: (context, snapshot) {
+        final needs = snapshot.data;
+        return ListView(
+          shrinkWrap: true,
+          children: [
+            if (_error != null)
+              Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 20,
+                  vertical: 4,
+                ),
+                child: Text(
+                  '${_t('effort.downloadFailed')} — $_error',
+                  style: TextStyle(color: c.danger, fontSize: 12),
+                ),
+              ),
+            for (final tier in widget.tiers)
+              ListTile(
+                title: Text(tier.label),
+                subtitle: Text(
+                  tier.model,
+                  style: TextStyle(color: c.textMuted, fontSize: 12),
+                ),
+                trailing: _pulling == tier.model
+                    ? Text(
+                        '${_t('effort.downloading')} '
+                        '${_percent != null ? '$_percent%' : ''}',
+                        style: TextStyle(color: c.textMuted, fontSize: 12),
+                      )
+                    : !tier.installed
+                    ? Icon(Icons.download_outlined, color: c.textMuted)
+                    : (tier.id == widget.currentEffort
+                          ? Icon(Icons.check, color: c.accent)
+                          : null),
+                onTap: () {
+                  if (!tier.installed) {
+                    // Keep the sheet open: the server answers set_effort with
+                    // effort_needs_download, rendered as the prompt below.
+                    // Popping here is what made the tap look like a silent
+                    // no-op — the event had no UI left to reach.
+                    ref.read(agentSessionProvider).setEffort(tier.id);
+                    return;
+                  }
+                  ref.read(agentSessionProvider).setEffort(tier.id);
+                  Navigator.of(context).pop();
+                },
+              ),
+            if (needs != null && _pulling == null)
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        '${_t('effort.needsModel')} ${needs.ollamaModel}',
+                        style: TextStyle(color: c.text, fontSize: 13),
+                      ),
+                    ),
+                    TextButton(
+                      onPressed: () => _pull(needs.ollamaModel, needs.level),
+                      child: Text(_t('effort.download')),
+                    ),
+                  ],
+                ),
+              ),
+          ],
+        );
+      },
+    );
+  }
 }
