@@ -6,6 +6,7 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 import { createFleetCell, removeFleetCell } from "../../src/core/fleet.js";
 import { registerFleetHost, removeFleetHost, loadFleetHosts, fleetHostLoads, pickLeastLoadedFleetHost } from "../../src/core/fleet-hosts.js";
+import { hasDockerDaemon, isOnline, skipLocally } from "../helpers/environment.js";
 
 const execFileAsync = promisify(execFile);
 
@@ -43,7 +44,10 @@ describe("registerFleetHost / removeFleetHost / loadFleetHosts (real file on dis
   });
 });
 
-describe("fleetHostLoads / pickLeastLoadedFleetHost (real docker containers)", () => {
+// `docker pull` needs a docker daemon and the network; skipped locally when either is missing.
+const dockerReady = hasDockerDaemon() && (await isOnline());
+
+describe.skipIf(skipLocally(dockerReady))("fleetHostLoads / pickLeastLoadedFleetHost (real docker containers)", () => {
   let dir: string;
   let registryPath: string;
   const cellNames: string[] = [];
