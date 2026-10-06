@@ -132,6 +132,20 @@ first tagged release.
   run a third-party binary on its own. The tunnel process is stopped on
   SIGINT/SIGTERM so it doesn't linger as an orphan after the server exits.
 
+### Security
+
+- `/api/workspace-file` served any file under the server's home directory (Express's dotfile rule
+  only incidentally protected `~/.ssh` and `~/.finanfa-code`); it is now confined to the project,
+  with symlinks resolved and credential locations refused.
+- A project id such as `../..` (via `?project=` or `/api/projects/:id`) walked out of the projects
+  directory, allowing a zip of, and writes into, arbitrary directories; ids must be `default` or a UUID.
+- The WebSocket accepted any `Origin` and the server listened on every interface, so any web page
+  could drive the agent. The server now binds `127.0.0.1` by default (`FINANFA_WEB_HOST`), checks the
+  WebSocket origin (`FINANFA_ALLOWED_ORIGINS`) and the `Host` header (DNS rebinding). **Docker, Fly and
+  Render deployments already set `FINANFA_WEB_HOST=0.0.0.0`; a custom deployment must set it too.**
+- The channels config routes were registered before the gateway auth gate, so unauthenticated callers
+  could overwrite channel tokens; they are now behind it.
+
 ### Fixed
 
 - A hook that exceeded its timeout left its child processes running and kept
