@@ -220,10 +220,11 @@ body {
 .mcp-list {
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  margin-bottom: 16px;
-  max-height: 340px;
+  gap: 8px;
+  margin-bottom: 18px;
+  max-height: 380px;
   overflow-y: auto;
+  padding-right: 6px;
 }
 
 /* 90+ builtin tools vs. a handful of MCP servers — more scroll room. */
@@ -235,15 +236,22 @@ body {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 10px;
-  border-radius: 8px;
+  gap: 14px;
+  padding: 12px 14px;
+  border-radius: 10px;
   border: 1px solid var(--border);
+  background: var(--bg);
+  transition: border-color 0.12s;
+}
+.mcp-row:hover {
+  border-color: var(--text-muted);
 }
 
 .mcp-row-main {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: 12px;
+  min-width: 0;
 }
 
 .mcp-icon {
@@ -284,9 +292,9 @@ body {
 .panel-header {
   display: flex;
   align-items: center;
-  gap: 10px;
-  margin: -4px -4px 12px;
-  padding: 0 4px 12px;
+  gap: 12px;
+  margin: -4px -4px 16px;
+  padding: 0 4px 16px;
   border-bottom: 1px solid var(--border);
 }
 .panel-header-icon {
@@ -1375,10 +1383,11 @@ details.tool-call-details > summary.tool-call::marker {
 .modal {
   background: var(--bg-elevated);
   border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 20px;
+  border-radius: 14px;
+  padding: 24px;
   max-width: 560px;
   width: 90%;
+  box-shadow: 0 18px 50px rgba(0, 0, 0, 0.35);
 }
 
 .modal-wide {
