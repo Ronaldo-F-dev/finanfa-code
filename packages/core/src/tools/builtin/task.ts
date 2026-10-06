@@ -101,7 +101,7 @@ export function createTaskTool(deps: TaskToolDeps): ToolDefinition<TaskInput> {
       const label = input.description ?? agentType?.name ?? "subagent";
       const ui = wrapUiForSubagent(deps.ui, label);
 
-      await runTurn(session, deps.provider, ui, subTools, deps.permissions, input.prompt);
+      await runTurn(session, deps.provider, ui, subTools, deps.permissions, input.prompt, undefined, undefined, { subagent: true });
 
       const lastAssistant = [...session.messages].reverse().find((m) => m.role === "assistant");
       const finalText = lastAssistant?.role === "assistant" && lastAssistant.content.length > 0
