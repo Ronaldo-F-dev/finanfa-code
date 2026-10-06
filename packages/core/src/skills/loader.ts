@@ -3,6 +3,7 @@ import os from "node:os";
 import path from "node:path";
 import matter from "gray-matter";
 import type { ToolDefinition } from "../core/types.js";
+import { pluginContentDirs } from "../plugins/manager.js";
 
 export type SkillScope = "project" | "global";
 
@@ -73,11 +74,14 @@ async function readSkillsFromDir(dir: string, scope: SkillScope): Promise<Skill[
  * collision, since it's the more specific of the two.
  */
 export async function loadSkills(cwd: string): Promise<Skill[]> {
-  const [global, project] = await Promise.all([
+  const [global, project, plugin] = await Promise.all([
     readSkillsFromDir(globalSkillsDir(), "global"),
     readSkillsFromDir(projectSkillsDir(cwd), "project"),
+    pluginContentDirs(cwd, "skills").then((dirs) => Promise.all(dirs.map((d) => readSkillsFromDir(d, "global")))).then((l) => l.flat()),
   ]);
-  const byName = new Map(global.map((s) => [s.name, s]));
+  // Plugin-provided skills are the lowest precedence: the user's own global/project skill wins a name collision.
+  const byName = new Map(plugin.map((s) => [s.name, s]));
+  for (const skill of global) byName.set(skill.name, skill);
   for (const skill of project) byName.set(skill.name, skill);
   return [...byName.values()];
 }
