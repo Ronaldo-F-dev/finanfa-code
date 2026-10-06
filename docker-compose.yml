@@ -2,9 +2,11 @@ services:
   web-server:
     build: .
     ports:
-      - "4600:4600"
+      # Published on this machine only. Use "4600:4600" to expose it to your network — and set FINANFA_WEB_USERS first.
+      - "127.0.0.1:4600:4600"
     environment:
       - PORT=4600
+      - FINANFA_WEB_HOST=0.0.0.0
       - FINANFA_WEB_CWD=/workspace
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
       - FINANFA_PROVIDER=${FINANFA_PROVIDER:-}

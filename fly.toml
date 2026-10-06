@@ -22,6 +22,7 @@ primary_region = "iad"
 
 [env]
   PORT = "4600"
+  FINANFA_WEB_HOST = "0.0.0.0"
   FINANFA_WEB_CWD = "/workspace"
 
 # Project files an agent works on persist only for the container's own

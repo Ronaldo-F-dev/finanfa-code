@@ -17,6 +17,8 @@ COPY . .
 RUN npm run build:web-client
 
 ENV PORT=4600
+# The server listens on loopback by default; inside a container that would be unreachable from outside it.
+ENV FINANFA_WEB_HOST=0.0.0.0
 EXPOSE 4600
 
 CMD ["npm", "run", "start", "-w", "@finanfa/web-server"]
