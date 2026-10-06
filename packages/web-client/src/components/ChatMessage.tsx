@@ -1,6 +1,7 @@
 import { marked } from "marked";
 import type { TimelineItem, ToolRiskLevel } from "../hooks/useAgentSocket";
 import { useLanguage } from "../i18n/LanguageContext";
+import { useState } from "react";
 import { copyTextToClipboard } from "../clipboard";
 
 marked.setOptions({ breaks: true });
@@ -29,11 +30,21 @@ function handleMarkdownClick(e: React.MouseEvent<HTMLDivElement>, copyLabel: str
   });
 }
 
-export function ChatMessageView({ item, projectId }: { item: TimelineItem; projectId?: string }) {
+interface RestoreProps {
+  /** The server's restore point for this message — absent for messages it can't restore to (replayed from a saved session). */
+  restorePoint?: number;
+  /** False while the agent is working: a restore mid-turn is refused. */
+  canRestore: boolean;
+  onRestore?: (restorePoint: number) => void;
+}
+
+function UserMessage({ item, restorePoint, canRestore, onRestore }: { item: Extract<TimelineItem, { kind: "user" }> } & RestoreProps) {
   const { t } = useLanguage();
-  if (item.kind === "user") {
-    return (
-      <div className="row row-user">
+  const [confirming, setConfirming] = useState(false);
+  const restorable = restorePoint !== undefined && onRestore !== undefined;
+  return (
+    <div className="row row-user">
+      <div className="user-column">
         <div className="bubble bubble-user">
           {item.images && item.images.length > 0 && (
             <div className="bubble-images">
@@ -44,8 +55,40 @@ export function ChatMessageView({ item, projectId }: { item: TimelineItem; proje
           )}
           {item.text}
         </div>
+        {restorable && !confirming && (
+          <button className="restore-btn" disabled={!canRestore} title={canRestore ? t("rewind.title") : t("rewind.busy")} onClick={() => setConfirming(true)}>
+            ↺ {t("rewind.restore")}
+          </button>
+        )}
+        {restorable && confirming && (
+          <div className="restore-confirm" role="alertdialog" aria-label={t("rewind.restore")}>
+            <div>{t("rewind.confirm")}</div>
+            <div className="restore-confirm-actions">
+              <button className="btn" onClick={() => setConfirming(false)}>
+                {t("rewind.cancel")}
+              </button>
+              <button
+                className="btn btn-allow"
+                disabled={!canRestore}
+                onClick={() => {
+                  setConfirming(false);
+                  onRestore(restorePoint);
+                }}
+              >
+                {t("rewind.confirmRestore")}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
-    );
+    </div>
+  );
+}
+
+export function ChatMessageView({ item, projectId, restorePoint, canRestore = false, onRestore }: { item: TimelineItem; projectId?: string } & Partial<RestoreProps>) {
+  const { t } = useLanguage();
+  if (item.kind === "user") {
+    return <UserMessage item={item} restorePoint={restorePoint} canRestore={canRestore} onRestore={onRestore} />;
   }
 
   if (item.kind === "assistant") {
