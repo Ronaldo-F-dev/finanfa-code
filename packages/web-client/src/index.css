@@ -1312,6 +1312,65 @@ details.tool-call-details > summary.tool-call::marker {
   margin-bottom: 10px;
 }
 
+/* --- Approvals panel --- */
+.approvals-row {
+  align-items: flex-start;
+}
+.approvals-desc {
+  margin: 2px 0 0;
+}
+.approvals-warning {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--danger);
+}
+.approvals-forbidden {
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border: 1px solid var(--danger);
+  border-radius: 8px;
+  color: var(--danger);
+  font-size: 13px;
+}
+.approvals-switch {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  flex: none;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+  cursor: pointer;
+  padding: 0;
+  transition: background 0.15s, border-color 0.15s;
+}
+.approvals-switch-on {
+  background: var(--accent);
+  border-color: var(--accent);
+}
+.approvals-switch:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.approvals-switch:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.approvals-switch-knob {
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-muted);
+  transition: transform 0.15s, background 0.15s;
+}
+.approvals-switch-on .approvals-switch-knob {
+  transform: translateX(18px);
+  background: #fff;
+}
+
 /* --- Restore ("go back to before this message") --- */
 .user-column {
   display: flex;
