@@ -221,8 +221,17 @@ export async function validatePlugin(dir: string): Promise<string[]> {
   try {
     const parsed = JSON.parse(await readFile(path.join(dir, "hooks", "hooks.json"), "utf-8")) as { hooks?: Record<string, unknown> };
     contributes = true;
-    for (const event of Object.keys(parsed.hooks ?? {})) {
-      if (!(HOOK_EVENT_NAMES as readonly string[]).includes(event)) issues.push(`hooks/hooks.json: unknown event "${event}"`);
+    for (const [event, matchers] of Object.entries(parsed.hooks ?? {})) {
+      if (!(HOOK_EVENT_NAMES as readonly string[]).includes(event)) {
+        issues.push(`hooks/hooks.json: unknown event "${event}"`);
+        continue;
+      }
+      for (const handler of (Array.isArray(matchers) ? matchers : []).flatMap((m: { hooks?: unknown }) => (Array.isArray(m?.hooks) ? m.hooks : []))) {
+        const h = handler as { type?: unknown; command?: unknown; prompt?: unknown };
+        if (h.type === "command" ? typeof h.command !== "string" : h.type === "prompt" || h.type === "agent" ? typeof h.prompt !== "string" : true) {
+          issues.push(`hooks/hooks.json: a ${event} hook is invalid (type "command" needs a command; "prompt" and "agent" need a prompt)`);
+        }
+      }
     }
   } catch (err) {
     if ((err as NodeJS.ErrnoException)?.code !== "ENOENT") issues.push(`hooks/hooks.json: ${err instanceof Error ? err.message : String(err)}`);
