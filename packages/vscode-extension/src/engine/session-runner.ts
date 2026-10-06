@@ -448,6 +448,7 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
     async dispose() {
       for (const controller of session.activeAbortControllers) controller.abort();
       await session.persist().catch(() => {});
+      if (session.messages.length > 0) await permissions.runLifecycleHook("SessionEnd", session.cwd, session.id, { source: "dispose" });
       await mcp.disconnectAll().catch(() => {});
       await browser.close().catch(() => {});
     },
