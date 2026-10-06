@@ -10,6 +10,12 @@ export interface HookPayload {
   tool_input?: unknown;
   tool_response?: unknown;
   prompt?: string;
+  /** Stop/SubagentStop: true when a Stop hook already forced this turn to continue once — a hook should check this to avoid looping forever. */
+  stop_hook_active?: boolean;
+  /** SessionStart: "startup" for a fresh session, "resume" for a reopened one. SessionEnd/PreCompact: why it happened (e.g. "manual"/"auto"). */
+  source?: string;
+  /** Notification: the message being surfaced to the user. */
+  message?: string;
 }
 
 export interface HookOutcome {
