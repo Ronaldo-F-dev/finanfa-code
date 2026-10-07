@@ -19,6 +19,7 @@ import { withSpan } from "../observability/tracing.js";
 import { CALL_TOOL_NAME, SEARCH_TOOLS_NAME, DESCRIBE_TOOL_NAME, createToolSearchMetaTools, createCallToolMetaTool } from "./tool-search.js";
 import { LOCAL_MODEL_LEAN_EXCLUDED_TOOLS } from "./local-model-lean.js";
 import { MINIMAL_TOOL_SET } from "./effort-tiers.js";
+import { effortPromptFor, thinkingBudgetFor } from "./effort-level.js";
 import { OpenAiCompatibleProvider, listAvailableModels } from "../providers/openai-compatible-provider.js";
 
 /**
@@ -61,6 +62,7 @@ function systemPromptWithDate(session: AgentSession): string {
   }
   const style = session.outputStyle ? findOutputStyle(session.outputStyle) : undefined;
   if (style?.prompt) prompt += `\n\n${style.prompt}`;
+  prompt += effortPromptFor(session.effortLevel);
   return prompt;
 }
 
@@ -972,7 +974,9 @@ export async function runTurn(
           onTextDelta: (text) => ui.writeAssistantDelta(text),
           signal: streamController.signal,
           maxTokens: session.maxTokens,
-          thinkingBudgetTokens: session.thinkingBudgetTokens,
+          // An explicit effort level decides the thinking budget; without one the configured budget (if any) applies.
+          thinkingBudgetTokens: session.effortLevel ? thinkingBudgetFor(session.effortLevel) : session.thinkingBudgetTokens,
+          reasoningEffort: session.effortLevel,
           onThinkingDelta: (text) => ui.writeThinkingDelta?.(text),
           onToolCallStart: (call) => ui.writeToolCallStarting?.(call),
         });
