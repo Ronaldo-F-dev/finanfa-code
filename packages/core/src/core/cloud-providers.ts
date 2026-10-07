@@ -38,3 +38,8 @@ export function cloudProviderForBaseUrl(baseUrl: string | undefined): CloudProvi
 export function cloudApiKey(provider: CloudProvider, config: FinanfaConfig): string | undefined {
   return process.env[provider.envKey] || config[provider.configKey] || undefined;
 }
+
+/** The reasoning_effort value to send to this endpoint, or undefined where it is not known to be accepted (a server that does not know the field may reject the request). */
+export function reasoningEffortParam(baseUrl: string | undefined, level: "low" | "medium" | "high" | undefined): string | undefined {
+  return level && cloudProviderForBaseUrl(baseUrl)?.id === "gemini" ? level : undefined;
+}
