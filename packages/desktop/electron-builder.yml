@@ -40,6 +40,8 @@ nsis:
   deleteAppDataOnUninstall: false
 linux:
   icon: assets/icon.png
+  # Otherwise derived from the package name (@finanfa/desktop), which is not a valid file name.
+  executableName: finanfa
   category: Development
   maintainer: Finanfa <cohortedata@gotolearn.com>
   target:
