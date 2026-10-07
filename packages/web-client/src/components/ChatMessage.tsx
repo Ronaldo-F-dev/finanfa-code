@@ -5,8 +5,20 @@ import { toolLabel } from "../i18n/toolNames";
 import { stripEmDashes } from "../typography";
 import { useState } from "react";
 import { copyTextToClipboard } from "../clipboard";
+import { escapeHtml, highlightCode } from "../highlight";
 
 marked.setOptions({ breaks: true });
+// Fenced code is coloured with highlight.js; a language we do not bundle stays plain (see highlight.ts).
+marked.use({
+  renderer: {
+    code({ text, lang }) {
+      const label = (lang ?? "").trim().split(/\s+/)[0] ?? "";
+      const { html, language } = highlightCode(text, label);
+      const dataLang = label ? ` data-lang="${escapeHtml(label)}"` : "";
+      return `<pre${dataLang}><code class="hljs${language ? ` language-${language}` : ""}">${html}</code></pre>\n`;
+    },
+  },
+});
 
 const TOOL_RISK_ICON: Record<ToolRiskLevel, string> = { safe: "›", ask: "◆", dangerous: "▲" };
 
@@ -14,7 +26,7 @@ function withCopyButtons(html: string, copyLabel: string): string {
   // Injected as the <pre>'s first child, positioned via CSS (absolute,
   // top-right) rather than DOM order — simplest way to add a per-block
   // "Copy" affordance without a full markdown-renderer plugin.
-  return html.replace(/<pre>/g, `<pre><button type="button" class="code-copy-btn" data-code-copy>${copyLabel}</button>`);
+  return html.replace(/<pre( [^>]*)?>/g, (_match, attrs: string | undefined) => `<pre${attrs ?? ""}><button type="button" class="code-copy-btn" data-code-copy>${copyLabel}</button>`);
 }
 
 function handleMarkdownClick(e: React.MouseEvent<HTMLDivElement>, copyLabel: string, copiedLabel: string): void {
