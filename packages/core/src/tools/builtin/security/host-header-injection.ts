@@ -82,7 +82,7 @@ async function scanHostHeaderInjection(targetUrl: string): Promise<ScanOutput> {
     description: `An arbitrary \`Host\` header value is trusted and reflected in the ${where} instead of being validated against the server's configured hostname(s).`,
     evidence: `GET ${targetUrl} with Host: ${CANARY_HOST} -> value reflected in ${where}.`,
     impact:
-      "Content built from the Host header (password-reset links, canonical URLs, cache keys) can be poisoned with an attacker-chosen domain — commonly exploited to redirect password-reset emails to an attacker-controlled site, or, where a shared cache keys on the response without the Host header, to serve the poisoned response to other users entirely.",
+      "Content built from the Host header (password-reset links, canonical URLs, cache keys) can be poisoned with an attacker-chosen domain, commonly exploited to redirect password-reset emails to an attacker-controlled site, or, where a shared cache keys on the response without the Host header, to serve the poisoned response to other users entirely.",
     remediation:
       "Validate the Host header against an explicit allow-list of expected hostnames at the application or reverse-proxy layer, and build absolute URLs (password resets, canonical links) from a fixed, configured base URL rather than the incoming request's Host header.",
     affectedEndpoint: targetUrl,
@@ -99,7 +99,7 @@ export const securityScanHostHeaderInjectionTool: ToolDefinition<SecurityScanHos
   name: "security_scan_host_header_injection",
   description:
     "Security tool. Sends a request to a URL with the Host header replaced by a fixed canary value, and checks " +
-    "whether that value comes back unescaped in the response body or a Location header — confirming the server " +
+    "whether that value comes back unescaped in the response body or a Location header, confirming the server " +
     "trusts an arbitrary Host header instead of validating it (used to poison password-reset links, canonical " +
     "URLs, or cache keys). A single GET, no state change. A faithful port of the user's own cyberlens " +
     "scanner's host_header_injection check. " +

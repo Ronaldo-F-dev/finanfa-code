@@ -80,7 +80,7 @@ async function runWorkflowFromCurrentStep(deps: WorkflowToolDeps, state: Workflo
 }
 
 function formatWorkflowState(state: WorkflowState): string {
-  const lines = [`Workflow ${state.id} — ${state.status} (${state.currentStepIndex}/${state.steps.length} step(s) done):`, ""];
+  const lines = [`Workflow ${state.id}, ${state.status} (${state.currentStepIndex}/${state.steps.length} step(s) done):`, ""];
   for (const result of state.results) {
     lines.push(`[${result.isError ? "FAILED" : "done"}] ${result.name}:`);
     lines.push(result.report);
@@ -105,12 +105,12 @@ export function createWorkflowTools(deps: WorkflowToolDeps): ToolDefinition[] {
     name: "run_workflow",
     description:
       "Run a sequence of named steps, each as an independent sub-agent (same tools/permissions as you), " +
-      "checkpointed to disk after every step — a crash or interrupt resumes from the next step, not the " +
+      "checkpointed to disk after every step, a crash or interrupt resumes from the next step, not the " +
       "beginning. A step's prompt may reference {{previousResult}}, substituted with the prior step's full " +
       "report, for simple sequential data flow (e.g. plan -> implement -> test -> review). Pass `steps` to " +
       "start a new workflow, or `workflowId` alone (from a previous run_workflow/list_workflows call) to " +
       "resume one that's still 'running' or retry one that's 'failed' from where it left off. Stops (status " +
-      "'failed') if a step's own turn hits the loop guard (repetition/iteration cap) — does not attempt " +
+      "'failed') if a step's own turn hits the loop guard (repetition/iteration cap), does not attempt " +
       "conditional branching between steps; steps always run in the given order.",
     riskLevel: "safe", // each step's own tool calls are individually permission-checked as usual, same as `task`
     inputSchema: {
@@ -153,7 +153,7 @@ export function createWorkflowTools(deps: WorkflowToolDeps): ToolDefinition[] {
       const all = await listWorkflows(deps.cwd);
       const filtered = input.status ? all.filter((w) => w.status === input.status) : all;
       if (filtered.length === 0) return { content: "No workflows found.", isError: false };
-      const lines = filtered.map((w) => `${w.id}: ${w.status} (${w.currentStepIndex}/${w.steps.length}) — steps: ${w.steps.map((s) => s.name).join(" -> ")}`);
+      const lines = filtered.map((w) => `${w.id}: ${w.status} (${w.currentStepIndex}/${w.steps.length}), steps: ${w.steps.map((s) => s.name).join(" -> ")}`);
       return { content: lines.join("\n"), isError: false };
     },
   };

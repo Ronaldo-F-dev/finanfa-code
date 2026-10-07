@@ -19,8 +19,8 @@ export const exitPlanModeTool: ToolDefinition<ExitPlanModeInput> = {
   description:
     "Call this once you've finished researching and are ready to present your implementation plan for approval, " +
     "before making any changes. Only relevant while in plan mode: while active, every tool except read-only " +
-    "ones and this one is blocked automatically. Pass the full plan as markdown in `plan` — the user sees it and " +
-    "either approves (plan mode turns off, proceed with the implementation) or declines (plan mode stays on — " +
+    "ones and this one is blocked automatically. Pass the full plan as markdown in `plan`, the user sees it and " +
+    "either approves (plan mode turns off, proceed with the implementation) or declines (plan mode stays on, " +
     "revise the plan based on their feedback and call this again).",
   riskLevel: "ask",
   inputSchema: {
@@ -36,6 +36,6 @@ export const exitPlanModeTool: ToolDefinition<ExitPlanModeInput> = {
   },
   async handler(input, ctx) {
     ctx.exitPlanMode?.();
-    return { content: "Plan approved — plan mode is now off. Proceed with the implementation.", isError: false };
+    return { content: "Plan approved, plan mode is now off. Proceed with the implementation.", isError: false };
   },
 };

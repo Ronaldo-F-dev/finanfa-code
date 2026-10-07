@@ -252,7 +252,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
   private async handleNeedsApiKey(post: (msg: Record<string, unknown>) => void, modelId?: string): Promise<void> {
     const key = await vscode.window.showInputBox({
       title: modelId ? `Clé API Anthropic pour "${modelId}"` : "Clé API Anthropic",
-      prompt: "Collez votre clé API Anthropic (sk-ant-...) — elle sera enregistrée dans ~/.finanfa-code/config.json",
+      prompt: "Collez votre clé API Anthropic (sk-ant-...), elle sera enregistrée dans ~/.finanfa-code/config.json",
       password: true,
       ignoreFocusOut: true,
       placeHolder: "sk-ant-...",

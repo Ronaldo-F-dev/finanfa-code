@@ -53,14 +53,14 @@ export function createMydevopsTool(options: MydevopsToolOptions = {}): ToolDefin
   return {
     name: "run_mydevops",
     description:
-      "Run a subcommand of the user's own mydevops CLI (real, separately-maintained DevOps tool — see " +
+      "Run a subcommand of the user's own mydevops CLI (real, separately-maintained DevOps tool, see " +
       "`mydevops help`/`mydevops --help` for the full list): Terraform/Ansible provisioning, Docker/Kubernetes " +
       "deploys, CI/CD pipeline generation (GitHub Actions/GitLab CI/Jenkins/Azure Pipelines), GitOps/ArgoCD, " +
       "Prometheus/Grafana monitoring, centralized logging (Loki/ELK), secrets rotation, blue-green/canary " +
       "deploys, SSL/DNS/VPN management, and more. Pass the subcommand (e.g. 'doctor', 'deploy', 'k8s') and its " +
-      "own args as a plain array — never as one shell string. Some subcommands are read-only/informational " +
+      "own args as a plain array, never as one shell string. Some subcommands are read-only/informational " +
       "(whoami, info, doctor, inventory, score, stats) and some are genuinely irreversible (destroy, deploy, " +
-      "ssl, vpn) — treat the latter with the same caution as a real production infrastructure change, and " +
+      "ssl, vpn), treat the latter with the same caution as a real production infrastructure change, and " +
       "confirm with the user before running one. " +
       "IMPORTANT: this operates on the user's REAL infrastructure/servers/cloud accounts, not a sandbox.",
     riskLevel: "dangerous",
@@ -69,8 +69,8 @@ export function createMydevopsTool(options: MydevopsToolOptions = {}): ToolDefin
       properties: {
         subcommand: { type: "string", description: "mydevops subcommand, e.g. 'doctor', 'deploy', 'k8s', 'destroy'" },
         args: { type: "array", items: { type: "string" }, description: "Arguments/flags for the subcommand, e.g. ['--env', 'production']" },
-        cwd: { type: "string", description: "Working directory to run mydevops in, relative to the project root (defaults to the project root — mydevops reads its config from mydevops.yml in the current directory)" },
-        timeout_ms: { type: "number", description: "Timeout in milliseconds (default 300000 — infra operations can be slow)" },
+        cwd: { type: "string", description: "Working directory to run mydevops in, relative to the project root (defaults to the project root, mydevops reads its config from mydevops.yml in the current directory)" },
+        timeout_ms: { type: "number", description: "Timeout in milliseconds (default 300000, infra operations can be slow)" },
       },
       required: ["subcommand"],
     },

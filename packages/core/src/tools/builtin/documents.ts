@@ -248,7 +248,7 @@ interface MergeSpreadsheetsInput {
 export const mergeSpreadsheetsTool: ToolDefinition<MergeSpreadsheetsInput> = {
   name: "merge_spreadsheets",
   description:
-    "Combine multiple .xlsx files into one output file — each source file's worksheets are copied in as separate sheets (renamed on name collision). Copies cell values only, not styling or formulas.",
+    "Combine multiple .xlsx files into one output file, each source file's worksheets are copied in as separate sheets (renamed on name collision). Copies cell values only, not styling or formulas.",
   riskLevel: "ask",
   inputSchema: {
     type: "object",
@@ -336,7 +336,7 @@ interface WriteDocumentInput {
 export const writeDocumentTool: ToolDefinition<WriteDocumentInput> = {
   name: "write_document",
   description:
-    "Create a simple .docx file from plain-text paragraphs (each array entry becomes one paragraph). No rich formatting — bold, tables, and images aren't supported.",
+    "Create a simple .docx file from plain-text paragraphs (each array entry becomes one paragraph). No rich formatting, bold, tables, and images aren't supported.",
   riskLevel: "ask",
   inputSchema: {
     type: "object",
@@ -392,7 +392,7 @@ function applyDocxEdit(xml: string, oldString: string, newString: string, replac
     const fullText = runs.map((r) => decodeXmlEntities(r[2])).join("");
     if (fullText.includes(oldString)) {
       throw new Error(
-        "old_string not found within a single text run — Word often splits a sentence across multiple runs " +
+        "old_string not found within a single text run, Word often splits a sentence across multiple runs " +
           "(formatting boundaries, spell-check), which can't be safely edited this way. Try a shorter, more " +
           "specific fragment.",
       );
@@ -422,7 +422,7 @@ interface EditDocumentInput {
 export const editDocumentTool: ToolDefinition<EditDocumentInput> = {
   name: "edit_document",
   description:
-    "Best-effort exact-text replacement in an existing .docx file. Only works when old_string falls entirely within one XML text run — Word often splits a sentence across several runs (formatting, spell-check), in which case this fails with an explanation rather than silently missing the edit. Use read_document first to see the current text, and prefer short, distinctive fragments.",
+    "Best-effort exact-text replacement in an existing .docx file. Only works when old_string falls entirely within one XML text run, Word often splits a sentence across several runs (formatting, spell-check), in which case this fails with an explanation rather than silently missing the edit. Use read_document first to see the current text, and prefer short, distinctive fragments.",
   riskLevel: "ask",
   inputSchema: {
     type: "object",

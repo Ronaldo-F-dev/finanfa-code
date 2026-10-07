@@ -99,7 +99,7 @@ export function createGetSmartHomeStateTool(config: HomeAssistantConfig | undefi
     },
     describeCall: (input) => `get state of ${input.entity_id}`,
     async handler(input) {
-      if (!config) return { content: "Home Assistant is not configured — set HOME_ASSISTANT_BASE_URL/HOME_ASSISTANT_TOKEN as environment variables to enable get_smart_home_state.", isError: true };
+      if (!config) return { content: "Home Assistant is not configured, set HOME_ASSISTANT_BASE_URL/HOME_ASSISTANT_TOKEN as environment variables to enable get_smart_home_state.", isError: true };
       const result = await getHomeAssistantEntityState(config, input.entity_id);
       if (!result.ok) return { content: result.error, isError: true };
       return { content: `${input.entity_id}: ${result.state}${Object.keys(result.attributes).length > 0 ? ` (${JSON.stringify(result.attributes)})` : ""}`, isError: false };
@@ -119,7 +119,7 @@ export function createControlSmartHomeDeviceTool(config: HomeAssistantConfig | u
       "Turn a real Home Assistant device on/off, or toggle it (a light, switch, fan, lock, or anything else " +
       "Home Assistant controls), via the real Home Assistant REST API. Requires HOME_ASSISTANT_BASE_URL/" +
       "HOME_ASSISTANT_TOKEN as environment variables. " +
-      "IMPORTANT: this changes a real physical device's real state — confirm with the user before calling this " +
+      "IMPORTANT: this changes a real physical device's real state, confirm with the user before calling this " +
       "unless they've explicitly asked for this exact action.",
     riskLevel: "ask",
     inputSchema: {
@@ -133,7 +133,7 @@ export function createControlSmartHomeDeviceTool(config: HomeAssistantConfig | u
     describeCall: (input) => `${input.action} ${input.entity_id}`,
     async handler(input) {
       if (!config) {
-        return { content: "Home Assistant is not configured — set HOME_ASSISTANT_BASE_URL/HOME_ASSISTANT_TOKEN as environment variables to enable control_smart_home_device.", isError: true };
+        return { content: "Home Assistant is not configured, set HOME_ASSISTANT_BASE_URL/HOME_ASSISTANT_TOKEN as environment variables to enable control_smart_home_device.", isError: true };
       }
       const result = await callHomeAssistantService(config, input.entity_id, input.action);
       if (!result.ok) return { content: result.error, isError: true };

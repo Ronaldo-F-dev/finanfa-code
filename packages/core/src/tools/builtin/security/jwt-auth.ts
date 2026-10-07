@@ -198,7 +198,7 @@ export const securityScanJwtAuthTool: ToolDefinition<SecurityScanJwtAuthInput> =
     "Security tool. Checks a JWT already present on the target (a cookie or Authorization header, e.g. from a " +
     "login response) for alg:none acceptance or a signature that validates against a short common-weak-secret " +
     "wordlist. Also sends a burst of 15 login POST requests with an obviously fake email/password to a common " +
-    "auth path (/login, /api/login, ...) to check whether the endpoint rate-limits at all (HTTP 429) — never " +
+    "auth path (/login, /api/login, ...) to check whether the endpoint rate-limits at all (HTTP 429), never " +
     "attempts credential brute force against real accounts. A faithful port of the user's own cyberlens " +
     "scanner's jwt_auth check. " +
     "IMPORTANT: only scan a target the user owns or has explicit, documented authorization to test.",

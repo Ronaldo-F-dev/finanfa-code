@@ -71,8 +71,8 @@ export function createCreateTrelloCardTool(config: TrelloConfig | undefined, api
     description:
       "Create a real card on a Trello list, via the real Trello REST API. Requires TRELLO_API_KEY and " +
       "TRELLO_API_TOKEN to be configured as environment variables (from https://trello.com/app-key, plus a " +
-      "one-time token authorization) — this tool never takes credentials as input. " +
-      "IMPORTANT: this creates a real, visible card on a real board — confirm the list/content with the user " +
+      "one-time token authorization), this tool never takes credentials as input. " +
+      "IMPORTANT: this creates a real, visible card on a real board, confirm the list/content with the user " +
       "before calling this unless they've explicitly asked for this exact card.",
     riskLevel: "ask",
     inputSchema: {
@@ -86,7 +86,7 @@ export function createCreateTrelloCardTool(config: TrelloConfig | undefined, api
     },
     describeCall: (input) => `create Trello card "${input.name}" on list ${input.list_id}`,
     async handler(input) {
-      if (!config) return { content: "Trello is not configured — set TRELLO_API_KEY and TRELLO_API_TOKEN as environment variables to enable create_trello_card.", isError: true };
+      if (!config) return { content: "Trello is not configured, set TRELLO_API_KEY and TRELLO_API_TOKEN as environment variables to enable create_trello_card.", isError: true };
       const result = await createTrelloCard(config, { listId: input.list_id, name: input.name, desc: input.desc }, apiBaseUrl);
       if (!result.ok) return { content: result.error, isError: true };
       return { content: `Created Trello card "${input.name}"${result.url ? ` (${result.url})` : ""}.`, isError: false };

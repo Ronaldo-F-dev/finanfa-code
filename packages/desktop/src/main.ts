@@ -1,3 +1,4 @@
+import { splashHtml } from "./splash.js";
 import { app, BrowserWindow, dialog, globalShortcut, Menu, nativeImage, session, shell, type MenuItemConstructorOptions } from "electron";
 import { mkdirSync, realpathSync, statSync } from "node:fs";
 import os from "node:os";
@@ -22,7 +23,7 @@ let quitting = false;
 let workspaceInUse = "";
 
 function workspaceTitle(): string {
-  return workspaceInUse ? `Finanfa — ${displayPath(workspaceInUse, os.homedir())}` : "Finanfa";
+  return workspaceInUse ? `Finanfa, ${displayPath(workspaceInUse, os.homedir())}` : "Finanfa";
 }
 
 /** Leaves the app, stopping the server and everything it started first — app.exit() alone skips before-quit and would orphan it. */
@@ -59,10 +60,7 @@ async function resolveWorkspace(): Promise<string | undefined> {
   return fallback;
 }
 
-function splashHtml(text: string): string {
-  const html = `<!doctype html><meta charset="utf-8"><body style="margin:0;height:100vh;display:grid;place-items:center;background:#0f1115;color:#c9ced8;font:15px system-ui,sans-serif"><div style="text-align:center"><div style="font-size:42px;margin-bottom:12px">₣</div>${text}</div>`;
-  return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
-}
+const SPLASH_MIN_MS = 1400;
 
 function createWindow(): BrowserWindow {
   const b = settings.bounds ?? DEFAULT_BOUNDS;
@@ -222,7 +220,8 @@ async function start(): Promise<void> {
 
   buildMenu();
   mainWindow = createWindow();
-  void mainWindow.loadURL(splashHtml("Starting finanfa…"));
+  const splashShownAt = Date.now();
+  void mainWindow.loadURL(splashHtml(app.getLocale().startsWith("fr") ? "Démarrage de Finanfa…" : "Starting Finanfa…"));
 
   const token = generateToken();
   const spec = buildServerSpawn({
@@ -254,6 +253,8 @@ async function start(): Promise<void> {
   serverOrigin = `http://127.0.0.1:${server.port}`;
   log(`server ready at ${serverOrigin}`);
   injectToken(server.port, token);
+  // A fast start would flash the splash for a blink: keep it up long enough for its animation to be seen.
+  if (!SMOKE) await new Promise((resolve) => setTimeout(resolve, Math.max(0, SPLASH_MIN_MS - (Date.now() - splashShownAt))));
   await mainWindow.loadURL(serverOrigin);
   log("page loaded");
   if (SMOKE) return runSmoke(mainWindow, server.port);

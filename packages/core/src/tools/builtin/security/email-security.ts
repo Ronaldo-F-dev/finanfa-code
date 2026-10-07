@@ -135,7 +135,7 @@ async function checkDkim(domain: string, findings: Finding[], passed: PassedCont
     description: `None of ${COMMON_DKIM_SELECTORS.length} common DKIM selector names resolved for ${domain}.`,
     evidence: `Checked selectors: ${COMMON_DKIM_SELECTORS.join(", ")}`,
     impact:
-      "DKIM selectors are provider-specific and not enumerable via DNS, so this does not confirm DKIM is actually absent — only that it isn't using one of the commonly guessed selector names. If DKIM truly isn't configured, receiving servers cannot cryptographically verify message integrity/origin, weakening anti-spoofing defenses alongside SPF/DMARC.",
+      "DKIM selectors are provider-specific and not enumerable via DNS, so this does not confirm DKIM is actually absent, only that it isn't using one of the commonly guessed selector names. If DKIM truly isn't configured, receiving servers cannot cryptographically verify message integrity/origin, weakening anti-spoofing defenses alongside SPF/DMARC.",
     remediation: "Confirm with your email provider which DKIM selector(s) are in use and verify the corresponding DNS TXT record is published.",
     affectedEndpoint: domain,
   });
@@ -167,7 +167,7 @@ interface SecurityScanEmailSecurityInput {
 export const securityScanEmailSecurityTool: ToolDefinition<SecurityScanEmailSecurityInput> = {
   name: "security_scan_email_security",
   description:
-    "Security tool. Checks a domain's SPF, DMARC, and (best-effort) DKIM DNS records — anti-spoofing controls " +
+    "Security tool. Checks a domain's SPF, DMARC, and (best-effort) DKIM DNS records, anti-spoofing controls " +
     "that let receiving mail servers verify email claiming to be from this domain is legitimate. Flags a " +
     "missing SPF/DMARC record, an SPF record ending in '+all' (allows any sender), and a DMARC policy of " +
     "p=none (reporting only, no enforcement). A faithful port of the user's own cyberlens scanner's " +
@@ -176,7 +176,7 @@ export const securityScanEmailSecurityTool: ToolDefinition<SecurityScanEmailSecu
   riskLevel: "ask",
   inputSchema: {
     type: "object",
-    properties: { url: { type: "string", description: "Target URL, e.g. https://example.com — its hostname's email DNS records are checked" } },
+    properties: { url: { type: "string", description: "Target URL, e.g. https://example.com, its hostname's email DNS records are checked" } },
     required: ["url"],
   },
   describeCall: (input) => `check email security (SPF/DMARC/DKIM): ${input.url}`,

@@ -11,7 +11,7 @@ export const exportBundleTool: ToolDefinition<ExportBundleInput> = {
   name: "export_bundle",
   description:
     "Export this project's finanfa-code configuration (permission rules/hooks, MCP servers, memory, skills, " +
-    "commands, agent types, path-scoped instructions, finanfa.md/finanfa-design.md — everything under " +
+    "commands, agent types, path-scoped instructions, finanfa.md/finanfa-design.md, everything under " +
     "`.finanfa-code/` plus those two root files) as one shareable, versioned bundle (JSON), cryptographically " +
     "signed with this machine's own persistent identity (generated automatically the first time) so " +
     "install_bundle elsewhere can verify it hasn't been tampered with and recognize repeat installs from the " +
@@ -31,7 +31,7 @@ export const exportBundleTool: ToolDefinition<ExportBundleInput> = {
   async handler(input, ctx) {
     const bundle = await exportClawBundle(ctx.cwd, input);
     const fileCount = Object.keys(bundle.files).length;
-    if (fileCount === 0) return { content: "Nothing to bundle — this project has no .finanfa-code/ config yet.", isError: false };
+    if (fileCount === 0) return { content: "Nothing to bundle, this project has no .finanfa-code/ config yet.", isError: false };
     return { content: JSON.stringify(bundle, null, 2), isError: false };
   },
 };
@@ -43,16 +43,16 @@ interface InstallBundleInput {
 export const installBundleTool: ToolDefinition<InstallBundleInput> = {
   name: "install_bundle",
   description:
-    "Install a bundle (from export_bundle, or shared by someone else) into this project — writes its " +
+    "Install a bundle (from export_bundle, or shared by someone else) into this project, writes its " +
     "settings.json/memory/skills/commands/agents/instructions/mcp.json/finanfa.md files into `.finanfa-code/` " +
     "and the project root, OVERWRITING any existing file at the same path. The exact previous content of every " +
     "file it touches is snapshotted first (see list_bundle_snapshots/rollback_bundle) so this can be undone. " +
     "Verifies the bundle's signature (if it has one) and reports whether this machine has seen that publisher " +
     "before, plus whether this is a new/upgrade/downgrade/reinstall relative to whatever version of this " +
     "bundle name was last installed here. " +
-    "IMPORTANT: a bundle's settings.json can include PreToolUse/PostToolUse/UserPromptSubmit hooks — arbitrary " +
+    "IMPORTANT: a bundle's settings.json can include PreToolUse/PostToolUse/UserPromptSubmit hooks, arbitrary " +
     "shell commands that run automatically once this project is trusted. A valid signature only proves the " +
-    "bundle wasn't tampered with in transit, NOT that its content is safe — only install one from a source the " +
+    "bundle wasn't tampered with in transit, NOT that its content is safe, only install one from a source the " +
     "user actually trusts, and confirm with them first.",
   riskLevel: "dangerous",
   inputSchema: {
@@ -65,7 +65,7 @@ export const installBundleTool: ToolDefinition<InstallBundleInput> = {
       const bundle = JSON.parse(input.bundle_json) as ClawBundle;
       return `install bundle "${bundle.manifest.name}@${bundle.manifest.version}" (${Object.keys(bundle.files).length} file(s))`;
     } catch {
-      return "install bundle (unparseable JSON — will fail)";
+      return "install bundle (unparseable JSON, will fail)";
     }
   },
   async handler(input, ctx) {
@@ -76,14 +76,14 @@ export const installBundleTool: ToolDefinition<InstallBundleInput> = {
       return { content: `Not valid bundle JSON: ${err instanceof Error ? err.message : String(err)}`, isError: true };
     }
     if (!bundle.manifest?.name || !bundle.files) {
-      return { content: "Not a valid bundle — missing manifest.name or files.", isError: true };
+      return { content: "Not a valid bundle, missing manifest.name or files.", isError: true };
     }
     const result = await installClawBundle(ctx.cwd, bundle);
 
     const signatureNote = !result.signatureStatus.signed
-      ? "unsigned bundle — no publisher identity to verify"
+      ? "unsigned bundle, no publisher identity to verify"
       : !result.signatureStatus.valid
-        ? "SIGNATURE DID NOT VERIFY — this bundle's content doesn't match its own signature (tampered, or corrupted in transit)"
+        ? "SIGNATURE DID NOT VERIFY, this bundle's content doesn't match its own signature (tampered, or corrupted in transit)"
         : `signature verified (publisher ${result.signatureStatus.fingerprint}${result.signatureStatus.knownPublisher ? ", a publisher this machine has seen before" : ", first time seeing this publisher"})`;
     const versionNote =
       result.versionChange === "new"
@@ -96,8 +96,8 @@ export const installBundleTool: ToolDefinition<InstallBundleInput> = {
 
     return {
       content:
-        `Installed "${bundle.manifest.name}@${bundle.manifest.version}" — ${result.filesWritten.length} file(s) written (${versionNote}). ${signatureNote}. ` +
-        `Snapshot "${result.snapshotId}" saved beforehand — use rollback_bundle to undo.`,
+        `Installed "${bundle.manifest.name}@${bundle.manifest.version}", ${result.filesWritten.length} file(s) written (${versionNote}). ${signatureNote}. ` +
+        `Snapshot "${result.snapshotId}" saved beforehand, use rollback_bundle to undo.`,
       isError: false,
     };
   },
@@ -111,7 +111,7 @@ export const listBundleSnapshotsTool: ToolDefinition<Record<string, never>> = {
   async handler(_input, ctx) {
     const snapshots = await listClawSnapshots(ctx.cwd);
     if (snapshots.length === 0) return { content: "No bundle install snapshots recorded for this project.", isError: false };
-    return { content: snapshots.map((s) => `${s.id} — ${s.createdAt} — ${s.reason}`).join("\n"), isError: false };
+    return { content: snapshots.map((s) => `${s.id}, ${s.createdAt}, ${s.reason}`).join("\n"), isError: false };
   },
 };
 
@@ -131,7 +131,7 @@ export const rollbackBundleTool: ToolDefinition<RollbackBundleInput> = {
   describeCall: (input) => `rollback bundle snapshot ${input.snapshot_id}`,
   async handler(input, ctx) {
     if (!(await clawSnapshotExists(ctx.cwd, input.snapshot_id))) {
-      return { content: `No bundle snapshot "${input.snapshot_id}" for this project — see list_bundle_snapshots.`, isError: true };
+      return { content: `No bundle snapshot "${input.snapshot_id}" for this project, see list_bundle_snapshots.`, isError: true };
     }
     await rollbackClawSnapshot(ctx.cwd, input.snapshot_id);
     return { content: `Rolled back to before snapshot "${input.snapshot_id}".`, isError: false };

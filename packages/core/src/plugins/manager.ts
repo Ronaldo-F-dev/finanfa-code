@@ -346,7 +346,7 @@ export async function removeMarketplace(name: string): Promise<boolean> {
 export async function updateMarketplace(name: string): Promise<Marketplace> {
   const state = await loadState();
   const record = state.marketplaces[name];
-  if (!record) throw new Error(`no marketplace named "${name}" — see /plugin marketplace list`);
+  if (!record) throw new Error(`no marketplace named "${name}", see /plugin marketplace list`);
   if (looksLikeGitUrl(record.source)) return addMarketplace(record.source);
   return readMarketplaceFile(record.dir);
 }
@@ -386,12 +386,12 @@ export async function installPlugin(spec: string): Promise<PluginInfo> {
       // unreadable marketplace — skip it
     }
   }
-  if (candidates.length === 0) throw new Error(`no plugin "${pluginName}"${marketName ? ` in marketplace "${marketName}"` : " in any registered marketplace"} — see /plugin search`);
-  if (candidates.length > 1) throw new Error(`"${pluginName}" is offered by several marketplaces — use ${pluginName}@<marketplace>`);
+  if (candidates.length === 0) throw new Error(`no plugin "${pluginName}"${marketName ? ` in marketplace "${marketName}"` : " in any registered marketplace"}, see /plugin search`);
+  if (candidates.length > 1) throw new Error(`"${pluginName}" is offered by several marketplaces, use ${pluginName}@<marketplace>`);
 
   const { record, entry } = candidates[0];
   const dest = path.join(globalPluginsDir(), pluginName);
-  if (await isDirectory(dest)) throw new Error(`"${pluginName}" is already installed — /plugin remove ${pluginName} first to reinstall`);
+  if (await isDirectory(dest)) throw new Error(`"${pluginName}" is already installed, /plugin remove ${pluginName} first to reinstall`);
 
   await mkdir(globalPluginsDir(), { recursive: true });
   const source = entry.source;

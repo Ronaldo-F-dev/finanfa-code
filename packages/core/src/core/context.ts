@@ -49,7 +49,7 @@ export function compactForProvider(
       results: m.results.map((r) =>
         r.content.length <= MIN_RESULT_LENGTH_TO_COMPACT
           ? r
-          : { ...r, content: `[earlier tool output omitted to save context — ${r.content.length} chars]` },
+          : { ...r, content: `[earlier tool output omitted to save context, ${r.content.length} chars]` },
       ),
     };
   });

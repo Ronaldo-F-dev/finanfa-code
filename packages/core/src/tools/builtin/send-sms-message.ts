@@ -84,8 +84,8 @@ export function createSendSmsMessageTool(config: SmsConfig | undefined, apiBaseU
     name: "send_sms_message",
     description:
       "Send a real SMS via Twilio's Programmable Messaging API. Requires TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, " +
-      "and TWILIO_FROM_NUMBER to be configured as environment variables — this tool never takes credentials as " +
-      "input. IMPORTANT: this sends a real, billed text message to a real phone number — confirm the " +
+      "and TWILIO_FROM_NUMBER to be configured as environment variables, this tool never takes credentials as " +
+      "input. IMPORTANT: this sends a real, billed text message to a real phone number, confirm the " +
       "number/content with the user before calling this unless they've explicitly asked for this exact message.",
     riskLevel: "ask",
     inputSchema: {
@@ -100,7 +100,7 @@ export function createSendSmsMessageTool(config: SmsConfig | undefined, apiBaseU
     async handler(input) {
       if (!config) {
         return {
-          content: "SMS is not configured — set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER as environment variables to enable send_sms_message.",
+          content: "SMS is not configured, set TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, and TWILIO_FROM_NUMBER as environment variables to enable send_sms_message.",
           isError: true,
         };
       }

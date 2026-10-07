@@ -9,7 +9,7 @@ interface ViewImageInput {
 export const viewImageTool: ToolDefinition<ViewImageInput> = {
   name: "view_image",
   description:
-    "View an image file (PNG, JPEG, GIF, WebP) from the project — a screenshot, a mockup, a diagram, or an " +
+    "View an image file (PNG, JPEG, GIF, WebP) from the project, a screenshot, a mockup, a diagram, or an " +
     "image the user referenced. Shows you the actual image, not just its path.",
   riskLevel: "safe",
   inputSchema: {

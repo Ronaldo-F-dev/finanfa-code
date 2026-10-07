@@ -81,10 +81,10 @@ export function createSendTeamsMessageTool(config: TeamsConfig | undefined, toke
     name: "send_teams_message",
     description:
       "Send a real message to a Microsoft Teams conversation via the Bot Framework Connector API. Requires " +
-      "MICROSOFT_APP_ID and MICROSOFT_APP_PASSWORD as environment variables — this tool never takes credentials " +
-      "as input. serviceUrl/conversationId identify WHERE to send (both come from an inbound Teams activity — " +
+      "MICROSOFT_APP_ID and MICROSOFT_APP_PASSWORD as environment variables, this tool never takes credentials " +
+      "as input. serviceUrl/conversationId identify WHERE to send (both come from an inbound Teams activity, " +
       "there's no fixed API host or chat id the way Telegram/LINE have). IMPORTANT: this posts a real, visible " +
-      "message — confirm the conversation/content with the user before calling this unless they've explicitly " +
+      "message, confirm the conversation/content with the user before calling this unless they've explicitly " +
       "asked for this exact message.",
     riskLevel: "ask",
     inputSchema: {
@@ -93,14 +93,14 @@ export function createSendTeamsMessageTool(config: TeamsConfig | undefined, toke
         serviceUrl: { type: "string", description: "The Bot Framework serviceUrl this conversation is on (from an inbound activity)" },
         conversationId: { type: "string", description: "The conversation id to send to (from an inbound activity)" },
         text: { type: "string", description: "Message text" },
-        replyToActivityId: { type: "string", description: "Optional — reply to this specific activity id instead of posting a new one" },
+        replyToActivityId: { type: "string", description: "Optional, reply to this specific activity id instead of posting a new one" },
       },
       required: ["serviceUrl", "conversationId", "text"],
     },
     describeCall: (input) => `send Teams message to conversation ${input.conversationId}: "${input.text.slice(0, 60)}"`,
     async handler(input) {
       if (!config) {
-        return { content: "Teams is not configured — set MICROSOFT_APP_ID and MICROSOFT_APP_PASSWORD as environment variables to enable send_teams_message.", isError: true };
+        return { content: "Teams is not configured, set MICROSOFT_APP_ID and MICROSOFT_APP_PASSWORD as environment variables to enable send_teams_message.", isError: true };
       }
       const result = await postTeamsMessage(config, input, tokenUrl);
       if (!result.ok) return { content: result.error, isError: true };

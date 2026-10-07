@@ -45,7 +45,7 @@ async function toHtml(sourcePath: string, buffer: Buffer): Promise<string> {
     const result = await mammoth.convertToHtml({ buffer });
     return wrapHtml(result.value);
   }
-  throw new Error(`Unsupported source format "${ext}" — convert_to_pdf handles .md/.markdown, .html/.htm, and .docx.`);
+  throw new Error(`Unsupported source format "${ext}", convert_to_pdf handles .md/.markdown, .html/.htm, and .docx.`);
 }
 
 function defaultOutputPath(sourcePath: string): string {

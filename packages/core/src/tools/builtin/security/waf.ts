@@ -101,7 +101,7 @@ async function scanWaf(target: string): Promise<ScanOutput> {
     description: `A WAF/CDN security layer appears to be in front of the target, based on ${signals.join(" and ")}.`,
     evidence: evidenceParts.join("; "),
     impact:
-      "Informational: a WAF may absorb or alter some real-world exploit attempts, but should never be relied on as the only mitigation for findings elsewhere in this report — WAF rules are frequently bypassable, and this scan's own findings were not blocked by it.",
+      "Informational: a WAF may absorb or alter some real-world exploit attempts, but should never be relied on as the only mitigation for findings elsewhere in this report, WAF rules are frequently bypassable, and this scan's own findings were not blocked by it.",
     remediation: "No action required; use this as context for prioritizing the other findings in this report, not as a substitute for fixing them.",
     affectedEndpoint: target,
   });
@@ -118,9 +118,9 @@ export const securityScanWafTool: ToolDefinition<SecurityScanWafInput> = {
   description:
     "Security tool. Detect whether a WAF/CDN security layer (Cloudflare, Akamai, Sucuri, Imperva, AWS " +
     "CloudFront, Fastly, F5 BIG-IP) sits in front of a target, via response header/cookie signatures plus a " +
-    "behavioral probe (does a malicious-looking request get blocked differently than a benign one?) — a " +
+    "behavioral probe (does a malicious-looking request get blocked differently than a benign one?), a " +
     "faithful port of the user's own cyberlens scanner's WAF check. Informational only: a WAF's presence isn't " +
-    "itself a vulnerability, and its absence isn't either — use it as context for other findings. " +
+    "itself a vulnerability, and its absence isn't either, use it as context for other findings. " +
     "IMPORTANT: only scan a target the user owns or has explicit, documented authorization to test.",
   riskLevel: "ask",
   inputSchema: {

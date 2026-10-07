@@ -51,7 +51,7 @@ async function testParam(target: URL, paramName: string): Promise<Finding | unde
     description: `Setting '${paramName}' to the cloud metadata service address (${METADATA_PAYLOAD}) causes the server to fetch it and return its contents.`,
     evidence: `GET ${url.toString()} -> response body contains cloud instance metadata content.`,
     impact:
-      "On a cloud-hosted target, SSRF against the metadata endpoint routinely exposes the instance's IAM credentials, enabling full takeover of the cloud account's resources — one of the highest-impact web vulnerability classes in cloud environments.",
+      "On a cloud-hosted target, SSRF against the metadata endpoint routinely exposes the instance's IAM credentials, enabling full takeover of the cloud account's resources, one of the highest-impact web vulnerability classes in cloud environments.",
     remediation:
       "Validate and allow-list destination hosts for any server-side outbound request derived from user input. Block requests to link-local/internal address ranges (169.254.0.0/16, 127.0.0.0/8, 10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16) at the network layer as defense in depth.",
     affectedEndpoint: target.toString(),
@@ -96,7 +96,7 @@ export const securityScanSsrfTool: ToolDefinition<SecurityScanSsrfInput> = {
   name: "security_scan_ssrf",
   description:
     "Security tool. Tests URL-accepting query parameters (named like url/callback/webhook/redirect/src/image/" +
-    "proxy/fetch, or whose value is already a URL) for Server-Side Request Forgery — injects the cloud " +
+    "proxy/fetch, or whose value is already a URL) for Server-Side Request Forgery, injects the cloud " +
     "metadata service address (169.254.169.254) and only flags a parameter when the response body actually " +
     "discloses real instance metadata content (ami-id, IAM credentials path, ...), never a generic status/" +
     "timing heuristic. GET-only, safe to run. A port of the user's own cyberlens scanner's ssrf check, scoped " +

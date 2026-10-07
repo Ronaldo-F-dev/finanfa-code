@@ -38,11 +38,11 @@ export function createDelegateToClaudeCodeTool(options: DelegateAgentToolOptions
     name: "delegate_to_claude_code",
     description:
       "Delegate a real coding task to the user's own already-installed Claude Code CLI (`claude`), running as " +
-      "a separate agent in a given directory — not a sub-agent of this session, a genuinely different tool with " +
+      "a separate agent in a given directory, not a sub-agent of this session, a genuinely different tool with " +
       "its own model/context. Pass real CLI args (e.g. ['-p', 'fix the failing test in foo.test.ts', " +
-      "'--output-format', 'text'] for its non-interactive print mode) — check `claude --help` first if unsure " +
+      "'--output-format', 'text'] for its non-interactive print mode), check `claude --help` first if unsure " +
       "of current flags, since they can change across versions. " +
-      "IMPORTANT: this runs a real, separate coding agent with its own tool access in the given directory — " +
+      "IMPORTANT: this runs a real, separate coding agent with its own tool access in the given directory, " +
       "confirm what it's about to do with the user before calling this unless they've explicitly asked for it.",
     riskLevel: "dangerous",
     inputSchema: {
@@ -50,7 +50,7 @@ export function createDelegateToClaudeCodeTool(options: DelegateAgentToolOptions
       properties: {
         args: { type: "array", items: { type: "string" }, description: "Real argv for the claude CLI, e.g. ['-p', '<task>', '--output-format', 'text']" },
         cwd: { type: "string", description: "Working directory to run claude in, relative to the project root (defaults to the project root)" },
-        timeout_ms: { type: "number", description: "Timeout in milliseconds (default 600000 — a real delegated task can run long)" },
+        timeout_ms: { type: "number", description: "Timeout in milliseconds (default 600000, a real delegated task can run long)" },
       },
       required: ["args"],
     },
@@ -67,11 +67,11 @@ export function createDelegateToCodexTool(options: DelegateAgentToolOptions = {}
     name: "delegate_to_codex",
     description:
       "Delegate a real coding task to the user's own already-installed OpenAI Codex CLI (`codex`), running as " +
-      "a separate agent in a given directory — not a sub-agent of this session, a genuinely different tool with " +
+      "a separate agent in a given directory, not a sub-agent of this session, a genuinely different tool with " +
       "its own model/context. Pass real CLI args (e.g. ['exec', 'fix the failing test in foo.test.ts'] for its " +
-      "non-interactive exec mode) — check `codex --help` first if unsure of current flags, since they can " +
+      "non-interactive exec mode), check `codex --help` first if unsure of current flags, since they can " +
       "change across versions. " +
-      "IMPORTANT: this runs a real, separate coding agent with its own tool access in the given directory — " +
+      "IMPORTANT: this runs a real, separate coding agent with its own tool access in the given directory, " +
       "confirm what it's about to do with the user before calling this unless they've explicitly asked for it.",
     riskLevel: "dangerous",
     inputSchema: {
@@ -79,7 +79,7 @@ export function createDelegateToCodexTool(options: DelegateAgentToolOptions = {}
       properties: {
         args: { type: "array", items: { type: "string" }, description: "Real argv for the codex CLI, e.g. ['exec', '<task>']" },
         cwd: { type: "string", description: "Working directory to run codex in, relative to the project root (defaults to the project root)" },
-        timeout_ms: { type: "number", description: "Timeout in milliseconds (default 600000 — a real delegated task can run long)" },
+        timeout_ms: { type: "number", description: "Timeout in milliseconds (default 600000, a real delegated task can run long)" },
       },
       required: ["args"],
     },

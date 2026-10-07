@@ -73,7 +73,7 @@ async function duckDuckGoSearch(query: string, count: number): Promise<string> {
 export const webSearchTool: ToolDefinition<WebSearchInput> = {
   name: "web_search",
   description:
-    "Search the web for current information (docs, news, package versions, error messages, etc.) via DuckDuckGo — free, no API key required.",
+    "Search the web for current information (docs, news, package versions, error messages, etc.) via DuckDuckGo, free, no API key required.",
   riskLevel: "safe",
   inputSchema: {
     type: "object",

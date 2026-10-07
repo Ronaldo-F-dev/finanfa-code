@@ -83,7 +83,7 @@ export const readTracesTool: ToolDefinition<ReadTracesInput> = {
     try {
       raw = await readFile(traceFilePath(date), "utf-8");
     } catch {
-      return { content: "No trace file for that date — no spans have been recorded yet.", isError: false };
+      return { content: "No trace file for that date, no spans have been recorded yet.", isError: false };
     }
 
     if (input.raw) return { content: raw, isError: false };

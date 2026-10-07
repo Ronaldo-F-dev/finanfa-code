@@ -16,10 +16,10 @@ export function createPublishBundleToRegistryTool(config: ClawsRegistryConfig, a
   return {
     name: "publish_bundle_to_registry",
     description:
-      "Publish a bundle (from export_bundle) to a real, hosted Claws registry — any GitHub repository the " +
+      "Publish a bundle (from export_bundle) to a real, hosted Claws registry, any GitHub repository the " +
       "user (or their org) already controls, public for open sharing or private for an internal one. Commits the " +
       "bundle to `bundles/<name>/<version>.json` in that repo via GitHub's real Contents API. Refuses to overwrite " +
-      "an already-published version — bump the bundle's own version to publish an update. Requires " +
+      "an already-published version, bump the bundle's own version to publish an update. Requires " +
       "CLAWS_REGISTRY_TOKEN (a GitHub personal access token with write access to the target repo) to be set.",
     riskLevel: "ask",
     inputSchema: {
@@ -37,7 +37,7 @@ export function createPublishBundleToRegistryTool(config: ClawsRegistryConfig, a
         const bundle = JSON.parse(input.bundle_json) as ClawBundle;
         return `publish bundle "${bundle.manifest.name}@${bundle.manifest.version}" to ${input.owner}/${input.repo}`;
       } catch {
-        return `publish bundle to ${input.owner}/${input.repo} (unparseable JSON — will fail)`;
+        return `publish bundle to ${input.owner}/${input.repo} (unparseable JSON, will fail)`;
       }
     },
     async handler(input) {
@@ -48,7 +48,7 @@ export function createPublishBundleToRegistryTool(config: ClawsRegistryConfig, a
         return { content: `Not valid bundle JSON: ${err instanceof Error ? err.message : String(err)}`, isError: true };
       }
       if (!bundle.manifest?.name || !bundle.manifest?.version || !bundle.files) {
-        return { content: "Not a valid bundle — missing manifest.name/version or files.", isError: true };
+        return { content: "Not a valid bundle, missing manifest.name/version or files.", isError: true };
       }
       const result = await publishBundleToRegistry(config, { owner: input.owner, repo: input.repo, branch: input.branch }, bundle, apiBaseUrl);
       if (!result.ok) return { content: result.error, isError: true };
@@ -60,7 +60,7 @@ export function createPublishBundleToRegistryTool(config: ClawsRegistryConfig, a
 export function createListRegistryBundlesTool(config: ClawsRegistryConfig, apiBaseUrl?: string): ToolDefinition<RegistryTargetInput> {
   return {
     name: "list_registry_bundles",
-    description: "List every bundle name published to a Claws registry (a GitHub repo — see publish_bundle_to_registry). Works read-only, no token required for a public repo.",
+    description: "List every bundle name published to a Claws registry (a GitHub repo, see publish_bundle_to_registry). Works read-only, no token required for a public repo.",
     riskLevel: "safe",
     inputSchema: {
       type: "object",
@@ -118,13 +118,13 @@ export function createInstallBundleFromRegistryTool(config: ClawsRegistryConfig,
   return {
     name: "install_bundle_from_registry",
     description:
-      "Fetch a bundle from a Claws registry (a GitHub repo — see publish_bundle_to_registry) and install it into " +
-      "this project, same as install_bundle — writes its files into `.finanfa-code/` and the project root, " +
+      "Fetch a bundle from a Claws registry (a GitHub repo, see publish_bundle_to_registry) and install it into " +
+      "this project, same as install_bundle, writes its files into `.finanfa-code/` and the project root, " +
       "OVERWRITING any existing file at the same path, snapshotted first so it can be undone (see " +
       "list_bundle_snapshots/rollback_bundle). Omit `version` for the highest published version. " +
-      "IMPORTANT: a bundle's settings.json can include hooks — arbitrary shell commands that run automatically " +
+      "IMPORTANT: a bundle's settings.json can include hooks, arbitrary shell commands that run automatically " +
       "once this project is trusted. A valid signature only proves the bundle wasn't tampered with in transit, " +
-      "NOT that its content is safe — only install one from a source the user actually trusts, and confirm with " +
+      "NOT that its content is safe, only install one from a source the user actually trusts, and confirm with " +
       "them first.",
     riskLevel: "dangerous",
     inputSchema: {
@@ -146,9 +146,9 @@ export function createInstallBundleFromRegistryTool(config: ClawsRegistryConfig,
 
       const result = await installClawBundle(ctx.cwd, bundle);
       const signatureNote = !result.signatureStatus.signed
-        ? "unsigned bundle — no publisher identity to verify"
+        ? "unsigned bundle, no publisher identity to verify"
         : !result.signatureStatus.valid
-          ? "SIGNATURE DID NOT VERIFY — this bundle's content doesn't match its own signature (tampered, or corrupted in transit)"
+          ? "SIGNATURE DID NOT VERIFY, this bundle's content doesn't match its own signature (tampered, or corrupted in transit)"
           : `signature verified (publisher ${result.signatureStatus.fingerprint}${result.signatureStatus.knownPublisher ? ", a publisher this machine has seen before" : ", first time seeing this publisher"})`;
       const versionNote =
         result.versionChange === "new"
@@ -161,8 +161,8 @@ export function createInstallBundleFromRegistryTool(config: ClawsRegistryConfig,
 
       return {
         content:
-          `Installed "${bundle.manifest.name}@${bundle.manifest.version}" from ${input.owner}/${input.repo} — ${result.filesWritten.length} file(s) written (${versionNote}). ${signatureNote}. ` +
-          `Snapshot "${result.snapshotId}" saved beforehand — use rollback_bundle to undo.`,
+          `Installed "${bundle.manifest.name}@${bundle.manifest.version}" from ${input.owner}/${input.repo}, ${result.filesWritten.length} file(s) written (${versionNote}). ${signatureNote}. ` +
+          `Snapshot "${result.snapshotId}" saved beforehand, use rollback_bundle to undo.`,
         isError: false,
       };
     },

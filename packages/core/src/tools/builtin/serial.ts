@@ -22,7 +22,7 @@ export function createSerialTools(manager: SerialManager): ToolDefinition[] {
       try {
         const ports = await SerialManager.listPorts();
         if (ports.length === 0) return { content: "No serial ports found.", isError: false };
-        const lines = ports.map((p) => `${p.path}${p.manufacturer ? ` — ${p.manufacturer}` : ""}${p.vendorId ? ` (vid=${p.vendorId}${p.productId ? ` pid=${p.productId}` : ""})` : ""}${p.serialNumber ? ` serial=${p.serialNumber}` : ""}`);
+        const lines = ports.map((p) => `${p.path}${p.manufacturer ? `, ${p.manufacturer}` : ""}${p.vendorId ? ` (vid=${p.vendorId}${p.productId ? ` pid=${p.productId}` : ""})` : ""}${p.serialNumber ? ` serial=${p.serialNumber}` : ""}`);
         return { content: lines.join("\n"), isError: false };
       } catch (err) {
         return { content: `Failed to list serial ports: ${err instanceof Error ? err.message : String(err)}`, isError: true };
@@ -62,7 +62,7 @@ export function createSerialTools(manager: SerialManager): ToolDefinition[] {
     description:
       "Write data to the currently open serial port (see serial_open). Set appendNewline (default true) to " +
       "false for protocols/devices that don't expect a trailing newline after each write. " +
-      "IMPORTANT: this sends real data to real, possibly physical hardware — confirm with the user before " +
+      "IMPORTANT: this sends real data to real, possibly physical hardware, confirm with the user before " +
       "sending anything that could trigger a real action (e.g. a relay, motor, or actuator command).",
     riskLevel: "ask",
     inputSchema: {

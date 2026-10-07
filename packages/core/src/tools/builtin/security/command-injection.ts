@@ -110,7 +110,7 @@ async function scanCommandInjection(targetUrl: string): Promise<ScanOutput> {
   }
 
   if (candidates.length === 0) {
-    passed.push({ label: "No injectable parameters found", detail: "No query parameters were found on the given URL (POST forms aren't tested — no form discovery in this project)." });
+    passed.push({ label: "No injectable parameters found", detail: "No query parameters were found on the given URL (POST forms aren't tested, no form discovery in this project)." });
   } else if (findings.length === 0) {
     passed.push({
       label: "No OS command injection detected",
@@ -128,13 +128,13 @@ interface SecurityScanCommandInjectionInput {
 export const securityScanCommandInjectionTool: ToolDefinition<SecurityScanCommandInjectionInput> = {
   name: "security_scan_command_injection",
   description:
-    "Security tool. Tests a URL's query parameters for OS command injection — injects shell metacharacter " +
+    "Security tool. Tests a URL's query parameters for OS command injection, injects shell metacharacter " +
     "payloads that either run a recognizable command (id, checked via its distinctive uid=...gid=... output) " +
     "or break shell syntax into a recognizable shell error. Sends real shell-injection payloads to a live " +
-    "target. GET-only. Does not attempt time-based blind detection (; sleep 5) — genuinely blind injection " +
+    "target. GET-only. Does not attempt time-based blind detection (; sleep 5), genuinely blind injection " +
     "with no reflected output is an honest limitation. A port of the user's own cyberlens scanner's " +
     "command_injection check. " +
-    "IMPORTANT: only test a target you own or have explicit, documented authorization to test — confirmed " +
+    "IMPORTANT: only test a target you own or have explicit, documented authorization to test, confirmed " +
     "command injection means arbitrary code execution on the target.",
   riskLevel: "dangerous",
   inputSchema: {

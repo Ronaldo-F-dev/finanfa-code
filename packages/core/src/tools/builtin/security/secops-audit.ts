@@ -97,7 +97,7 @@ function auditSshdConfig(directives: Map<string, string>): ScanOutput {
         title: "SSHv1 Protocol Enabled",
         cvssVector: "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
         cwe: "CWE-327",
-        description: `sshd_config sets 'Protocol ${protocol}', which includes SSHv1 — a badly broken protocol with known plaintext-recovery and MITM attacks.`,
+        description: `sshd_config sets 'Protocol ${protocol}', which includes SSHv1, a badly broken protocol with known plaintext-recovery and MITM attacks.`,
         evidence: `Protocol ${protocol}`,
         impact: "SSHv1 sessions can be decrypted or hijacked by an on-path attacker; this is not a theoretical weakness.",
         remediation: "Remove the Protocol directive entirely (modern OpenSSH only speaks SSHv2) or set 'Protocol 2' explicitly.",
@@ -120,7 +120,7 @@ function auditSshdConfig(directives: Map<string, string>): ScanOutput {
       }),
     );
   } else if (permitRootLogin === "no" || permitRootLogin === "prohibit-password" || permitRootLogin === "without-password") {
-    passed.push({ label: "PermitRootLogin", detail: `Set to '${permitRootLogin}' — direct root password login is not permitted.` });
+    passed.push({ label: "PermitRootLogin", detail: `Set to '${permitRootLogin}', direct root password login is not permitted.` });
   } else if (!permitRootLogin) {
     findings.push(
       finding(5.3, {
@@ -128,7 +128,7 @@ function auditSshdConfig(directives: Map<string, string>): ScanOutput {
         title: "PermitRootLogin Not Explicitly Set",
         cvssVector: "AV:N/AC:L/PR:N/UI:N/S:U/C:L/I:L/A:N",
         cwe: "CWE-284",
-        description: "sshd_config has no explicit PermitRootLogin directive. The compiled-in OpenSSH default is 'prohibit-password' on recent versions but was 'yes' on older ones — don't rely on the default.",
+        description: "sshd_config has no explicit PermitRootLogin directive. The compiled-in OpenSSH default is 'prohibit-password' on recent versions but was 'yes' on older ones, don't rely on the default.",
         evidence: "No PermitRootLogin directive found",
         impact: "Behavior depends on the exact sshd version/build, which is fragile and easy to get wrong across upgrades.",
         remediation: "Set PermitRootLogin explicitly to 'no' or 'prohibit-password'.",
@@ -158,7 +158,7 @@ function auditSshdConfig(directives: Map<string, string>): ScanOutput {
       }),
     );
   } else {
-    passed.push({ label: "PasswordAuthentication", detail: "Set to 'no' — password-based login is disabled." });
+    passed.push({ label: "PasswordAuthentication", detail: "Set to 'no', password-based login is disabled." });
   }
 
   const permitEmpty = directives.get("permitemptypasswords")?.toLowerCase();
@@ -171,12 +171,12 @@ function auditSshdConfig(directives: Map<string, string>): ScanOutput {
         cwe: "CWE-258",
         description: "sshd_config sets 'PermitEmptyPasswords yes', allowing login with a blank password for any account that has one.",
         evidence: "PermitEmptyPasswords yes",
-        impact: "Any account with an empty password can be logged into by anyone — trivial unauthenticated access.",
+        impact: "Any account with an empty password can be logged into by anyone, trivial unauthenticated access.",
         remediation: "Set 'PermitEmptyPasswords no' (this should always be 'no').",
       }),
     );
   } else {
-    passed.push({ label: "PermitEmptyPasswords", detail: `Set to '${permitEmpty ?? "no (default)"}' — empty-password login is not permitted.` });
+    passed.push({ label: "PermitEmptyPasswords", detail: `Set to '${permitEmpty ?? "no (default)"}', empty-password login is not permitted.` });
   }
 
   return { findings, passedControls: passed };
@@ -192,8 +192,8 @@ export function createSecopsAuditSshConfigTool(): ToolDefinition<SecopsAuditSshC
     description:
       "Security tool. Reads and parses the real local sshd_config (default /etc/ssh/sshd_config) and flags real " +
       "hardening gaps: SSHv1 enabled (critical), root login permitted, password authentication enabled (flagged " +
-      "with context either way — whether disabling it is right depends on the deployment), and empty passwords " +
-      "permitted (critical). Read-only — never modifies the file. Reports clearly if the file doesn't exist or " +
+      "with context either way, whether disabling it is right depends on the deployment), and empty passwords " +
+      "permitted (critical). Read-only, never modifies the file. Reports clearly if the file doesn't exist or " +
       "isn't readable (e.g. non-root on macOS) rather than crashing.",
     riskLevel: "safe",
     inputSchema: {
@@ -209,10 +209,10 @@ export function createSecopsAuditSshConfigTool(): ToolDefinition<SecopsAuditSshC
       } catch (err) {
         const code = (err as NodeJS.ErrnoException).code;
         if (code === "ENOENT") {
-          return { content: `${configPath} does not exist on this host — nothing to audit.`, isError: false };
+          return { content: `${configPath} does not exist on this host, nothing to audit.`, isError: false };
         }
         if (code === "EACCES") {
-          return { content: `${configPath} exists but isn't readable by the current user (permission denied) — re-run with elevated read access to audit it.`, isError: false };
+          return { content: `${configPath} exists but isn't readable by the current user (permission denied), re-run with elevated read access to audit it.`, isError: false };
         }
         return { content: `Failed to read ${configPath}: ${err instanceof Error ? err.message : String(err)}`, isError: true };
       }
@@ -288,7 +288,7 @@ export function createSecopsAuditOpenPortsTool(options: SecopsAuditOpenPortsOpti
       "Security tool. Lists real, currently-listening TCP/UDP ports on this local machine with the process " +
       "bound to each, using `lsof -iTCP -sTCP:LISTEN -P -n` / `lsof -iUDP -P -n` (falling back to `netstat -an` " +
       "if lsof isn't installed, though netstat can't report the owning process name). Pure inventory, not a " +
-      "finding — a listening port isn't inherently a problem, deciding which ports SHOULD be open on this host " +
+      "finding, a listening port isn't inherently a problem, deciding which ports SHOULD be open on this host " +
       "is a judgment call for whoever reads the list.",
     riskLevel: "safe",
     inputSchema: { type: "object", properties: {} },
@@ -311,9 +311,9 @@ export function createSecopsAuditOpenPortsTool(options: SecopsAuditOpenPortsOpti
           return { content: `Failed to run netstat: ${result.error.message}`, isError: true };
         }
         const entries = parseNetstatOutput(result.stdout);
-        return { content: `(via netstat fallback — lsof not installed)\n${formatPortEntries(entries)}`, isError: false };
+        return { content: `(via netstat fallback, lsof not installed)\n${formatPortEntries(entries)}`, isError: false };
       }
-      return { content: "Neither lsof nor netstat is available on this host — cannot list listening ports.", isError: true };
+      return { content: "Neither lsof nor netstat is available on this host, cannot list listening ports.", isError: true };
     },
   };
 }
@@ -388,14 +388,14 @@ function auditFilePermission(relPath: string, absPath: string, mode: number): Fi
       title: `Sensitive File Readable/Writable by Group or Other (${relPath})`,
       cvssVector: "AV:L/AC:L/PR:L/UI:N/S:U/C:H/I:L/A:N",
       cwe: "CWE-732",
-      description: `${absPath} has mode ${perms} — other local users on this machine can read or write it.`,
+      description: `${absPath} has mode ${perms}, other local users on this machine can read or write it.`,
       evidence: `mode ${perms}`,
       impact: "Any other local account (or a compromised low-privilege process) can read this credential/key material directly off disk.",
       remediation: `Run 'chmod 600 "${absPath}"' (or 700 for a directory) to restrict access to the owner only.`,
       affectedEndpoint: absPath,
     });
   }
-  return { label: relPath, detail: `${absPath} is mode ${perms} — not accessible to group/other.` };
+  return { label: relPath, detail: `${absPath} is mode ${perms}, not accessible to group/other.` };
 }
 
 export interface SecopsAuditFilePermissionsOptions {
@@ -409,7 +409,7 @@ export function createSecopsAuditFilePermissionsTool(options: SecopsAuditFilePer
     description:
       "Security tool. Stats a fixed list of sensitive local paths if they exist (~/.ssh/id_rsa, " +
       "~/.ssh/id_ed25519, ~/.aws/credentials, ~/.kube/config) and flags any that are group- or other-readable/" +
-      "writable (should be mode 600). Skips any path that doesn't exist. Read-only — never changes permissions.",
+      "writable (should be mode 600). Skips any path that doesn't exist. Read-only, never changes permissions.",
     riskLevel: "safe",
     inputSchema: { type: "object", properties: {} },
     describeCall: () => "audit permissions on sensitive local files (~/.ssh, ~/.aws, ~/.kube)",

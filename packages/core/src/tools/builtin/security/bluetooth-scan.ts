@@ -116,7 +116,7 @@ function parseBlueutilInquiry(stdout: string): BluetoothDevice[] {
 }
 
 async function scanMacBlueutil(bin: string): Promise<{ devices: BluetoothDevice[]; available: boolean; note: string }> {
-  if (!isCommandAvailable(bin)) return { devices: [], available: false, note: "blueutil not installed (optional third-party CLI, e.g. `brew install blueutil`) — skipping live nearby-device inquiry." };
+  if (!isCommandAvailable(bin)) return { devices: [], available: false, note: "blueutil not installed (optional third-party CLI, e.g. `brew install blueutil`), skipping live nearby-device inquiry." };
   const result = await run(bin, ["--inquiry", "5"], SCAN_TIMEOUT_MS + 5_000);
   if (result.code !== 0) return { devices: [], available: true, note: `blueutil --inquiry exited with an error: ${result.stderr.trim() || result.code}` };
   const devices = parseBlueutilInquiry(result.stdout);
@@ -259,19 +259,19 @@ export function createSecurityScanBluetoothTool(options: SecurityScanBluetoothOp
     name: "security_scan_bluetooth",
     description:
       "Bluetooth device discovery: lists paired/known devices and, where a live-scan tool is installed, nearby " +
-      "discoverable devices — name, address, and signal strength where available. macOS: " +
+      "discoverable devices, name, address, and signal strength where available. macOS: " +
       "`system_profiler SPBluetoothDataType` for paired/connected devices, plus `blueutil --inquiry` (optional " +
       "third-party CLI, only used if already installed) for a live nearby-device scan. Linux: `bluetoothctl " +
       "devices` (paired and previously-discovered devices), running a short `bluetoothctl scan on` window first " +
       "if bluetoothctl is available. " +
       "SURFACE-LEVEL ONLY: this reports what's discoverable (name/address/RSSI), not each device's actual " +
-      "pairing security — determining whether a device uses a weak/deprecated pairing method (e.g. Just Works) " +
+      "pairing security, determining whether a device uses a weak/deprecated pairing method (e.g. Just Works) " +
       "requires sniffing the pairing exchange itself, which this tool does not attempt. " +
       "Alternatively, pass `deviceAddress` (Linux only) to run read-only BLE GATT discovery against that " +
-      "device instead — drives bluetoothctl's interactive GATT menu to enumerate services/characteristics/" +
+      "device instead, drives bluetoothctl's interactive GATT menu to enumerate services/characteristics/" +
       "descriptors, and optionally reads back specific characteristics via `readCharacteristicPaths`. Flags " +
       "known legacy/high-risk GATT service UUIDs (e.g. unauthenticated vendor UART bridges) as findings. Never " +
-      "writes to a characteristic — see security_bluetooth_gatt_active_write for that (unimplemented) " +
+      "writes to a characteristic, see security_bluetooth_gatt_active_write for that (unimplemented) " +
       "operation. " +
       "OUT OF SCOPE, not implemented here: BLE GATT-level exploitation/writes, and anything requiring a " +
       "specialized Bluetooth adapter or firmware-level access.",
@@ -309,11 +309,11 @@ export function createSecurityScanBluetoothTool(options: SecurityScanBluetoothOp
         // newline embedded in either field would inject a second,
         // unauthorized bluetoothctl command with zero user confirmation.
         if (!isValidMacAddress(input.deviceAddress)) {
-          return { content: `"${input.deviceAddress}" is not a valid device address — expected a MAC address like "AA:BB:CC:DD:EE:FF".`, isError: true };
+          return { content: `"${input.deviceAddress}" is not a valid device address, expected a MAC address like "AA:BB:CC:DD:EE:FF".`, isError: true };
         }
         const invalidPath = (input.readCharacteristicPaths ?? []).find((p) => !isValidGattPath(p));
         if (invalidPath !== undefined) {
-          return { content: `"${invalidPath}" is not a valid GATT characteristic path — expected a bluez object path like "/org/bluez/hci0/dev_.../char.....".`, isError: true };
+          return { content: `"${invalidPath}" is not a valid GATT characteristic path, expected a bluez object path like "/org/bluez/hci0/dev_.../char.....".`, isError: true };
         }
         const discovery = await discoverGatt(bluetoothctlBin, input.deviceAddress, input.readCharacteristicPaths ?? []);
         if (discovery.attributes.length === 0) {

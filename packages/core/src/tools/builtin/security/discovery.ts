@@ -133,7 +133,7 @@ async function checkOpenApiSpec(target: string): Promise<Finding | undefined> {
       cvssVector: "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:N/A:N",
       cwe: "CWE-200",
       description: `The OpenAPI specification at ${path} is publicly accessible and documents ${endpoints.length} endpoints, including request/response schemas and authentication methods.`,
-      evidence: `GET ${url} — HTTP 200, ${endpoints.length} paths documented.`,
+      evidence: `GET ${url}, HTTP 200, ${endpoints.length} paths documented.`,
       impact: "Gives an attacker a complete map of the attack surface, drastically easing the development of targeted exploits against every documented endpoint.",
       remediation: "Disable the OpenAPI/Swagger spec route in production, or restrict it to authenticated internal users / an IP allow-list.",
       affectedEndpoint: url,
@@ -283,7 +283,7 @@ async function checkRobotsTxt(target: string): Promise<Finding | undefined> {
     severity: "INFO",
     description: `robots.txt lists ${disallowed.length} Disallow entries, which reveals paths the site owner considers sensitive enough to hide from search engines (but which are still publicly reachable).`,
     evidence: `GET ${url} -> Disallow entries: ${disallowed.slice(0, 15).join(", ")}${disallowed.length > 15 ? " ..." : ""}`,
-    impact: "robots.txt is a convention respected by well-behaved crawlers only — it provides a ready-made list of paths for an attacker to check first.",
+    impact: "robots.txt is a convention respected by well-behaved crawlers only, it provides a ready-made list of paths for an attacker to check first.",
     remediation: "Don't rely on robots.txt to hide sensitive paths; enforce real authentication/authorization on them instead.",
     affectedEndpoint: url,
   };
@@ -333,7 +333,7 @@ export const securityScanDiscoveryTool: ToolDefinition<SecurityScanDiscoveryInpu
     "and robots.txt Disallow entries. Uses a soft-404 baseline (a random nonexistent path) so a JS-SPA serving " +
     "the same shell for every path isn't misread as every sensitive path being exposed. GET/OPTIONS/TRACE, " +
     "safe to run. A faithful, complete port of the user's own cyberlens scanner's discovery check (this one " +
-    "needed no crawler — every check probes a fixed path relative to the target). " +
+    "needed no crawler, every check probes a fixed path relative to the target). " +
     "IMPORTANT: only scan a target the user owns or has explicit, documented authorization to test.",
   riskLevel: "ask",
   inputSchema: {

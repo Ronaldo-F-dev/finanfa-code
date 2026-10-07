@@ -58,7 +58,7 @@ export class PermissionManager {
     // An administrator's disableYolo wins over the --yolo flag, which can only ever relax prompts.
     const yoloForbidden = loadManagedSettings().disableYolo === true;
     this.yolo = (opts.yolo ?? false) && !yoloForbidden;
-    if (opts.yolo && yoloForbidden) opts.ui.writeError("--yolo is disabled by this machine's managed settings — tool calls will still ask for approval.");
+    if (opts.yolo && yoloForbidden) opts.ui.writeError("--yolo is disabled by this machine's managed settings, tool calls will still ask for approval.");
     this.hooksConfig = opts.hooksConfig;
     this.provider = opts.provider;
     // disableYolo in the managed settings is the administrator's "nothing may skip the prompts" switch: it covers
@@ -373,7 +373,7 @@ export class PermissionManager {
         case "yes":
           return "allow";
         default:
-          this.ui.writeError(`Unrecognized answer "${raw}" — please answer y/n/a/t.`);
+          this.ui.writeError(`Unrecognized answer "${raw}", please answer y/n/a/t.`);
       }
     }
   }

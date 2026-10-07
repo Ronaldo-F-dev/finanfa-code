@@ -32,14 +32,14 @@ export function createTerraformTools(options: TerraformToolOptions = {}): ToolDe
   const init: ToolDefinition<TerraformDirInput> = {
     name: "terraform_init",
     description:
-      "Initialize a Terraform working directory (`terraform init`) — downloads providers/modules and sets up " +
+      "Initialize a Terraform working directory (`terraform init`), downloads providers/modules and sets up " +
       "backend state. Doesn't change any infrastructure. Pass extra real terraform flags in `args`, e.g. " +
       "['-upgrade'], ['-reconfigure'].",
     riskLevel: "safe",
     inputSchema: {
       type: "object",
       properties: {
-        directory: { type: "string", description: "Terraform working directory (where the .tf files / .terraform state live) — never assume repo root" },
+        directory: { type: "string", description: "Terraform working directory (where the .tf files / .terraform state live), never assume repo root" },
         args: { type: "array", items: { type: "string" }, description: "Extra terraform flags, e.g. ['-upgrade'], ['-reconfigure']" },
         timeout_ms: { type: "number", description: `Timeout in milliseconds (default ${DEFAULT_TIMEOUT_MS})` },
       },
@@ -60,13 +60,13 @@ export function createTerraformTools(options: TerraformToolOptions = {}): ToolDe
   const plan: ToolDefinition<TerraformDirInput> = {
     name: "terraform_plan",
     description:
-      "Compute a Terraform execution plan (`terraform plan`) — read-only, shows what would change without " +
+      "Compute a Terraform execution plan (`terraform plan`), read-only, shows what would change without " +
       "applying it. Pass extra real terraform flags in `args`, e.g. ['-var-file=prod.tfvars'], ['-out=plan.tfplan'].",
     riskLevel: "safe",
     inputSchema: {
       type: "object",
       properties: {
-        directory: { type: "string", description: "Terraform working directory (where the .tf files / .terraform state live) — never assume repo root" },
+        directory: { type: "string", description: "Terraform working directory (where the .tf files / .terraform state live), never assume repo root" },
         args: { type: "array", items: { type: "string" }, description: "Extra terraform flags, e.g. ['-var-file=prod.tfvars'], ['-out=plan.tfplan']" },
         timeout_ms: { type: "number", description: `Timeout in milliseconds (default ${DEFAULT_TIMEOUT_MS})` },
       },
@@ -89,22 +89,22 @@ export function createTerraformTools(options: TerraformToolOptions = {}): ToolDe
     description:
       "Apply a Terraform plan (`terraform apply -auto-approve`), provisioning/changing REAL infrastructure. " +
       "-auto-approve is used because there's no interactive terminal here for terraform's own confirmation " +
-      "prompt — this tool asking for confirmation before running is what stands in for it. Pass extra real " +
+      "prompt, this tool asking for confirmation before running is what stands in for it. Pass extra real " +
       "terraform flags in `args`, e.g. ['-var-file=prod.tfvars'], ['-target=aws_instance.foo']. " +
-      "IMPORTANT: this changes real infrastructure without terraform's own interactive y/n confirmation — " +
+      "IMPORTANT: this changes real infrastructure without terraform's own interactive y/n confirmation, " +
       "confirm with the user before running it unless they've explicitly asked for this apply.",
     riskLevel: "ask",
     inputSchema: {
       type: "object",
       properties: {
-        directory: { type: "string", description: "Terraform working directory (where the .tf files / .terraform state live) — never assume repo root" },
+        directory: { type: "string", description: "Terraform working directory (where the .tf files / .terraform state live), never assume repo root" },
         args: { type: "array", items: { type: "string" }, description: "Extra terraform flags, e.g. ['-var-file=prod.tfvars'], ['-target=aws_instance.foo']" },
         timeout_ms: { type: "number", description: `Timeout in milliseconds (default ${DEFAULT_TIMEOUT_MS})` },
       },
       required: ["directory"],
     },
     describeCall: (input) =>
-      `terraform apply -auto-approve${input.args?.length ? ` ${input.args.join(" ")}` : ""} (in ${input.directory}) — ` +
+      `terraform apply -auto-approve${input.args?.length ? ` ${input.args.join(" ")}` : ""} (in ${input.directory}), ` +
       "applies real infra changes without terraform's own interactive confirmation",
     async handler(input, ctx) {
       return runSubprocess(binary, {
@@ -121,25 +121,25 @@ export function createTerraformTools(options: TerraformToolOptions = {}): ToolDe
     name: "terraform_destroy",
     description:
       "Destroy all Terraform-managed infrastructure in this working directory (`terraform destroy -auto-approve`) " +
-      "— DESTROYS REAL INFRASTRUCTURE, irreversibly. -auto-approve is used because there's no interactive " +
-      "terminal here for terraform's own confirmation prompt — this tool asking for confirmation before " +
+      "- DESTROYS REAL INFRASTRUCTURE, irreversibly. -auto-approve is used because there's no interactive " +
+      "terminal here for terraform's own confirmation prompt, this tool asking for confirmation before " +
       "running is what stands in for it. Pass extra real terraform flags in `args`, e.g. " +
       "['-var-file=prod.tfvars'], ['-target=aws_instance.foo']. " +
-      "IMPORTANT: this destroys real infrastructure without terraform's own interactive y/n confirmation — " +
+      "IMPORTANT: this destroys real infrastructure without terraform's own interactive y/n confirmation, " +
       "confirm with the user before running it unless they've explicitly asked for this destroy.",
     riskLevel: "ask",
     riskKey: () => "terraform_destroy",
     inputSchema: {
       type: "object",
       properties: {
-        directory: { type: "string", description: "Terraform working directory (where the .tf files / .terraform state live) — never assume repo root" },
+        directory: { type: "string", description: "Terraform working directory (where the .tf files / .terraform state live), never assume repo root" },
         args: { type: "array", items: { type: "string" }, description: "Extra terraform flags, e.g. ['-var-file=prod.tfvars'], ['-target=aws_instance.foo']" },
         timeout_ms: { type: "number", description: `Timeout in milliseconds (default ${DEFAULT_TIMEOUT_MS})` },
       },
       required: ["directory"],
     },
     describeCall: (input) =>
-      `terraform destroy -auto-approve${input.args?.length ? ` ${input.args.join(" ")}` : ""} (in ${input.directory}) — ` +
+      `terraform destroy -auto-approve${input.args?.length ? ` ${input.args.join(" ")}` : ""} (in ${input.directory}), ` +
       "DESTROYS real infrastructure without terraform's own interactive confirmation",
     async handler(input, ctx) {
       return runSubprocess(binary, {
@@ -155,14 +155,14 @@ export function createTerraformTools(options: TerraformToolOptions = {}): ToolDe
   const output: ToolDefinition<TerraformDirInput> = {
     name: "terraform_output",
     description:
-      "Read Terraform output values (`terraform output -json`) — read-only, doesn't change anything. Pass " +
+      "Read Terraform output values (`terraform output -json`), read-only, doesn't change anything. Pass " +
       "`args` to override the format (e.g. [] for plain text, ['-raw', 'some_output'] for a single raw value); " +
       "when `args` is given, -json is NOT added automatically.",
     riskLevel: "safe",
     inputSchema: {
       type: "object",
       properties: {
-        directory: { type: "string", description: "Terraform working directory (where the .tf files / .terraform state live) — never assume repo root" },
+        directory: { type: "string", description: "Terraform working directory (where the .tf files / .terraform state live), never assume repo root" },
         args: { type: "array", items: { type: "string" }, description: "Extra terraform flags overriding the default -json, e.g. [] for plain text, ['-raw', 'some_output']" },
         timeout_ms: { type: "number", description: `Timeout in milliseconds (default ${DEFAULT_TIMEOUT_MS})` },
       },
@@ -182,12 +182,12 @@ export function createTerraformTools(options: TerraformToolOptions = {}): ToolDe
 
   const validate: ToolDefinition<Omit<TerraformDirInput, "args">> = {
     name: "terraform_validate",
-    description: "Validate the Terraform configuration's syntax and internal consistency (`terraform validate`) — read-only, doesn't change anything.",
+    description: "Validate the Terraform configuration's syntax and internal consistency (`terraform validate`), read-only, doesn't change anything.",
     riskLevel: "safe",
     inputSchema: {
       type: "object",
       properties: {
-        directory: { type: "string", description: "Terraform working directory (where the .tf files / .terraform state live) — never assume repo root" },
+        directory: { type: "string", description: "Terraform working directory (where the .tf files / .terraform state live), never assume repo root" },
         timeout_ms: { type: "number", description: `Timeout in milliseconds (default ${DEFAULT_TIMEOUT_MS})` },
       },
       required: ["directory"],

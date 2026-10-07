@@ -93,7 +93,7 @@ function toolNameFromPrompt(prompt: string): string {
 // turn that changed it (see modeIdFor's call sites in session/prompt).
 
 const ACP_MODES: acp.SessionMode[] = [
-  { id: "default", name: "Default", description: "Ordinary operation — tool calls run under the usual permission rules." },
+  { id: "default", name: "Default", description: "Ordinary operation, tool calls run under the usual permission rules." },
   { id: "plan", name: "Plan", description: "Research only: every tool call except read-only ones and exit_plan_mode is auto-denied until a plan is presented and approved." },
 ];
 

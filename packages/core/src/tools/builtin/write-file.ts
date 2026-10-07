@@ -35,7 +35,7 @@ function resolveContent(input: WriteFileInput): { content: string } | { error: s
       return { error: `content_base64 is not valid base64: ${err instanceof Error ? err.message : String(err)}` };
     }
   }
-  return { error: 'Missing required field: provide "content" (or "content_base64" for content that\'s hard to JSON-escape — a lot of quotes/newlines).' };
+  return { error: 'Missing required field: provide "content" (or "content_base64" for content that\'s hard to JSON-escape, a lot of quotes/newlines).' };
 }
 
 export const writeFileTool: ToolDefinition<WriteFileInput> = {
@@ -44,17 +44,17 @@ export const writeFileTool: ToolDefinition<WriteFileInput> = {
     "Create a file or overwrite it entirely with new content. Give `content` directly for most files. If the " +
     "content has a lot of embedded double quotes, backslashes, or newlines (e.g. generated source code) and " +
     "keeps failing to parse as valid JSON arguments, base64-encode it and pass that as `content_base64` " +
-    "instead — base64 has none of those characters, so it never has this problem.",
+    "instead, base64 has none of those characters, so it never has this problem.",
   riskLevel: "ask",
   inputSchema: {
     type: "object",
     properties: {
       path: { type: "string", description: "Path relative to the project root, or an absolute path (e.g. under the user's home directory)" },
-      content: { type: "string", description: "Full file content to write — use this for most files" },
+      content: { type: "string", description: "Full file content to write, use this for most files" },
       content_base64: {
         type: "string",
         description:
-          "Base64-encoded file content — an alternative to `content` for text that's hard to JSON-escape correctly " +
+          "Base64-encoded file content, an alternative to `content` for text that's hard to JSON-escape correctly " +
           "(lots of quotes/backslashes/newlines). Provide exactly one of content or content_base64, not both.",
       },
     },

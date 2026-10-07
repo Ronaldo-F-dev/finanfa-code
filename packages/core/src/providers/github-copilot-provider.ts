@@ -54,7 +54,7 @@ export class GithubCopilotProvider implements LlmProvider {
     });
     if (!response.ok) {
       throw new Error(
-        `Failed to exchange the GitHub token for a Copilot API token (HTTP ${response.status}) — the token may be expired or lack Copilot access.`,
+        `Failed to exchange the GitHub token for a Copilot API token (HTTP ${response.status}), the token may be expired or lack Copilot access.`,
       );
     }
     const data = (await response.json()) as CopilotTokenResponse;

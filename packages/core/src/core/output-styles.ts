@@ -15,7 +15,7 @@ export const OUTPUT_STYLES: OutputStyle[] = [
     name: "explanatory",
     description: "Adds short notes on why the code is written the way it is",
     prompt:
-      "Output style — explanatory: while you work, add brief notes explaining the reasoning behind your implementation choices " +
+      "Output style, explanatory: while you work, add brief notes explaining the reasoning behind your implementation choices " +
       "and any codebase conventions you rely on, so the user learns from the changes. Keep each note to a few sentences, put it " +
       "next to the change it explains, and never let the notes delay or replace the actual work.",
   },
@@ -23,9 +23,9 @@ export const OUTPUT_STYLES: OutputStyle[] = [
     name: "learning",
     description: "Teaches by handing small, well-defined pieces of the work to the user",
     prompt:
-      "Output style — learning: act as a collaborative teacher. Do the routine work yourself, but when a change contains a small, " +
+      "Output style, learning: act as a collaborative teacher. Do the routine work yourself, but when a change contains a small, " +
       "meaningful decision (a core function body, a design trade-off), stop before writing it, explain the context, and ask the " +
-      "user to write that piece of 5–10 lines themselves — say exactly where it goes and what it must do. Review what they write " +
+      "user to write that piece of 5–10 lines themselves, say exactly where it goes and what it must do. Review what they write " +
       "constructively. Never withhold anything that blocks progress for longer than one exchange.",
   },
 ];

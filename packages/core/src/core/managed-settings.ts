@@ -64,7 +64,7 @@ export function loadManagedSettings(): ManagedSettings {
     settings = parseManagedSettings(readFileSync(file, "utf-8"));
   } catch (err) {
     if ((err as NodeJS.ErrnoException)?.code !== "ENOENT") {
-      console.error(`Warning: managed settings at ${file} are unreadable (${err instanceof Error ? err.message : String(err)}) — applying the strictest policy.`);
+      console.error(`Warning: managed settings at ${file} are unreadable (${err instanceof Error ? err.message : String(err)}), applying the strictest policy.`);
       settings = FAIL_CLOSED;
     }
   }

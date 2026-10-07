@@ -33,11 +33,11 @@ import { OpenAiCompatibleProvider, listAvailableModels } from "../providers/open
 function systemPromptWithDate(session: AgentSession): string {
   const today = new Date().toISOString().slice(0, 10);
   let prompt =
-    `${session.systemPrompt}\n\nToday's date is ${today}. Use it for anything time-sensitive — judging ` +
-    "whether information might be outdated, or answering questions about the current date — instead of " +
+    `${session.systemPrompt}\n\nToday's date is ${today}. Use it for anything time-sensitive, judging ` +
+    "whether information might be outdated, or answering questions about the current date, instead of " +
     "guessing or assuming your training cutoff is current. When a web_search query is time-sensitive (asking " +
     `who currently holds a role, the latest version of something, recent events), derive the year from ${today} ` +
-    "rather than a remembered or habitual one — a wrong year in the query can silently return stale results.";
+    "rather than a remembered or habitual one, a wrong year in the query can silently return stale results.";
   // Real reported bug: nothing ever told the model its own project root, so
   // when asked to create a new project it guessed at absolute paths (the
   // real repo's own directory, a random spot under the user's home) instead
@@ -46,7 +46,7 @@ function systemPromptWithDate(session: AgentSession): string {
   // real work. cwd was already used internally everywhere (path-guard,
   // session bucketing) but never surfaced in the text the model reads.
   prompt +=
-    `\n\nYour project root for this session is ${session.cwd} — write and read files relative to it (or with ` +
+    `\n\nYour project root for this session is ${session.cwd}, write and read files relative to it (or with ` +
     "this absolute path), don't guess at a different location. Tool calls that try to write outside it (or " +
     "outside your home directory) are rejected by a sandbox, not a hint to try somewhere else at random.";
   // Set via /goal, cleared via /goal clear — re-read fresh every call
@@ -55,7 +55,7 @@ function systemPromptWithDate(session: AgentSession): string {
   if (session.goal) {
     prompt +=
       `\n\nThe user has set a standing goal for this session: "${session.goal}". Keep working toward it across ` +
-      "turns unless a message clearly changes direction — don't silently drop it after a few exchanges, and " +
+      "turns unless a message clearly changes direction, don't silently drop it after a few exchanges, and " +
       "don't ask the user to repeat it. If something they ask for conflicts with it, say so rather than quietly " +
       "picking one.";
   }
@@ -167,8 +167,8 @@ function buildMissingFieldsMessage(toolName: string, missingFields: string[], in
   const isEmptyFallback = input !== null && typeof input === "object" && Object.keys(input as Record<string, unknown>).length === 0;
   const fields = missingFields.join(", ");
   return isEmptyFallback
-    ? `Missing required field(s) for "${toolName}": ${fields} (the arguments for this call could not be parsed — try again with complete, valid arguments)`
-    : `Missing required field(s) for "${toolName}": ${fields} — provide these and try again.`;
+    ? `Missing required field(s) for "${toolName}": ${fields} (the arguments for this call could not be parsed, try again with complete, valid arguments)`
+    : `Missing required field(s) for "${toolName}": ${fields}, provide these and try again.`;
 }
 
 async function runOneToolCall(
@@ -210,11 +210,11 @@ async function runOneToolCall(
     const raw = call.input as Record<string, unknown> | undefined;
     const targetName = typeof raw?.name === "string" ? raw.name : undefined;
     if (!targetName) {
-      return { result: { toolCallId: call.id, isError: true, content: `${CALL_TOOL_NAME} requires "name" — the real tool to call (see ${SEARCH_TOOLS_NAME}).` } };
+      return { result: { toolCallId: call.id, isError: true, content: `${CALL_TOOL_NAME} requires "name", the real tool to call (see ${SEARCH_TOOLS_NAME}).` } };
     }
     const target = availableTools(tools, session).find((t) => t.name === targetName);
     if (!target) {
-      return { result: { toolCallId: call.id, isError: true, content: `No tool named "${targetName}" is currently available (unknown, or disabled for this session) — use ${SEARCH_TOOLS_NAME} to find the right name.` } };
+      return { result: { toolCallId: call.id, isError: true, content: `No tool named "${targetName}" is currently available (unknown, or disabled for this session), use ${SEARCH_TOOLS_NAME} to find the right name.` } };
     }
     const targetInput = raw?.input && typeof raw.input === "object" ? raw.input : {};
     call = { id: call.id, name: target.name, input: targetInput };
@@ -238,7 +238,7 @@ async function runOneToolCall(
         isError: true,
         content:
           `This "${tool.name}" call's arguments were cut off because the response hit its max output token limit ` +
-          "before the arguments finished — it was too large to complete in one call. Split the work into multiple " +
+          "before the arguments finished, it was too large to complete in one call. Split the work into multiple " +
           "smaller calls instead (e.g. write a large file in several appended chunks, or make separate calls per file).",
       },
     };
@@ -263,7 +263,7 @@ async function runOneToolCall(
         isError: true,
         content:
           `This "${tool.name}" call's arguments were not valid JSON (${parseError}). This usually means a string ` +
-          "argument wasn't properly escaped — unescaped double quotes, backslashes, or literal newlines inside a " +
+          "argument wasn't properly escaped, unescaped double quotes, backslashes, or literal newlines inside a " +
           "JSON string value need escaping (\\\", \\\\, \\n). Regenerate the call with correctly escaped JSON, not " +
           "the same arguments again.",
       },
@@ -676,7 +676,7 @@ class LoopGuard {
     this.iterations++;
     if (this.iterations <= MAX_ITERATIONS) return undefined;
     return (
-      `${LOOP_GUARD_MESSAGE_PREFIX} after ${MAX_ITERATIONS} steps without finishing — the task may be stuck or ` +
+      `${LOOP_GUARD_MESSAGE_PREFIX} after ${MAX_ITERATIONS} steps without finishing, the task may be stuck or ` +
       "too large; try breaking it into smaller requests)"
     );
   }
@@ -699,13 +699,13 @@ class LoopGuard {
     if (this.repeatCount === REPEAT_LIMIT - 1) {
       return {
         kind: "nudge",
-        message: `(loop guard: this exact tool call${plural} — same tool, same arguments — was just repeated. If it didn't produce what you needed, try a different approach now rather than repeating it again)`,
+        message: `(loop guard: this exact tool call${plural}, same tool, same arguments, was just repeated. If it didn't produce what you needed, try a different approach now rather than repeating it again)`,
       };
     }
     if (this.repeatCount < REPEAT_LIMIT) return undefined;
     return {
       kind: "stop",
-      message: `${LOOP_GUARD_MESSAGE_PREFIX} — the same tool call${plural} repeated ${REPEAT_LIMIT} times in a row with no apparent progress)`,
+      message: `${LOOP_GUARD_MESSAGE_PREFIX}, the same tool call${plural} repeated ${REPEAT_LIMIT} times in a row with no apparent progress)`,
     };
   }
 }
@@ -729,7 +729,7 @@ export async function maybeGenerateTitle(session: AgentSession, provider: LlmPro
       model: session.model,
       systemPrompt:
         "Reply with ONLY a short title (3-6 words, no punctuation, no quotes, no trailing period) summarizing " +
-        "what this conversation is about. Nothing else — just the title, nothing before or after it.",
+        "what this conversation is about. Nothing else, just the title, nothing before or after it.",
       messages: [{ role: "user", content: firstUserMessage.content }],
       tools: [],
       onTextDelta: () => {},
@@ -803,7 +803,7 @@ export async function compactSession(session: AgentSession, provider: LlmProvide
       model: session.model,
       systemPrompt:
         "Summarize the conversation transcript below into a concise standalone briefing for whoever continues " +
-        "this task next — not a blow-by-blow recap. Cover: what the user is trying to accomplish, key decisions " +
+        "this task next, not a blow-by-blow recap. Cover: what the user is trying to accomplish, key decisions " +
         "and their reasons, specific files/paths/values touched, and the current state of any in-progress work " +
         "(what's done, what's left). Reply with ONLY the briefing text, nothing before or after it.",
       messages: [{ role: "user", content: transcript }],
@@ -820,7 +820,7 @@ export async function compactSession(session: AgentSession, provider: LlmProvide
     if (summary.length === 0) return undefined;
 
     session.messages = [
-      { role: "user", content: "[Earlier conversation compacted to save context — see the summary below]" },
+      { role: "user", content: "[Earlier conversation compacted to save context, see the summary below]" },
       { role: "assistant", content: summary },
     ];
     // Checkpoints point into the old message array; once it is replaced they would truncate the wrong place (or nothing) on rewind.
@@ -861,7 +861,7 @@ export async function runCompactCommand(session: AgentSession, provider: LlmProv
   const result = await compactSession(session, provider);
   hooks.setBusy(false);
   if (!result) {
-    hooks.writeSystem("Nothing to compact, or the summarization call failed — conversation left unchanged.");
+    hooks.writeSystem("Nothing to compact, or the summarization call failed, conversation left unchanged.");
     return {};
   }
   hooks.writeSystem(`Compacted ${result.messagesBefore} messages into a summary.`);
@@ -946,7 +946,7 @@ export async function runTurn(
     const activeTools = toolsForProvider(tools, session);
     const estimatedTokens = estimateRequestTokens(systemPromptWithDate(session), session.messages, activeTools);
     if (estimatedTokens > AUTO_COMPACT_TOKEN_THRESHOLD) {
-      ui.writeSystem(`(context is very large — ~${estimatedTokens.toLocaleString()} tokens — compacting automatically before continuing)`);
+      ui.writeSystem(`(context is very large, ~${estimatedTokens.toLocaleString()} tokens, compacting automatically before continuing)`);
       await permissions.runLifecycleHook("PreCompact", session.cwd, session.id, { source: "auto" });
       const compacted = await compactSession(session, provider);
       if (compacted) ui.writeSystem(`Compacted ${compacted.messagesBefore} earlier messages into a summary to stay within context.`);
@@ -1001,9 +1001,9 @@ export async function runTurn(
       const message = describeError(err);
       let displayMessage: string;
       if (sendingImageWithoutVisionRoute) {
-        consumeImageMessage(session, `not shown — ${active.model} doesn't support image input`);
+        consumeImageMessage(session, `not shown, ${active.model} doesn't support image input`);
         displayMessage =
-          `(the model call failed — ${active.model} likely doesn't support image input, and no vision route is ` +
+          `(the model call failed, ${active.model} likely doesn't support image input, and no vision route is ` +
           'configured for this session; see "Vision routing" in the README, or /config set visionModel. The ' +
           "image has been dropped from this conversation so it won't keep failing every later turn too. " +
           `Original error: ${message})`;
@@ -1015,9 +1015,9 @@ export async function runTurn(
         // way out instead of leaving this indistinguishable from any other
         // opaque failure.
         displayMessage =
-          `(the model call failed — this looks like a context-length error: the conversation is too large for ` +
+          `(the model call failed, this looks like a context-length error: the conversation is too large for ` +
           `${active.model} even after compaction. Use /clear to start fresh in this session, or /session <id> ` +
-          `to switch to a different one — see /sessions for ids. Original error: ${message})`;
+          `to switch to a different one, see /sessions for ids. Original error: ${message})`;
       } else if (isLikelyToolsUnsupportedError(message)) {
         // This project always sends its full tool list on every call —
         // there's no per-model "text-only" mode short of disabling every
@@ -1027,7 +1027,7 @@ export async function runTurn(
         // accept a request with tools attached at all, distinct from a
         // model that just doesn't reliably *use* them.
         displayMessage =
-          `(the model call failed — ${active.model} doesn't support tool/function calling at all, and every call ` +
+          `(the model call failed, ${active.model} doesn't support tool/function calling at all, and every call ` +
           "here includes the full tool list. Pick a model that supports it, or disable every tool for this " +
           "session (/tools, or the web UI's Tools panel) to use this one for plain text chat with no tool use. " +
           `Original error: ${message})`;
@@ -1038,10 +1038,10 @@ export async function runTurn(
         const models = await listAvailableModels(active.provider.baseUrl, active.provider.apiKey);
         displayMessage =
           models.length > 0
-            ? `(the model call failed — "${active.model}" was not found at ${active.provider.baseUrl}. This ` +
+            ? `(the model call failed, "${active.model}" was not found at ${active.provider.baseUrl}. This ` +
               `server reports these models instead: ${models.join(", ")}. Pick one with /config set model ` +
               `<name>. Original error: ${message})`
-            : `(the model call failed — "${active.model}" was not found at ${active.provider.baseUrl}, and that ` +
+            : `(the model call failed, "${active.model}" was not found at ${active.provider.baseUrl}, and that ` +
               "server didn't report a model list either. Double-check the base URL/port match the server you " +
               "actually started (Ollama defaults to 11434, LM Studio to 1234, an MLX/vLLM server to whatever " +
               "you passed --port) and that the model name is exactly what that server calls it. Original " +
@@ -1126,11 +1126,11 @@ export async function runTurn(
         // try/catch exists to catch, so it isn't trusted blindly either.
         const finalText = result.assistantMessage.content ?? "";
         if (finalText.trim() === "") {
-          ui.writeSystem("(the model returned an empty response — try rephrasing, or check /cost for context size)");
+          ui.writeSystem("(the model returned an empty response, try rephrasing, or check /cost for context size)");
         } else if (looksLikeFakeToolCallText(finalText)) {
           ui.writeSystem(
             "(this looks like the model tried to call a tool by writing it as plain text instead of a real " +
-              "tool call — nothing was actually run. If its message above claims something was created, " +
+              "tool call, nothing was actually run. If its message above claims something was created, " +
               "changed, or run, verify that yourself before trusting it.)",
           );
         }
@@ -1164,7 +1164,7 @@ export async function runTurn(
         // know on the next turn that this ended via the guard, not naturally.
         session.messages.push({
           role: "tool",
-          results: toolCalls.map((call) => ({ toolCallId: call.id, content: "(skipped — repetition guard triggered)", isError: true })),
+          results: toolCalls.map((call) => ({ toolCallId: call.id, content: "(skipped, repetition guard triggered)", isError: true })),
         });
         session.messages.push({ role: "assistant", content: repeatCheck.message });
         await session.persist();

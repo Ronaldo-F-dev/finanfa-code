@@ -146,7 +146,7 @@ async function scanRecon(targetUrl: string): Promise<ScanOutput> {
   const whois = await lookupDomain(hostname);
   if (whois.registrar || whois.owner) {
     const parts = [whois.registrar && `registrar: ${whois.registrar}`, whois.owner && `owner: ${whois.owner}`].filter(Boolean);
-    passed.push({ label: "WHOIS lookup", detail: `${hostname} — ${parts.join(", ")}.` });
+    passed.push({ label: "WHOIS lookup", detail: `${hostname}, ${parts.join(", ")}.` });
   }
 
   try {
@@ -168,9 +168,9 @@ export const securityScanReconTool: ToolDefinition<SecurityScanReconInput> = {
   name: "security_scan_recon",
   description:
     "Security tool. Passive reconnaissance on a domain: DNS records (A/AAAA/MX/TXT/NS), resolved IP, WHOIS " +
-    "registrar/owner (via a real raw WHOIS protocol client, RFC 3912 — no bundled dependency, same as " +
+    "registrar/owner (via a real raw WHOIS protocol client, RFC 3912, no bundled dependency, same as " +
     "cyberlens's own implementation), and the HTTP Server response header. Never sends exploit-style payloads " +
-    "— purely reads what the target already publishes. Informational only (no vulnerability findings). A " +
+    "- purely reads what the target already publishes. Informational only (no vulnerability findings). A " +
     "faithful port of the user's own cyberlens scanner's recon check.",
   riskLevel: "ask",
   inputSchema: {

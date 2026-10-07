@@ -22,8 +22,8 @@ export const textToSpeechTool: ToolDefinition<TextToSpeechInput> = {
   name: "text_to_speech",
   description:
     "Convert text to speech and save it as an MP3, via the same free Google Translate backend translate_text " +
-    "uses — no configuration needed. Note: Google's TTS voice coverage is narrower than its text-translation " +
-    "coverage — e.g. Fon and Yoruba translate fine but have no TTS voice, which only shows up as a failure at " +
+    "uses, no configuration needed. Note: Google's TTS voice coverage is narrower than its text-translation " +
+    "coverage, e.g. Fon and Yoruba translate fine but have no TTS voice, which only shows up as a failure at " +
     "call time (there's no reliable way to check in advance). If it fails, say plainly that this language has " +
     "no available voice rather than retrying repeatedly.",
   riskLevel: "ask",
@@ -48,7 +48,7 @@ export const textToSpeechTool: ToolDefinition<TextToSpeechInput> = {
       audioBase64 = await speak(input.text, { to: input.lang });
     } catch (err) {
       return {
-        content: `text_to_speech failed for "${input.lang}": ${err instanceof Error ? err.message : String(err)} — this language likely has no TTS voice available, even though it supports text translation.`,
+        content: `text_to_speech failed for "${input.lang}": ${err instanceof Error ? err.message : String(err)}, this language likely has no TTS voice available, even though it supports text translation.`,
         isError: true,
       };
     }

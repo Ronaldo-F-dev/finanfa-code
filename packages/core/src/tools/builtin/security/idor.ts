@@ -68,8 +68,8 @@ async function testSequentialId(url: string, headers: Record<string, string>, ow
         description: `Using the same session that successfully fetched ${url}, substituting its resource ID (${idSegment.value} -> ${neighborId}) also returned a distinct, seemingly valid response.`,
         evidence: `GET ${url} -> ${own.status} (${own.body.byteLength} bytes); GET ${neighborUrl} -> ${neighbor.status} (${neighbor.body.byteLength} bytes, different content)`,
         impact:
-          "An authenticated user may be able to read (and, if the endpoint also accepts writes, modify) other users' resources simply by changing an ID in the request — a broken access control failure. This is heuristic: manually confirm the response actually belongs to a different user/record before prioritizing remediation.",
-        remediation: "Verify server-side, on every request, that the authenticated user actually owns or is authorized to access the specific resource ID requested — never rely on an ID being hard to guess as an access control.",
+          "An authenticated user may be able to read (and, if the endpoint also accepts writes, modify) other users' resources simply by changing an ID in the request, a broken access control failure. This is heuristic: manually confirm the response actually belongs to a different user/record before prioritizing remediation.",
+        remediation: "Verify server-side, on every request, that the authenticated user actually owns or is authorized to access the specific resource ID requested, never rely on an ID being hard to guess as an access control.",
         affectedEndpoint: url,
       },
     };
@@ -154,11 +154,11 @@ export const securityScanIdorTool: ToolDefinition<SecurityScanIdorInput> = {
   name: "security_scan_idor",
   description:
     "Security tool. Given a URL with a numeric resource-ID path segment (e.g. /api/orders/42) and your own " +
-    "session headers (a Cookie or Authorization header you already have — never guessed or brute-forced), " +
+    "session headers (a Cookie or Authorization header you already have, never guessed or brute-forced), " +
     "checks two things: (1) does substituting a neighboring ID (41 or 43) with the SAME session return a " +
-    "distinct, valid-looking response — Insecure Direct Object Reference; (2) does the SAME URL with NO " +
-    "headers at all return identical content — the endpoint isn't actually enforcing authentication. GET-only. " +
-    "Both findings are heuristic — say so plainly, manual confirmation is needed. A port of the user's own " +
+    "distinct, valid-looking response, Insecure Direct Object Reference; (2) does the SAME URL with NO " +
+    "headers at all return identical content, the endpoint isn't actually enforcing authentication. GET-only. " +
+    "Both findings are heuristic, say so plainly, manual confirmation is needed. A port of the user's own " +
     "cyberlens scanner's idor check, given the URL/session directly rather than discovered via an " +
     "authenticated crawl (no crawler/login flow exists in this project). Without headers, reports that testing " +
     "wasn't performed rather than guessing. " +

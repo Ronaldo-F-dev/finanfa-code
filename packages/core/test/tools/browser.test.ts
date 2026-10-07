@@ -52,7 +52,7 @@ describe("browser_* tools", () => {
     });
 
     expect(result.content).toContain("# Big Page");
-    expect(result.content).toContain("truncated — full output is");
+    expect(result.content).toContain("truncated, full output is");
     expect(result.content).toContain("untrusted-external-content");
     expect(result.content).toContain("Interactive elements");
     expect(result.content).toContain('[0] <button> "Submit"');

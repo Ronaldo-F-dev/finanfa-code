@@ -82,5 +82,5 @@ export function formatScopedInstructions(instructions: ScopedInstruction[]): str
     const descriptionLine = instr.description ? `${instr.description}\n\n` : "";
     return `## ${instr.name}${scopeLabel}\n\n${descriptionLine}${instr.content}`;
   });
-  return `\n\n# Path-scoped project instructions\n\nEach section below only applies to files matching its own "applies to" globs (or to everything, if none are given) — apply a rule only when you're actually working on a matching path.\n\n${sections.join("\n\n")}`;
+  return `\n\n# Path-scoped project instructions\n\nEach section below only applies to files matching its own "applies to" globs (or to everything, if none are given), apply a rule only when you're actually working on a matching path.\n\n${sections.join("\n\n")}`;
 }

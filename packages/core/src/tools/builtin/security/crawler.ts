@@ -115,7 +115,7 @@ async function crawlSite(targetUrl: string): Promise<ScanOutput> {
   try {
     browser = await chromium.launch({ headless: true });
   } catch (err) {
-    throw new Error(`Failed to launch Chromium — run \`npx playwright install chromium\` first. Original error: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(`Failed to launch Chromium, run \`npx playwright install chromium\` first. Original error: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const baseHost = target.host;
@@ -185,7 +185,7 @@ async function crawlSite(targetUrl: string): Promise<ScanOutput> {
   const visitedList = [...visited].sort();
   const formSummary = discoveredForms
     .slice(0, 10)
-    .map((f) => `${f.method.toUpperCase()} ${f.action}${f.inferred ? " (inferred, no <form> tag)" : ""} — fields: ${f.fieldNames.join(", ") || "(none)"}`)
+    .map((f) => `${f.method.toUpperCase()} ${f.action}${f.inferred ? " (inferred, no <form> tag)" : ""}, fields: ${f.fieldNames.join(", ") || "(none)"}`)
     .join("; ");
 
   const finding: Finding = {
@@ -198,7 +198,7 @@ async function crawlSite(targetUrl: string): Promise<ScanOutput> {
       (formSummary ? ` | Forms: ${formSummary}${discoveredForms.length > 10 ? " ..." : ""}` : "") +
       (observedGetRequests.length > 0 ? ` | Observed GET XHR/fetch calls: ${observedGetRequests.slice(0, 10).join(", ")}${observedGetRequests.length > 10 ? " ..." : ""}` : ""),
     impact:
-      "Informational — this is a real site map (not itself a vulnerability). The discovered forms/endpoints are also cached for this session (security_scan_bfla and security_scan_csrf pick them up automatically for the same site); feed individual discovered URLs into the remaining single-URL security_scan_* tools (idor, xss, account_creation, etc.) to test them — observed GET XHR/fetch endpoints are good idor candidates.",
+      "Informational, this is a real site map (not itself a vulnerability). The discovered forms/endpoints are also cached for this session (security_scan_bfla and security_scan_csrf pick them up automatically for the same site); feed individual discovered URLs into the remaining single-URL security_scan_* tools (idor, xss, account_creation, etc.) to test them, observed GET XHR/fetch endpoints are good idor candidates.",
     affectedEndpoint: target.toString(),
   };
 
@@ -216,7 +216,7 @@ export const securityScanCrawlerTool: ToolDefinition<SecurityScanCrawlerInput> =
     `Chromium (so it still finds links/forms on JS-framework SPAs whose raw HTML is an almost-empty shell). ` +
     `Bounded to at most ${MAX_PAGES} pages and depth ${MAX_DEPTH} so this can't turn into an accidental crawl-everything against the target. ` +
     "Returns a real site map (visited pages, discovered forms with field names, observed GET XHR/fetch calls) " +
-    "as informational output. Also caches the discovered forms/endpoints for this session (keyed by origin) — " +
+    "as informational output. Also caches the discovered forms/endpoints for this session (keyed by origin), " +
     "run this BEFORE security_scan_bfla/security_scan_csrf against the same site and they will pick up its " +
     "results automatically, no need to copy anything by hand. Feed individual discovered URLs into the " +
     "remaining single-URL security_scan_* tools (idor, xss, account_creation, etc.) yourself; observed GET " +

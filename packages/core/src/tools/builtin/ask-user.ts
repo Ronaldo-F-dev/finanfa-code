@@ -17,15 +17,15 @@ export const askUserTool: ToolDefinition<AskUserInput> = {
   name: "ask_user",
   description:
     "Pause and ask the user a direct question when you genuinely need information only they can provide to " +
-    "continue correctly — a choice between real options, a value you can't infer or find yourself, clarification " +
+    "continue correctly, a choice between real options, a value you can't infer or find yourself, clarification " +
     "on ambiguous instructions. The answer becomes this tool's result, so you can keep working with it right " +
     "away in this same turn. Don't use this for anything you could reasonably figure out yourself (reading a " +
-    "file, checking docs, trying a sensible default) — that just wastes the user's time.",
+    "file, checking docs, trying a sensible default), that just wastes the user's time.",
   riskLevel: "safe",
   inputSchema: {
     type: "object",
     properties: {
-      question: { type: "string", description: "The question to ask, phrased clearly and completely — the user sees only this text, no other context" },
+      question: { type: "string", description: "The question to ask, phrased clearly and completely, the user sees only this text, no other context" },
     },
     required: ["question"],
   },

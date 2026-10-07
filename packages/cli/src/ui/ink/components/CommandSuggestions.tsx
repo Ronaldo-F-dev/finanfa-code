@@ -16,7 +16,7 @@ export function CommandSuggestions({
       {suggestions.map((cmd, i) => (
         <Text key={cmd.name} color={i === selectedIndex ? "cyan" : undefined} dimColor={i !== selectedIndex}>
           {i === selectedIndex ? "› " : "  "}/{cmd.name}
-          {cmd.description ? ` — ${cmd.description}` : ""}
+          {cmd.description ? `: ${cmd.description}` : ""}
         </Text>
       ))}
     </Box>

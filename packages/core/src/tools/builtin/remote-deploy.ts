@@ -46,7 +46,7 @@ const SHELL_METACHARACTERS = /[;&|$`\n]/;
 function assertSafe(value: string, fieldName: string): void {
   if (value.length === 0) throw new Error(`${fieldName} must not be empty`);
   if (SHELL_METACHARACTERS.test(value)) {
-    throw new Error(`${fieldName} contains a shell metacharacter (; & | $ \` or a newline) and was rejected — this field must be a plain identifier/path, not shell syntax`);
+    throw new Error(`${fieldName} contains a shell metacharacter (; & | $ \` or a newline) and was rejected, this field must be a plain identifier/path, not shell syntax`);
   }
 }
 
@@ -158,12 +158,12 @@ function createRemoteDeployReleaseTool(sshBinary: string, rsyncBinary: string): 
       "Deploy a local build artifact to a remote host using a real, standard symlink-based release pattern " +
       "(the same one Capistrano-style deploy tools use): rsyncs localArtifactPath into a new timestamped " +
       "directory under releasesDir, then atomically re-points currentSymlink at it only after startCommand/" +
-      "healthCheckCommand (if given) succeed — a previous release is never touched, so a bad deploy is a symlink " +
+      "healthCheckCommand (if given) succeed, a previous release is never touched, so a bad deploy is a symlink " +
       "flip away from being undone. If healthCheckCommand fails, the symlink is automatically rolled back to the " +
       "previous release and this reports isError with a clear message naming the rollback target. Auth is " +
-      "entirely the user's own existing key-based SSH setup (ssh-agent or ~/.ssh/config) — this tool takes no " +
+      "entirely the user's own existing key-based SSH setup (ssh-agent or ~/.ssh/config), this tool takes no " +
       "password and never will. " +
-      "IMPORTANT: this changes real state on a real remote host — confirm with the user before running it unless " +
+      "IMPORTANT: this changes real state on a real remote host, confirm with the user before running it unless " +
       "they've explicitly asked for this exact deploy.",
     riskLevel: "ask",
     riskKey: (input) => `remote_deploy_release:${input.host}`,
@@ -237,7 +237,7 @@ function createRemoteDeployReleaseTool(sshBinary: string, rsyncBinary: string): 
           // a failed health check would, since a start failure is at
           // least as strong a signal something is wrong.
           if (previousReleasePath) await ssh(sshBinary, target, swapCommand(target, previousReleasePath), timeoutMs);
-          const rollbackNote = previousReleasePath ? ` — rolled back to ${previousReleasePath}` : " — no previous release to roll back to";
+          const rollbackNote = previousReleasePath ? `, rolled back to ${previousReleasePath}` : ", no previous release to roll back to";
           return { content: `Deployed ${release} but startCommand failed${rollbackNote}: ${start.stderr}`, isError: true };
         }
       }
@@ -250,9 +250,9 @@ function createRemoteDeployReleaseTool(sshBinary: string, rsyncBinary: string): 
             if (rollback.isError) {
               return { content: `Deployed ${release} but health check failed AND automatic rollback also failed: ${rollback.stderr}`, isError: true };
             }
-            return { content: `Deployed ${release} but health check failed — rolled back to ${previousReleasePath}. Health check output: ${health.stderr || health.stdout}`, isError: true };
+            return { content: `Deployed ${release} but health check failed, rolled back to ${previousReleasePath}. Health check output: ${health.stderr || health.stdout}`, isError: true };
           }
-          return { content: `Deployed ${release} but health check failed — no previous release to roll back to. Health check output: ${health.stderr || health.stdout}`, isError: true };
+          return { content: `Deployed ${release} but health check failed, no previous release to roll back to. Health check output: ${health.stderr || health.stdout}`, isError: true };
         }
       }
 
@@ -296,7 +296,7 @@ function createRemoteRollbackReleaseTool(sshBinary: string): ToolDefinition<Remo
     name: "remote_rollback_release",
     description:
       "Roll a symlink-based deploy (see remote_deploy_release) back to the release directory immediately before " +
-      "the one currentSymlink currently points at — same atomic ln -sfn/mv symlink swap, no rsync/build step.",
+      "the one currentSymlink currently points at, same atomic ln -sfn/mv symlink swap, no rsync/build step.",
     riskLevel: "ask",
     riskKey: () => "remote_rollback_release",
     inputSchema: {
@@ -363,7 +363,7 @@ function createRemoteListReleasesTool(sshBinary: string): ToolDefinition<RemoteL
         host: { type: "string" },
         user: { type: "string" },
         releasesDir: { type: "string" },
-        currentSymlink: { type: "string", description: "Optional — if given, the listing marks the currently-active release" },
+        currentSymlink: { type: "string", description: "Optional, if given, the listing marks the currently-active release" },
         timeoutMs: { type: "number", description: `Timeout in milliseconds (default ${DEFAULT_TIMEOUT_MS})` },
       },
       required: ["host", "user", "releasesDir"],

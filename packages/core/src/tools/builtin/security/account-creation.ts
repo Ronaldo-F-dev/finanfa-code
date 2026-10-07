@@ -106,7 +106,7 @@ async function attemptRegistration(pageUrl: string): Promise<{ finding?: Finding
     // skimming a scan report. Same explicit "here's what to install"
     // messaging as browser/manager.ts's own launch failure, surfaced as a
     // real tool error instead of a silently misleading pass.
-    return { launchError: `Failed to launch Chromium — has it been installed? Run \`npx playwright install chromium\`.\nOriginal error: ${err instanceof Error ? err.message : String(err)}` };
+    return { launchError: `Failed to launch Chromium, has it been installed? Run \`npx playwright install chromium\`.\nOriginal error: ${err instanceof Error ? err.message : String(err)}` };
   }
 
   try {
@@ -198,9 +198,9 @@ async function attemptRegistration(pageUrl: string): Promise<{ finding?: Finding
           description: `Filling in and submitting the registration form at ${pageUrl} like a human would produced a result that looks like a successful account creation, with no CAPTCHA or other bot-protection challenge encountered beforehand.`,
           evidence: `Filled (${submittedSummary}) on ${pageUrl}, clicked the submit control -> landed on ${finalUrl}.${requestNote}`,
           impact:
-            "Without a CAPTCHA or equivalent rate-limiting/anti-automation control, an attacker can script mass account creation — for spam, fake reviews/engagement, credential-stuffing infrastructure, or exhausting resources tied to each account (free trial abuse, storage quotas).",
+            "Without a CAPTCHA or equivalent rate-limiting/anti-automation control, an attacker can script mass account creation, for spam, fake reviews/engagement, credential-stuffing infrastructure, or exhausting resources tied to each account (free trial abuse, storage quotas).",
           remediation:
-            "Add a CAPTCHA (or equivalent proof-of-work/behavioral check) and/or per-IP rate limiting to the registration endpoint. This finding is heuristic — manually verify a real account was actually created before prioritizing remediation.",
+            "Add a CAPTCHA (or equivalent proof-of-work/behavioral check) and/or per-IP rate limiting to the registration endpoint. This finding is heuristic, manually verify a real account was actually created before prioritizing remediation.",
           affectedEndpoint: pageUrl,
         },
         passed: { label: "", detail: "" },
@@ -223,14 +223,14 @@ export const securityScanAccountCreationTool: ToolDefinition<SecurityScanAccount
   name: "security_scan_account_creation",
   description:
     "Security tool. WARNING: this creates a REAL account on the target if the registration form has no bot " +
-    "protection — a real, hard-to-undo state change, not a read-only check. Navigates to a given registration " +
+    "protection, a real, hard-to-undo state change, not a read-only check. Navigates to a given registration " +
     "page in a real headless Chromium, fills in its fields like a human would (submitted email always uses " +
     "the example.com domain, RFC 2606-reserved, never delivers real mail), clicks the submit control, and " +
     "flags whether it succeeded with no CAPTCHA/bot-protection challenge. Makes AT MOST ONE attempt on the " +
-    "ONE given page — never explores further, never logs in afterward. A port of the user's own cyberlens " +
+    "ONE given page, never explores further, never logs in afterward. A port of the user's own cyberlens " +
     "scanner's account_creation check, pointed directly at the registration page URL (no crawler here to " +
-    "discover which page has one — you must already know it). " +
-    "IMPORTANT: only use this against a target you own or have explicit, documented authorization to test — " +
+    "discover which page has one, you must already know it). " +
+    "IMPORTANT: only use this against a target you own or have explicit, documented authorization to test, " +
     "many Terms of Service explicitly prohibit automated signups even on an authorized target. Confirm with " +
     "the user before running this specific tool, given it creates real, persistent state.",
   riskLevel: "dangerous",

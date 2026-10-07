@@ -79,25 +79,25 @@ export function createArtifactTool(server: PreviewServer, designContract: string
     name: "create_artifact",
     description:
       "Create a live, running React component (an \"artifact\") from a single piece of JSX and open it in the " +
-      "browser. `code` must define a component named `App` (e.g. `function App() { ... }`) — no imports, no " +
-      "build step: React, ReactDOM, JSX (via in-browser Babel), and Tailwind CSS (via the Tailwind CDN — use " +
+      "browser. `code` must define a component named `App` (e.g. `function App() { ... }`), no imports, no " +
+      "build step: React, ReactDOM, JSX (via in-browser Babel), and Tailwind CSS (via the Tailwind CDN, use " +
       "utility classes like `flex`, `gap-4`, `rounded-lg`, `shadow`, `text-slate-600` freely) are already provided " +
       "by the generated page's CDN script tags. Use this instead of hand-writing the React/Babel CDN boilerplate " +
-      "with write_file — it wraps `code` in that scaffold for you, writes the result as a self-contained HTML " +
+      "with write_file, it wraps `code` in that scaffold for you, writes the result as a self-contained HTML " +
       "file, and opens it through the same local server as preview_html (relative asset references still won't " +
-      "work here since everything is one file — for a multi-file mockup with its own CSS/assets, use write_file " +
+      "work here since everything is one file, for a multi-file mockup with its own CSS/assets, use write_file " +
       "+ preview_html instead). Aim for a genuinely polished result, not just a functional one: real spacing, a " +
-      "clear visual hierarchy, and an actual color/type choice instead of default black-on-white — Tailwind makes " +
+      "clear visual hierarchy, and an actual color/type choice instead of default black-on-white, Tailwind makes " +
       "this cheap, there's no excuse for a bare unstyled page. Follow up with browser_navigate + " +
       "browser_screenshot to actually see the rendered result before calling it done, same as any other UI work. " +
       "You can define as many helper components/functions as you want in `code` alongside `App` (e.g. " +
-      "`function Header() {...} function App() { return <Header/>; }`) — ordinary JS scoping inside the one " +
+      "`function Header() {...} function App() { return <Header/>; }`), ordinary JS scoping inside the one " +
       "script tag, nothing special needed. For a small change to an artifact you already created (a color, a " +
-      "label, one handler), prefer edit_file on the same path instead of re-emitting the whole `code` — the JSX " +
+      "label, one handler), prefer edit_file on the same path instead of re-emitting the whole `code`, the JSX " +
       "ends up in the written file exactly as you passed it, byte for byte, so a snippet copied from the `code` " +
       "you sent before will match old_string/new_string cleanly. The page also polls itself and reloads " +
       "automatically when the file changes, so an edit_file change shows up in the already-open tab without " +
-      "reopening it — reserve calling create_artifact again for a substantial rewrite.\n\n" +
+      "reopening it, reserve calling create_artifact again for a substantial rewrite.\n\n" +
       designContract,
     riskLevel: "ask",
     inputSchema: {

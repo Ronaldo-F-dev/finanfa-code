@@ -38,7 +38,7 @@ export function registerFeishuChannelRoutes(app: Express, cwd: string): void {
   app.post("/api/channels/feishu/webhook", (req, res) => {
     const verificationToken = process.env.FEISHU_VERIFICATION_TOKEN;
     if (!verificationToken) {
-      res.status(404).json({ error: "Feishu channel not configured — set FEISHU_VERIFICATION_TOKEN." });
+      res.status(404).json({ error: "Feishu channel not configured, set FEISHU_VERIFICATION_TOKEN." });
       return;
     }
     if (!verifyFeishuToken(verificationToken, extractFeishuToken(req.body))) {

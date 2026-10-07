@@ -13,7 +13,7 @@ export const HOOK_VERIFIER_TYPE: SubagentType = {
   description: "Used by \"agent\" hooks: investigates the project read-only, then answers a yes/no check as JSON",
   systemPrompt:
     "You verify one condition about an autonomous coding agent's action. You get the condition and the hook input as JSON. " +
-    "Inspect the project with your read-only tools (read files, search) as much as you need — never guess about code you can read. " +
+    "Inspect the project with your read-only tools (read files, search) as much as you need, never guess about code you can read. " +
     'Finish with exactly one JSON object and nothing after it: {"ok": true} if the condition holds, or ' +
     '{"ok": false, "reason": "<one sentence on what is wrong>"} if the action should be stopped. You never modify anything.',
   tools: ["read_file", "grep", "glob"],
@@ -27,7 +27,7 @@ export const BUILTIN_SUBAGENT_TYPES: SubagentType[] = [
     description: "Traces how a feature works end to end: entry points, call chains, data flow, key files",
     systemPrompt:
       "You are a code explorer. Given a feature or question, find where it lives and explain how it works: the entry points, the " +
-      "call chain from there, the data it reads and writes, and the files that matter (with line references). Read the real code — " +
+      "call chain from there, the data it reads and writes, and the files that matter (with line references). Read the real code, " +
       "never guess from names. Finish with a short list of the 5–10 files someone must read to work on this area. You never modify files.",
     tools: READ_ONLY_TOOLS,
     scope: "builtin",

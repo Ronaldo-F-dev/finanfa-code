@@ -89,10 +89,10 @@ async function bundleVersionExists(config: ClawsRegistryConfig, target: ClawsReg
 
 /** Publishes `bundle` to `bundles/<name>/<version>.json` in the target repo, as a real commit via GitHub's Contents API. Refuses to overwrite an already-published version — bump the bundle's own version instead. */
 export async function publishBundleToRegistry(config: ClawsRegistryConfig, target: ClawsRegistryTarget, bundle: ClawBundle, apiBaseUrl = GITHUB_API_BASE): Promise<RegistryResult<{ commitSha?: string }>> {
-  if (!config.token) return { ok: false, error: "No GitHub token configured — set CLAWS_REGISTRY_TOKEN (a personal access token with write access to the target repo)." };
+  if (!config.token) return { ok: false, error: "No GitHub token configured, set CLAWS_REGISTRY_TOKEN (a personal access token with write access to the target repo)." };
   const { name, version } = bundle.manifest;
   if (await bundleVersionExists(config, target, name, version, apiBaseUrl)) {
-    return { ok: false, error: `"${name}@${version}" is already published to ${target.owner}/${target.repo} — bump the version to publish an update.` };
+    return { ok: false, error: `"${name}@${version}" is already published to ${target.owner}/${target.repo}, bump the version to publish an update.` };
   }
   const path = bundlePath(name, version);
   const { status, body } = await githubRequest(contentsUrl(target, path, apiBaseUrl), config, {

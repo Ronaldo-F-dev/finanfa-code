@@ -54,7 +54,7 @@ export function createBrowserTools(manager: BrowserManager): ToolDefinition[] {
     name: "browser_navigate",
     description:
       "Open a URL in a real headless browser (Chromium) and return the page title, rendered text, and a " +
-      "numbered list of interactive elements (buttons, links, inputs, ...) — use this for JavaScript-heavy " +
+      "numbered list of interactive elements (buttons, links, inputs, ...), use this for JavaScript-heavy " +
       "pages that web_fetch can't render. Keeps the page open for browser_click/browser_fill/" +
       "browser_screenshot, which reference elements by the index shown here, not a CSS selector.",
     riskLevel: "ask",
@@ -76,7 +76,7 @@ export function createBrowserTools(manager: BrowserManager): ToolDefinition[] {
     name: "browser_click",
     description:
       "Click an interactive element on the currently open browser page, by its numeric index from the most " +
-      "recent browser_navigate/browser_click/browser_fill response's element list — then return the updated " +
+      "recent browser_navigate/browser_click/browser_fill response's element list, then return the updated " +
       "page text and a fresh element list (indices can change after the click). Requires browser_navigate to " +
       "have been called first.",
     riskLevel: "ask",
@@ -97,7 +97,7 @@ export function createBrowserTools(manager: BrowserManager): ToolDefinition[] {
     name: "browser_fill",
     description:
       "Fill a text input/textarea on the currently open browser page, by its numeric index from the most " +
-      "recent element list — replaces its current content, then returns the updated page text and a fresh " +
+      "recent element list, replaces its current content, then returns the updated page text and a fresh " +
       "element list. Requires browser_navigate to have been called first.",
     riskLevel: "ask",
     inputSchema: {

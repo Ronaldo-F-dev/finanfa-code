@@ -44,7 +44,7 @@ export function formatScanOutput(target: string, output: ScanOutput): string {
     lines.push(`${findings.length} finding(s) for ${target}:`);
     for (const f of findings) {
       lines.push("");
-      lines.push(`[${f.severity}] ${f.title}${f.cwe ? ` (${f.cwe})` : ""}${f.cvssScore !== undefined ? ` — CVSS ${f.cvssScore}` : ""}`);
+      lines.push(`[${f.severity}] ${f.title}${f.cwe ? ` (${f.cwe})` : ""}${f.cvssScore !== undefined ? `, CVSS ${f.cvssScore}` : ""}`);
       lines.push(f.description);
       if (f.evidence) lines.push(`Evidence: ${f.evidence}`);
       if (f.impact) lines.push(`Impact: ${f.impact}`);

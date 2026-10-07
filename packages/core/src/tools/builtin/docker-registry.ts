@@ -48,7 +48,7 @@ function resolveComposeInvocation(opts: DockerComposeToolOptions): ComposeInvoca
   return {
     error:
       `Neither the modern \`${dockerBin} compose\` (Docker CLI + Compose plugin) nor the legacy standalone ` +
-      `\`${composeBin}\` binary is available — install Docker Desktop (or the Compose plugin) or the standalone ` +
+      `\`${composeBin}\` binary is available, install Docker Desktop (or the Compose plugin) or the standalone ` +
       "docker-compose CLI, and ensure it's on PATH.",
   };
 }
@@ -69,7 +69,7 @@ export function createDockerComposeUpDownTool(options: DockerComposeToolOptions 
       "modern `docker compose` plugin form and falling back to the legacy standalone `docker-compose` binary. " +
       "Pass extra real compose flags/service names in `args`, e.g. ['-d'] or ['--build'] for up, " +
       "['--volumes'] or ['--remove-orphans'] for down, or a specific service name to target one service. " +
-      "IMPORTANT: both subcommands change real infra state (containers/networks/volumes) — confirm with the " +
+      "IMPORTANT: both subcommands change real infra state (containers/networks/volumes), confirm with the " +
       "user before running one unless they've explicitly asked for it.",
     riskLevel: "ask",
     riskKey: (input) => `docker_compose:${input.subcommand}`,
@@ -113,7 +113,7 @@ export function createDockerComposeStatusTool(options: DockerComposeToolOptions 
   return {
     name: "docker_compose_status",
     description:
-      "Inspect a Docker Compose stack (`docker compose [-f <file>] ps|logs [service]`), read-only — lists " +
+      "Inspect a Docker Compose stack (`docker compose [-f <file>] ps|logs [service]`), read-only, lists " +
       "container status (ps) or shows logs (logs), preferring the modern `docker compose` plugin form and " +
       "falling back to the legacy standalone `docker-compose` binary. Pass extra real flags in `args`, e.g. " +
       "['--tail', '100'] or ['-f'] to follow logs (note: following blocks until the tool's timeout).",
@@ -227,10 +227,10 @@ export function createDockerRegistryLoginTool(options: DockerRegistryLoginToolOp
       "that cloud's own CLI: ECR (`aws ecr get-login-password | docker login --username AWS --password-stdin " +
       "<account>.dkr.ecr.<region>.amazonaws.com`, needs `region` + `accountId`), ACR (`az acr login --name " +
       "<registryName>`, needs `registryName`), or GCR/Artifact Registry (`gcloud auth configure-docker " +
-      "<registries>`, `registries` optional — defaults to gcr.io). " +
+      "<registries>`, `registries` optional, defaults to gcr.io). " +
       "IMPORTANT: requires the respective cloud CLI (aws/az/gcloud) to already be installed and authenticated " +
-      "(aws configure / az login / gcloud auth login) — this tool only bridges that existing cloud auth to " +
-      "docker, it doesn't perform cloud login itself. Touches real cloud credentials — confirm with the user " +
+      "(aws configure / az login / gcloud auth login), this tool only bridges that existing cloud auth to " +
+      "docker, it doesn't perform cloud login itself. Touches real cloud credentials, confirm with the user " +
       "before running unless they've explicitly asked for it.",
     riskLevel: "ask",
     riskKey: (input) => `docker_registry_login:${input.provider}`,
@@ -259,7 +259,7 @@ export function createDockerRegistryLoginTool(options: DockerRegistryLoginToolOp
           return { content: "docker_registry_login: 'region' and 'accountId' are both required for provider 'ecr'.", isError: true };
         }
         if (!isCommandAvailable(awsBin)) {
-          return { content: `docker_registry_login: the AWS CLI (\`${awsBin}\`) is not installed/on PATH — install it and run \`aws configure\` (or otherwise authenticate) first.`, isError: true };
+          return { content: `docker_registry_login: the AWS CLI (\`${awsBin}\`) is not installed/on PATH, install it and run \`aws configure\` (or otherwise authenticate) first.`, isError: true };
         }
         if (!isCommandAvailable(dockerBin)) {
           return { content: `docker_registry_login: the Docker CLI (\`${dockerBin}\`) is not installed/on PATH.`, isError: true };
@@ -283,14 +283,14 @@ export function createDockerRegistryLoginTool(options: DockerRegistryLoginToolOp
           return { content: "docker_registry_login: 'registryName' is required for provider 'acr'.", isError: true };
         }
         if (!isCommandAvailable(azBin)) {
-          return { content: `docker_registry_login: the Azure CLI (\`${azBin}\`) is not installed/on PATH — install it and run \`az login\` first.`, isError: true };
+          return { content: `docker_registry_login: the Azure CLI (\`${azBin}\`) is not installed/on PATH, install it and run \`az login\` first.`, isError: true };
         }
         return runSubprocess(azBin, { cwd: ctx.cwd, sessionId: ctx.sessionId, timeoutMs, signal: ctx.signal, args: ["acr", "login", "--name", input.registryName] });
       }
 
       // gcr
       if (!isCommandAvailable(gcloudBin)) {
-        return { content: `docker_registry_login: the Google Cloud CLI (\`${gcloudBin}\`) is not installed/on PATH — install it and run \`gcloud auth login\` first.`, isError: true };
+        return { content: `docker_registry_login: the Google Cloud CLI (\`${gcloudBin}\`) is not installed/on PATH, install it and run \`gcloud auth login\` first.`, isError: true };
       }
       const registries = input.registries?.length ? input.registries : ["gcr.io"];
       return runSubprocess(gcloudBin, {

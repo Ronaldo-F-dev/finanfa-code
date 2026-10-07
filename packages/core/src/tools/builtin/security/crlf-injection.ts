@@ -54,9 +54,9 @@ async function testParam(target: URL, paramName: string): Promise<Finding | unde
     description: `Injecting an encoded CRLF sequence into '${paramName}' causes the server to decode it and splice an attacker-chosen header into the raw HTTP response, instead of treating the whole value as inert query-string data.`,
     evidence: `GET ${url} -> response includes header '${MARKER_HEADER}: ${MARKER_VALUE}', not present on an unmodified request.`,
     impact:
-      "An attacker who controls part of the raw HTTP response can set arbitrary response headers (e.g. forge Set-Cookie, cache-control, or CORS headers) and, chained with a second CRLF pair, split the response into two — enabling HTTP response splitting and cache poisoning against any shared cache/proxy in front of the application.",
+      "An attacker who controls part of the raw HTTP response can set arbitrary response headers (e.g. forge Set-Cookie, cache-control, or CORS headers) and, chained with a second CRLF pair, split the response into two, enabling HTTP response splitting and cache poisoning against any shared cache/proxy in front of the application.",
     remediation:
-      "Strip or reject CR (%0D) and LF (%0A) characters from any user input used to construct a response header or redirect target. Most modern web frameworks do this by default — if this fired, a custom header-construction path is likely bypassing that protection.",
+      "Strip or reject CR (%0D) and LF (%0A) characters from any user input used to construct a response header or redirect target. Most modern web frameworks do this by default, if this fired, a custom header-construction path is likely bypassing that protection.",
     affectedEndpoint: target.toString(),
   };
 }
@@ -98,7 +98,7 @@ interface SecurityScanCrlfInjectionInput {
 export const securityScanCrlfInjectionTool: ToolDefinition<SecurityScanCrlfInjectionInput> = {
   name: "security_scan_crlf_injection",
   description:
-    "Security tool. Tests a URL's query parameters for CRLF injection / HTTP response splitting — injects an " +
+    "Security tool. Tests a URL's query parameters for CRLF injection / HTTP response splitting, injects an " +
     "encoded CRLF sequence plus a marker header name into each parameter, and only flags a parameter when the " +
     "marker actually comes back as a distinct HTTP response header (unambiguous evidence, not a heuristic). " +
     "GET-only, safe to run. A port of the user's own cyberlens scanner's crlf_injection check, scoped to the " +

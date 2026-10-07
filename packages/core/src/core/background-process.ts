@@ -29,7 +29,7 @@ export class BackgroundProcessManager {
 
   start(name: string, command: string, cwd: string, logFile: string): BackgroundProcessInfo {
     if (this.processes.has(name)) {
-      throw new Error(`A background process named "${name}" is already tracked — stop it first, or pick a different name.`);
+      throw new Error(`A background process named "${name}" is already tracked, stop it first, or pick a different name.`);
     }
 
     const fd = openSync(logFile, "a");

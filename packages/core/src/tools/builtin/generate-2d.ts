@@ -72,10 +72,10 @@ export function createGenerate2dTool(config: Generate2dConfig | undefined, apiBa
     name: "generate_2d",
     description:
       "Generate a 2D image from a text description, via OpenAI's real Images API (gpt-image-1). Requires " +
-      "OPENAI_API_KEY (the same key transcribe_audio/recall_past_sessions' semantic mode already use) — a " +
+      "OPENAI_API_KEY (the same key transcribe_audio/recall_past_sessions' semantic mode already use), a " +
       "real, metered API call, not a free one. Shows you the generated image directly; pass output_path to " +
       "also save it as a PNG file. " +
-      "IMPORTANT: this makes a real, billed API call — confirm the prompt with the user before calling this " +
+      "IMPORTANT: this makes a real, billed API call, confirm the prompt with the user before calling this " +
       "unless they've explicitly asked for this exact image.",
     riskLevel: "ask",
     inputSchema: {
@@ -92,7 +92,7 @@ export function createGenerate2dTool(config: Generate2dConfig | undefined, apiBa
       if (!config) {
         return {
           content:
-            `2D image generation is unavailable — set OPENAI_API_KEY to enable it via OpenAI's real Images API ` +
+            `2D image generation is unavailable, set OPENAI_API_KEY to enable it via OpenAI's real Images API ` +
             `(requested: "${input.prompt}"). NVIDIA NIM lists free FLUX/Stable Diffusion models, but that endpoint ` +
             "did not respond in real testing.",
           isError: true,

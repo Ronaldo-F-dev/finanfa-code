@@ -55,7 +55,7 @@ export async function truncateOrSpill(cwd: string, sessionId: string, label: str
   const relPath = await spillToFile(cwd, sessionId, label, s);
 
   return (
-    `${s.slice(0, maxLength)}\n... (truncated — full output is ${s.length.toLocaleString()} characters, saved to ` +
+    `${s.slice(0, maxLength)}\n... (truncated, full output is ${s.length.toLocaleString()} characters, saved to ` +
     `${relPath}; use read_file with an offset to read further into it, or grep it, rather than assuming this is everything)`
   );
 }

@@ -80,7 +80,7 @@ async function scanLdapInjection(targetUrl: string): Promise<ScanOutput> {
   }
 
   if (candidates.length === 0) {
-    passed.push({ label: "No injectable parameters found", detail: "No query parameters were found on the given URL (POST forms aren't tested — no form discovery in this project)." });
+    passed.push({ label: "No injectable parameters found", detail: "No query parameters were found on the given URL (POST forms aren't tested, no form discovery in this project)." });
   } else if (findings.length === 0) {
     passed.push({ label: "No LDAP injection detected", detail: `Tested ${candidates.length} GET parameter(s) with an LDAP filter-injection payload; none showed an LDAP error signature.` });
   }
@@ -95,7 +95,7 @@ interface SecurityScanLdapInjectionInput {
 export const securityScanLdapInjectionTool: ToolDefinition<SecurityScanLdapInjectionInput> = {
   name: "security_scan_ldap_injection",
   description:
-    "Security tool. Tests a URL's query parameters for LDAP injection — injects a payload designed to break " +
+    "Security tool. Tests a URL's query parameters for LDAP injection, injects a payload designed to break " +
     "out of an LDAP search filter (unbalanced parentheses / wildcard-OR injection) and checks for LDAP-" +
     "specific error signatures. Sends a real filter-breaking payload to a live target. GET-only. Does not " +
     "attempt a boolean-blind differential test (LDAP's behavioral signal is highly application-specific and " +

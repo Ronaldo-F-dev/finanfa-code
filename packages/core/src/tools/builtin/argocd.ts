@@ -46,7 +46,7 @@ export function createArgocdTools(options: ArgocdToolOptions = {}): ToolDefiniti
       "current Git-tracked manifests to whatever cluster ArgoCD manages it against. Pass extra real argocd " +
       "flags in `args`, e.g. ['--prune'] (remove resources no longer in Git), ['--force'] (replace instead of " +
       "apply), ['--async'] (return immediately instead of waiting for the sync to finish). " +
-      "IMPORTANT: this changes real cluster state — confirm with the user before running it unless they've " +
+      "IMPORTANT: this changes real cluster state, confirm with the user before running it unless they've " +
       "explicitly asked for this sync.",
     riskLevel: "ask",
     riskKey: () => "argocd_sync",
@@ -74,7 +74,7 @@ export function createArgocdTools(options: ArgocdToolOptions = {}): ToolDefiniti
   const status: ToolDefinition<ArgocdAppStatusInput> = {
     name: "argocd_app_status",
     description:
-      "Get an ArgoCD application's sync and health status (`argocd app get <name>`) — read-only, doesn't " +
+      "Get an ArgoCD application's sync and health status (`argocd app get <name>`), read-only, doesn't " +
       "change anything.",
     riskLevel: "safe",
     inputSchema: {
@@ -99,7 +99,7 @@ export function createArgocdTools(options: ArgocdToolOptions = {}): ToolDefiniti
 
   const list: ToolDefinition<ArgocdAppListInput> = {
     name: "argocd_app_list",
-    description: "List all ArgoCD-managed applications (`argocd app list`) — read-only, doesn't change anything.",
+    description: "List all ArgoCD-managed applications (`argocd app list`), read-only, doesn't change anything.",
     riskLevel: "safe",
     inputSchema: {
       type: "object",

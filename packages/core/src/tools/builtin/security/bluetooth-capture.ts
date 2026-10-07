@@ -70,8 +70,8 @@ export function createSecurityAnalyzeBluetoothCaptureTool(): ToolDefinition<Secu
   return {
     name: "security_analyze_bluetooth_capture",
     description:
-      "Analyzes an already-captured Bluetooth HCI snoop (btsnoop) file — the format BlueZ's `btmon -w` and " +
-      "Android write — summarizing packet direction (sent/received) and type (data vs command/event) counts, " +
+      "Analyzes an already-captured Bluetooth HCI snoop (btsnoop) file, the format BlueZ's `btmon -w` and " +
+      "Android write, summarizing packet direction (sent/received) and type (data vs command/event) counts, " +
       "plus which HCI event codes appear (byte 0 of each received command-or-event packet). Offline file " +
       "parsing only: no live capture, no radio access. Useful for spotting unexpected command/event traffic in " +
       "a captured session.",

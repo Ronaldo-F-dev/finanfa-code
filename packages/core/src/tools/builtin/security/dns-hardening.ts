@@ -315,7 +315,7 @@ async function scanDnsHardening(targetUrl: string): Promise<ScanOutput> {
       severity: "INFO",
       description: `${found.length} common subdomain(s) of ${hostname} resolve, expanding the organization's known attack surface beyond the scanned target.`,
       evidence: `Resolved: ${found.map((s) => `${s}.${hostname}`).join(", ")}`,
-      impact: "Informational — each resolved subdomain is a separate asset that may warrant its own authorized assessment.",
+      impact: "Informational, each resolved subdomain is a separate asset that may warrant its own authorized assessment.",
       affectedEndpoint: hostname,
     });
   } else {
@@ -341,7 +341,7 @@ export const securityScanDnsHardeningTool: ToolDefinition<SecurityScanDnsHardeni
   riskLevel: "ask",
   inputSchema: {
     type: "object",
-    properties: { url: { type: "string", description: "Target URL, e.g. https://example.com — its hostname's subdomains are checked" } },
+    properties: { url: { type: "string", description: "Target URL, e.g. https://example.com, its hostname's subdomains are checked" } },
     required: ["url"],
   },
   describeCall: (input) => `enumerate subdomains: ${input.url}`,

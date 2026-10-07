@@ -139,9 +139,9 @@ export function isValidGattPath(path: string): boolean {
  * write. */
 export function normalizeGattWriteBytes(valueHex: string): { bytes: string[] } | { error: string } {
   const cleaned = valueHex.replace(/0x/gi, "").replace(/[\s,]+/g, "");
-  if (cleaned.length === 0) return { error: 'No value to write — provide hex bytes, e.g. "01 02 03".' };
-  if (!/^[0-9a-fA-F]+$/.test(cleaned)) return { error: `"${valueHex}" is not valid hex — use hex bytes like "01 02 03" or "0x01 0x02".` };
-  if (cleaned.length % 2 !== 0) return { error: `"${valueHex}" has an odd number of hex digits — each byte needs two (e.g. "0f", not "f").` };
+  if (cleaned.length === 0) return { error: 'No value to write, provide hex bytes, e.g. "01 02 03".' };
+  if (!/^[0-9a-fA-F]+$/.test(cleaned)) return { error: `"${valueHex}" is not valid hex, use hex bytes like "01 02 03" or "0x01 0x02".` };
+  if (cleaned.length % 2 !== 0) return { error: `"${valueHex}" has an odd number of hex digits, each byte needs two (e.g. "0f", not "f").` };
   const bytes: string[] = [];
   for (let i = 0; i < cleaned.length; i += 2) bytes.push(cleaned.slice(i, i + 2).toLowerCase());
   return { bytes };

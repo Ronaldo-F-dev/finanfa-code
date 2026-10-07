@@ -46,7 +46,7 @@ export const EFFORT_TIERS: EffortTier[] = [
     // reason for toolBudget "none" as before: gemma2:2b's own Ollama
     // /api/tags capabilities are ["completion"] only, no "tools" — sending
     // it a tool list fails outright regardless of how many are in it.
-    description: "Réponses rapides, sans outils — gemma2:2b (aucun tool calling, donc aucun outil envoyé : c'est ce qui évite le crash déjà rencontré avec ce type de modèle). Bon pour la conversation en français.",
+    description: "Réponses rapides, sans outils, gemma2:2b (aucun tool calling, donc aucun outil envoyé : c'est ce qui évite le crash déjà rencontré avec ce type de modèle). Bon pour la conversation en français.",
     model: "gemma2:2b",
     family: "openai-compatible",
     baseUrl: OLLAMA_BASE_URL,
@@ -57,7 +57,7 @@ export const EFFORT_TIERS: EffortTier[] = [
   {
     id: "medium",
     label: "Moyen",
-    description: "Un modèle local qui supporte les outils (lecture/édition de fichiers) avec un jeu d'outils réduit — qwen3:4b-instruct.",
+    description: "Un modèle local qui supporte les outils (lecture/édition de fichiers) avec un jeu d'outils réduit, qwen3:4b-instruct.",
     model: "qwen3:4b-instruct",
     family: "openai-compatible",
     baseUrl: OLLAMA_BASE_URL,
@@ -68,7 +68,7 @@ export const EFFORT_TIERS: EffortTier[] = [
   {
     id: "high",
     label: "Fort",
-    description: "Le modèle cloud par défaut du projet (ex: Poolside/laguna, ou Claude), avec tous les outils — pour les tâches complexes.",
+    description: "Le modèle cloud par défaut du projet (ex: Poolside/laguna, ou Claude), avec tous les outils, pour les tâches complexes.",
     model: "",
     maxTokens: 8192,
     toolBudget: "full",
@@ -88,7 +88,7 @@ export const EFFORT_TIERS: EffortTier[] = [
     // question and got a coherent, on-topic (if imperfect) answer, but
     // that mismatch is worth knowing, not hidden.
     description:
-      "SaulLM-7B — modèle spécialisé droit (Equall, licence MIT), aucun tool calling. Corpus principalement anglo-saxon (UK/US/UE), " +
+      "SaulLM-7B, modèle spécialisé droit (Equall, licence MIT), aucun tool calling. Corpus principalement anglo-saxon (UK/US/UE), " +
       "testé en français avec des réponses cohérentes mais pas natif du droit français. Réponses lentes (>1min) sur CPU.",
     model: "hf.co/MaziyarPanahi/Saul-Instruct-v1-GGUF:Q4_K_M",
     family: "openai-compatible",

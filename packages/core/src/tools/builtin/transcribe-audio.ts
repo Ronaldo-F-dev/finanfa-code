@@ -107,27 +107,27 @@ export function createTranscribeAudioTool(config: TranscribeAudioConfig | undefi
     description:
       "Transcribe a real audio file (mp3/mp4/mpeg/m4a/wav/webm/ogg/flac) to text, via OpenAI's Whisper API. " +
       "Requires OPENAI_API_KEY as an environment variable, independent of whichever provider is configured for " +
-      "the chat model itself — this tool never takes credentials as input.",
+      "the chat model itself, this tool never takes credentials as input.",
     riskLevel: "safe",
     inputSchema: {
       type: "object",
       properties: {
         audioPath: { type: "string", description: "Path to the audio file to transcribe" },
-        language: { type: "string", description: 'Optional ISO-639-1 language hint, e.g. "en" — improves accuracy but is not required' },
+        language: { type: "string", description: 'Optional ISO-639-1 language hint, e.g. "en", improves accuracy but is not required' },
       },
       required: ["audioPath"],
     },
     describeCall: (input) => `transcribe audio: ${input.audioPath}`,
     async handler(input, ctx) {
       if (!config) {
-        return { content: "transcribe_audio is not configured — set OPENAI_API_KEY as an environment variable to enable it.", isError: true };
+        return { content: "transcribe_audio is not configured, set OPENAI_API_KEY as an environment variable to enable it.", isError: true };
       }
 
       const audioPath = resolveAllowedPath(ctx.cwd, input.audioPath);
       const ext = path.extname(audioPath).toLowerCase();
       const mimeType = AUDIO_MIME_TYPES[ext];
       if (!mimeType) {
-        return { content: `Unsupported audio format "${ext || "(none)"}" — supported: ${Object.keys(AUDIO_MIME_TYPES).join(", ")}.`, isError: true };
+        return { content: `Unsupported audio format "${ext || "(none)"}", supported: ${Object.keys(AUDIO_MIME_TYPES).join(", ")}.`, isError: true };
       }
 
       try {

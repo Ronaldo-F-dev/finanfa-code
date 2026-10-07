@@ -18,7 +18,7 @@ export class FileFreshnessTracker {
   checkStale(path: string, currentContent: string): string | undefined {
     const known = this.seen.get(path);
     if (known !== undefined && known !== currentContent) {
-      return `⚠ ${path} changed on disk since it was last read in this session (edited outside this tool, or by another process) — proceeding against its current content.`;
+      return `⚠ ${path} changed on disk since it was last read in this session (edited outside this tool, or by another process), proceeding against its current content.`;
     }
     return undefined;
   }

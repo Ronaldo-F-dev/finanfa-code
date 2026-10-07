@@ -59,7 +59,7 @@ export function createTmuxNewSessionTool(options: TmuxToolOptions = {}): ToolDef
     inputSchema: {
       type: "object",
       properties: {
-        name: { type: "string", description: "Session name — used to target it from tmux_send_keys/tmux_capture_pane/tmux_kill_session" },
+        name: { type: "string", description: "Session name, used to target it from tmux_send_keys/tmux_capture_pane/tmux_kill_session" },
         command: { type: "string", description: "Command to run in the new session's shell (default: just an idle shell)" },
         cwd: { type: "string", description: "Working directory for the session, relative to the project root (defaults to the project root)" },
       },
@@ -89,7 +89,7 @@ export function createTmuxSendKeysTool(options: TmuxToolOptions = {}): ToolDefin
   return {
     name: "tmux_send_keys",
     description:
-      "Send real keystrokes to a tmux session/pane — types text into whatever interactive program is running there (answer a prompt, drive a REPL, " +
+      "Send real keystrokes to a tmux session/pane, types text into whatever interactive program is running there (answer a prompt, drive a REPL, " +
       "confirm an install step). Use tmux_capture_pane afterward to see the result.",
     riskLevel: "dangerous",
     inputSchema: {
@@ -125,7 +125,7 @@ export function createTmuxCapturePaneTool(options: TmuxToolOptions = {}): ToolDe
   const binary = options.binary ?? "tmux";
   return {
     name: "tmux_capture_pane",
-    description: "Capture the real current (and recent scrollback) output of a tmux session/pane — how you read what an interactive program has printed since the last check.",
+    description: "Capture the real current (and recent scrollback) output of a tmux session/pane, how you read what an interactive program has printed since the last check.",
     riskLevel: "safe",
     inputSchema: {
       type: "object",

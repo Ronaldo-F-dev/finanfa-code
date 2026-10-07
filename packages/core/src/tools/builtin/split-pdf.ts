@@ -17,10 +17,10 @@ function defaultPrefix(sourcePath: string): string {
 export const splitPdfTool: ToolDefinition<SplitPdfInput> = {
   name: "split_pdf",
   description:
-    "Split a PDF into separate single-page PDF files — the inverse of merge_pdf. Without `page`, writes one " +
+    "Split a PDF into separate single-page PDF files, the inverse of merge_pdf. Without `page`, writes one " +
     "file per page, named <prefix>-1.pdf, <prefix>-2.pdf, etc. (1-based); with `page`, writes just that one " +
     "page as <prefix>-<page>.pdf (always page-number-suffixed, even for a single page, so the default prefix " +
-    "— the source path without .pdf — never collides with the source file itself). Without outputPrefix, uses " +
+    "- the source path without .pdf, never collides with the source file itself). Without outputPrefix, uses " +
     "the source path without its .pdf extension.",
   riskLevel: "ask",
   inputSchema: {
@@ -43,7 +43,7 @@ export const splitPdfTool: ToolDefinition<SplitPdfInput> = {
     const pageCount = src.getPageCount();
 
     if (input.page !== undefined && (input.page < 1 || input.page > pageCount)) {
-      return { content: `Page ${input.page} is out of range — ${input.path} has ${pageCount} page(s).`, isError: true };
+      return { content: `Page ${input.page} is out of range, ${input.path} has ${pageCount} page(s).`, isError: true };
     }
 
     const pageNumbers = input.page !== undefined ? [input.page] : Array.from({ length: pageCount }, (_, i) => i + 1);

@@ -108,21 +108,21 @@ export const readEnvFileTool: ToolDefinition<ReadEnvFileInput> = {
   name: "read_env_file",
   description:
     "Read a .env-format file (KEY=VALUE lines, `#` comments, quoted values) and list its keys. By default every " +
-    'value is MASKED (e.g. "sho****1234") — the real value never enters the conversation. Pass `unmask: true` ' +
+    'value is MASKED (e.g. "sho****1234"), the real value never enters the conversation. Pass `unmask: true` ' +
     "ONLY if the real values are actually needed for the task at hand: this makes the real, unmasked secret " +
-    "values part of the visible conversation and session transcript, exactly like pasting them into chat — " +
+    "values part of the visible conversation and session transcript, exactly like pasting them into chat, " +
     "treat that the same way you'd treat any other real credential exposure.",
   riskLevel: "ask",
   inputSchema: {
     type: "object",
     properties: {
       path: { type: "string", description: "Path to the .env file, relative to the project root or absolute" },
-      unmask: { type: "boolean", description: "true reveals real values (see description) — default false, values are masked" },
+      unmask: { type: "boolean", description: "true reveals real values (see description), default false, values are masked" },
     },
     required: ["path"],
   },
   riskKey: (input) => `read_env_file:${input.path}:${input.unmask ? "unmask" : "masked"}`,
-  describeCall: (input) => `read ${input.path}${input.unmask ? " (UNMASKED — reveals real values)" : " (masked)"}`,
+  describeCall: (input) => `read ${input.path}${input.unmask ? " (UNMASKED, reveals real values)" : " (masked)"}`,
   async handler(input, ctx) {
     const filePath = resolveAllowedPath(ctx.cwd, input.path);
     let raw: string;
@@ -148,7 +148,7 @@ export const setEnvValueTool: ToolDefinition<SetEnvValueInput> = {
   name: "set_env_value",
   description:
     "Add or update a single KEY=VALUE line in a .env file, preserving every other line's formatting/comments/order " +
-    "exactly as-is — only the targeted key's line is touched (or appended, if it doesn't exist yet). Creates the " +
+    "exactly as-is, only the targeted key's line is touched (or appended, if it doesn't exist yet). Creates the " +
     "file if it doesn't exist.",
   riskLevel: "ask",
   inputSchema: {
@@ -185,7 +185,7 @@ export const listEnvFilesTool: ToolDefinition<ListEnvFilesInput> = {
   name: "list_env_files",
   description:
     "Find .env/.env.* files under a directory (excluding node_modules/.git) and report, for each one, just its " +
-    "filename and which keys it defines — never values, masked or otherwise.",
+    "filename and which keys it defines, never values, masked or otherwise.",
   riskLevel: "safe",
   inputSchema: {
     type: "object",

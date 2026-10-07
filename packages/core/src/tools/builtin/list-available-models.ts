@@ -19,7 +19,7 @@ export const listAvailableModelsTool: ToolDefinition<Record<string, never>> = {
   name: "list_available_models",
   description:
     "Lists the models actually available to call with the project's configured provider account. Only " +
-    'supported for provider "amazon-bedrock" today — every other provider publishes a fixed model list in ' +
+    'supported for provider "amazon-bedrock" today, every other provider publishes a fixed model list in ' +
     "its own docs rather than exposing a live discovery API. Returns a clear error naming the active provider " +
     "otherwise, instead of guessing.",
   riskLevel: "safe",
@@ -30,7 +30,7 @@ export const listAvailableModelsTool: ToolDefinition<Record<string, never>> = {
     const provider = process.env.FINANFA_PROVIDER ?? config.provider ?? "anthropic";
     if (provider !== "amazon-bedrock") {
       return {
-        content: `Model discovery isn't available for provider "${provider}" — only amazon-bedrock exposes a live API for this today. Check that provider's own documentation for its current model list.`,
+        content: `Model discovery isn't available for provider "${provider}", only amazon-bedrock exposes a live API for this today. Check that provider's own documentation for its current model list.`,
         isError: true,
       };
     }
@@ -39,7 +39,7 @@ export const listAvailableModelsTool: ToolDefinition<Record<string, never>> = {
     try {
       const models = await listBedrockModels({ region });
       if (models.length === 0) return { content: "No models found for this AWS account/region.", isError: false };
-      const lines = models.map((m) => `${m.id}${m.name ? ` — ${m.name}` : ""} (${m.kind})`);
+      const lines = models.map((m) => `${m.id}${m.name ? `, ${m.name}` : ""} (${m.kind})`);
       return { content: lines.join("\n"), isError: false };
     } catch (err) {
       return { content: `Failed to list Bedrock models: ${err instanceof Error ? err.message : String(err)}`, isError: true };

@@ -21,7 +21,7 @@ export function BusyIndicator({ label, isLocalModel }: { label?: string; isLocal
         <span className="spinner" /> {label ?? "en cours"}… <span className="busy-elapsed">{elapsedSec}s</span>
         {isLocalModel && elapsedSec >= 5 && (
           <div className="busy-local-hint">
-            Modèle local — le traitement du prompt peut prendre une à deux minutes sur une machine sans GPU, avant même le début de la
+            Modèle local, le traitement du prompt peut prendre une à deux minutes sur une machine sans GPU, avant même le début de la
             génération.
           </div>
         )}

@@ -83,8 +83,8 @@ export function createSendWhatsappMessageTool(config: WhatsappConfig | undefined
     name: "send_whatsapp_message",
     description:
       "Send a real WhatsApp message via the WhatsApp Cloud API. Requires WHATSAPP_ACCESS_TOKEN and " +
-      "WHATSAPP_PHONE_NUMBER_ID to be configured as environment variables — this tool never takes credentials " +
-      "as input. IMPORTANT: this posts a real, visible message to a real WhatsApp number — confirm the " +
+      "WHATSAPP_PHONE_NUMBER_ID to be configured as environment variables, this tool never takes credentials " +
+      "as input. IMPORTANT: this posts a real, visible message to a real WhatsApp number, confirm the " +
       "number/content with the user before calling this unless they've explicitly asked for this exact message.",
     riskLevel: "ask",
     inputSchema: {
@@ -99,7 +99,7 @@ export function createSendWhatsappMessageTool(config: WhatsappConfig | undefined
     async handler(input) {
       if (!config) {
         return {
-          content: "WhatsApp is not configured — set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID as environment variables to enable send_whatsapp_message.",
+          content: "WhatsApp is not configured, set WHATSAPP_ACCESS_TOKEN and WHATSAPP_PHONE_NUMBER_ID as environment variables to enable send_whatsapp_message.",
           isError: true,
         };
       }

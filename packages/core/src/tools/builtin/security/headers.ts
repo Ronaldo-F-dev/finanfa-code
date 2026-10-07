@@ -123,7 +123,7 @@ function checkClickjackingProtection(headers: Headers, target: string, findings:
       cvssVector: "AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:N/A:N",
       cwe: "CWE-1021",
       description: "Neither a valid X-Frame-Options header (DENY/SAMEORIGIN) nor a Content-Security-Policy frame-ancestors directive is present.",
-      evidence: `GET ${target} — X-Frame-Options: ${xfo || "(absent)"}, CSP frame-ancestors present: ${hasFrameAncestors}.`,
+      evidence: `GET ${target}, X-Frame-Options: ${xfo || "(absent)"}, CSP frame-ancestors present: ${hasFrameAncestors}.`,
       impact: "The page can be embedded in an attacker-controlled iframe, enabling clickjacking (UI redress) attacks that trick users into performing unintended actions.",
       remediation: "Add Content-Security-Policy: frame-ancestors 'self' (preferred), or X-Frame-Options: DENY / SAMEORIGIN.",
       affectedEndpoint: target,
@@ -144,7 +144,7 @@ function checkContentTypeOptions(headers: Headers, target: string, findings: Fin
       cvssVector: "AV:N/AC:L/PR:N/UI:R/S:U/C:L/I:L/A:N",
       cwe: "CWE-693",
       description: "X-Content-Type-Options: nosniff is not set.",
-      evidence: `GET ${target} — X-Content-Type-Options: ${value || "(absent)"}.`,
+      evidence: `GET ${target}, X-Content-Type-Options: ${value || "(absent)"}.`,
       impact:
         "Browsers may MIME-sniff the response into an executable content type (e.g. treating a user-uploaded file as HTML/JS) regardless of the declared Content-Type, which can enable XSS via file upload or other content-injection vectors.",
       remediation: "Add X-Content-Type-Options: nosniff to all responses.",
@@ -170,7 +170,7 @@ function checkCacheControl(headers: Headers, target: string, findings: Finding[]
       cvssVector: "AV:N/AC:H/PR:N/UI:R/S:U/C:L/I:N/A:N",
       cwe: "CWE-525",
       description: "A response that sets a cookie does not send Cache-Control: no-store.",
-      evidence: `GET ${target} — Cache-Control: ${cacheControl || "(absent)"}, response also sets a cookie.`,
+      evidence: `GET ${target}, Cache-Control: ${cacheControl || "(absent)"}, response also sets a cookie.`,
       impact:
         "Shared caches, proxies, or the browser's disk cache may store a response containing session-bound content, potentially exposing it to other users of the same cache or to later inspection of browser history/disk cache.",
       remediation: "Add Cache-Control: no-store (or at minimum private, no-cache) to any response that sets or depends on session/authentication cookies.",
@@ -314,7 +314,7 @@ async function scanHeaders(target: string): Promise<ScanOutput> {
           cvssVector: check.vector,
           cwe: check.cwe,
           description: check.description,
-          evidence: `GET ${target} — response has no '${check.header}' header.`,
+          evidence: `GET ${target}, response has no '${check.header}' header.`,
           impact: check.impact,
           remediation: check.remediation,
           affectedEndpoint: target,
@@ -342,9 +342,9 @@ export const securityScanHeadersTool: ToolDefinition<SecurityScanHeadersInput> =
   name: "security_scan_headers",
   description:
     "Security tool. Check a URL's HTTP response for missing/misconfigured security headers, insecure cookie " +
-    "flags, and permissive CORS — a direct, faithful port of the user's own cyberlens scanner's headers " +
+    "flags, and permissive CORS, a direct, faithful port of the user's own cyberlens scanner's headers " +
     "check (CVSS-scored findings, same vectors/CWEs/remediation text). " +
-    "IMPORTANT: only scan a target the user owns or has explicit, documented authorization to test — " +
+    "IMPORTANT: only scan a target the user owns or has explicit, documented authorization to test, " +
     "unauthorized scanning of third-party systems may be illegal. Ask the user to confirm authorization if " +
     "it isn't already clear from context, rather than assuming it.",
   riskLevel: "ask",

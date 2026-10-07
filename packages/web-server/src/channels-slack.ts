@@ -69,7 +69,7 @@ export function registerSlackChannelRoutes(app: Express, cwd: string): void {
   app.post("/api/channels/slack/events", (req: RequestWithRawBody, res) => {
     const signingSecret = process.env.SLACK_SIGNING_SECRET;
     if (!signingSecret) {
-      res.status(404).json({ error: "Slack channel not configured — set SLACK_SIGNING_SECRET." });
+      res.status(404).json({ error: "Slack channel not configured, set SLACK_SIGNING_SECRET." });
       return;
     }
 

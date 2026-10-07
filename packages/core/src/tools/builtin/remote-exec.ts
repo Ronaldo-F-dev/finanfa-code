@@ -120,18 +120,18 @@ export function createRunRemoteCommandTool(options: RunRemoteCommandToolOptions 
   return {
     name: "run_remote_command",
     description:
-      "Run a command on a separate, remote machine over SSH — `host` can be a real hostname/IP or an alias " +
+      "Run a command on a separate, remote machine over SSH, `host` can be a real hostname/IP or an alias " +
       "already defined in the user's own ~/.ssh/config (auth/keys/known_hosts all come from their real SSH " +
-      "setup; this tool never takes credentials as input). Runs non-interactively (BatchMode) — a host " +
+      "setup; this tool never takes credentials as input). Runs non-interactively (BatchMode), a host " +
       "requiring a password instead of key-based auth fails clearly rather than hanging. " +
-      "IMPORTANT: this runs a real command on a real remote machine — confirm with the user before calling " +
+      "IMPORTANT: this runs a real command on a real remote machine, confirm with the user before calling " +
       "this unless they've explicitly asked for this exact command.",
     riskLevel: "dangerous",
     inputSchema: {
       type: "object",
       properties: {
         host: { type: "string", description: "Hostname, IP, or an alias from ~/.ssh/config" },
-        command: { type: "string", description: "Command to run on the remote host — interpreted by the REMOTE shell, exactly as if typed after `ssh host`" },
+        command: { type: "string", description: "Command to run on the remote host, interpreted by the REMOTE shell, exactly as if typed after `ssh host`" },
         user: { type: "string", description: "Remote username, if not already implied by host/~/.ssh/config" },
         port: { type: "number", description: "SSH port, if not 22 and not already set in ~/.ssh/config" },
         identity_file: { type: "string", description: "Path to a specific private key, if not already resolved via ~/.ssh/config or ssh-agent" },
@@ -139,7 +139,7 @@ export function createRunRemoteCommandTool(options: RunRemoteCommandToolOptions 
         retries: {
           type: "number",
           description:
-            "Retry up to this many extra times (exponential backoff) on a transient CONNECTION failure — a network blip, host briefly unreachable, timeout. Never retries once the remote command itself actually ran and returned its own exit code, only a failure ssh reports before that (default 0 — off, matching the previous behavior). Only set this above 0 for a command safe to run more than once (idempotent) — a network drop that happens mid-command can't always be told apart from one before it started.",
+            "Retry up to this many extra times (exponential backoff) on a transient CONNECTION failure, a network blip, host briefly unreachable, timeout. Never retries once the remote command itself actually ran and returned its own exit code, only a failure ssh reports before that (default 0, off, matching the previous behavior). Only set this above 0 for a command safe to run more than once (idempotent), a network drop that happens mid-command can't always be told apart from one before it started.",
         },
       },
       required: ["host", "command"],

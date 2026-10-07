@@ -168,7 +168,7 @@ export function createSecurityStartWifiCaptureTool(options: StartWifiCaptureOpti
       "metadata sidecar (id/interface/timing/size), and returns the capture's id and file path. Analyze the " +
       "result with security_scan_wifi's captureFilePath input, or list past captures with " +
       "security_list_wifi_captures. Often needs elevated privileges (root/CAP_NET_RAW) depending on the OS and " +
-      "interface. OUT OF SCOPE: monitor mode / packet injection — see security_wifi_active_handshake_capture.",
+      "interface. OUT OF SCOPE: monitor mode / packet injection, see security_wifi_active_handshake_capture.",
     // Passive: tcpdump only records frames the interface already receives in
     // its current mode, same "listening only" tier as security_scan_wifi —
     // but unlike that tool this spawns a real subprocess that writes a file
@@ -187,7 +187,7 @@ export function createSecurityStartWifiCaptureTool(options: StartWifiCaptureOpti
     describeCall: (input) => `tcpdump -i ${input.interfaceName} (capture ${input.packetCount ?? DEFAULT_PACKET_COUNT} packets)`,
     async handler(input) {
       if (!isCommandAvailable(tcpdumpBin)) {
-        return { content: "tcpdump not found — install it via your OS package manager (it ships by default on macOS; `apt install tcpdump` on Debian/Ubuntu).", isError: true };
+        return { content: "tcpdump not found, install it via your OS package manager (it ships by default on macOS; `apt install tcpdump` on Debian/Ubuntu).", isError: true };
       }
 
       const outputDir = input.outputDir ?? DEFAULT_OUTPUT_DIR;
@@ -250,7 +250,7 @@ interface ListWifiCapturesInput {
 export function createSecurityListWifiCapturesTool(): ToolDefinition<ListWifiCapturesInput> {
   return {
     name: "security_list_wifi_captures",
-    description: `Lists Wi-Fi captures previously recorded by security_start_wifi_capture, by reading each capture's ".meta.json" sidecar in a directory (default "${DEFAULT_OUTPUT_DIR}") — pure filesystem bookkeeping, no packet parsing.`,
+    description: `Lists Wi-Fi captures previously recorded by security_start_wifi_capture, by reading each capture's ".meta.json" sidecar in a directory (default "${DEFAULT_OUTPUT_DIR}"), pure filesystem bookkeeping, no packet parsing.`,
     riskLevel: "safe",
     inputSchema: {
       type: "object",

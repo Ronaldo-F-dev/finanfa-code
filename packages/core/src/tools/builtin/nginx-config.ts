@@ -102,13 +102,13 @@ export const generateNginxConfigTool: ToolDefinition<GenerateNginxConfigInput> =
   name: "generate_nginx_config",
   description:
     "Generate a real, syntactically correct, standalone nginx config file (events{} + http{} wrapping a " +
-    "server{} block) for the given server name, at the given outputPath (required — this tool never assumes " +
+    "server{} block) for the given server name, at the given outputPath (required, this tool never assumes " +
     "/etc/nginx/... since writing there needs root it may not have; write into the project for review, or an " +
     "explicit system path if that's genuinely intended). With options.proxyPass (e.g. 'http://localhost:3000'), " +
     "generates a reverse-proxy location block with the standard proxy headers (Host, X-Real-IP, " +
     "X-Forwarded-For, X-Forwarded-Proto); without it, a static-file server block. With options.ssl, adds " +
     "listen 443 ssl and ssl_certificate/ssl_certificate_key directives (options.sslCertPath/sslKeyPath, " +
-    "default /etc/nginx/ssl/fullchain.pem and privkey.pem). Does NOT reload or restart nginx — validate the " +
+    "default /etc/nginx/ssl/fullchain.pem and privkey.pem). Does NOT reload or restart nginx, validate the " +
     "result with test_nginx_config, then apply/reload it yourself with whatever system access this tool " +
     "doesn't have.",
   riskLevel: "ask",
@@ -117,7 +117,7 @@ export const generateNginxConfigTool: ToolDefinition<GenerateNginxConfigInput> =
     type: "object",
     properties: {
       serverName: { type: "string", description: "server_name value, e.g. example.com" },
-      outputPath: { type: "string", description: "Where to write the config (e.g. into the project for review — this tool does not assume /etc/nginx/...)" },
+      outputPath: { type: "string", description: "Where to write the config (e.g. into the project for review, this tool does not assume /etc/nginx/...)" },
       options: {
         type: "object",
         properties: {
@@ -131,7 +131,7 @@ export const generateNginxConfigTool: ToolDefinition<GenerateNginxConfigInput> =
     required: ["serverName", "outputPath"],
   },
   describeCall: (input) =>
-    `generate nginx config for ${input.serverName} -> ${input.outputPath}${isSystemNginxPath(input.outputPath) ? " (system nginx path — implies actual deployment)" : ""}`,
+    `generate nginx config for ${input.serverName} -> ${input.outputPath}${isSystemNginxPath(input.outputPath) ? " (system nginx path, implies actual deployment)" : ""}`,
   async handler(input, ctx) {
     const config = generateConfig(input.serverName, input.options ?? {});
     const filePath = resolveAllowedPath(ctx.cwd, input.outputPath);
@@ -155,9 +155,9 @@ export function createTestNginxConfigTool(options: TestNginxConfigOptions = {}):
   return {
     name: "test_nginx_config",
     description:
-      "Validate an nginx config file's syntax with the real nginx binary (`nginx -t -c <configPath>` — `-t` " +
+      "Validate an nginx config file's syntax with the real nginx binary (`nginx -t -c <configPath>`, `-t` " +
       "tests the configuration and exits, `-c` points it at this specific file instead of the system default). " +
-      "Pure validation, no reload/restart of any running nginx — this tool never touches a live server.",
+      "Pure validation, no reload/restart of any running nginx, this tool never touches a live server.",
     riskLevel: "safe",
     riskKey: (input) => input.configPath,
     inputSchema: {
@@ -170,7 +170,7 @@ export function createTestNginxConfigTool(options: TestNginxConfigOptions = {}):
     describeCall: (input) => `nginx -t -c ${input.configPath}`,
     async handler(input, ctx) {
       if (!isCommandAvailable(nginxBin)) {
-        return { content: "nginx not available — install nginx (e.g. `brew install nginx` / `apt install nginx`) and ensure it's on PATH.", isError: true };
+        return { content: "nginx not available, install nginx (e.g. `brew install nginx` / `apt install nginx`) and ensure it's on PATH.", isError: true };
       }
       const filePath = resolveAllowedPath(ctx.cwd, input.configPath);
       return runSubprocess(nginxBin, {

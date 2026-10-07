@@ -66,7 +66,7 @@ export function createTaskTool(deps: TaskToolDeps): ToolDefinition<TaskInput> {
     description:
       "Delegate a self-contained piece of work to a sub-agent that runs independently (same tools and " +
       "permissions as you, unless agentType restricts them) and reports back a final summary. Good for " +
-      "parallelizable or isolated work — e.g. researching one thing while you do another. Multiple task calls " +
+      "parallelizable or isolated work, e.g. researching one thing while you do another. Multiple task calls " +
       "in the same turn run concurrently." +
       agentTypeNote,
     riskLevel: "safe", // the sub-agent's own tool calls are each individually permission-checked as usual

@@ -106,7 +106,7 @@ function buildProvider(family: ProviderFamily, config: FinanfaConfig): LlmProvid
     return new AnthropicProvider(apiKey, workspaceId);
   }
   const baseUrl = process.env.FINANFA_BASE_URL ?? (savedFamily === "openai-compatible" ? config.baseUrl : undefined);
-  if (!baseUrl) throw new Error("openai-compatible requires a base URL — checked by the caller via familyAvailability first.");
+  if (!baseUrl) throw new Error("openai-compatible requires a base URL, checked by the caller via familyAvailability first.");
   const apiKey = process.env.FINANFA_API_KEY ?? (savedFamily === "openai-compatible" ? config.apiKey : undefined);
   return new OpenAiCompatibleProvider({ baseUrl, apiKey });
 }
@@ -228,7 +228,7 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
       providerKind = family;
     } else {
       ui.writeError(
-        `This session was last using a ${family} model, but ${family} isn't configured — falling back to the default (${providerKind}). Switch models to restore it.`,
+        `This session was last using a ${family} model, but ${family} isn't configured, falling back to the default (${providerKind}). Switch models to restore it.`,
       );
     }
   }
@@ -364,7 +364,7 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
         warnedAboutLocalModel = true;
         const enabledToolCount = tools.list().filter((t) => !session.disabledTools.has(t.name)).length;
         ui.writeSystem(
-          `⚠ ${newModel} est un modèle local — chaque message envoyé ici inclut l'intégralité du prompt système et de la liste ` +
+          `⚠ ${newModel} est un modèle local, chaque message envoyé ici inclut l'intégralité du prompt système et de la liste ` +
             `d'outils de cet agent (actuellement ${enabledToolCount} outils, des dizaines de milliers de tokens à eux seuls, avant ` +
             "même la conversation). Sur une machine à mémoire limitée ou sans GPU, un runtime local qui tente d'allouer assez de " +
             "contexte pour cela peut saturer la mémoire au point de figer ou planter tout le système, pas seulement échouer " +

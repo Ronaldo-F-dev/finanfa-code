@@ -30,7 +30,7 @@ async function handleCommitPushPr(ctx: CommandContext): Promise<CommandOutcome> 
     "Ship the current changes as a pull request. Steps: (1) if you are on the default branch, create a descriptively named " +
       "branch; (2) commit the relevant changes in the repo's message style (never secrets or build artifacts); (3) push the branch " +
       "with upstream tracking; (4) open a pull request with `gh pr create`, with a title and a body that summarizes the change and " +
-      "how it was tested. Stop and report if any step fails — do not force-push or work around a failure." +
+      "how it was tested. Stop and report if any step fails, do not force-push or work around a failure." +
       (ctx.args.trim() ? `\n\nExtra guidance from the user: ${ctx.args.trim()}` : ""),
   );
   return "continue";
@@ -89,7 +89,7 @@ async function handleRalphLoop(ctx: CommandContext): Promise<CommandOutcome> {
 
   const prompt =
     `${rest}\n\nYou are in an iterative loop: the same task is handed back to you after each attempt, and you can see your earlier work in the files and in this conversation. ` +
-    `Improve on it each time. Only when the task is genuinely complete and verified, end your reply with <promise>${promise}</promise> — never say it to escape the loop.`;
+    `Improve on it each time. Only when the task is genuinely complete and verified, end your reply with <promise>${promise}</promise>, never say it to escape the loop.`;
   const marker = `<promise>${promise}</promise>`;
 
   for (let i = 1; i <= max; i++) {
@@ -98,7 +98,7 @@ async function handleRalphLoop(ctx: CommandContext): Promise<CommandOutcome> {
     await runPrompt(ctx, prompt);
     // A turn that produced nothing (aborted, errored, blocked by a hook) ends the loop rather than spinning.
     if (ctx.session.messages.length === before) {
-      ctx.ui.writeSystem("(ralph-loop: stopped — the last iteration produced no response)");
+      ctx.ui.writeSystem("(ralph-loop: stopped, the last iteration produced no response)");
       return "continue";
     }
     if (lastAssistantText(ctx).includes(marker)) {
@@ -114,7 +114,7 @@ function handleOutputStyle(ctx: CommandContext): CommandOutcome {
   const name = ctx.args.trim();
   if (!name) {
     const current = ctx.session.outputStyle ?? "default";
-    ctx.ui.writeSystem(`Output style: ${current}\n${OUTPUT_STYLES.map((s) => `  ${s.name} — ${s.description}`).join("\n")}\nSwitch with /output-style <name>.`);
+    ctx.ui.writeSystem(`Output style: ${current}\n${OUTPUT_STYLES.map((s) => `  ${s.name}, ${s.description}`).join("\n")}\nSwitch with /output-style <name>.`);
     return "continue";
   }
   const style = findOutputStyle(name);
@@ -123,7 +123,7 @@ function handleOutputStyle(ctx: CommandContext): CommandOutcome {
     return "continue";
   }
   ctx.session.outputStyle = style.name === "default" ? undefined : style.name;
-  ctx.ui.writeSystem(`Output style set to ${style.name} — applies from the next message.`);
+  ctx.ui.writeSystem(`Output style set to ${style.name}, applies from the next message.`);
   return "continue";
 }
 

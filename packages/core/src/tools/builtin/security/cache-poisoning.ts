@@ -49,7 +49,7 @@ async function scanCachePoisoning(target: string): Promise<ScanOutput> {
       passedControls: [
         {
           label: "Reflected header on a non-cacheable response",
-          detail: "X-Forwarded-Host is reflected, but the response does not look cacheable (no shared-cache indicator header, and Cache-Control does not permit caching) — a prerequisite for actual cache poisoning impact.",
+          detail: "X-Forwarded-Host is reflected, but the response does not look cacheable (no shared-cache indicator header, and Cache-Control does not permit caching), a prerequisite for actual cache poisoning impact.",
         },
       ],
     };
@@ -66,10 +66,10 @@ async function scanCachePoisoning(target: string): Promise<ScanOutput> {
     cvssScore: score,
     cwe: "CWE-444",
     description:
-      "The `X-Forwarded-Host` header is reflected into the response, and the response looks cacheable — the two preconditions for web cache poisoning. This is a heuristic finding: confirming real impact requires manually verifying a shared cache sits in front of this response and does not vary its cache key on this header.",
+      "The `X-Forwarded-Host` header is reflected into the response, and the response looks cacheable, the two preconditions for web cache poisoning. This is a heuristic finding: confirming real impact requires manually verifying a shared cache sits in front of this response and does not vary its cache key on this header.",
     evidence: `GET ${target} with X-Forwarded-Host: ${CANARY_HOST} -> value reflected; Cache-Control: ${cacheControl}, cache indicator headers present: ${indicatorsPresent.length > 0 ? indicatorsPresent.join(", ") : "none"}.`,
     impact:
-      "If a shared cache in front of this application does not vary its cache key on X-Forwarded-Host, an attacker can poison the cached response for a shared URL — every subsequent visitor served from that cache entry (until it expires) receives the attacker's injected content instead of the real page.",
+      "If a shared cache in front of this application does not vary its cache key on X-Forwarded-Host, an attacker can poison the cached response for a shared URL, every subsequent visitor served from that cache entry (until it expires) receives the attacker's injected content instead of the real page.",
     remediation:
       "Either strip/ignore X-Forwarded-Host entirely unless explicitly needed, or ensure the cache's key includes it (Vary: X-Forwarded-Host) so a poisoned value can't be served to a different, unrelated request.",
     affectedEndpoint: target,
@@ -88,7 +88,7 @@ export const securityScanCachePoisoningTool: ToolDefinition<SecurityScanCachePoi
     "Security tool. Checks for the two structural preconditions of web cache poisoning from a single request: " +
     "does the X-Forwarded-Host header get reflected into the response, and does the response look cacheable " +
     "(shared-cache indicator header, or Cache-Control permitting caching)? Deliberately heuristic, not a " +
-    "confirmed exploit — actually proving cache poisoning means poisoning a real shared cache, which is the " +
+    "confirmed exploit, actually proving cache poisoning means poisoning a real shared cache, which is the " +
     "attack itself, not a safe test. Reports MEDIUM severity and says plainly that manual confirmation is " +
     "needed. A faithful port of the user's own cyberlens scanner's cache_poisoning check. " +
     "IMPORTANT: only scan a target the user owns or has explicit, documented authorization to test.",

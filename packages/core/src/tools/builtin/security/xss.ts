@@ -62,7 +62,7 @@ async function testParam(browser: import("playwright-core").Browser, target: URL
     cvssVector: "AV:N/AC:L/PR:N/UI:R/S:C/C:L/I:L/A:N",
     cvssScore: score,
     cwe: "CWE-79",
-    description: `Injecting a script payload into the '${paramName}' parameter causes it to execute in the browser — confirmed by actual execution, not just string reflection.`,
+    description: `Injecting a script payload into the '${paramName}' parameter causes it to execute in the browser, confirmed by actual execution, not just string reflection.`,
     evidence: `GET ${testUrl.toString()} -> injected handler executed (window.${marker} was set).`,
     impact: "An attacker can craft a link that runs arbitrary JavaScript in a victim's browser session on this origin: session/cookie theft, credential harvesting, or page defacement.",
     remediation: "HTML-encode all user-supplied input before reflecting it into responses; adopt a strict Content-Security-Policy as defense in depth.",
@@ -96,7 +96,7 @@ export function mergeEngineFindings(perEngine: Map<string, Finding[]>): Finding[
     merged.push({
       ...base,
       title: `${base.title} (Browser-Inconsistent)`,
-      description: `${base.description} Confirmed on: ${confirmedOn.join(", ")}. NOT reproduced on: ${testedEngines.filter((e) => !confirmedOn.includes(e)).join(", ")} — the target's behavior differs by browser engine, which is itself worth investigating.`,
+      description: `${base.description} Confirmed on: ${confirmedOn.join(", ")}. NOT reproduced on: ${testedEngines.filter((e) => !confirmedOn.includes(e)).join(", ")}, the target's behavior differs by browser engine, which is itself worth investigating.`,
     });
   }
   return merged;
@@ -142,7 +142,7 @@ async function scanXss(targetUrl: string): Promise<{ output: ScanOutput }> {
 
   if (perEngineFindings.size === 0) {
     throw new Error(
-      `Failed to launch any Playwright browser engine — run \`npx playwright install\` first. Errors: ${launchErrors.join("; ")}`,
+      `Failed to launch any Playwright browser engine, run \`npx playwright install\` first. Errors: ${launchErrors.join("; ")}`,
     );
   }
 
@@ -169,13 +169,13 @@ export const securityScanXssTool: ToolDefinition<SecurityScanXssInput> = {
   name: "security_scan_xss",
   description:
     "Security tool. Tests a URL's query parameters for reflected XSS by actually rendering the injected " +
-    "payload in every installed Playwright browser engine (Chromium/Firefox/WebKit — an engine missing from " +
+    "payload in every installed Playwright browser engine (Chromium/Firefox/WebKit, an engine missing from " +
     "the environment is skipped) and checking whether it executed (a JS handler firing), not just whether the " +
-    "payload string appears in the response body — avoids false positives from HTML-escaped reflections. A " +
+    "payload string appears in the response body, avoids false positives from HTML-escaped reflections. A " +
     "finding confirmed on only some engines is flagged Browser-Inconsistent rather than silently merged away. " +
     "GET-only, never submits POST forms. Requires at least one Playwright browser (`npx playwright install`). " +
     "A full port of the user's own cyberlens scanner's xss check, scoped to the given URL's own query string " +
-    "(no site crawler feeds this automatically — see security_scan_crawler). " +
+    "(no site crawler feeds this automatically, see security_scan_crawler). " +
     "IMPORTANT: only scan a target the user owns or has explicit, documented authorization to test.",
   riskLevel: "ask",
   inputSchema: {

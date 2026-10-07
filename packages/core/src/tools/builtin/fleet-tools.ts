@@ -20,7 +20,7 @@ interface CreateFleetCellInput {
 export const createFleetCellTool: ToolDefinition<CreateFleetCellInput> = {
   name: "create_fleet_cell",
   description:
-    "Provision a new, isolated container (a \"cell\") running a given image, exposed on a host port — for " +
+    "Provision a new, isolated container (a \"cell\") running a given image, exposed on a host port, for " +
     "running a separate, sandboxed instance of something (another finanfa-code deployment for a different " +
     "tenant/project, or any other containerized service) alongside whatever else is running. Uses the real " +
     "`docker` CLI; every cell is named with a fixed prefix so list/stop/remove_fleet_cell can only ever affect " +
@@ -29,13 +29,13 @@ export const createFleetCellTool: ToolDefinition<CreateFleetCellInput> = {
     "list_fleet_cells), a shared network (see create_fleet_network) so cells can reach each other by name, and " +
     "a remote host (a real DOCKER_HOST value, e.g. \"ssh://user@remote-machine\", over the user's own already-" +
     "configured SSH) to place the cell on a different machine instead of this one. " +
-    "IMPORTANT: this starts a real, network-exposed container on a real machine — confirm with the user before " +
+    "IMPORTANT: this starts a real, network-exposed container on a real machine, confirm with the user before " +
     "calling this unless they've explicitly asked for this exact cell.",
   riskLevel: "dangerous",
   inputSchema: {
     type: "object",
     properties: {
-      name: { type: "string", description: "Cell name — must be unique among current cells on the target host" },
+      name: { type: "string", description: "Cell name, must be unique among current cells on the target host" },
       image: { type: "string", description: "Docker image to run, e.g. \"finanfa-code:latest\" or any other image" },
       host_port: { type: "number", description: "Port on the host machine to expose the cell on" },
       container_port: { type: "number", description: "Port the container itself listens on (default 4600)" },
@@ -50,7 +50,7 @@ export const createFleetCellTool: ToolDefinition<CreateFleetCellInput> = {
         description:
           'A real DOCKER_HOST value (e.g. "ssh://user@remote-machine") to place this cell on a specific machine. Omit to auto-schedule: if any fleet hosts are registered (see register_fleet_host), the least-loaded reachable one is picked automatically; otherwise the local Docker daemon is used, same as before this existed.',
       },
-      command: { type: "array", items: { type: "string" }, description: "Overrides the image's own default command — most real cell images already have a sensible long-running entrypoint and don't need this" },
+      command: { type: "array", items: { type: "string" }, description: "Overrides the image's own default command, most real cell images already have a sensible long-running entrypoint and don't need this" },
     },
     required: ["name", "image", "host_port"],
   },
@@ -95,9 +95,9 @@ interface DockerHostInput {
 
 export const listFleetCellsTool: ToolDefinition<DockerHostInput> = {
   name: "list_fleet_cells",
-  description: "List every cell created by create_fleet_cell (running or stopped, with health status if one has a health check) on a given Docker daemon — never any other container. Pass host to list cells on a remote machine instead of the local one.",
+  description: "List every cell created by create_fleet_cell (running or stopped, with health status if one has a health check) on a given Docker daemon, never any other container. Pass host to list cells on a remote machine instead of the local one.",
   riskLevel: "safe",
-  inputSchema: { type: "object", properties: { host: { type: "string", description: 'A real DOCKER_HOST value to list cells on a remote machine — omit for the local daemon' } } },
+  inputSchema: { type: "object", properties: { host: { type: "string", description: 'A real DOCKER_HOST value to list cells on a remote machine, omit for the local daemon' } } },
   async handler(input) {
     const cells = await listFleetCells({ host: input.host });
     if (cells.length === 0) return { content: "No fleet cells.", isError: false };
@@ -111,7 +111,7 @@ interface FleetCellNameInput extends DockerHostInput {
 
 export const stopFleetCellTool: ToolDefinition<FleetCellNameInput> = {
   name: "stop_fleet_cell",
-  description: "Stop a running fleet cell's container (without removing it — see remove_fleet_cell for that). Pass host for a cell on a remote machine.",
+  description: "Stop a running fleet cell's container (without removing it, see remove_fleet_cell for that). Pass host for a cell on a remote machine.",
   riskLevel: "ask",
   inputSchema: { type: "object", properties: { name: { type: "string" }, host: { type: "string" } }, required: ["name"] },
   describeCall: (input) => `stop fleet cell "${input.name}"${input.host ? ` at ${input.host}` : ""}`,
@@ -124,7 +124,7 @@ export const stopFleetCellTool: ToolDefinition<FleetCellNameInput> = {
 
 export const removeFleetCellTool: ToolDefinition<FleetCellNameInput> = {
   name: "remove_fleet_cell",
-  description: "Stop (if running) and permanently remove a fleet cell's container. There's no undo — create_fleet_cell would need to provision a new one. Pass host for a cell on a remote machine.",
+  description: "Stop (if running) and permanently remove a fleet cell's container. There's no undo, create_fleet_cell would need to provision a new one. Pass host for a cell on a remote machine.",
   riskLevel: "dangerous",
   inputSchema: { type: "object", properties: { name: { type: "string" }, host: { type: "string" } }, required: ["name"] },
   describeCall: (input) => `remove fleet cell "${input.name}"${input.host ? ` at ${input.host}` : ""}`,
@@ -174,7 +174,7 @@ export const registerFleetHostTool: ToolDefinition<RegisterFleetHostInput> = {
   name: "register_fleet_host",
   description:
     "Add a machine to the Fleet host pool that create_fleet_cell auto-schedules across when no explicit `host` " +
-    "is given — a new cell then goes to whichever registered host currently has the fewest running cells. Omit " +
+    "is given, a new cell then goes to whichever registered host currently has the fewest running cells. Omit " +
     "docker_host to register the local Docker daemon itself as one of the pool's hosts (useful once you also " +
     "register at least one remote one, so the local machine is still a real scheduling candidate, not silently " +
     "excluded).",
@@ -183,7 +183,7 @@ export const registerFleetHostTool: ToolDefinition<RegisterFleetHostInput> = {
     type: "object",
     properties: {
       alias: { type: "string", description: 'A short name for this host, e.g. "eu-west-1"' },
-      docker_host: { type: "string", description: 'A real DOCKER_HOST value (e.g. "ssh://user@remote-machine") — omit for the local daemon' },
+      docker_host: { type: "string", description: 'A real DOCKER_HOST value (e.g. "ssh://user@remote-machine"), omit for the local daemon' },
     },
     required: ["alias"],
   },
@@ -213,12 +213,12 @@ export const removeFleetHostTool: ToolDefinition<FleetHostAliasInput> = {
 
 export const listFleetHostsTool: ToolDefinition<Record<string, never>> = {
   name: "list_fleet_hosts",
-  description: "List every registered Fleet host with its real, live load (a fresh docker ps/version check against each one) — which one create_fleet_cell would pick next.",
+  description: "List every registered Fleet host with its real, live load (a fresh docker ps/version check against each one), which one create_fleet_cell would pick next.",
   riskLevel: "safe",
   inputSchema: { type: "object", properties: {} },
   async handler() {
     const loads = await fleetHostLoads();
-    if (loads.length === 0) return { content: "No fleet hosts registered — create_fleet_cell uses the local Docker daemon.", isError: false };
+    if (loads.length === 0) return { content: "No fleet hosts registered, create_fleet_cell uses the local Docker daemon.", isError: false };
     return {
       content: loads
         .map((l) => `${l.alias} (${l.dockerHost ?? "local daemon"}): ${l.reachable ? `${l.runningCells} running cell(s)` : "UNREACHABLE"}`)

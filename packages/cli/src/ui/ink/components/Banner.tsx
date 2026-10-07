@@ -26,7 +26,7 @@ export function Banner({ version }: { version: string }) {
         <Text dimColor> v{version}</Text>
       </Text>
       <Text dimColor italic>
-        your own coding agent — code, design, docs, data
+        your own coding agent: code, design, docs, data
       </Text>
     </Box>
   );

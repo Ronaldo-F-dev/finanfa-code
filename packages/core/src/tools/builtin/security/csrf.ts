@@ -38,9 +38,9 @@ function confirmedFinding(pageUrl: string, formAction: string, baselineStatus: n
     cvssVector: "AV:N/AC:L/PR:N/UI:R/S:U/C:N/I:H/A:N",
     cvssScore: score,
     cwe: "CWE-352",
-    description: `The POST form at ${pageUrl} (submits to ${formAction}) has no anti-CSRF token, and accepts a submission carrying a forged, foreign Origin/Referer header identically to a normal one — using the authenticated session's own cookies, exactly as a victim's browser would if lured to an attacker's page.`,
+    description: `The POST form at ${pageUrl} (submits to ${formAction}) has no anti-CSRF token, and accepts a submission carrying a forged, foreign Origin/Referer header identically to a normal one, using the authenticated session's own cookies, exactly as a victim's browser would if lured to an attacker's page.`,
     evidence: `Baseline POST -> ${baselineStatus}; forged-Origin POST (Origin: ${FORGED_ORIGIN}) -> ${forgedStatus} (same outcome class).`,
-    impact: "An attacker can trick an authenticated, logged-in user into unknowingly submitting this form (e.g. a hidden auto-submitting form on an attacker-controlled page) — the request succeeds using the victim's own session, with no interaction beyond visiting the attacker's page.",
+    impact: "An attacker can trick an authenticated, logged-in user into unknowingly submitting this form (e.g. a hidden auto-submitting form on an attacker-controlled page), the request succeeds using the victim's own session, with no interaction beyond visiting the attacker's page.",
     remediation: "Add a per-session, per-request anti-CSRF token to this form and validate it server-side; also set the session cookie's SameSite attribute to Lax or Strict, and validate the Origin/Referer header as defense in depth.",
     affectedEndpoint: formAction,
   };
@@ -81,7 +81,7 @@ async function testActive(
   return {
     passed: {
       label: `CSRF not exploitable on ${formAction}`,
-      detail: "Active test: the server accepts a normal submission but rejects an otherwise identical one carrying a forged, foreign Origin/Referer — Origin/Referer validation is evidently enforced server-side despite no token field.",
+      detail: "Active test: the server accepts a normal submission but rejects an otherwise identical one carrying a forged, foreign Origin/Referer, Origin/Referer validation is evidently enforced server-side despite no token field.",
     },
   };
 }
@@ -98,17 +98,17 @@ export const securityScanCsrfTool: ToolDefinition<SecurityScanCsrfInput> = {
   name: "security_scan_csrf",
   description:
     "Security tool. Checks whether a POST form's fields include one that looks like an anti-CSRF token " +
-    "(csrf, _token, authenticity_token, nonce, xsrf, RequestVerificationToken) — zero requests sent by default, " +
+    "(csrf, _token, authenticity_token, nonce, xsrf, RequestVerificationToken), zero requests sent by default, " +
     "purely structural. Pass the form's page URL, its action URL, and its field names (read the page's HTML " +
-    "yourself first, e.g. via read_file or a browser tool, to get these — or omit fieldNames if " +
+    "yourself first, e.g. via read_file or a browser tool, to get these, or omit fieldNames if " +
     "security_scan_crawler already ran against this site this session, and its result for this exact page/" +
     "action is used automatically). Without a token field, this is a " +
-    "HEURISTIC only, not proof the form is actually forgeable — some apps validate Origin/Referer server-side " +
+    "HEURISTIC only, not proof the form is actually forgeable, some apps validate Origin/Referer server-side " +
     "instead. Optionally supply `headers` (an authenticated session's Cookie/Authorization) and `fieldTypes` " +
     "(name -> input type) to ACTIVELY confirm it for real: submits the form once normally, once with a forged, " +
     "foreign Origin/Referer, and checks whether the server accepts both identically. A full port of the user's " +
     "own cyberlens scanner's csrf check. " +
-    "IMPORTANT: only use this against a target the user owns or has explicit, documented authorization to test — " +
+    "IMPORTANT: only use this against a target the user owns or has explicit, documented authorization to test, " +
     "the active mode sends a real, state-changing POST request using the supplied session.",
   riskLevel: "ask",
   inputSchema: {

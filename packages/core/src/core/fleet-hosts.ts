@@ -84,7 +84,7 @@ export type ScheduleResult = { ok: true; host: FleetHostEntry } | { ok: false; e
 export async function pickLeastLoadedFleetHost(filePath: string = defaultFleetHostsPath()): Promise<ScheduleResult> {
   const registry = await loadFleetHosts(filePath);
   const entries = Object.values(registry);
-  if (entries.length === 0) return { ok: false, error: "No fleet hosts registered — see register_fleet_host, or pass `host` explicitly." };
+  if (entries.length === 0) return { ok: false, error: "No fleet hosts registered, see register_fleet_host, or pass `host` explicitly." };
 
   const loads = await fleetHostLoads(filePath);
   const reachable = loads.filter((l) => l.reachable);

@@ -245,8 +245,8 @@ export function findDuplicateMemoryPairs(memories: Memory[]): DuplicateMemoryPai
 export const findDuplicateMemoriesTool: ToolDefinition<Record<string, never>> = {
   name: "find_duplicate_memories",
   description:
-    "Scan every saved memory note (project + global) for likely near-duplicates — the same fact saved under " +
-    "two different names/descriptions — so they can be reviewed and merged (rewrite one with write_memory, " +
+    "Scan every saved memory note (project + global) for likely near-duplicates, the same fact saved under " +
+    "two different names/descriptions, so they can be reviewed and merged (rewrite one with write_memory, " +
     "then delete_memory the other) instead of both lingering indefinitely. Read-only: reports candidates, " +
     "doesn't change anything itself.",
   riskLevel: "safe",
@@ -267,7 +267,7 @@ interface DeleteMemoryInput {
 export const deleteMemoryTool: ToolDefinition<DeleteMemoryInput> = {
   name: "delete_memory",
   description:
-    "Delete a saved memory note by name — use to remove a stale note or, after reviewing find_duplicate_memories " +
+    "Delete a saved memory note by name, use to remove a stale note or, after reviewing find_duplicate_memories " +
     "and merging its content elsewhere, one half of a duplicate pair.",
   riskLevel: "ask",
   inputSchema: {
@@ -295,8 +295,8 @@ export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
     "Save a durable note about this project or user so a future session starts with that context instead " +
     "of relearning it: user preferences/role, feedback about how to approach work here, project decisions " +
     "not derivable from the code, or pointers to external systems (issue tracker, docs). Do not use for " +
-    "code details, git history, or task-scoped state — those are already derivable by reading the repo. " +
-    'scope: "global" (default "project") applies the note in every project instead of just this one — use ' +
+    "code details, git history, or task-scoped state, those are already derivable by reading the repo. " +
+    'scope: "global" (default "project") applies the note in every project instead of just this one, use ' +
     "it for something true regardless of which repo you're in (e.g. a systemwide tool the user always wants " +
     "used for a certain kind of task), not for anything specific to this project.",
   riskLevel: "ask",
@@ -306,7 +306,7 @@ export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
       name: { type: "string", description: 'Short kebab-case slug, e.g. "prefers-atomic-commits"' },
       description: { type: "string", description: "One-line summary shown in the memory index" },
       type: { type: "string", enum: [...MEMORY_TYPES] },
-      content: { type: "string", description: "The memory content — a sentence or two" },
+      content: { type: "string", description: "The memory content, a sentence or two" },
       scope: { type: "string", enum: ["project", "global"], description: 'Default "project"' },
     },
     required: ["name", "description", "type", "content"],
@@ -317,7 +317,7 @@ export const writeMemoryTool: ToolDefinition<WriteMemoryInput> = {
       const duplicate = findNearDuplicateMemory(await loadMemories(ctx.cwd), input);
       const { slug, scope } = await writeMemory(ctx.cwd, { ...input, sourceSessionId: ctx.sessionId });
       const duplicateNote = duplicate
-        ? ` Note: this looks similar to the existing memory "${duplicate.name}" (${duplicate.description}) — consider updating/deleting one of them instead of keeping both.`
+        ? ` Note: this looks similar to the existing memory "${duplicate.name}" (${duplicate.description}), consider updating/deleting one of them instead of keeping both.`
         : "";
       return { content: `Saved ${scope === "global" ? "global " : ""}memory "${slug}".${duplicateNote}`, isError: false };
     } catch (err) {
@@ -339,7 +339,7 @@ function formatMemorySearchHits(hits: MemorySearchHit[]): string {
     const when = h.memory.updatedAt ? ` (updated ${h.memory.updatedAt})` : "";
     return `- ${h.memory.name} (${h.memory.type}, ${h.memory.scope}${when}): ${h.memory.description}`;
   });
-  return `${hits.length} matching memory note(s) — use read_memory <name> for the full content:\n${lines.join("\n")}`;
+  return `${hits.length} matching memory note(s), use read_memory <name> for the full content:\n${lines.join("\n")}`;
 }
 
 /**
@@ -354,12 +354,12 @@ export function createSearchMemoriesTool(embeddingsConfig: EmbeddingsConfig | un
   return {
     name: "search_memories",
     description:
-      "Find a saved memory note (project + global) by meaning, not just its exact name — use before write_memory " +
+      "Find a saved memory note (project + global) by meaning, not just its exact name, use before write_memory " +
       "to check whether something similar is already saved, or whenever the system prompt's own memory index " +
       "doesn't obviously contain what you're looking for. Returns matching notes with their description; use " +
       'read_memory <name> for the full content. mode "keyword" (default) matches on name/description/content ' +
       'text. mode "semantic" finds a conceptually related note even with no shared keywords (e.g. "how does the ' +
-      'user like PRs reviewed" matching a note about atomic commits) via a real OpenAI embeddings call — needs ' +
+      'user like PRs reviewed" matching a note about atomic commits) via a real OpenAI embeddings call, needs ' +
       "OPENAI_API_KEY configured, and costs a real API call each time.",
     riskLevel: "safe",
     inputSchema: {
@@ -379,7 +379,7 @@ export function createSearchMemoriesTool(embeddingsConfig: EmbeddingsConfig | un
 
       if (mode === "semantic") {
         if (!embeddingsConfig) {
-          return { content: "Semantic memory search is not configured — set OPENAI_API_KEY as an environment variable, or use mode \"keyword\" instead.", isError: true };
+          return { content: "Semantic memory search is not configured, set OPENAI_API_KEY as an environment variable, or use mode \"keyword\" instead.", isError: true };
         }
         const hits = await searchMemoriesBySimilarity(memories, input.query, maxResults, embeddingsConfig, embeddingsApiBaseUrl);
         return { content: formatMemorySearchHits(hits), isError: false };

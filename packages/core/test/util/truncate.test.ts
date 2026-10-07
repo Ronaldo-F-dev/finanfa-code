@@ -47,7 +47,7 @@ describe("truncateOrSpill / spillToFile (real filesystem writes)", () => {
     const result = await truncateOrSpill(dir, "s1", "test", long, 100);
 
     expect(result).toContain("x".repeat(100));
-    expect(result).toContain("truncated — full output is 500 characters, saved to");
+    expect(result).toContain("truncated, full output is 500 characters, saved to");
     expect(result).not.toContain("x".repeat(101)); // preview itself isn't longer than the cap
 
     const relPathMatch = result.match(/saved to (\S+);/);

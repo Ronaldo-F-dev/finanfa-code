@@ -23,10 +23,10 @@ export function createReadVaultSecretTool(options: ReadVaultSecretToolOptions = 
     name: "read_vault_secret",
     description:
       "Read one field of a secret from HashiCorp Vault via the real `vault` CLI (must already be authenticated " +
-      "— VAULT_ADDR/VAULT_TOKEN already set up in the environment; this tool never handles credentials itself). " +
+      "- VAULT_ADDR/VAULT_TOKEN already set up in the environment; this tool never handles credentials itself). " +
       '`path` is the KV v2 secret path (e.g. "secret/data/myapp/db" or just "secret/myapp/db" depending on your ' +
       'mount), `field` is the key within it (e.g. "password"). The returned value becomes real, visible model ' +
-      "context — treat it with the same care as any other secret you'd paste into a chat.",
+      "context, treat it with the same care as any other secret you'd paste into a chat.",
     riskLevel: "dangerous",
     inputSchema: {
       type: "object",

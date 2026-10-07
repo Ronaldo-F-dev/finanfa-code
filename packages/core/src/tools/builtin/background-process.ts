@@ -22,7 +22,7 @@ export function createBackgroundProcessTools(manager: BackgroundProcessManager):
     description:
       "Start a long-running process (a dev server, a watcher) in the background, tracked under a name so it " +
       "can be listed or stopped later with list_background_processes/stop_background_process. Output is " +
-      "redirected to a log file automatically — don't add your own trailing '&', redirection, nohup, or " +
+      "redirected to a log file automatically, don't add your own trailing '&', redirection, nohup, or " +
       "setsid; this tool already handles all of that. Prefer this over plain bash for anything meant to keep " +
       "running after the command returns.",
     riskLevel: "dangerous",
@@ -31,7 +31,7 @@ export function createBackgroundProcessTools(manager: BackgroundProcessManager):
       properties: {
         name: { type: "string", description: 'A short identifier for this process, e.g. "flask-dev-server"' },
         command: { type: "string", description: "Shell command to run" },
-        cwd: { type: "string", description: "Working directory — absolute path, or relative to the project root" },
+        cwd: { type: "string", description: "Working directory, absolute path, or relative to the project root" },
       },
       required: ["name", "command"],
     },
@@ -56,7 +56,7 @@ export function createBackgroundProcessTools(manager: BackgroundProcessManager):
     name: "list_background_processes",
     description:
       "List background processes started via start_background_process in this session, with their PID, " +
-      "whether still running, and log file path. Only knows about this session — a process from an earlier " +
+      "whether still running, and log file path. Only knows about this session, a process from an earlier " +
       "finanfa-code run isn't tracked here even if it's still running.",
     riskLevel: "safe",
     inputSchema: { type: "object", properties: {} },
@@ -68,8 +68,8 @@ export function createBackgroundProcessTools(manager: BackgroundProcessManager):
       }
       const lines = processes.map(
         (p) =>
-          `${p.name} — PID ${p.pid} (${manager.isAlive(p.pid) ? "running" : "exited"}) — ${p.command} — ` +
-          `started ${p.startedAt} — log: ${p.logFile}`,
+          `${p.name}, PID ${p.pid} (${manager.isAlive(p.pid) ? "running" : "exited"}), ${p.command}, ` +
+          `started ${p.startedAt}, log: ${p.logFile}`,
       );
       return { content: lines.join("\n"), isError: false };
     },

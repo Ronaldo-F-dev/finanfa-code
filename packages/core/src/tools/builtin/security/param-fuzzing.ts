@@ -108,7 +108,7 @@ async function scanParamFuzzing(targetUrl: string): Promise<ScanOutput> {
   }
 
   if (candidates.length === 0) {
-    passed.push({ label: "No parameters found to fuzz", detail: "No query parameters were found on the given URL (POST forms aren't tested — no form discovery in this project)." });
+    passed.push({ label: "No parameters found to fuzz", detail: "No query parameters were found on the given URL (POST forms aren't tested, no form discovery in this project)." });
   } else if (findings.length === 0) {
     passed.push({
       label: "No input validation issues found",
@@ -127,7 +127,7 @@ export const securityScanParamFuzzingTool: ToolDefinition<SecurityScanParamFuzzi
   name: "security_scan_param_fuzzing",
   description:
     "Security tool. Sends generically malformed values (empty, 5000-char string, negative number, integer " +
-    "overflow, null byte, unicode/control characters) into a URL's query parameters — not injection payloads, " +
+    "overflow, null byte, unicode/control characters) into a URL's query parameters, not injection payloads, " +
     "just boundary/edge cases a well-written validator should reject cleanly. Flags only a server CRASH (5xx a " +
     "benign value didn't trigger), especially with a leaked stack trace. GET-only. CWE-20 (Improper Input " +
     "Validation), distinct from the injection-specific tools (ssrf/lfi/xxe/xss/sqli/...). A port of the user's " +

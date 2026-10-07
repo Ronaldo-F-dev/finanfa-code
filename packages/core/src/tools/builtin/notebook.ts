@@ -71,7 +71,7 @@ interface ReadNotebookInput {
 export const readNotebookTool: ToolDefinition<ReadNotebookInput> = {
   name: "read_notebook",
   description:
-    "Show a Jupyter notebook (.ipynb) cell by cell — source and a summary of each cell's outputs — instead of its raw, very verbose JSON.",
+    "Show a Jupyter notebook (.ipynb) cell by cell, source and a summary of each cell's outputs, instead of its raw, very verbose JSON.",
   riskLevel: "safe",
   inputSchema: {
     type: "object",
@@ -107,7 +107,7 @@ export const editNotebookTool: ToolDefinition<EditNotebookInput> = {
   name: "edit_notebook",
   description:
     "Update, insert, or delete a cell in a Jupyter notebook (.ipynb) by 0-based index. update replaces a cell's " +
-    "source (leaving its old outputs in place, now stale until re-run — same as editing a cell in Jupyter itself " +
+    "source (leaving its old outputs in place, now stale until re-run, same as editing a cell in Jupyter itself " +
     "without re-executing it). insert adds a new cell at index (cellType and source required). delete removes " +
     "the cell at index. Use read_notebook first to see current cell indices.",
   riskLevel: "ask",
@@ -118,7 +118,7 @@ export const editNotebookTool: ToolDefinition<EditNotebookInput> = {
       action: { type: "string", enum: ["update", "insert", "delete"] },
       index: { type: "number", description: "0-based cell index" },
       cellType: { type: "string", enum: ["code", "markdown", "raw"], description: "Required for insert" },
-      source: { type: "string", description: "New cell source text — required for update/insert" },
+      source: { type: "string", description: "New cell source text, required for update/insert" },
     },
     required: ["path", "action", "index"],
   },

@@ -94,10 +94,10 @@ async function probe(target: URL, paramName: string): Promise<Finding | undefine
       cvssVector: "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
       cvssScore: score,
       cwe: "CWE-943",
-      description: `Injecting always-true vs. always-false NoSQL operator conditions into '${paramName}' produces meaningfully different responses — a heuristic signal of blind NoSQL injection, not a certainty.`,
+      description: `Injecting always-true vs. always-false NoSQL operator conditions into '${paramName}' produces meaningfully different responses, a heuristic signal of blind NoSQL injection, not a certainty.`,
       evidence: `GET ${location}: true-condition (${JSON.stringify(BOOLEAN_TRUE)}) and false-condition (${JSON.stringify(BOOLEAN_FALSE)}) payloads produced different response sizes/status codes.`,
       impact: "If confirmed, an attacker can extract data or bypass authentication via blind NoSQL operator injection even without visible error messages.",
-      remediation: "Use a query builder/ODM that treats input as data, never as an operator. Manually verify this finding — boolean-based heuristics can false-positive on naturally dynamic pages.",
+      remediation: "Use a query builder/ODM that treats input as data, never as an operator. Manually verify this finding, boolean-based heuristics can false-positive on naturally dynamic pages.",
       affectedEndpoint: location,
     };
   }
@@ -124,7 +124,7 @@ async function scanNosqlInjection(targetUrl: string): Promise<ScanOutput> {
   }
 
   if (candidates.length === 0) {
-    passed.push({ label: "No injectable parameters found", detail: "No query parameters were found on the given URL (POST forms aren't tested — no form discovery in this project)." });
+    passed.push({ label: "No injectable parameters found", detail: "No query parameters were found on the given URL (POST forms aren't tested, no form discovery in this project)." });
   } else if (findings.length === 0) {
     passed.push({
       label: "No NoSQL injection detected",
@@ -143,11 +143,11 @@ export const securityScanNosqlInjectionTool: ToolDefinition<SecurityScanNosqlInj
   name: "security_scan_nosql_injection",
   description:
     "Security tool. Tests a URL's query parameters for NoSQL injection (MongoDB-flavored): error-based (an " +
-    "operator-injection payload triggers a database error signature — high confidence) and boolean-based blind " +
-    "(always-true vs always-false operator conditions produce meaningfully different responses — heuristic). " +
+    "operator-injection payload triggers a database error signature, high confidence) and boolean-based blind " +
+    "(always-true vs always-false operator conditions produce meaningfully different responses, heuristic). " +
     "Sends real operator-injection payloads to a live target. GET-only. A port of the user's own cyberlens " +
     "scanner's nosql_injection check. " +
-    "IMPORTANT: only test a target you own or have explicit, documented authorization to test — this sends " +
+    "IMPORTANT: only test a target you own or have explicit, documented authorization to test, this sends " +
     "real exploit-style payloads, unlike the passive/recon security_scan_* tools.",
   riskLevel: "dangerous",
   inputSchema: {

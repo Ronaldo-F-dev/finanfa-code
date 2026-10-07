@@ -111,7 +111,7 @@ export function createMonitoringStackTools(options: MonitoringStackToolOptions =
       'Write a real, working docker-compose.yml (+ config) for "grafana-prometheus" (Prometheus scraping ' +
       'itself, Grafana on :3000) or "elk" (Elasticsearch, Logstash listening on :5000 for JSON lines, Kibana on ' +
       ":5601) to `directory` (default: the project root), then run `docker compose up -d` there. Starts REAL " +
-      "running containers/infra — confirm with the user before running unless they've explicitly asked for it.",
+      "running containers/infra, confirm with the user before running unless they've explicitly asked for it.",
     riskLevel: "ask",
     inputSchema: {
       type: "object",

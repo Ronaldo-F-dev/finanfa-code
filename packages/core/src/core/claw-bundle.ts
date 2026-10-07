@@ -39,7 +39,7 @@ function assertPathsWithinCwd(cwd: string, relPaths: string[]): void {
   for (const relPath of relPaths) {
     const resolved = path.resolve(cwd, relPath);
     if (resolved !== path.resolve(cwd) && !resolved.startsWith(root)) {
-      throw new Error(`Bundle file path "${relPath}" resolves outside the project (${cwd}) — refusing to touch it.`);
+      throw new Error(`Bundle file path "${relPath}" resolves outside the project (${cwd}), refusing to touch it.`);
     }
   }
 }

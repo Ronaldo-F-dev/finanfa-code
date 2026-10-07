@@ -30,7 +30,7 @@ async function truncateOutput(cwd: string, sessionId: string, output: string): P
   if (lineTruncated || charTruncated) {
     const relPath = await spillToFile(cwd, sessionId, "grep", output);
     const lineNote = lineTruncated ? `, showing first ${MAX_MATCH_LINES} of ${lines.length} matching lines` : "";
-    result += `\n... (truncated${lineNote} — full match set saved to ${relPath}; narrow the pattern/path, or read/grep that file, for the rest)`;
+    result += `\n... (truncated${lineNote}, full match set saved to ${relPath}; narrow the pattern/path, or read/grep that file, for the rest)`;
   }
   return result;
 }

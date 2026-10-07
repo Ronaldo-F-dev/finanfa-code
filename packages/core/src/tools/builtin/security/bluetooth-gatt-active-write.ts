@@ -34,7 +34,7 @@ export function createSecurityBluetoothGattActiveWriteTool(options: BluetoothGat
       "to the device, writes the given hex bytes to the characteristic at `characteristicPath` (from a prior " +
       "security_scan_bluetooth GATT-discovery call), reads the value straight back where possible, and " +
       "disconnects. Linux-only (bluetoothctl). " +
-      "IMPORTANT: this is an active, state-changing operation against real physical hardware — writing to a " +
+      "IMPORTANT: this is an active, state-changing operation against real physical hardware, writing to a " +
       "characteristic can trigger real-world side effects (locks, actuators, firmware update paths), unlike " +
       "read-only enumeration (see security_scan_bluetooth). Only ever run it against a device the user owns or " +
       "has explicit, documented authorization to test, and confirm the exact value/target with them first.",
@@ -71,10 +71,10 @@ export function createSecurityBluetoothGattActiveWriteTool(options: BluetoothGat
       // so anything outside a real MAC-address/D-Bus-path shape (a newline,
       // in particular) could inject an extra bluetoothctl command.
       if (!isValidMacAddress(input.deviceAddress)) {
-        return { content: `"${input.deviceAddress}" is not a valid device address — expected a MAC address like "AA:BB:CC:DD:EE:FF".`, isError: true };
+        return { content: `"${input.deviceAddress}" is not a valid device address, expected a MAC address like "AA:BB:CC:DD:EE:FF".`, isError: true };
       }
       if (!isValidGattPath(input.characteristicPath)) {
-        return { content: `"${input.characteristicPath}" is not a valid GATT characteristic path — expected a bluez object path like "/org/bluez/hci0/dev_.../char....." (from a prior security_scan_bluetooth GATT discovery call).`, isError: true };
+        return { content: `"${input.characteristicPath}" is not a valid GATT characteristic path, expected a bluez object path like "/org/bluez/hci0/dev_.../char....." (from a prior security_scan_bluetooth GATT discovery call).`, isError: true };
       }
       // Validate the value BEFORE connecting — never open a connection to a
       // real device just to discover the hex was malformed.
@@ -87,7 +87,7 @@ export function createSecurityBluetoothGattActiveWriteTool(options: BluetoothGat
       if (!result.connected) {
         return { content: result.detail, isError: true };
       }
-      const readBack = result.readBackHex !== undefined ? ` Read-back value: ${result.readBackHex}.` : " (characteristic not readable back — write-only, or read not permitted.)";
+      const readBack = result.readBackHex !== undefined ? ` Read-back value: ${result.readBackHex}.` : " (characteristic not readable back, write-only, or read not permitted.)";
       if (!result.ok) {
         return {
           content: `Wrote ${normalized.bytes.length} byte(s) to ${input.characteristicPath} on ${input.deviceAddress}, but bluetoothctl reported it did not succeed: ${result.detail}.${readBack}`,

@@ -44,7 +44,7 @@ export function registerWhatsappChannelRoutes(app: Express, cwd: string): void {
   app.get("/api/channels/whatsapp/webhook", (req, res) => {
     const verifyToken = process.env.WHATSAPP_VERIFY_TOKEN;
     if (!verifyToken) {
-      res.status(404).json({ error: "WhatsApp channel not configured — set WHATSAPP_VERIFY_TOKEN." });
+      res.status(404).json({ error: "WhatsApp channel not configured, set WHATSAPP_VERIFY_TOKEN." });
       return;
     }
     const challenge = verifyWhatsappWebhookHandshake(
@@ -61,7 +61,7 @@ export function registerWhatsappChannelRoutes(app: Express, cwd: string): void {
   app.post("/api/channels/whatsapp/webhook", (req: RequestWithRawBody, res) => {
     const appSecret = process.env.WHATSAPP_APP_SECRET;
     if (!appSecret) {
-      res.status(404).json({ error: "WhatsApp channel not configured — set WHATSAPP_APP_SECRET." });
+      res.status(404).json({ error: "WhatsApp channel not configured, set WHATSAPP_APP_SECRET." });
       return;
     }
     if (!verifyWhatsappSignature({ appSecret, signatureHeader: req.header("X-Hub-Signature-256"), rawBody: req.rawBody?.toString("utf-8") ?? "" })) {

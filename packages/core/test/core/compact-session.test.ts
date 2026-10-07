@@ -54,7 +54,7 @@ describe("compactSession", () => {
 
       expect(result).toEqual({ messagesBefore: 4 });
       expect(session.messages).toHaveLength(2);
-      expect(session.messages[0]).toEqual({ role: "user", content: "[Earlier conversation compacted to save context — see the summary below]" });
+      expect(session.messages[0]).toEqual({ role: "user", content: "[Earlier conversation compacted to save context, see the summary below]" });
       expect(session.messages[1]).toEqual({ role: "assistant", content: "User asked for a login page; login.html was created and is ready." });
 
       // The summarization call itself got the FULL transcript, not just a fragment.
@@ -78,7 +78,7 @@ describe("compactSession", () => {
     }
   });
 
-  it("does nothing for an empty session — no provider call, returns undefined", async () => {
+  it("does nothing for an empty session, no provider call, returns undefined", async () => {
     dir = await mkdtemp(path.join(tmpdir(), "finanfa-compact-"));
     try {
       const session = new AgentSession({ cwd: dir, model: "m", systemPrompt: "sys" });
@@ -176,7 +176,7 @@ describe("runCompactCommand (the UI-agnostic /compact behavior shared by web-ser
       ]);
       expect(systemMessages).toEqual(["Compacted 2 messages into a summary."]);
       expect(result.replacedMessages).toEqual([
-        { role: "user", content: "[Earlier conversation compacted to save context — see the summary below]" },
+        { role: "user", content: "[Earlier conversation compacted to save context, see the summary below]" },
         { role: "assistant", content: "A short greeting exchange." },
       ]);
     } finally {
@@ -195,7 +195,7 @@ describe("runCompactCommand (the UI-agnostic /compact behavior shared by web-ser
         writeSystem: (text) => systemMessages.push(text),
       });
 
-      expect(systemMessages).toEqual(["Nothing to compact, or the summarization call failed — conversation left unchanged."]);
+      expect(systemMessages).toEqual(["Nothing to compact, or the summarization call failed, conversation left unchanged."]);
       expect(result.replacedMessages).toBeUndefined();
     } finally {
       await rm(dir, { recursive: true, force: true });

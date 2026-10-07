@@ -51,7 +51,7 @@ export function registerSmsChannelRoutes(app: Express, cwd: string): void {
     // other channel's own webhook makes.
     const webhookUrl = process.env.TWILIO_WEBHOOK_URL ?? `${req.protocol}://${req.get("host")}${req.originalUrl}`;
     if (!authToken) {
-      res.status(404).json({ error: "SMS channel not configured — set TWILIO_AUTH_TOKEN." });
+      res.status(404).json({ error: "SMS channel not configured, set TWILIO_AUTH_TOKEN." });
       return;
     }
     if (!verifyTwilioSignature({ authToken, url: webhookUrl, params: req.body as Record<string, string>, signatureHeader: req.header("X-Twilio-Signature") })) {

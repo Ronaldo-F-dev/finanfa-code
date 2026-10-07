@@ -31,7 +31,7 @@ export const coapRequestTool: ToolDefinition<CoapRequestInput> = {
     "default, like a TCP-style reliable delivery) unless confirmable:false is set for a fire-and-forget " +
     "non-confirmable message. Set observe:true to register an observation and collect a few updates instead " +
     "of a single response, within timeout_ms. " +
-    "IMPORTANT: POST/PUT/DELETE send real, possibly state-changing requests to a real device — confirm with " +
+    "IMPORTANT: POST/PUT/DELETE send real, possibly state-changing requests to a real device, confirm with " +
     "the user before calling this with a mutating method unless they've explicitly asked for it.",
   riskLevel: "ask",
   inputSchema: {

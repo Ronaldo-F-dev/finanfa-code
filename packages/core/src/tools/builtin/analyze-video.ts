@@ -308,13 +308,13 @@ export function createAnalyzeVideoTool(config: AnalyzeVideoConfig | undefined, a
   return {
     name: "analyze_video",
     description:
-      "Ask a real question about a video's actual content — motion, audio, dialogue, what happens over time — " +
+      "Ask a real question about a video's actual content, motion, audio, dialogue, what happens over time, " +
       "via Gemini's native video understanding (genuinely different from view_video_frames, which only samples " +
       "still images: this sees the real video and audio together). Requires GEMINI_API_KEY as an environment " +
       "variable, independent of whichever provider is configured as the primary one. A video under " +
       `${Math.floor(MAX_INLINE_VIDEO_BYTES / (1024 * 1024))}MB is sent in one request; a larger one (up to ` +
       `${Math.floor(MAX_FILE_API_VIDEO_BYTES / (1024 * 1024))}MB) goes through Gemini's real File API instead ` +
-      "(upload, wait for processing, analyze, then delete it) — slower, since a real video needs server-side " +
+      "(upload, wait for processing, analyze, then delete it), slower, since a real video needs server-side " +
       "processing before Gemini can see it.",
     riskLevel: "safe",
     inputSchema: {
@@ -328,7 +328,7 @@ export function createAnalyzeVideoTool(config: AnalyzeVideoConfig | undefined, a
     },
     describeCall: (input) => `analyze video ${input.path}: ${input.prompt}`,
     async handler(input, ctx) {
-      if (!config) return { content: "analyze_video is not configured — set GEMINI_API_KEY as an environment variable to enable it.", isError: true };
+      if (!config) return { content: "analyze_video is not configured, set GEMINI_API_KEY as an environment variable to enable it.", isError: true };
 
       const filePath = resolveAllowedPath(ctx.cwd, input.path);
       const mimeType = videoMimeTypeForPath(filePath);

@@ -138,7 +138,7 @@ function registerShutdownHandlers(
   const shutdown = async (): Promise<void> => {
     if (shuttingDown) return;
     shuttingDown = true;
-    ui.writeSystem("Interrupted — saving session and closing connections...");
+    ui.writeSystem("Interrupted, saving session and closing connections...");
     // A getter, not a captured session — /session may have swapped the
     // REPL's active session since this handler was registered, and Ctrl+C
     // should act on whichever one is actually current, not the one from
@@ -171,7 +171,7 @@ function registerShutdownHandlers(
     lastInterruptAt = now;
     if (isBusy() && !doubleTap) {
       for (const controller of getSession().activeAbortControllers) controller.abort();
-      ui.writeSystem("Interrupted — stopping the current turn (session and connections kept open).");
+      ui.writeSystem("Interrupted, stopping the current turn (session and connections kept open).");
       return;
     }
     void shutdown();
@@ -199,7 +199,7 @@ export async function main(argv: string[]): Promise<void> {
     .option(
       "--max-turns <n>",
       "with --prompt: automatically send \"continue\" up to this many extra times if a turn is cut off by the " +
-        "step-limit guard (a large task genuinely needing more room, not just a stuck loop) — 1 disables auto-continue",
+        "step-limit guard (a large task genuinely needing more room, not just a stuck loop), 1 disables auto-continue",
       "5",
     )
     .option("--cwd <path>", "project directory to operate in (defaults to the current directory)")
@@ -355,7 +355,7 @@ export async function main(argv: string[]): Promise<void> {
         const stoppedByGuard =
           last?.role === "assistant" && typeof last.content === "string" && isLoopGuardStopMessage(last.content);
         if (!stoppedByGuard || turn === maxTurns) break;
-        ui.writeSystem(`(auto-continuing: turn ${turn} was cut off by the step-limit guard — turn ${turn + 1}/${maxTurns})`);
+        ui.writeSystem(`(auto-continuing: turn ${turn} was cut off by the step-limit guard, turn ${turn + 1}/${maxTurns})`);
         prompt = "continue";
       }
       await maybeGenerateTitle(deps.session, provider);
@@ -376,7 +376,7 @@ export async function main(argv: string[]): Promise<void> {
   if (plugins.length > 0) ui.writeSystem(`Plugins: ${plugins.join(", ")}`);
   const shadowed = shadowedCommandNames(customCommands, (name) => commands.get(name) !== undefined);
   if (shadowed.length > 0) {
-    ui.writeSystem(`Custom command(s) hidden by a built-in of the same name: ${shadowed.map((n) => `/${n}`).join(", ")} — rename the file in .finanfa-code/commands to use them.`);
+    ui.writeSystem(`Custom command(s) hidden by a built-in of the same name: ${shadowed.map((n) => `/${n}`).join(", ")}, rename the file in .finanfa-code/commands to use them.`);
   }
   if (opts.yolo) ui.writeSystem("⚠ --yolo: all tool calls will be auto-approved");
   if (visionRoute) ui.writeSystem(`Vision routing: image turns use ${visionRoute.model}`);

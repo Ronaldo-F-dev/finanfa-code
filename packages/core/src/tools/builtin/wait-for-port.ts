@@ -60,7 +60,7 @@ export const waitForPortTool: ToolDefinition<WaitForPortInput> = {
   name: "wait_for_port",
   description:
     "Poll a TCP port (e.g. a dev server you just started with start_background_process) until it accepts " +
-    "connections, instead of guessing a fixed `sleep N` — a server with a debug/reload mode can take longer " +
+    "connections, instead of guessing a fixed `sleep N`, a server with a debug/reload mode can take longer " +
     "to bind its port than a guessed sleep duration, and testing too early looks exactly like a crash when " +
     "it isn't. Returns as soon as the port is reachable, or reports failure once the timeout elapses.",
   riskLevel: "safe",
@@ -82,7 +82,7 @@ export const waitForPortTool: ToolDefinition<WaitForPortInput> = {
       return { content: `${host}:${input.port} is accepting connections (after ${result.attempts} attempt(s)).`, isError: false };
     }
     return {
-      content: `${host}:${input.port} did not accept connections within ${timeoutMs}ms (${result.attempts} attempt(s)) — the server may have failed to start; check its logs.`,
+      content: `${host}:${input.port} did not accept connections within ${timeoutMs}ms (${result.attempts} attempt(s)), the server may have failed to start; check its logs.`,
       isError: true,
     };
   },

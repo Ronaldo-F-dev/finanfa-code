@@ -52,7 +52,7 @@ export function TodoPanel({ todos, onClose }: { todos: TodoItem[]; onClose: () =
                         {td.content}
                       </div>
                     ))}
-                    {items.length === 0 && <div className="todo-column-empty">—</div>}
+                    {items.length === 0 && <div className="todo-column-empty">-</div>}
                   </div>
                 </div>
               );

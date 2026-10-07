@@ -68,7 +68,7 @@ function handlePlan(ctx: CommandContext): CommandOutcome {
   const arg = ctx.args.trim().toLowerCase();
   if (arg === "on") {
     ctx.session.planMode = true;
-    ctx.ui.writeSystem("Plan mode ON — only read-only tools work until the model presents a plan via exit_plan_mode and you approve it.");
+    ctx.ui.writeSystem("Plan mode ON, only read-only tools work until the model presents a plan via exit_plan_mode and you approve it.");
     return "continue";
   }
   if (arg === "off") {
@@ -102,7 +102,7 @@ async function handleAutoApprove(ctx: CommandContext, category: string | undefin
   const usage = `Usage: /permissions auto-approve [${APPROVAL_CATEGORIES.join("|")} on|off [save]] (no args shows the current state)`;
   if (!category) {
     const current = ctx.permissions.getAutoApprove();
-    const lines = APPROVAL_CATEGORIES.map((c) => `  ${c}: ${current[c] ? "ON " : "off"} — ${CATEGORY_BLURB[c]}`);
+    const lines = APPROVAL_CATEGORIES.map((c) => `  ${c}: ${current[c] ? "ON " : "off"}, ${CATEGORY_BLURB[c]}`);
     const note = ctx.permissions.isAutoApproveForbidden() ? "\n(Disabled by this machine's managed settings.)" : "";
     ctx.ui.writeSystem(`Approved without asking:\n${lines.join("\n")}${note}\nAn explicit permission rule for a tool, or a hook that blocks it, still applies.`);
     return "continue";
@@ -127,7 +127,7 @@ async function handleAutoApprove(ctx: CommandContext, category: string | undefin
   }
   ctx.ui.writeSystem(
     `${category}: ${state === "on" ? "approved without asking" : "asking again"} ${persisted}.` +
-      (state === "on" && category === "terminal" ? " Shell commands now run without a prompt — review what the agent is doing." : ""),
+      (state === "on" && category === "terminal" ? " Shell commands now run without a prompt, review what the agent is doing." : ""),
   );
   return "continue";
 }
@@ -143,7 +143,7 @@ async function handlePermissions(ctx: CommandContext): Promise<CommandOutcome> {
   if (state === "on") {
     ctx.permissions.setAutoApprovalClassifier({ enabled: true, model });
     ctx.ui.writeSystem(
-      `Auto-approval classifier ON${model ? ` (model: ${model})` : ""} — a per-call risk score now decides low/medium-risk calls that would ` +
+      `Auto-approval classifier ON${model ? ` (model: ${model})` : ""}, a per-call risk score now decides low/medium-risk calls that would ` +
         `otherwise ask (low: silent, medium: allowed with a notice); high-risk calls still ask, same as today.`,
     );
     return "continue";
@@ -238,7 +238,7 @@ async function connectMcpServer(ctx: CommandContext, name: string | undefined): 
   }
 
   if (config.transport !== "stdio") {
-    ctx.ui.writeSystem(`Connecting to "${name}" — if it requires authorization, a browser tab will open...`);
+    ctx.ui.writeSystem(`Connecting to "${name}", if it requires authorization, a browser tab will open...`);
   }
   try {
     await ctx.mcp.connect(config);
@@ -270,7 +270,7 @@ async function addMcpServer(ctx: CommandContext, rest: string[]): Promise<Comman
   await writeFile(file, JSON.stringify({ servers: next }, null, 2), "utf-8");
 
   if (config.transport !== "stdio") {
-    ctx.ui.writeSystem(`Connecting to "${namePart}" — if it requires authorization, a browser tab will open...`);
+    ctx.ui.writeSystem(`Connecting to "${namePart}", if it requires authorization, a browser tab will open...`);
   }
   await ctx.mcp.connect(config);
   await reloadMcpTools(ctx);
@@ -323,7 +323,7 @@ async function handleRewind(ctx: CommandContext): Promise<CommandOutcome> {
 
   if (!arg) {
     if (checkpoints.length === 0) {
-      ctx.ui.writeSystem("No checkpoints yet — one is recorded each time you send a message.");
+      ctx.ui.writeSystem("No checkpoints yet, one is recorded each time you send a message.");
       return "continue";
     }
     const lines = checkpoints.map((c, i) => `${i + 1}. ${c.preview}`);
@@ -333,13 +333,13 @@ async function handleRewind(ctx: CommandContext): Promise<CommandOutcome> {
 
   const index = Number(arg);
   if (!Number.isInteger(index) || index < 1 || index > checkpoints.length) {
-    ctx.ui.writeError(`Usage: /rewind [<number>] — /rewind with no args lists checkpoints (currently 1-${checkpoints.length}).`);
+    ctx.ui.writeError(`Usage: /rewind [<number>], /rewind with no args lists checkpoints (currently 1-${checkpoints.length}).`);
     return "continue";
   }
 
   const result = (await rewindSession(ctx.session, index))!;
   ctx.ui.writeSystem(
-    `Rewound to right before "${result.preview}" — reverted ${result.revertedFiles} file change(s), conversation now has ${result.remainingMessages} message(s).`,
+    `Rewound to right before "${result.preview}", reverted ${result.revertedFiles} file change(s), conversation now has ${result.remainingMessages} message(s).`,
   );
   return "continue";
 }
@@ -368,7 +368,7 @@ async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
     await Promise.all(toDelete.map((s) => AgentSession.delete(ctx.cwd, s.id)));
     ctx.ui.writeSystem(
       toDelete.length > 0
-        ? `Deleted ${toDelete.length} session(s) for this directory (kept the current one — it's still active).`
+        ? `Deleted ${toDelete.length} session(s) for this directory (kept the current one, it's still active).`
         : "No other saved sessions to delete.",
     );
     return "continue";
@@ -377,7 +377,7 @@ async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
   if (sub === "delete" && id) {
     if (id === ctx.session.id) {
       ctx.ui.writeError(
-        "Can't delete the current session while it's active — it would just get recreated on the next save. " +
+        "Can't delete the current session while it's active, it would just get recreated on the next save. " +
           "/exit first, then delete it from a different session.",
       );
       return "continue";
@@ -408,8 +408,8 @@ async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
   ctx.ui.writeSystem(
     sessions
       .map((s) => {
-        const label = s.title ? `"${s.title}" — ${s.id}` : s.id;
-        return `${label}${s.id === ctx.session.id ? " (current)" : ""} — ${s.mtime.toISOString()}`;
+        const label = s.title ? `"${s.title}", ${s.id}` : s.id;
+        return `${label}${s.id === ctx.session.id ? " (current)" : ""}, ${s.mtime.toISOString()}`;
       })
       .join("\n"),
   );
@@ -420,7 +420,7 @@ async function handleSessions(ctx: CommandContext): Promise<CommandOutcome> {
 async function handleSession(ctx: CommandContext): Promise<CommandOutcome> {
   const id = ctx.args.trim();
   if (!id) {
-    ctx.ui.writeError("Usage: /session <id> — see /sessions for ids. Switches to a different saved session; the current one is saved first.");
+    ctx.ui.writeError("Usage: /session <id>, see /sessions for ids. Switches to a different saved session; the current one is saved first.");
     return "continue";
   }
   if (id === ctx.session.id) {
@@ -510,7 +510,7 @@ export function maskSecret(value: string): string {
 function formatConfig(config: FinanfaConfig): string {
   const entries = Object.entries(config).filter(([k]) => k !== "apiKeys") as [ConfigKey, string][];
   const lines = entries.map(([k, v]) => `${k}: ${SECRET_KEYS.includes(k) ? maskSecret(v) : v}`);
-  if (config.apiKeys?.length) lines.push(`apiKeys: ${config.apiKeys.length} key(s) — ${config.apiKeys.map(maskSecret).join(", ")}`);
+  if (config.apiKeys?.length) lines.push(`apiKeys: ${config.apiKeys.length} key(s), ${config.apiKeys.map(maskSecret).join(", ")}`);
   if (lines.length === 0) return `No config set. Use /config set <${CONFIG_KEYS.join("|")}> <value>.`;
   return lines.join("\n");
 }
@@ -541,7 +541,7 @@ async function handleConfig(ctx: CommandContext): Promise<CommandOutcome> {
     if (!key || !isConfigKey(key) || !value) {
       ctx.ui.writeError(
         `Usage: /config set <${CONFIG_KEYS.join("|")}> <value> (apiKeys: comma-separated). Config keys don't ` +
-          "have a FINANFA_ prefix — e.g. /config set provider openai-compatible, not FINANFA_PROVIDER.",
+          "have a FINANFA_ prefix, e.g. /config set provider openai-compatible, not FINANFA_PROVIDER.",
       );
       return "continue";
     }
@@ -619,7 +619,7 @@ async function handleModels(ctx: CommandContext): Promise<CommandOutcome> {
   }
 
   const lines = reachable.flatMap((r) => {
-    const header = `${r.label} — ${r.baseUrl}`;
+    const header = `${r.label}, ${r.baseUrl}`;
     if (r.models.length === 0) return [header, "  reachable, but reports no models (pull/load one first)"];
     return [
       header,
@@ -677,25 +677,25 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
       const result = await compactSession(ctx.session, ctx.provider);
       ctx.ui.setBusy(false);
       if (!result) {
-        ctx.ui.writeSystem("Nothing to compact, or the summarization call failed — conversation left unchanged.");
+        ctx.ui.writeSystem("Nothing to compact, or the summarization call failed, conversation left unchanged.");
       } else {
         ctx.ui.writeSystem(`Compacted ${result.messagesBefore} messages into a summary. Use /clear instead if you don't need any of it kept.`);
       }
       return "continue";
     },
-    "Summarize the conversation so far into a condensed note, freeing up context (one-way — /clear instead to discard it entirely)",
+    "Summarize the conversation so far into a condensed note, freeing up context (one-way, /clear instead to discard it entirely)",
   );
 
   commands.register(
     "help",
     (ctx) => {
-      const builtinLines = commands.list().map((c) => `/${c.name} — ${c.description}`);
+      const builtinLines = commands.list().map((c) => `/${c.name}: ${c.description}`);
       // A custom command of the same name as a builtin never gets here —
       // it's shadowed everywhere (autocomplete, dispatch), so listing it
       // too would be misleading about what /<name> actually runs.
       const customLines = [...(ctx.customCommands?.values() ?? [])]
         .filter((c) => !commands.get(c.name))
-        .map((c) => `/${c.name} — ${c.description || "(custom command)"}`);
+        .map((c) => `/${c.name}: ${c.description || "(custom command)"}`);
       ctx.ui.writeSystem([...builtinLines, ...customLines].join("\n"));
       return "continue";
     },
@@ -737,7 +737,7 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
   commands.register(
     "session",
     handleSession,
-    "Switch to a different saved session by id (see /sessions for ids) — saves the current one first",
+    "Switch to a different saved session by id (see /sessions for ids), saves the current one first",
   );
   commands.register(
     "goal",
@@ -761,7 +761,7 @@ export function registerBuiltinCommands(commands: CommandRegistry): void {
   commands.register(
     "plan",
     handlePlan,
-    "Toggle plan mode: /plan [on|off] (no args shows current state) — while on, only read-only tools work until a plan is presented via exit_plan_mode and approved",
+    "Toggle plan mode: /plan [on|off] (no args shows current state), while on, only read-only tools work until a plan is presented via exit_plan_mode and approved",
   );
 
   commands.register(

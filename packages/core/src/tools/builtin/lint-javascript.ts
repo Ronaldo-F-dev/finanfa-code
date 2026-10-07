@@ -47,9 +47,9 @@ export const lintJavascriptTool: ToolDefinition<LintJavascriptInput> = {
   name: "lint_javascript",
   description:
     "Run ESLint on a JavaScript/TypeScript file or project and report the errors/warnings, the same way " +
-    "run_tests reports test failures. Uses `npx eslint` — no separate install needed if the project already " +
+    "run_tests reports test failures. Uses `npx eslint`, no separate install needed if the project already " +
     "has one, otherwise npx fetches the latest ESLint. Unlike check_python_types/Pyright, this needs the " +
-    "project to already have its own ESLint config (eslint.config.js or legacy .eslintrc.*) — ESLint refuses " +
+    "project to already have its own ESLint config (eslint.config.js or legacy .eslintrc.*), ESLint refuses " +
     "to run at all without one (verified directly), so this won't try to impose one of its own.",
   riskLevel: "safe",
   inputSchema: {
@@ -67,7 +67,7 @@ export const lintJavascriptTool: ToolDefinition<LintJavascriptInput> = {
       return {
         content:
           "No ESLint config found in this project (no eslint.config.js/mjs/cjs/ts or legacy .eslintrc.*). " +
-          "Set one up first (e.g. `npm init @eslint/config`) — unlike Pyright, ESLint has no usable defaults " +
+          "Set one up first (e.g. `npm init @eslint/config`), unlike Pyright, ESLint has no usable defaults " +
           "and refuses to run without a config.",
         isError: true,
       };

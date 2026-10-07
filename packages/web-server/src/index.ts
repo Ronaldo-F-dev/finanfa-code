@@ -245,7 +245,7 @@ function buildProvider(family: ProviderFamily, config: FinanfaConfig): LlmProvid
     return new AnthropicProvider(apiKey, workspaceId);
   }
   const baseUrl = process.env.FINANFA_BASE_URL ?? (savedFamily === "openai-compatible" ? config.baseUrl : undefined);
-  if (!baseUrl) throw new Error("openai-compatible requires a base URL — checked by the caller via familyAvailability first.");
+  if (!baseUrl) throw new Error("openai-compatible requires a base URL, checked by the caller via familyAvailability first.");
   const apiKey = process.env.FINANFA_API_KEY ?? (savedFamily === "openai-compatible" ? config.apiKey : undefined);
   const apiKeys = parseApiKeys(process.env.FINANFA_API_KEYS) ?? (savedFamily === "openai-compatible" ? config.apiKeys : undefined);
   return new OpenAiCompatibleProvider({ baseUrl, apiKey, apiKeys });
@@ -332,7 +332,7 @@ if (OIDC_CONFIG) {
     }
     const verifier = OIDC_STATES.consume(state);
     if (!verifier) {
-      res.status(400).json({ error: "Unknown, expired, or already-used state — start the login again." });
+      res.status(400).json({ error: "Unknown, expired, or already-used state, start the login again." });
       return;
     }
     try {
@@ -883,7 +883,7 @@ app.post("/api/config", async (req, res) => {
     else next.apiKeys = keys;
   }
   await saveGlobalConfig(next);
-  res.json({ ok: true, note: "Saved. Existing open chats keep their current provider/model — start a new chat to pick up the change." });
+  res.json({ ok: true, note: "Saved. Existing open chats keep their current provider/model, start a new chat to pick up the change." });
 });
 
 // Skills and memory already exist and do real work (loaded into every
@@ -1240,7 +1240,7 @@ async function buildTurnContext(
       providerKind = family;
     } else {
       opts.ui.writeError(
-        `This session was last using a ${family} model, but ${family} isn't configured — falling back to the default (${providerKind}). Switch models or update Settings to restore it.`,
+        `This session was last using a ${family} model, but ${family} isn't configured, falling back to the default (${providerKind}). Switch models or update Settings to restore it.`,
       );
     }
   }
@@ -1518,7 +1518,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
         // A restore asked for mid-turn is refused on the spot. Queued like everything else it would run once the turn
         // is over — and quietly rewind past the very message that was just answered, which nobody asked for.
         if (peek.type === "rewind" && turnInFlight) {
-          adapter.writeError("A turn is in progress — wait for it to finish (or interrupt) before restoring an earlier point.");
+          adapter.writeError("A turn is in progress, wait for it to finish (or interrupt) before restoring an earlier point.");
           return;
         }
       } catch {
@@ -1542,7 +1542,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
       async function handleUserMessage(msg: { type: string; [key: string]: unknown }): Promise<void> {
         if (typeof msg.text !== "string") return;
         if (turnInFlight) {
-          adapter.writeError("A turn is already in progress — wait for it to finish (or interrupt) before sending another message.");
+          adapter.writeError("A turn is already in progress, wait for it to finish (or interrupt) before sending another message.");
           return;
         }
         turnInFlight = true;
@@ -1555,7 +1555,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           // answering from memory. Real behavior change, honestly scoped.
           const text = msg.deepResearch
             ? "Do deep research for this: actively search the web and any other tools available (multiple queries/sources, " +
-              "cross-check facts, fetch pages for real detail rather than trusting a snippet) before answering — don't answer " +
+              "cross-check facts, fetch pages for real detail rather than trusting a snippet) before answering, don't answer " +
               `from memory alone if search tools can verify it. Take as many search/fetch steps as genuinely useful.\n\n${msg.text}`
             : msg.text;
           let nextText: string = text;
@@ -1569,7 +1569,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
             const last = session.messages.at(-1);
             const stoppedByGuard = last?.role === "assistant" && typeof last.content === "string" && isLoopGuardStopMessage(last.content);
             if (!stoppedByGuard || turn === WEB_MAX_AUTO_CONTINUE_TURNS) break;
-            adapter.writeSystem(`(auto-continuing: cut off by the step-limit guard — turn ${turn + 1}/${WEB_MAX_AUTO_CONTINUE_TURNS})`);
+            adapter.writeSystem(`(auto-continuing: cut off by the step-limit guard, turn ${turn + 1}/${WEB_MAX_AUTO_CONTINUE_TURNS})`);
             nextText = "continue";
             nextImages = undefined;
           }
@@ -1619,7 +1619,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
       /** Restores the conversation and every edit/write-tool file change to right before checkpoint `msg.checkpoint`. */
       async function handleRewind(msg: { type: string; [key: string]: unknown }): Promise<void> {
         if (turnInFlight) {
-          adapter.writeError("A turn is in progress — wait for it to finish (or interrupt) before restoring an earlier point.");
+          adapter.writeError("A turn is in progress, wait for it to finish (or interrupt) before restoring an earlier point.");
           return;
         }
         turnInFlight = true; // same guard compaction uses: a message arriving mid-rewind would append to an array being cut
@@ -1647,7 +1647,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
 
       async function handleCompact(): Promise<void> {
         if (turnInFlight) {
-          adapter.writeError("A turn is already in progress — wait for it to finish (or interrupt) before compacting.");
+          adapter.writeError("A turn is already in progress, wait for it to finish (or interrupt) before compacting.");
           return;
         }
         // Held for the duration of the compaction call itself (not just
@@ -1816,12 +1816,12 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           warnedAboutLocalModelThisConnection = true;
           const enabledToolCount = tools.list().filter((t) => !session.disabledTools.has(t.name)).length;
           adapter.writeSystem(
-            `⚠ ${modelName} is a local model — every message sent here includes this agent's full system prompt ` +
+            `⚠ ${modelName} is a local model, every message sent here includes this agent's full system prompt ` +
               `and tool list (currently ${enabledToolCount} tools, tens of thousands of tokens on its own, before ` +
               "any conversation). On a machine with limited RAM/no GPU, a local runtime trying to allocate enough " +
               "context for that can exhaust memory badly enough to freeze or crash the whole system, not just fail " +
               "cleanly. If that happens, use /tools (or the Tools panel here) to disable most tools before trying " +
-              "a local model again — a handful of tools is a much smaller, safer prompt than the full set.",
+              "a local model again, a handful of tools is a much smaller, safer prompt than the full set.",
           );
         }
       }
@@ -2035,7 +2035,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
         } else if (mcp.connectedServers().includes(msg.name)) {
           adapter.writeSystem(`"${msg.name}" is already connected.`);
         } else {
-          if (config.transport !== "stdio") adapter.writeSystem(`Connecting to "${msg.name}" — if it requires authorization, a browser tab will open on the server...`);
+          if (config.transport !== "stdio") adapter.writeSystem(`Connecting to "${msg.name}", if it requires authorization, a browser tab will open on the server...`);
           try {
             await mcp.connect(config);
             needsAuthSet.delete(msg.name);
@@ -2212,10 +2212,10 @@ httpServer.listen(PORT, BIND_HOST, () => {
   // surprise for the common local case than one loud log line.
   if (!GATEWAY_ENABLED) {
     console.warn(
-      "⚠ No gateway auth configured (FINANFA_WEB_USERS / FINANFA_WEB_ACCOUNTS=1 / OIDC) — every request is treated " +
+      "⚠ No gateway auth configured (FINANFA_WEB_USERS / FINANFA_WEB_ACCOUNTS=1 / OIDC), every request is treated " +
         "as one shared, unauthenticated user with full agent access (including shell/file tools). Safe for local-only " +
         "use (127.0.0.1); before exposing this server publicly (a real domain, a cloud deploy, a tunnel), set one of " +
-        "those up first — see README's Setup section.",
+        "those up first, see README's Setup section.",
     );
     if (!ORIGIN_POLICY.loopbackBound) {
       console.warn(`⚠ ...and it is bound to ${BIND_HOST}, i.e. reachable from the network. Set FINANFA_WEB_HOST=127.0.0.1, or configure gateway auth.`);
