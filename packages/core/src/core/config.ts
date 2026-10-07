@@ -31,6 +31,10 @@ export interface FinanfaConfig {
    * without first reconfiguring the whole active provider.
    */
   anthropicApiKey?: string;
+  /** Keys for the cloud providers offered next to Claude in the model picker (see cloud-providers.ts). Each is used only for its own provider; the matching environment variable wins when set. */
+  deepseekApiKey?: string;
+  xaiApiKey?: string;
+  geminiApiKey?: string;
   /** Only needed for an org-admin-scoped Anthropic API key (not scoped to a single workspace) — see AnthropicProvider's constructor comment. Can be left unset for a normal, already-workspace-scoped key. */
   anthropicWorkspaceId?: string;
   /** amazon-bedrock only — defaults to the AWS_REGION env var, then "us-east-1". Credentials come from the standard AWS credential chain, not from config. */

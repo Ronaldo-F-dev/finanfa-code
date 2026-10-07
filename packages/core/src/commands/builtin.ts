@@ -484,6 +484,9 @@ export const CONFIG_KEYS = [
   // on show) since every other key here is a plain string.
   "apiKeys",
   "anthropicApiKey",
+  "deepseekApiKey",
+  "xaiApiKey",
+  "geminiApiKey",
   "awsRegion",
   "vertexRegion",
   "vertexProjectId",
@@ -497,7 +500,7 @@ export const CONFIG_KEYS = [
   "localModelLean",
 ] as const;
 export type ConfigKey = (typeof CONFIG_KEYS)[number];
-export const SECRET_KEYS: readonly ConfigKey[] = ["apiKey", "anthropicApiKey", "visionApiKey", "githubCopilotToken"];
+export const SECRET_KEYS: readonly ConfigKey[] = ["apiKey", "anthropicApiKey", "deepseekApiKey", "xaiApiKey", "geminiApiKey", "visionApiKey", "githubCopilotToken"];
 
 function isConfigKey(key: string): key is ConfigKey {
   return (CONFIG_KEYS as readonly string[]).includes(key);
