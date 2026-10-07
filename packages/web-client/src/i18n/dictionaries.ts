@@ -95,6 +95,8 @@ export const translations: Record<Language, Record<string, string>> = {
       "Local model, processing the prompt can take one to two minutes on a machine with no GPU, before generation even starts.",
 
     // EffortSelector.tsx
+    "effort.noLocalModel": "No installed model fits this level. Install one from Models.",
+    "effort.usesModel": "Uses {model}",
     "effort.trigger": "Effort",
     "effort.triggerWithLabel": "Effort: {label}",
     "effort.notInstalled": "model not installed, will be downloaded on first pick",
@@ -387,6 +389,8 @@ export const translations: Record<Language, Record<string, string>> = {
     "busy.localModelHint":
       "Modèle local, le traitement du prompt peut prendre une à deux minutes sur une machine sans GPU, avant même le début de la génération.",
 
+    "effort.noLocalModel": "Aucun modèle installé ne convient à ce niveau. Installez-en un depuis Modèles.",
+    "effort.usesModel": "Utilise {model}",
     "effort.trigger": "Effort",
     "effort.triggerWithLabel": "Effort : {label}",
     "effort.notInstalled": "modèle non installé, sera téléchargé au premier choix",

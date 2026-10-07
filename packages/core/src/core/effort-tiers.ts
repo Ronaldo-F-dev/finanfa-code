@@ -29,39 +29,36 @@ export interface EffortTier {
   baseUrl?: string;
   /** Ollama model name to check for / offer to pull when this tier is picked and the model isn't installed yet — undefined for the cloud tier, which needs no local download. */
   ollamaModel?: string;
+  /**
+   * Set for the "low" and "medium" tiers: they carry no model of their own and never download one. The model is picked
+   * from what is already installed or running on this machine (see pickModelForTier), so a level never asks for a
+   * specific download.
+   */
+  pickLocal?: boolean;
   maxTokens: number;
   toolBudget: ToolBudget;
 }
 
-const OLLAMA_BASE_URL = "http://localhost:11434/v1";
+export const OLLAMA_BASE_URL = "http://localhost:11434/v1";
 
 export const EFFORT_TIERS: EffortTier[] = [
   {
     id: "low",
     label: "Faible",
-    // Swapped from yi-coder:1.5b-chat after a real side-by-side: gemma2:2b
-    // gave noticeably warmer, more natural French chat responses in a
-    // direct comparison (see the "chat only" use case this tier targets —
-    // it's picked for conversation quality, not coding). Same underlying
-    // reason for toolBudget "none" as before: gemma2:2b's own Ollama
-    // /api/tags capabilities are ["completion"] only, no "tools" — sending
-    // it a tool list fails outright regardless of how many are in it.
-    description: "Réponses rapides, sans outils, gemma2:2b (aucun tool calling, donc aucun outil envoyé : c'est ce qui évite le crash déjà rencontré avec ce type de modèle). Bon pour la conversation en français.",
-    model: "gemma2:2b",
-    family: "openai-compatible",
-    baseUrl: OLLAMA_BASE_URL,
-    ollamaModel: "gemma2:2b",
+    // The smallest model already on this machine, with no tools: a small model often has no tool-calling at all (an
+    // Ollama /api/tags capabilities list of ["completion"] only), and sending it a tool list fails outright.
+    description: "Réponses rapides, sans outils, avec le plus petit modèle local déjà installé. Bon pour la conversation.",
+    model: "",
+    pickLocal: true,
     maxTokens: 512,
     toolBudget: "none",
   },
   {
     id: "medium",
     label: "Moyen",
-    description: "Un modèle local qui supporte les outils (lecture/édition de fichiers) avec un jeu d'outils réduit, qwen3:4b-instruct.",
-    model: "qwen3:4b-instruct",
-    family: "openai-compatible",
-    baseUrl: OLLAMA_BASE_URL,
-    ollamaModel: "qwen3:4b-instruct",
+    description: "Le plus petit modèle local déjà installé qui gère les outils (lecture et édition de fichiers), avec un jeu d'outils réduit.",
+    model: "",
+    pickLocal: true,
     maxTokens: 2048,
     toolBudget: "minimal",
   },
@@ -106,4 +103,26 @@ export function isDefaultProviderTier(tier: EffortTier): boolean {
 
 export function getEffortTier(id: string): EffortTier | undefined {
   return EFFORT_TIERS.find((t) => t.id === id);
+}
+
+/** A model already available on this machine, whichever runtime serves it. */
+export interface LocalModelInfo {
+  name: string;
+  baseUrl: string;
+  /** Bytes, when the runtime reports it (Ollama does). */
+  size?: number;
+  /** undefined when the runtime does not say, which counts as "not known to support tools". */
+  supportsTools?: boolean;
+}
+
+const NOT_A_CHAT_MODEL = /embed|rerank/i;
+
+/**
+ * Picks, from the models already installed, the one a "low" or "medium" level uses: the smallest model for "low", the
+ * smallest model known to support tools for "medium". Undefined when nothing fits, in which case the level is
+ * unavailable until the user installs a model themselves.
+ */
+export function pickModelForTier(level: string, models: LocalModelInfo[]): LocalModelInfo | undefined {
+  const candidates = models.filter((m) => !NOT_A_CHAT_MODEL.test(m.name) && (level !== "medium" || m.supportsTools === true));
+  return [...candidates].sort((a, b) => (a.size ?? Number.POSITIVE_INFINITY) - (b.size ?? Number.POSITIVE_INFINITY))[0];
 }
