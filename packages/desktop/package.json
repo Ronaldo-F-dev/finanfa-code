@@ -7,9 +7,18 @@
   "scripts": {
     "build": "node esbuild.config.mjs",
     "start": "npm run build -w @finanfa/web-client && npm run build && node scripts/start.mjs",
-    "smoke": "npm run build -w @finanfa/web-client && npm run build && node scripts/start.mjs --smoke"
+    "smoke": "npm run build -w @finanfa/web-client && npm run build && node scripts/start.mjs --smoke",
+    "bundle": "node scripts/bundle-server.mjs",
+    "pack": "npm run build -w @finanfa/web-client && npm run build && npm run bundle && node scripts/installers.mjs --dir",
+    "dist": "npm run build -w @finanfa/web-client && npm run build && npm run bundle && node scripts/installers.mjs"
   },
   "devDependencies": {
-    "electron": "^44.5.1"
-  }
+    "electron": "^44.5.1",
+    "electron-builder": "^26.15.3"
+  },
+  "author": {
+    "name": "Finanfa",
+    "email": "cohortedata@gotolearn.com"
+  },
+  "homepage": "https://github.com/Ronaldo-F-dev/finanfa-code"
 }

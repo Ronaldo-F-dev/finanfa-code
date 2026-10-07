@@ -51,6 +51,7 @@
     "protobufjs": false,
     "@serialport/bindings-cpp": false,
     "@vscode/vsce-sign": false,
-    "fsevents": false
+    "fsevents": false,
+    "electron-winstaller": false
   }
 }
