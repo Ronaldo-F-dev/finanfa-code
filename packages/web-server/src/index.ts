@@ -1109,7 +1109,8 @@ app.post("/api/projects/:id/instructions", async (req, res) => {
   }
 });
 
-const clientDist = path.join(import.meta.dirname, "../../web-client/dist");
+// The packaged desktop app keeps the built web client outside the server bundle, so it says where (FINANFA_WEB_CLIENT_DIST).
+const clientDist = process.env.FINANFA_WEB_CLIENT_DIST ?? path.join(import.meta.dirname, "../../web-client/dist");
 app.use(express.static(clientDist));
 app.get(/^(?!\/api|\/ws).*/, (_req, res) => {
   res.sendFile(path.join(clientDist, "index.html"), (err) => {
