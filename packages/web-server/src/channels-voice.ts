@@ -67,7 +67,7 @@ export function registerVoiceChannelRoutes(app: Express, cwd: string): void {
 
   app.post("/api/channels/voice/webhook", urlencoded, (req, res) => {
     if (!process.env.TWILIO_AUTH_TOKEN) {
-      res.status(404).json({ error: "Voice channel not configured — set TWILIO_AUTH_TOKEN." });
+      res.status(404).json({ error: "Voice channel not configured, set TWILIO_AUTH_TOKEN." });
       return;
     }
     if (!hasValidSignature(req)) {
@@ -85,7 +85,7 @@ export function registerVoiceChannelRoutes(app: Express, cwd: string): void {
 
   app.post("/api/channels/voice/gather", urlencoded, (req, res) => {
     if (!process.env.TWILIO_AUTH_TOKEN) {
-      res.status(404).json({ error: "Voice channel not configured — set TWILIO_AUTH_TOKEN." });
+      res.status(404).json({ error: "Voice channel not configured, set TWILIO_AUTH_TOKEN." });
       return;
     }
     if (!hasValidSignature(req)) {
@@ -116,7 +116,7 @@ export function registerVoiceChannelRoutes(app: Express, cwd: string): void {
       // leaving them on hold past Twilio's own webhook timeout, then
       // follow up over SMS (if configured) once it actually finishes.
       const smsConfigured = Boolean(smsConfigFromEnv());
-      res.status(200).type("text/xml").send(sayAndHangupTwiml(smsConfigured ? "That's going to take me a moment — I'll text you the answer. Goodbye." : "Sorry, that's taking longer than I can stay on the line for. Goodbye."));
+      res.status(200).type("text/xml").send(sayAndHangupTwiml(smsConfigured ? "That's going to take me a moment, I'll text you the answer. Goodbye." : "Sorry, that's taking longer than I can stay on the line for. Goodbye."));
       void turn.then((result) => {
         if (result.replyText.trim()) void trySmsFollowUp(speech.from, result.replyText);
       }, () => {});

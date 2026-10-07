@@ -39,7 +39,7 @@ export function registerMatrixChannelRoutes(app: Express, cwd: string): void {
     const hsToken = process.env.MATRIX_HS_TOKEN;
     const botUserId = process.env.MATRIX_BOT_USER_ID;
     if (!hsToken || !botUserId) {
-      res.status(404).json({ error: "Matrix channel not configured — set MATRIX_HS_TOKEN and MATRIX_BOT_USER_ID." });
+      res.status(404).json({ error: "Matrix channel not configured, set MATRIX_HS_TOKEN and MATRIX_BOT_USER_ID." });
       return;
     }
     if (!verifyMatrixHsToken(hsToken, req.header("authorization"))) {

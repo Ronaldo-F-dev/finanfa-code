@@ -39,7 +39,7 @@ export function registerLineChannelRoutes(app: Express, cwd: string): void {
   app.post("/api/channels/line/webhook", (req, res) => {
     const channelSecret = process.env.LINE_CHANNEL_SECRET;
     if (!channelSecret) {
-      res.status(404).json({ error: "LINE channel not configured — set LINE_CHANNEL_SECRET." });
+      res.status(404).json({ error: "LINE channel not configured, set LINE_CHANNEL_SECRET." });
       return;
     }
     const rawBody = (req as typeof req & { rawBody?: Buffer }).rawBody?.toString("utf-8") ?? JSON.stringify(req.body);

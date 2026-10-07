@@ -80,7 +80,7 @@ export function registerDiscordChannelRoutes(app: Express, cwd: string): void {
   app.post("/api/channels/discord/interactions", (req: RequestWithRawBody, res) => {
     const publicKeyHex = process.env.DISCORD_PUBLIC_KEY;
     if (!publicKeyHex) {
-      res.status(404).json({ error: "Discord channel not configured — set DISCORD_PUBLIC_KEY." });
+      res.status(404).json({ error: "Discord channel not configured, set DISCORD_PUBLIC_KEY." });
       return;
     }
 
@@ -119,7 +119,7 @@ export function registerDiscordChannelRoutes(app: Express, cwd: string): void {
       // type 4 = an immediate, non-deferred reply — used here instead of
       // type 5 since there's no application id to PATCH a deferred one
       // with later.
-      res.json({ type: 4, data: { content: "Discord channel misconfigured on the server — DISCORD_APPLICATION_ID isn't set." } });
+      res.json({ type: 4, data: { content: "Discord channel misconfigured on the server, DISCORD_APPLICATION_ID isn't set." } });
       return;
     }
 

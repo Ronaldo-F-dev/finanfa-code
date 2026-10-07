@@ -40,7 +40,7 @@ export function registerTeamsChannelRoutes(app: Express, cwd: string): void {
   app.post("/api/channels/teams/webhook", (req, res) => {
     const appId = process.env.MICROSOFT_APP_ID;
     if (!appId || !process.env.MICROSOFT_APP_PASSWORD) {
-      res.status(404).json({ error: "Teams channel not configured — set MICROSOFT_APP_ID and MICROSOFT_APP_PASSWORD." });
+      res.status(404).json({ error: "Teams channel not configured, set MICROSOFT_APP_ID and MICROSOFT_APP_PASSWORD." });
       return;
     }
 

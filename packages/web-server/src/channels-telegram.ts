@@ -102,7 +102,7 @@ async function handleTelegramVoiceMessage(
 
   const transcribeConfig = transcribeAudioConfigFromEnv();
   if (!transcribeConfig) {
-    await reply("Voice messages aren't supported yet — set OPENAI_API_KEY to enable transcription.");
+    await reply("Voice messages aren't supported yet, set OPENAI_API_KEY to enable transcription.");
     return;
   }
 
@@ -134,7 +134,7 @@ export function registerTelegramChannelRoutes(app: Express, cwd: string): void {
   app.post("/api/channels/telegram/webhook", (req, res) => {
     const secret = process.env.TELEGRAM_WEBHOOK_SECRET;
     if (!secret) {
-      res.status(404).json({ error: "Telegram channel not configured — set TELEGRAM_WEBHOOK_SECRET." });
+      res.status(404).json({ error: "Telegram channel not configured, set TELEGRAM_WEBHOOK_SECRET." });
       return;
     }
     if (!verifyTelegramSecret(secret, req.header("X-Telegram-Bot-Api-Secret-Token"))) {
