@@ -20,12 +20,3 @@ final modelListProvider = FutureProvider<List<ModelOption>>((ref) async {
   final result = await client.fetchModels(projectId: projectId);
   return result.models;
 });
-
-final effortTierListProvider = FutureProvider<List<EffortTierOption>>((
-  ref,
-) async {
-  final client = ref.watch(apiClientProvider);
-  if (client == null) return [];
-  final projectId = ref.watch(currentProjectProvider);
-  return client.fetchEffortTiers(projectId: projectId);
-});

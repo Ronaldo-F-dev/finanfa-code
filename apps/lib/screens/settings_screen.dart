@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/server_connection.dart';
 import '../state/api_client_provider.dart';
 import '../state/language_provider.dart';
+import '../state/models_provider.dart';
 import '../state/server_connection_provider.dart';
 import '../state/theme_provider.dart';
 import '../theme.dart';
@@ -20,8 +21,19 @@ class SettingsScreen extends ConsumerStatefulWidget {
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
+/// Cloud providers offered in the model picker next to Claude: the key goes to
+/// its own config field (see packages/core/src/core/cloud-providers.ts).
+const _cloudKeys = [
+  (configKey: 'deepseekApiKey', name: 'DeepSeek', hint: 'sk-…'),
+  (configKey: 'xaiApiKey', name: 'Grok (xAI)', hint: 'xai-…'),
+  (configKey: 'geminiApiKey', name: 'Gemini (Google)', hint: 'AIza…'),
+];
+
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   final _anthropicKeyController = TextEditingController();
+  final Map<String, TextEditingController> _cloudKeyControllers = {
+    for (final k in _cloudKeys) k.configKey: TextEditingController(),
+  };
   final _baseUrlController = TextEditingController();
   final _modelController = TextEditingController();
   final _apiKeyController = TextEditingController();
@@ -39,6 +51,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void dispose() {
     _anthropicKeyController.dispose();
+    for (final controller in _cloudKeyControllers.values) {
+      controller.dispose();
+    }
     _baseUrlController.dispose();
     _modelController.dispose();
     _apiKeyController.dispose();
@@ -63,6 +78,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final client = ref.read(apiClientProvider);
     final note = await client?.saveConfig({'anthropicApiKey': key});
     _anthropicKeyController.clear();
+    ref.invalidate(modelListProvider);
+    await _refresh();
+    if (mounted) setState(() => _status = note ?? t(ref, 'settings.saved'));
+  }
+
+  Future<void> _saveCloudKey(String configKey) async {
+    final controller = _cloudKeyControllers[configKey]!;
+    final key = controller.text.trim();
+    if (key.isEmpty) return;
+    setState(() => _status = t(ref, 'settings.saving'));
+    final client = ref.read(apiClientProvider);
+    final note = await client?.saveConfig({configKey: key});
+    controller.clear();
+    // The model picker lists these models as "key needed" until a key exists.
+    ref.invalidate(modelListProvider);
     await _refresh();
     if (mounted) setState(() => _status = note ?? t(ref, 'settings.saved'));
   }
@@ -174,6 +204,51 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             ],
                           ),
                         ),
+                        for (final cloud in _cloudKeys) ...[
+                          Divider(height: 1, color: c.border),
+                          _ProviderTile(
+                            title: cloud.name,
+                            configured: _saved[cloud.configKey] != null,
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.stretch,
+                              children: [
+                                Padding(
+                                  padding: const EdgeInsets.only(bottom: 8),
+                                  child: Text(
+                                    _saved[cloud.configKey] != null
+                                        ? '${_saved[cloud.configKey]!}  ·  ${t(ref, 'settings.cloudKeySaved')}'
+                                        : t(ref, 'settings.cloudNoKey')
+                                              .replaceFirst('{name}', cloud.name),
+                                    style: TextStyle(
+                                      color: c.textMuted,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: TextField(
+                                        controller:
+                                            _cloudKeyControllers[cloud.configKey],
+                                        obscureText: true,
+                                        decoration: InputDecoration(
+                                          hintText: cloud.hint,
+                                        ),
+                                      ),
+                                    ),
+                                    const SizedBox(width: 8),
+                                    FilledButton(
+                                      onPressed: () =>
+                                          _saveCloudKey(cloud.configKey),
+                                      child: Text(t(ref, 'settings.save')),
+                                    ),
+                                  ],
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
                         Divider(height: 1, color: c.border),
                         _ProviderTile(
                           title: t(ref, 'settings.otherProviderTitle'),

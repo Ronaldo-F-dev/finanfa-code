@@ -4,9 +4,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/timeline_item.dart';
+import '../i18n/tool_names.dart';
 import '../state/language_provider.dart';
 import '../state/tts_provider.dart';
+import '../syntax.dart';
 import '../theme.dart';
+import '../typography.dart';
 
 /// One fenced fragment of a message: either plain prose or a ```lang code
 /// block. Real, reported gap: assistant replies were rendered as one flat
@@ -104,9 +107,11 @@ class _Bubble extends StatelessWidget {
     // User messages never carry a fenced code block worth parsing (they're
     // typed by hand); only an assistant reply's real markdown-ish fences —
     // e.g. a proposed diff — get split into separate prose/code segments.
+    // The long dash is never shown (see typography.dart).
+    final shown = isUser ? text : stripEmDashes(text);
     final segments = isUser
         ? [_TextSegment(text)]
-        : _splitMessageSegments(text);
+        : _splitMessageSegments(shown);
     final maxWidth = MediaQuery.of(context).size.width * 0.78;
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -168,9 +173,9 @@ class _Bubble extends StatelessWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  _CopyButton(text: text),
+                  _CopyButton(text: shown),
                   const SizedBox(width: 12),
-                  _ListenButton(text: text),
+                  _ListenButton(text: shown),
                 ],
               ),
             ),
@@ -294,8 +299,9 @@ class _ListenButtonState extends ConsumerState<_ListenButton> {
 /// A fenced code block rendered as its own dark card — header with the
 /// fence's language tag and a copy button, monospace body. When the fence
 /// is ```diff (the shape a proposed patch actually arrives in), +/- lines
-/// get real diff coloring; anything else is plain monospace, no invented
-/// syntax highlighting for languages this doesn't actually parse.
+/// get real diff coloring; a language syntax.dart knows (Dockerfile, YAML,
+/// shell, TypeScript...) is coloured by its grammar; anything else is plain
+/// monospace, never a guessed colouring.
 class _CodeBlock extends ConsumerStatefulWidget {
   final String lang;
   final String code;
@@ -327,6 +333,9 @@ class _CodeBlockState extends ConsumerState<_CodeBlock> {
       height: 1.5,
       color: const Color(0xFFE9ECF4),
     );
+    final coloured = isDiff
+        ? null
+        : highlightSpans(lines.join('\n'), widget.lang, mono);
 
     return Container(
       decoration: BoxDecoration(
@@ -388,7 +397,8 @@ class _CodeBlockState extends ConsumerState<_CodeBlock> {
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
             child: SelectableText.rich(
               TextSpan(
-                children: [
+                style: mono,
+                children: coloured ?? [
                   for (final line in lines)
                     TextSpan(
                       text: '$line\n',
@@ -500,7 +510,15 @@ class _ToolChip extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.baseline,
               textBaseline: TextBaseline.alphabetic,
               children: [
-                Text(toolName, style: mono?.copyWith(fontSize: 13)),
+                Consumer(
+                  builder: (context, ref, _) => Tooltip(
+                    message: toolName,
+                    child: Text(
+                      toolLabel(toolName, ref.watch(languageProvider)),
+                      style: mono?.copyWith(fontSize: 13),
+                    ),
+                  ),
+                ),
                 if (description.isNotEmpty) ...[
                   const SizedBox(width: 6),
                   Expanded(

@@ -11,7 +11,6 @@ import '../state/agent_session_controller.dart';
 import '../state/agent_session_provider.dart';
 import '../state/api_client_provider.dart';
 import '../state/language_provider.dart';
-import '../state/models_provider.dart';
 import '../state/project_provider.dart';
 import '../state/server_connection_provider.dart';
 import '../state/sessions_provider.dart';
@@ -284,24 +283,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     }
 
     final controller = ref.watch(agentSessionProvider);
-    final effortTiers =
-        ref.watch(effortTierListProvider).valueOrNull ?? const [];
-    // Real, reported request: "l'effort doit concerner le model courant" —
-    // the Effort chip should reflect the tier matching whatever model is
-    // ACTUALLY active right now, not just whichever tier id the server
-    // last set via set_effort — those two can disagree the moment a
-    // session's very first model (its own connect-time default) already
-    // happens to be a tier's model, since the server never calls set_effort
-    // on its own to announce that.
-    final effortLabel =
-        effortTiers
-            .where((t) => t.id == controller.sessionInfo?.effort)
-            .firstOrNull
-            ?.label ??
-        effortTiers
-            .where((t) => t.model == controller.sessionInfo?.model)
-            .firstOrNull
-            ?.label;
+    // How much the current model thinks (low, medium or high): medium unless the user picked another level.
+    final effortLevel = controller.sessionInfo?.effortLevel ?? 'medium';
     final c = context.colors;
 
     ref.listen(agentSessionProvider, (previous, next) {
@@ -561,20 +544,22 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
                             context,
                             ref,
                             controller.sessionInfo?.model,
+                            // A model whose provider has no key yet: the key is added in Settings.
+                            onNeedsKey: () => Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => SettingsScreen(
+                                  connection: widget.connection,
+                                ),
+                              ),
+                            ),
                           ),
                         ),
                         const SizedBox(width: 6),
                         _ComposerChip(
                           icon: Icons.speed_outlined,
-                          label:
-                              effortLabel ??
-                              controller.sessionInfo?.effort ??
-                              t(ref, 'chat.effort'),
-                          onTap: () => showEffortPickerSheet(
-                            context,
-                            ref,
-                            controller.sessionInfo?.effort,
-                          ),
+                          label: t(ref, 'effort.$effortLevel'),
+                          onTap: () =>
+                              showEffortPickerSheet(context, ref, effortLevel),
                         ),
                       ],
                     ),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:finanfa/core/models/timeline_item.dart';
 import 'package:finanfa/widgets/timeline_tile.dart';
@@ -16,8 +17,8 @@ ToolCallItem _item({ToolResult? result}) => ToolCallItem(
   result: result,
 );
 
-Widget _wrap(TimelineItem item) => MaterialApp(
-  home: Scaffold(body: TimelineTile(item: item)),
+Widget _wrap(TimelineItem item) => ProviderScope(
+  child: MaterialApp(home: Scaffold(body: TimelineTile(item: item))),
 );
 
 void main() {
@@ -26,7 +27,7 @@ void main() {
   ) async {
     await tester.pumpWidget(_wrap(_item()));
 
-    expect(find.text('bash'), findsOneWidget);
+    expect(find.text('Bash'), findsOneWidget);
     expect(find.text('ls'), findsOneWidget);
     expect(find.text('…'), findsOneWidget);
   });
@@ -44,7 +45,7 @@ void main() {
 
     expect(find.text('file1\nfile2'), findsNothing);
 
-    await tester.tap(find.text('bash'));
+    await tester.tap(find.text('Bash'));
     await tester.pumpAndSettle();
 
     expect(find.text('file1\nfile2'), findsOneWidget);
@@ -64,7 +65,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('bash'));
+    await tester.tap(find.text('Bash'));
     await tester.pumpAndSettle();
 
     expect(find.text('ENOENT: no such file'), findsOneWidget);

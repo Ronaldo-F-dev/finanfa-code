@@ -128,14 +128,6 @@ class FinanfaApiClient {
   Future<String?> fetchTunnelUrl() =>
       _get('/api/tunnel-url', (json) => json['url'] as String?);
 
-  Future<List<EffortTierOption>> fetchEffortTiers({String? projectId}) => _get(
-    '/api/effort-tiers',
-    (json) => (json['tiers'] as List)
-        .map((t) => EffortTierOption.fromJson(t as Map<String, dynamic>))
-        .toList(),
-    query: projectId != null ? {'project': projectId} : null,
-  );
-
   /// Uploads a non-image file so the model can reach it through its own
   /// read_file/read_document tools by path — mirrors App.tsx's handleFiles
   /// for anything that isn't inline-sendable image bytes.

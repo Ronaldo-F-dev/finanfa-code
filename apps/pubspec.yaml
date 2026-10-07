@@ -55,6 +55,7 @@ dependencies:
   # bundling font files by hand.
   flutter_svg: ^2.2.0
   google_fonts: ^6.2.1
+  highlight: ^0.7.0
 
 dev_dependencies:
   flutter_test:
