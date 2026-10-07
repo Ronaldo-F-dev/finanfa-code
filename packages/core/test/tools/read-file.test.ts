@@ -24,6 +24,18 @@ describe("read_file tool", () => {
     expect(result.content).toContain("2\tline2");
   });
 
+  it("explains a missing file instead of a bare ENOENT, pointing at glob and web_fetch", async () => {
+    const result = await readFileTool.handler({ path: "President_of_Benin" }, ctx());
+    expect(result.isError).toBe(true);
+    expect(result.content).toContain("No such file: President_of_Benin");
+    expect(result.content).toContain("web_fetch");
+    expect(result.content).not.toContain("ENOENT");
+  });
+
+  it("still lets any other read error through", async () => {
+    await expect(readFileTool.handler({ path: "." }, ctx())).rejects.toThrow();
+  });
+
   it("respects offset and limit", async () => {
     await writeFile(path.join(dir, "a.txt"), "l1\nl2\nl3\nl4");
     const result = await readFileTool.handler({ path: "a.txt", offset: 2, limit: 2 }, ctx());
