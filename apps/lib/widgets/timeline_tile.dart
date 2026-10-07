@@ -452,6 +452,10 @@ class _ToolChip extends StatelessWidget {
   final String description;
   final ToolRiskLevel riskLevel;
 
+  /// The call failed: marked on its own line, since the engine does not
+  /// repeat a failure as a separate row in the conversation.
+  final bool failed;
+
   /// Optional end-of-row widget — the expand chevron (or the muted "…" for
   /// a call still running) `_ToolCallTile` adds.
   final Widget? trailing;
@@ -463,6 +467,7 @@ class _ToolChip extends StatelessWidget {
     required this.toolName,
     required this.description,
     required this.riskLevel,
+    this.failed = false,
     this.trailing,
     this.onTap,
   });
@@ -475,11 +480,13 @@ class _ToolChip extends StatelessWidget {
     // outcome (the protocol carries no success/failure/timing for a tool
     // call — see useAgentSocket.ts's own tool_call message), so this icon
     // reads as "how much trust this call needed", not "it succeeded".
-    final (icon, iconColor) = switch (riskLevel) {
-      ToolRiskLevel.dangerous => (Icons.warning_rounded, c.danger),
-      ToolRiskLevel.ask => (Icons.pan_tool_alt_rounded, c.warning),
-      ToolRiskLevel.safe => (Icons.check_rounded, c.success),
-    };
+    final (icon, iconColor) = failed
+        ? (Icons.close_rounded, c.danger)
+        : switch (riskLevel) {
+            ToolRiskLevel.dangerous => (Icons.warning_rounded, c.danger),
+            ToolRiskLevel.ask => (Icons.pan_tool_alt_rounded, c.warning),
+            ToolRiskLevel.safe => (Icons.check_rounded, c.success),
+          };
     final chip = Container(
       margin: const EdgeInsets.symmetric(vertical: FinanfaSpace.xs),
       padding: const EdgeInsets.symmetric(
@@ -578,6 +585,7 @@ class _ToolCallTileState extends State<_ToolCallTile> {
           toolName: widget.toolName,
           description: widget.description,
           riskLevel: widget.riskLevel,
+          failed: result?.isError ?? false,
           trailing: result == null
               ? Text('…', style: context.textStyles.caption)
               : Icon(

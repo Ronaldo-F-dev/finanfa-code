@@ -147,7 +147,7 @@ describe("createChatMessageHandler", () => {
         type: "history",
         replace: true,
         messages: [
-          { role: "user", content: "[Earlier conversation compacted to save context — see the summary below]" },
+          { role: "user", content: "[Earlier conversation compacted to save context, see the summary below]" },
           { role: "assistant", content: "Summary of the earlier conversation." },
         ],
       });

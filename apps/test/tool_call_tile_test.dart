@@ -70,4 +70,15 @@ void main() {
 
     expect(find.text('ENOENT: no such file'), findsOneWidget);
   });
+
+  testWidgets('a failed tool call is marked on its own chip', (tester) async {
+    await tester.pumpWidget(
+      _wrap(
+        _item(result: const ToolResult(isError: true, content: 'No such file: x')),
+      ),
+    );
+
+    expect(find.byIcon(Icons.close_rounded), findsOneWidget);
+    expect(find.byIcon(Icons.check_rounded), findsNothing);
+  });
 }
