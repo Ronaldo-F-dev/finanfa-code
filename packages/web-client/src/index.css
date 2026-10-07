@@ -16,6 +16,16 @@
   --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.3);
   --font-sans: -apple-system, "Segoe UI", Inter, Roboto, Helvetica, Arial, sans-serif;
   --font-mono: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  /* Code colouring */
+  --hl-keyword: #7aa2f7;
+  --hl-string: #9ece6a;
+  --hl-number: #ff9e64;
+  --hl-comment: #6b7280;
+  --hl-builtin: #bb9af7;
+  --hl-attr: #73daca;
+  --hl-title: #e0af68;
+  --hl-add: #9ece6a;
+  --hl-del: #f7768e;
 }
 
 :root[data-theme="light"] {
@@ -33,6 +43,15 @@
   --success: #3f8f63;
   --user-bubble: #f1e6d8;
   --card-shadow: 0 1px 2px rgba(120, 90, 60, 0.06), 0 6px 16px rgba(120, 90, 60, 0.06);
+  --hl-keyword: #2b59c3;
+  --hl-string: #3f7a2a;
+  --hl-number: #b45309;
+  --hl-comment: #8a8279;
+  --hl-builtin: #7c3aed;
+  --hl-attr: #0f766e;
+  --hl-title: #92400e;
+  --hl-add: #3f7a2a;
+  --hl-del: #c0262d;
 }
 
 * {
@@ -2789,4 +2808,73 @@ details.tool-call-details > summary.tool-call::marker {
   text-align: center;
   font-size: 13px;
   color: var(--text-muted);
+}
+
+/* Code colouring (highlight.js classes) */
+.markdown pre[data-lang]::before {
+  content: attr(data-lang);
+  display: block;
+  margin-bottom: 8px;
+  font-family: var(--font-sans);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+.hljs-keyword,
+.hljs-selector-tag,
+.hljs-literal,
+.hljs-doctag,
+.hljs-section {
+  color: var(--hl-keyword);
+}
+.hljs-string,
+.hljs-regexp,
+.hljs-addition,
+.hljs-meta .hljs-string {
+  color: var(--hl-string);
+}
+.hljs-number,
+.hljs-symbol,
+.hljs-bullet,
+.hljs-link {
+  color: var(--hl-number);
+}
+.hljs-comment,
+.hljs-quote {
+  color: var(--hl-comment);
+  font-style: italic;
+}
+.hljs-built_in,
+.hljs-type,
+.hljs-class .hljs-title,
+.hljs-meta {
+  color: var(--hl-builtin);
+}
+.hljs-attr,
+.hljs-attribute,
+.hljs-variable,
+.hljs-template-variable,
+.hljs-name,
+.hljs-property,
+.hljs-params {
+  color: var(--hl-attr);
+}
+.hljs-title,
+.hljs-title.function_,
+.hljs-selector-id,
+.hljs-selector-class {
+  color: var(--hl-title);
+}
+.hljs-deletion {
+  color: var(--hl-del);
+}
+.hljs-addition {
+  color: var(--hl-add);
+}
+.hljs-emphasis {
+  font-style: italic;
+}
+.hljs-strong {
+  font-weight: 700;
 }
