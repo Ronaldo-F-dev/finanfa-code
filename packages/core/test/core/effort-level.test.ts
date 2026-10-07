@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { effortPromptFor, isEffortLevel, thinkingBudgetFor } from "../../src/core/effort-level.js";
+import { DEFAULT_EFFORT_LEVEL, effortPromptFor, isEffortLevel, thinkingBudgetFor } from "../../src/core/effort-level.js";
 import { reasoningEffortParam } from "../../src/core/cloud-providers.js";
 import { anthropicMaxTokens } from "../../src/providers/anthropic-provider.js";
 
@@ -10,10 +10,12 @@ describe("effort level", () => {
     expect(isEffortLevel(undefined)).toBe(false);
   });
 
-  it("turns extended thinking off at low and grows the budget with the level", () => {
-    expect(thinkingBudgetFor("low")).toBeUndefined();
-    expect(thinkingBudgetFor("medium")!).toBeGreaterThanOrEqual(1024);
-    expect(thinkingBudgetFor("high")!).toBeGreaterThan(thinkingBudgetFor("medium")!);
+  it("turns extended thinking off at low, turns it up at high, and leaves the configured budget alone at medium", () => {
+    expect(thinkingBudgetFor("low", 5000)).toBeUndefined();
+    expect(thinkingBudgetFor("medium")).toBeUndefined();
+    expect(thinkingBudgetFor("medium", 5000)).toBe(5000);
+    expect(thinkingBudgetFor("high")!).toBeGreaterThanOrEqual(1024);
+    expect(DEFAULT_EFFORT_LEVEL).toBe("medium");
   });
 
   it("only adds a system prompt line for low and high", () => {

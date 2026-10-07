@@ -1,4 +1,4 @@
-import { isEffortLevel, type EffortLevel } from "./effort-level.js";
+import { DEFAULT_EFFORT_LEVEL, isEffortLevel, type EffortLevel } from "./effort-level.js";
 import { randomUUID, createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -178,8 +178,8 @@ export class AgentSession {
   /** See SessionFile's own doc comment — set by the effort-tier picker, read back on resume. */
   maxTokens?: number;
   effort?: string;
-  /** See AgentSession.effortLevel. */
-  effortLevel?: EffortLevel;
+  /** See SessionFile.effortLevel. Medium unless the user picked another level. */
+  effortLevel: EffortLevel = DEFAULT_EFFORT_LEVEL;
   /** Set from config.thinkingBudgetTokens at construction (see each entry point) — read back on resume, same lifecycle as maxTokens/effort. Undefined disables Anthropic extended thinking entirely. */
   thinkingBudgetTokens?: number;
   /** See SessionFile's own doc comment. Set by the web server right after construction/resume when auth is configured; read back on resume. */
@@ -212,7 +212,7 @@ export class AgentSession {
     session.errorLog = data.errorLog ?? [];
     session.maxTokens = data.maxTokens;
     session.effort = data.effort;
-    session.effortLevel = isEffortLevel(data.effortLevel) ? data.effortLevel : undefined;
+    session.effortLevel = isEffortLevel(data.effortLevel) ? data.effortLevel : DEFAULT_EFFORT_LEVEL;
     session.thinkingBudgetTokens = data.thinkingBudgetTokens;
     if (data.todos) session.todos.set(data.todos);
     session.ownerUser = data.ownerUser;
