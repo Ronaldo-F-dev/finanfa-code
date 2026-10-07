@@ -92,12 +92,14 @@ describe("web-server set_effort (real subprocess, real Ollama server when presen
   it(
     "low tier: switches to the real local model with no tools, and a real turn succeeds even though the model has no tool-calling support",
     async () => {
-      if (!ollamaAvailable || !installedNames.has("gemma2:2b")) return;
+      if (!ollamaAvailable || installedNames.size === 0) return;
       const { ws, events } = await connect(port);
 
+      // No download is ever offered: the level uses a model that is already installed.
       ws.send(JSON.stringify({ type: "set_effort", level: "low" }));
       const info = await waitFor(events, (e) => e.type === "session_info" && e.effort === "low");
-      expect(info.model).toBe("gemma2:2b");
+      expect(installedNames.has(info.model as string)).toBe(true);
+      expect(events.some((e) => e.type === "effort_needs_download")).toBe(false);
 
       const status = await waitFor(events, (e) => e.type === "tools_status");
       const enabled = (status.tools as { name: string; enabled: boolean }[]).filter((t) => t.enabled);
@@ -125,12 +127,13 @@ describe("web-server set_effort (real subprocess, real Ollama server when presen
   it(
     "medium tier: switches model and restricts tools to the minimal set",
     async () => {
-      if (!ollamaAvailable || !installedNames.has("qwen3:4b-instruct")) return;
+      const toolCapable = ollamaAvailable ? (await listOllamaModels()).filter((m) => m.supportsTools === true && !/embed|rerank/i.test(m.name)) : [];
+      if (toolCapable.length === 0) return;
       const { ws, events } = await connect(port);
 
       ws.send(JSON.stringify({ type: "set_effort", level: "medium" }));
       const info = await waitFor(events, (e) => e.type === "session_info" && e.effort === "medium");
-      expect(info.model).toBe("qwen3:4b-instruct");
+      expect(toolCapable.some((m) => m.name === info.model)).toBe(true);
 
       const status = await waitFor(events, (e) => e.type === "tools_status");
       const enabledNames = (status.tools as { name: string; enabled: boolean }[]).filter((t) => t.enabled).map((t) => t.name);
