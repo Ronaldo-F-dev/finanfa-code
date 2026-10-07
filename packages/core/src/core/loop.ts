@@ -38,7 +38,10 @@ function systemPromptWithDate(session: AgentSession): string {
     "whether information might be outdated, or answering questions about the current date, instead of " +
     "guessing or assuming your training cutoff is current. When a web_search query is time-sensitive (asking " +
     `who currently holds a role, the latest version of something, recent events), derive the year from ${today} ` +
-    "rather than a remembered or habitual one, a wrong year in the query can silently return stale results.";
+    "rather than a remembered or habitual one, a wrong year in the query can silently return stale results. " +
+    "For anything that may have changed since your training (who holds a role now, the latest version of " +
+    "something, recent events), call web_search when it is available to you instead of answering from memory, and " +
+    "never tell the user you have no web access while web_search is among your tools.";
   // Real reported bug: nothing ever told the model its own project root, so
   // when asked to create a new project it guessed at absolute paths (the
   // real repo's own directory, a random spot under the user's home) instead
@@ -114,6 +117,11 @@ function availableTools(tools: ToolRegistry, session: AgentSession): ToolDefinit
  * tool enabled" in the UI notwithstanding. Falls through to the plain,
  * genuinely empty list once nothing real is left to search for.
  */
+// Sent directly even with Tool Search on: web_search and web_fetch answer every question about the present (who holds a
+// role now, the latest version of something), and a small model that has to *find* them through search_tools often does
+// not: it searches in its own language, matches some unrelated tool, and ends up telling the user it has no web access.
+const DIRECT_TOOL_NAMES: readonly string[] = [...MINIMAL_TOOL_SET, "web_search", "web_fetch"];
+
 function toolsForProvider(tools: ToolRegistry, session: AgentSession): ToolDefinition[] {
   const available = availableTools(tools, session);
   if (!session.toolSearchEnabled || available.length === 0) return available;
@@ -123,7 +131,7 @@ function toolsForProvider(tools: ToolRegistry, session: AgentSession): ToolDefin
   // the same disabledTools/hidden-tools rules a direct call already
   // respects apply here too.
   const availableByName = new Map(available.map((t) => [t.name, t]));
-  const core = MINIMAL_TOOL_SET.map((name) => availableByName.get(name)).filter((t): t is ToolDefinition => t !== undefined);
+  const core = DIRECT_TOOL_NAMES.map((name) => availableByName.get(name)).filter((t): t is ToolDefinition => t !== undefined);
   return [...core, ...createToolSearchMetaTools(() => available), createCallToolMetaTool()];
 }
 

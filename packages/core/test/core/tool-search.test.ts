@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { rankToolsByQuery, createToolSearchMetaTools, createCallToolMetaTool, SEARCH_TOOLS_NAME, DESCRIBE_TOOL_NAME, CALL_TOOL_NAME } from "../../src/core/tool-search.js";
+import { oneLine, rankToolsByQuery, createToolSearchMetaTools, createCallToolMetaTool, SEARCH_TOOLS_NAME, DESCRIBE_TOOL_NAME, CALL_TOOL_NAME } from "../../src/core/tool-search.js";
 import type { ToolDefinition } from "../../src/core/types.js";
 
 function tool(name: string, description: string): ToolDefinition {
@@ -33,6 +33,12 @@ describe("rankToolsByQuery (real BM25 over name+description)", () => {
   it("matches on the query 'search the web'", () => {
     const hits = rankToolsByQuery(tools, "search the web", 5);
     expect(hits[0]?.tool.name).toBe("web_search");
+  });
+
+  it("understands the usual French words, accents included: a French search finds the web search tool", () => {
+    expect(rankToolsByQuery(tools, "recherche en ligne sur internet", 5)[0]?.tool.name).toBe("web_search");
+    expect(rankToolsByQuery(tools, "lire un fichier", 5)[0]?.tool.name).toBe("read_file");
+    expect(rankToolsByQuery(tools, "écrire un fichier", 5)[0]?.tool.name).toBe("write_file");
   });
 
   it("returns an empty array (not a random fallback) when nothing matches at all", () => {
@@ -123,5 +129,19 @@ describe("createCallToolMetaTool", () => {
   it("its own handler throws if ever actually invoked directly — it must be intercepted before dispatch, never run as-is", async () => {
     const callTool = createCallToolMetaTool();
     await expect(callTool.handler({ name: "bash" }, ctx)).rejects.toThrow(/intercepted/);
+  });
+});
+
+describe("oneLine", () => {
+  it("keeps only the first sentence, and caps it", () => {
+    expect(oneLine("Search the web. Then a long second sentence nobody needs in a result list.")).toBe("Search the web.");
+    expect(oneLine("x".repeat(400), 50)).toHaveLength(50);
+    expect(oneLine("  spaced \n out   words ")).toBe("spaced out words");
+  });
+
+  it("is what search_tools returns for each hit, so a result list stays short", async () => {
+    const [search] = createToolSearchMetaTools(() => [tool("web_search", `Search the web. ${"More detail. ".repeat(100)}`)]);
+    const result = await search!.handler({ query: "search the web" }, ctx);
+    expect(result.content).toBe("- web_search: Search the web.");
   });
 });
