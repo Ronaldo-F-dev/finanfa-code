@@ -54,7 +54,7 @@ export function ModelPicker({
                 <div>
                   <div className="model-picker-name">{m.id}</div>
                   {BLURB[m.id] && <div className="model-picker-blurb">{BLURB[m.id]}</div>}
-                  {!m.configured && <div className="model-picker-warn">clé API requise — voir ~/.finanfa-code/config.json</div>}
+                  {!m.configured && <div className="model-picker-warn">clé API requise, voir ~/.finanfa-code/config.json</div>}
                 </div>
                 {modelId === model && <span className="model-picker-check">✓</span>}
               </button>

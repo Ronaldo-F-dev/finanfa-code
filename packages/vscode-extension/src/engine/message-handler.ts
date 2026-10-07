@@ -59,7 +59,7 @@ export function createChatMessageHandler(
   async function handleUserMessage(msg: WebviewMessage): Promise<void> {
     if (typeof msg.text !== "string") return;
     if (state.turnInFlight) {
-      post({ type: "error", text: "A turn is already in progress — wait for it to finish (or interrupt) before sending another message." });
+      post({ type: "error", text: "A turn is already in progress, wait for it to finish (or interrupt) before sending another message." });
       return;
     }
     state.turnInFlight = true;
@@ -81,7 +81,7 @@ export function createChatMessageHandler(
     // turn, the exact bug fixed on the web side (see web-server's own
     // comment on this same race).
     if (state.turnInFlight) {
-      post({ type: "error", text: "A turn is already in progress — wait for it to finish before switching models." });
+      post({ type: "error", text: "A turn is already in progress, wait for it to finish before switching models." });
       return;
     }
     state.turnInFlight = true;
@@ -97,7 +97,7 @@ export function createChatMessageHandler(
   async function handleSetEffort(msg: WebviewMessage): Promise<void> {
     if (typeof msg.level !== "string") return;
     if (state.turnInFlight) {
-      post({ type: "error", text: "A turn is already in progress — wait for it to finish before changing effort." });
+      post({ type: "error", text: "A turn is already in progress, wait for it to finish before changing effort." });
       return;
     }
     state.turnInFlight = true;
@@ -132,7 +132,7 @@ export function createChatMessageHandler(
     // web-server's own "compact" branch — this used to be duplicated
     // near-verbatim between the two.
     if (state.turnInFlight) {
-      post({ type: "error", text: "A turn is already in progress — wait for it to finish (or interrupt) before compacting." });
+      post({ type: "error", text: "A turn is already in progress, wait for it to finish (or interrupt) before compacting." });
       return;
     }
     state.turnInFlight = true;

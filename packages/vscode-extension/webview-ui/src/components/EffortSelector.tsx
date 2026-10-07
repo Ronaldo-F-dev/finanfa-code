@@ -93,7 +93,7 @@ export function EffortSelector({
                   </div>
                   <div className="effort-selector-blurb">{tier.description}</div>
                   {tier.ollamaModel && !tier.installed && (
-                    <div className="effort-selector-warn">modèle non installé — sera téléchargé au premier choix</div>
+                    <div className="effort-selector-warn">modèle non installé, sera téléchargé au premier choix</div>
                   )}
                 </div>
                 <button
