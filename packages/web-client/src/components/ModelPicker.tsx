@@ -42,10 +42,13 @@ export function ModelPicker({
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState("");
+  // The specialist (legal) model is a local download: it is only offered when it is already on this machine.
+  const [legalInstalled, setLegalInstalled] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const groups = useMemo(() => groupModels(models, query), [models, query]);
-  const showLegal = !query.trim() || `${t("modelPicker.legal")} legal juridique`.toLowerCase().includes(query.trim().toLowerCase());
+  const legalAvailable = legalInstalled || currentEffort === "legal";
+  const showLegal = legalAvailable && (!query.trim() || `${t("modelPicker.legal")} legal juridique`.toLowerCase().includes(query.trim().toLowerCase()));
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -56,8 +59,13 @@ export function ModelPicker({
   }, []);
 
   useEffect(() => {
-    if (open) searchRef.current?.focus();
-    else setQuery("");
+    if (open) {
+      searchRef.current?.focus();
+      fetch("/api/effort-tiers")
+        .then((r) => r.json())
+        .then((d: { tiers: { id: string; installed: boolean }[] }) => setLegalInstalled(Boolean(d.tiers.find((tier) => tier.id === "legal")?.installed)))
+        .catch(() => setLegalInstalled(false));
+    } else setQuery("");
   }, [open]);
 
   function groupTitle(key: string, label?: string): string {
