@@ -259,7 +259,16 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
         } else {
           final client = ref.read(apiClientProvider);
           if (client == null) continue;
-          final path = await client.uploadFile(file.name, base64Encode(bytes));
+          // The active project, not the default workspace: the session's
+          // cwd is that project's folder, and the path below is what the
+          // model will hand to read_file — uploading to the default project
+          // produced a path outside the agent's own cwd (mirrors the web
+          // client, which has always passed its active project here).
+          final path = await client.uploadFile(
+            file.name,
+            base64Encode(bytes),
+            projectId: ref.read(currentProjectProvider),
+          );
           setState(() => _pendingFiles.add((name: file.name, path: path)));
         }
       }
