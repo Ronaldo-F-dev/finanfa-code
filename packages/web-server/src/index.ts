@@ -40,6 +40,7 @@ import {
   registerSkillAndMemoryTools,
 } from "@finanfa/core/src/app.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
+import { CLOUD_PROVIDERS, cloudApiKey, cloudProviderForBaseUrl } from "@finanfa/core/src/core/cloud-providers.js";
 import {
   isDockerModelRunnerAvailable,
   listDockerModels,
@@ -403,6 +404,10 @@ app.get("/api/models", async (req, res) => {
     ...(availability["openai-compatible"] && defaultModel && kind === "openai-compatible"
       ? [{ id: defaultModel, family: "openai-compatible" as const, configured: true }]
       : []),
+    // DeepSeek, Grok and Gemini: a fixed lineup per provider, like Claude's, usable once that provider's key is saved.
+    ...CLOUD_PROVIDERS.flatMap((p) =>
+      p.models.map((id) => ({ id, family: "openai-compatible" as const, configured: Boolean(cloudApiKey(p, config)), baseUrl: p.baseUrl, provider: p.label })),
+    ),
     ...localModels.map((m) => ({ id: `${m.source}: ${m.id}`, family: "openai-compatible" as const, configured: true, baseUrl: m.baseUrl, localModelId: m.id })),
   ];
   // localServices lists models the user has a launch command for, whether or
@@ -1230,7 +1235,8 @@ async function buildTurnContext(
   // provider is configured as the default, sending a model name that
   // provider had never heard of.
   if (session.providerBaseUrl) {
-    provider = new OpenAiCompatibleProvider({ baseUrl: session.providerBaseUrl, apiKey: undefined });
+    const cloud = cloudProviderForBaseUrl(session.providerBaseUrl);
+    provider = new OpenAiCompatibleProvider({ baseUrl: session.providerBaseUrl, apiKey: cloud ? cloudApiKey(cloud, config) : undefined });
     providerKind = "openai-compatible";
   } else if (session.providerKind && session.providerKind !== providerKind) {
     const family: ProviderFamily = session.providerKind === "openai-compatible" ? "openai-compatible" : "anthropic";
@@ -1735,8 +1741,15 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           // family "openai-compatible" but live at different baseUrls
           // (e.g. switching from Ollama to LM Studio), which that check
           // alone can't distinguish since it only fires on a family flip.
-          // No API key — every local runtime here is unauthenticated.
-          provider = new OpenAiCompatibleProvider({ baseUrl: msg.baseUrl, apiKey: undefined });
+          // No API key — every local runtime here is unauthenticated. A cloud provider (DeepSeek, Grok, Gemini)
+          // goes the same way but with its own key.
+          const cloud = cloudProviderForBaseUrl(msg.baseUrl);
+          const cloudKey = cloud ? cloudApiKey(cloud, config) : undefined;
+          if (cloud && !cloudKey) {
+            ws.send(JSON.stringify({ type: "error", text: `No ${cloud.label} API key configured. Add one in Settings to use this model.` }));
+            return false;
+          }
+          provider = new OpenAiCompatibleProvider({ baseUrl: msg.baseUrl, apiKey: cloudKey });
           providerKind = "openai-compatible";
           return true;
         }
