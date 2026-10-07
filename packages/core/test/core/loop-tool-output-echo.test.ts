@@ -165,7 +165,7 @@ describe("runTurn: tool output is echoed to the UI, not just the invocation line
     expect(ui.writeSystem).not.toHaveBeenCalledWith(expect.stringContaining("Index: src/total.ts"));
   });
 
-  it("still shows a failure in the conversation, even when the UI has an expandable result", async () => {
+  it("does not interrupt the conversation with a failure either when the UI has an expandable result: the failure is marked on the tool's own line", async () => {
     const tools = new ToolRegistry();
     tools.register({
       name: "failing",
@@ -180,7 +180,8 @@ describe("runTurn: tool output is echoed to the UI, not just the invocation line
 
     await runTurn(session, new (oneToolCallThenDone("failing"))(), ui, tools, permissions, "run it");
 
-    expect(ui.writeError).toHaveBeenCalledWith("TypeError: x is not a function");
+    expect(ui.writeError).not.toHaveBeenCalled();
+    expect(ui.writeToolResult).toHaveBeenCalledWith(expect.objectContaining({ isError: true, content: "TypeError: x is not a function" }));
   });
 
   it("reduces fetched web content to one line in a terminal instead of printing the page", async () => {
