@@ -121,6 +121,7 @@ class AgentSessionController extends ChangeNotifier {
   void setToolEnabled(String name, bool enabled) =>
       _socket?.setToolEnabled(name, enabled);
   void setEffort(String level) => _socket?.setEffort(level);
+  void setEffortLevel(String level) => _socket?.setEffortLevel(level);
   void clearEffortNeedsDownload() => _socket?.clearEffortNeedsDownload();
   /// Re-exposed for the effort picker's download prompt — `null` while no
   /// tier is waiting on an install. An empty stream before the first

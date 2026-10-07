@@ -385,6 +385,9 @@ class AgentSocket {
   void setToolEnabled(String name, bool enabled) =>
       _send({'type': 'set_tool_enabled', 'name': name, 'enabled': enabled});
   void setEffort(String level) => _send({'type': 'set_effort', 'level': level});
+  /// How much the current model thinks, from the next message on: "low", "medium" or "high".
+  void setEffortLevel(String level) =>
+      _send({'type': 'set_effort_level', 'level': level});
   void requestToolsStatus() => _send({'type': 'tools_status'});
   void compact() => _send({'type': 'compact'});
   void setPlanMode(bool enabled) =>
