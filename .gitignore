@@ -17,3 +17,7 @@ packages/desktop/.dev/
 
 # Test runs that treat "~" as a literal directory leave these behind
 **/~/
+
+# Desktop installers: the bundled server and the built installers
+packages/desktop/build/
+packages/desktop/release/
