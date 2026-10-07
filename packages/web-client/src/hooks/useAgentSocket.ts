@@ -57,6 +57,8 @@ export interface SessionInfo {
   providerKind: string;
   toolCount: number;
   effort?: string;
+  /** low / medium / high: how much the current model thinks. */
+  effortLevel?: string;
 }
 
 export interface EffortNeedsDownload {
@@ -266,7 +268,7 @@ export function useAgentSocket(
           setConnected(true);
           const wasTitled = hadTitleRef.current;
           hadTitleRef.current = Boolean(msg.title);
-          setSessionInfo({ id: msg.id, title: msg.title, model: msg.model, providerKind: msg.providerKind, toolCount: msg.toolCount, effort: msg.effort });
+          setSessionInfo({ id: msg.id, title: msg.title, model: msg.model, providerKind: msg.providerKind, toolCount: msg.toolCount, effort: msg.effort, effortLevel: msg.effortLevel });
           if (msg.title && !wasTitled) onTitledRef.current?.();
           break;
         }
@@ -361,6 +363,7 @@ export function useAgentSocket(
   const mcpReload = useCallback(() => send({ type: "mcp_reload" }), [send]);
   const setToolEnabled = useCallback((name: string, enabled: boolean) => send({ type: "set_tool_enabled", name, enabled }), [send]);
   const setEffort = useCallback((level: string) => send({ type: "set_effort", level }), [send]);
+  const setEffortLevel = useCallback((level: string | null) => send({ type: "set_effort_level", level }), [send]);
   const requestToolsStatus = useCallback(() => send({ type: "tools_status" }), [send]);
   const compact = useCallback(() => send({ type: "compact" }), [send]);
   const rewind = useCallback((checkpoint: number) => send({ type: "rewind", checkpoint }), [send]);
@@ -402,5 +405,6 @@ export function useAgentSocket(
     requestToolsStatus,
     setPlanMode,
     setEffort,
+    setEffortLevel,
   };
 }

@@ -149,9 +149,15 @@ export interface AnthropicMessagesClient {
  * of an API key). Shared here so those two providers don't duplicate this
  * request-building and response-mapping logic.
  */
+/** With extended thinking, the answer needs room on top of the thinking budget (the API requires budget < max_tokens). */
+export function anthropicMaxTokens(params: Pick<StreamTurnParams, "maxTokens" | "thinkingBudgetTokens">): number {
+  const budget = params.thinkingBudgetTokens && params.thinkingBudgetTokens >= 1024 ? params.thinkingBudgetTokens : 0;
+  return params.maxTokens ?? 8192 + budget;
+}
+
 export async function streamAnthropicTurn(client: AnthropicMessagesClient, params: StreamTurnParams): Promise<StreamTurnResult> {
   const anthropicTools = toAnthropicTools(params.tools);
-  const maxTokens = params.maxTokens ?? 8192;
+  const maxTokens = anthropicMaxTokens(params);
   // budget_tokens must be ≥1024 and strictly less than max_tokens (the API
   // itself rejects anything else) — silently skip enabling thinking rather
   // than send a request guaranteed to 400 when a caller's maxTokens is too

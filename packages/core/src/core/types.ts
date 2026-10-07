@@ -142,6 +142,8 @@ export interface StreamTurnParams {
   maxTokens?: number;
   /** Enables Anthropic extended thinking with this token budget (undefined disables it — the default, zero behavior change). Ignored by every provider except streamAnthropicTurn (direct/Bedrock/Vertex); see NeutralThinkingBlock for why the resulting content has to round-trip through session history unmodified. */
   thinkingBudgetTokens?: number;
+  /** The session's effort level, for providers that take a reasoning-effort parameter (see effort-level.ts). Ignored by the others. */
+  reasoningEffort?: "low" | "medium" | "high";
   /** Streamed thinking-content deltas, mirroring onTextDelta — optional, since only extended thinking (and only some providers) ever calls it. */
   onThinkingDelta?: (text: string) => void;
   /**

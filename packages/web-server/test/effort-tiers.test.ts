@@ -231,4 +231,28 @@ describe("web-server set_effort (real subprocess, real Ollama server when presen
     expect(String(err.text)).toContain("ultra-mega");
     ws.close();
   });
+
+  it("effort level: applies to the current model and changes neither the model nor the tools", async () => {
+    const { ws, events } = await connect(port);
+    const first = await waitFor(events, (e) => e.type === "session_info");
+    ws.send(JSON.stringify({ type: "set_effort_level", level: "high" }));
+    const high = await waitFor(events, (e) => e.type === "session_info" && e.effortLevel === "high");
+    expect(high.model).toBe(first.model);
+    expect(high.effort).toBeUndefined();
+    ws.send(JSON.stringify({ type: "set_effort_level", level: null }));
+    const cleared = await waitFor(events, (e) => e.type === "session_info" && e.effortLevel === undefined && e !== first && e !== high);
+    expect(cleared.model).toBe(first.model);
+    expect(events.some((e) => e.type === "effort_needs_download" || e.type === "model_unavailable")).toBe(false);
+    ws.close();
+  });
+
+  it("effort level: ignores a value that is not low, medium or high", async () => {
+    const { ws, events } = await connect(port);
+    await waitFor(events, (e) => e.type === "session_info");
+    const before = events.filter((e) => e.type === "session_info").length;
+    ws.send(JSON.stringify({ type: "set_effort_level", level: "legal" }));
+    await new Promise((r) => setTimeout(r, 500));
+    expect(events.filter((e) => e.type === "session_info").length).toBe(before);
+    ws.close();
+  });
 });

@@ -1,3 +1,4 @@
+import { reasoningEffortParam } from "../core/cloud-providers.js";
 import type {
   LlmProvider,
   NeutralMessage,
@@ -552,6 +553,8 @@ export class OpenAiCompatibleProvider implements LlmProvider {
             // the exact same "nothing configured" state. 8192 matches both
             // that and the "high" effort tier's own value.
             max_tokens: params.maxTokens ?? 8192,
+            // Only sent where it is known to be accepted: a server that does not know the field may reject the request.
+            reasoning_effort: reasoningEffortParam(this.opts.baseUrl, params.reasoningEffort),
           },
           params.onTextDelta,
           params.signal,

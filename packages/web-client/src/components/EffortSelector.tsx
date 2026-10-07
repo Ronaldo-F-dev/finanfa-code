@@ -1,16 +1,12 @@
 import { useEffect, useRef, useState, type MouseEvent as ReactMouseEvent } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
 
-interface EffortTierInfo {
-  id: string;
-  label: string;
-  description: string;
-  model: string;
-  ollamaModel?: string;
-  installed: boolean;
-  /** "low" and "medium": the model is picked from what is already installed, never downloaded. */
-  pickLocal?: boolean;
-  unavailable?: boolean;
+/** How much the current model thinks; applied to every message from now on. See core/effort-level.ts. */
+export const EFFORT_LEVELS = ["low", "medium", "high"] as const;
+export type EffortLevel = (typeof EFFORT_LEVELS)[number];
+
+export function isEffortLevel(value: unknown): value is EffortLevel {
+  return (EFFORT_LEVELS as readonly string[]).includes(value as string);
 }
 
 /**
@@ -32,46 +28,32 @@ export function getDefaultEffortPreference(): string | null {
   }
 }
 
-/** Presets that are a specialist model rather than a level of effort — offered from the model picker instead. */
-export const SPECIALIST_TIER_IDS = ["legal"];
-
 /**
- * Low/Medium/High shortcut past manually picking a model, remembering to
- * cap max_tokens, and remembering to strip most tools every time a small
- * local model is chosen — one click picks all three together (see
- * effort-tiers.ts). Downloads the tier's Ollama model inline (real SSE
- * progress) when it isn't installed yet, instead of just failing.
+ * Low / Medium / High: how much the current model thinks before it answers, like Claude Code's /effort. It changes
+ * neither the model nor the tools. The model download prompt below only serves the specialist presets (the legal
+ * model), which are picked from the model picker.
  */
 export function EffortSelector({
-  currentEffort,
+  currentLevel,
   needsDownload,
   onSelect,
+  onSelectPreset,
   onDismissNeedsDownload,
 }: {
-  currentEffort?: string;
+  currentLevel?: string;
   needsDownload: { level: string; ollamaModel: string } | null;
-  onSelect: (level: string) => void;
+  onSelect: (level: EffortLevel) => void;
+  /** Applies a specialist preset once its model has been downloaded. */
+  onSelectPreset: (level: string) => void;
   onDismissNeedsDownload: () => void;
 }) {
   const { t } = useLanguage();
   const [open, setOpen] = useState(false);
-  const [tiers, setTiers] = useState<EffortTierInfo[]>([]);
   const [defaultForNewChats, setDefaultForNewChats] = useState<string | null>(() => getDefaultEffortPreference());
   const [pulling, setPulling] = useState<string | null>(null);
   const [pullPercent, setPullPercent] = useState<number | null>(null);
   const [pullError, setPullError] = useState<string | null>(null);
   const ref = useRef<HTMLDivElement>(null);
-
-  function refreshTiers() {
-    fetch("/api/effort-tiers")
-      .then((r) => r.json())
-      .then((d: { tiers: EffortTierInfo[] }) => setTiers(d.tiers.filter((tier) => !SPECIALIST_TIER_IDS.includes(tier.id))))
-      .catch(() => setTiers([]));
-  }
-
-  useEffect(() => {
-    refreshTiers();
-  }, []);
 
   useEffect(() => {
     function onDocClick(e: MouseEvent) {
@@ -93,9 +75,8 @@ export function EffortSelector({
     es.addEventListener("done", () => {
       es.close();
       setPulling(null);
-      refreshTiers();
       onDismissNeedsDownload();
-      onSelect(thenSelectLevel);
+      onSelectPreset(thenSelectLevel);
     });
     es.addEventListener("error", (e) => {
       const raw = (e as MessageEvent).data;
@@ -118,42 +99,39 @@ export function EffortSelector({
     }
   }
 
-  const current = tiers.find((t) => t.id === currentEffort);
+  const levelKnown = isEffortLevel(currentLevel);
 
   return (
     <div className="effort-selector" ref={ref}>
       <button type="button" className="effort-selector-trigger" onClick={() => setOpen((o) => !o)}>
-        {current ? t("effort.triggerWithLabel", { label: current.label }) : t("effort.trigger")}
+        {levelKnown ? t("effort.triggerWithLabel", { label: t(`effort.${currentLevel}`) }) : t("effort.trigger")}
       </button>
       {open && (
         <div className="effort-selector-menu">
-          {tiers.map((tier) => (
+          {EFFORT_LEVELS.map((level) => (
             <button
-              key={tier.id}
+              key={level}
               type="button"
               className="effort-selector-item"
               onClick={() => {
                 setOpen(false);
-                onSelect(tier.id);
+                onSelect(level);
               }}
             >
               <div className="effort-selector-row">
                 <div>
                   <div className="effort-selector-name">
-                    {tier.label} {tier.id === currentEffort && <span className="effort-selector-check">✓</span>}
+                    {t(`effort.${level}`)} {level === currentLevel && <span className="effort-selector-check">✓</span>}
                   </div>
-                  <div className="effort-selector-blurb">{tier.description}</div>
-                  {tier.ollamaModel && !tier.installed && <div className="effort-selector-warn">{t("effort.notInstalled")}</div>}
-                  {tier.pickLocal && tier.unavailable && <div className="effort-selector-warn">{t("effort.noLocalModel")}</div>}
-                  {tier.pickLocal && !tier.unavailable && <div className="effort-selector-blurb">{t("effort.usesModel", { model: tier.model })}</div>}
+                  <div className="effort-selector-blurb">{t(`effort.${level}.desc`)}</div>
                 </div>
                 <button
                   type="button"
-                  className={`effort-selector-default-star ${defaultForNewChats === tier.id ? "effort-selector-default-star-on" : ""}`}
-                  title={defaultForNewChats === tier.id ? t("effort.starOn") : t("effort.starOff")}
-                  onClick={(e) => toggleDefaultForNewChats(tier.id, e)}
+                  className={`effort-selector-default-star ${defaultForNewChats === level ? "effort-selector-default-star-on" : ""}`}
+                  title={defaultForNewChats === level ? t("effort.starOn") : t("effort.starOff")}
+                  onClick={(e) => toggleDefaultForNewChats(level, e)}
                 >
-                  {defaultForNewChats === tier.id ? "★" : "☆"}
+                  {defaultForNewChats === level ? "★" : "☆"}
                 </button>
               </div>
             </button>

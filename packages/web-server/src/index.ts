@@ -39,6 +39,7 @@ import {
   loadStartupContext,
   registerSkillAndMemoryTools,
 } from "@finanfa/core/src/app.js";
+import { isEffortLevel } from "@finanfa/core/src/core/effort-level.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
 import { CLOUD_PROVIDERS, cloudApiKey, cloudProviderForBaseUrl } from "@finanfa/core/src/core/cloud-providers.js";
 import {
@@ -851,6 +852,7 @@ app.post("/api/turn", async (req, res) => {
     model: session.model,
     providerKind,
     effort: session.effort,
+    effortLevel: session.effortLevel,
     text: collected.text,
     toolCalls: collected.toolCalls,
     // Tool calls this turn wanted to run but that hit an "ask"-tier
@@ -1385,6 +1387,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
           providerKind,
           toolCount: tools.list().length,
           effort: session.effort,
+          effortLevel: session.effortLevel,
         }),
       );
     }
@@ -1985,6 +1988,15 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
         }
       }
 
+      // How much the current model thinks (see effort-level.ts). Applies from the next message and changes nothing
+      // else: not the model, not the tools. null clears it, back to the model's and the config's own behaviour.
+      async function handleSetEffortLevel(msg: { type: string; [key: string]: unknown }): Promise<void> {
+        if (msg.level === null) session.effortLevel = undefined;
+        else if (isEffortLevel(msg.level)) session.effortLevel = msg.level;
+        else return;
+        sendSessionInfo();
+      }
+
       async function handleSetEffort(msg: { type: string; [key: string]: unknown }): Promise<void> {
         if (typeof msg.level !== "string") return;
         // Shortcut past manually picking a model + remembering to strip
@@ -2162,6 +2174,8 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
             return handleSetModel(msg);
           case "set_effort":
             return handleSetEffort(msg);
+          case "set_effort_level":
+            return handleSetEffortLevel(msg);
           case "mcp_status":
             await sendMcpStatus();
             return;

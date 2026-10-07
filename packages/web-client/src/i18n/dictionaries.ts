@@ -95,8 +95,12 @@ export const translations: Record<Language, Record<string, string>> = {
       "Local model, processing the prompt can take one to two minutes on a machine with no GPU, before generation even starts.",
 
     // EffortSelector.tsx
-    "effort.noLocalModel": "No installed model fits this level. Install one from Models.",
-    "effort.usesModel": "Uses {model}",
+    "effort.low": "Low",
+    "effort.low.desc": "Quick, direct answers with little reasoning. Applies to the current model.",
+    "effort.medium": "Medium",
+    "effort.medium.desc": "The model's normal balance between speed and reasoning.",
+    "effort.high": "High",
+    "effort.high.desc": "More thinking and checking before answering, for harder tasks. Slower and costs more.",
     "effort.trigger": "Effort",
     "effort.triggerWithLabel": "Effort: {label}",
     "effort.notInstalled": "model not installed, will be downloaded on first pick",
@@ -389,8 +393,12 @@ export const translations: Record<Language, Record<string, string>> = {
     "busy.localModelHint":
       "Modèle local, le traitement du prompt peut prendre une à deux minutes sur une machine sans GPU, avant même le début de la génération.",
 
-    "effort.noLocalModel": "Aucun modèle installé ne convient à ce niveau. Installez-en un depuis Modèles.",
-    "effort.usesModel": "Utilise {model}",
+    "effort.low": "Faible",
+    "effort.low.desc": "Réponses rapides et directes, avec peu de réflexion. S'applique au modèle courant.",
+    "effort.medium": "Moyen",
+    "effort.medium.desc": "L'équilibre habituel du modèle entre rapidité et réflexion.",
+    "effort.high": "Fort",
+    "effort.high.desc": "Plus de réflexion et de vérification avant de répondre, pour les tâches difficiles. Plus lent et plus coûteux.",
     "effort.trigger": "Effort",
     "effort.triggerWithLabel": "Effort : {label}",
     "effort.notInstalled": "modèle non installé, sera téléchargé au premier choix",
