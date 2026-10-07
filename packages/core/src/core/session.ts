@@ -1,3 +1,4 @@
+import { isEffortLevel, type EffortLevel } from "./effort-level.js";
 import { randomUUID, createHash } from "node:crypto";
 import { mkdir, readdir, readFile, rename, rm, stat, writeFile } from "node:fs/promises";
 import path from "node:path";
@@ -55,6 +56,8 @@ export interface SessionFile {
   maxTokens?: number;
   /** The effort tier ("low"/"medium"/"high") this session is currently on, if any — kept alongside maxTokens/model/providerBaseUrl purely so a resumed session's UI can show which tier is active without re-deriving it from the model name. */
   effort?: string;
+  /** The effort level (low/medium/high), see effort-level.ts: how much the current model thinks. Independent of `effort` above, which is the older model preset. */
+  effortLevel?: EffortLevel;
   /** See AgentSession.thinkingBudgetTokens's own doc comment. */
   thinkingBudgetTokens?: number;
   /** The current todo_write checklist (see TodoStore) — persisted so a resumed session's board isn't always empty until the next todo_write call; restored into a fresh TodoStore on resume(). */
@@ -175,6 +178,8 @@ export class AgentSession {
   /** See SessionFile's own doc comment — set by the effort-tier picker, read back on resume. */
   maxTokens?: number;
   effort?: string;
+  /** See AgentSession.effortLevel. */
+  effortLevel?: EffortLevel;
   /** Set from config.thinkingBudgetTokens at construction (see each entry point) — read back on resume, same lifecycle as maxTokens/effort. Undefined disables Anthropic extended thinking entirely. */
   thinkingBudgetTokens?: number;
   /** See SessionFile's own doc comment. Set by the web server right after construction/resume when auth is configured; read back on resume. */
@@ -207,6 +212,7 @@ export class AgentSession {
     session.errorLog = data.errorLog ?? [];
     session.maxTokens = data.maxTokens;
     session.effort = data.effort;
+    session.effortLevel = isEffortLevel(data.effortLevel) ? data.effortLevel : undefined;
     session.thinkingBudgetTokens = data.thinkingBudgetTokens;
     if (data.todos) session.todos.set(data.todos);
     session.ownerUser = data.ownerUser;
@@ -311,6 +317,7 @@ export class AgentSession {
         errorLog: this.errorLog,
         maxTokens: this.maxTokens,
         effort: this.effort,
+        effortLevel: this.effortLevel,
         thinkingBudgetTokens: this.thinkingBudgetTokens,
         todos: this.todos.list(),
         ownerUser: this.ownerUser,
