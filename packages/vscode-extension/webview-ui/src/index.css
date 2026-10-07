@@ -1063,6 +1063,13 @@ body {
 .tool-call-dangerous .tool-call-name {
   color: var(--danger);
 }
+.tool-call-failed {
+  border-color: var(--danger);
+}
+.tool-call-failed .tool-call-icon,
+.tool-call-failed .tool-call-name {
+  color: var(--danger);
+}
 /* <details>/<summary> tool-call block (see ChatMessage.tsx) — summary
    keeps .tool-call's own flex layout, just adds a pointer cursor and drops
    the browser's default marker glyph (the risk icon already signals

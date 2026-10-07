@@ -81,7 +81,9 @@ export function ChatMessageView({ item }: { item: TimelineItem }) {
   }
 
   if (item.kind === "tool_call") {
-    const icon = TOOL_RISK_ICON[item.riskLevel];
+    // A failed call is marked on its own line (the engine does not repeat the failure as a separate row).
+    const failed = item.result?.isError === true;
+    const icon = failed ? "✕" : TOOL_RISK_ICON[item.riskLevel];
     return (
       <div className="row row-log">
         {/* <details>/<summary>: an expandable IN/OUT block (the tool call
@@ -90,7 +92,7 @@ export function ChatMessageView({ item }: { item: TimelineItem }) {
             matches the reference "cool" extension's own tool-call blocks,
             and needs no extra React state to track open/closed. */}
         <details className="tool-call-details">
-          <summary className={`tool-call tool-call-${item.riskLevel}`}>
+          <summary className={`tool-call tool-call-${item.riskLevel}${failed ? " tool-call-failed" : ""}`}>
             <span className="tool-call-icon">{icon}</span>
             <span className="tool-call-name">{item.toolName}</span>
             {item.description && <span className="tool-call-description">{item.description}</span>}
