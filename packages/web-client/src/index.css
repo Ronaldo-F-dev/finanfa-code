@@ -2885,3 +2885,35 @@ details.tool-call-details > summary.tool-call::marker {
 .hljs-strong {
   font-weight: 700;
 }
+/* Crash screen (see ErrorBoundary.tsx) — rendered instead of a blank page
+   when a render error escapes the app; reloading is the only recovery. */
+.crash-screen {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px;
+}
+.crash-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  max-width: 420px;
+  padding: 28px;
+  text-align: center;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+.crash-card h1 {
+  margin: 0;
+  font-size: 18px;
+  color: var(--text);
+}
+.crash-card p {
+  margin: 0;
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-muted);
+}
