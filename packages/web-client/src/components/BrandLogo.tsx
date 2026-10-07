@@ -8,6 +8,14 @@ import { resolveBrand, tileColors } from "../brands";
 export function BrandLogo({ id, size = 36 }: { id: string; size?: number }) {
   const brand = resolveBrand(id);
   const { background, color } = tileColors(brand.color);
+  if (brand.image) {
+    // The brand's own colours: a light tile so every logo stays readable on the dark theme.
+    return (
+      <span className="brand-logo" aria-hidden="true" style={{ width: size, height: size, background: "#fff" }}>
+        <img src={brand.image} alt="" width={Math.round(size * 0.62)} height={Math.round(size * 0.62)} />
+      </span>
+    );
+  }
   return (
     <span className="brand-logo" aria-hidden="true" style={{ width: size, height: size, background, color, fontSize: Math.round(size * 0.36) }}>
       {brand.path ? (
