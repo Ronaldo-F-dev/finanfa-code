@@ -29,6 +29,26 @@ class AssistantMessageItem extends TimelineItem {
       );
 }
 
+/// The model's streamed reasoning (UIAdapter.writeThinkingDelta on the
+/// server, sent as "thinking_delta") — its own item type, exactly like the
+/// web client's, so reasoning and reply text can never interleave in one
+/// bubble.
+class ThinkingItem extends TimelineItem {
+  final String text;
+  final bool streaming;
+  const ThinkingItem({
+    required super.id,
+    required this.text,
+    required this.streaming,
+  });
+
+  ThinkingItem copyWith({String? text, bool? streaming}) => ThinkingItem(
+    id: id,
+    text: text ?? this.text,
+    streaming: streaming ?? this.streaming,
+  );
+}
+
 enum LogVariant { system, error }
 
 class LogItem extends TimelineItem {

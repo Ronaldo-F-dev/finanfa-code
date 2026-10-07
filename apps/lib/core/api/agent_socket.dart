@@ -29,6 +29,7 @@ class AgentSocket {
   StreamSubscription? _sub;
   int _nextLocalId = 1;
   String? _streamingAssistantId;
+  String? _streamingThinkingId;
 
   final _timelineController = StreamController<List<TimelineItem>>.broadcast();
   final _connectedController = StreamController<bool>.broadcast();
@@ -147,10 +148,29 @@ class AgentSocket {
     }
   }
 
+  /// Closes the currently-open reasoning item, if any — thinking always
+  /// precedes the reply (or an error/turn end), and an item left
+  /// "streaming" would keep its live indicator on, same bookkeeping as the
+  /// web client's own thinking ref.
+  void _endThinking() {
+    final id = _streamingThinkingId;
+    if (id == null) return;
+    _streamingThinkingId = null;
+    final idx = _timeline.indexWhere(
+      (it) => it is ThinkingItem && it.id == id,
+    );
+    if (idx != -1) {
+      _timeline[idx] = (_timeline[idx] as ThinkingItem).copyWith(
+        streaming: false,
+      );
+    }
+  }
+
   void _handleMessage(dynamic raw) {
     final msg = jsonDecode(raw as String) as Map<String, dynamic>;
     switch (msg['type']) {
       case 'assistant_delta':
+        _endThinking();
         final text = msg['text'] as String;
         if (_streamingAssistantId == null) {
           final id = _id();
@@ -171,6 +191,7 @@ class AgentSocket {
         _pushTimeline();
         break;
       case 'assistant_end':
+        _endThinking();
         final id = _streamingAssistantId;
         _streamingAssistantId = null;
         if (id != null) {
@@ -186,6 +207,23 @@ class AgentSocket {
           _pushTimeline();
         }
         break;
+      case 'thinking_delta':
+        final text = msg['text'] as String;
+        if (_streamingThinkingId == null) {
+          final id = _id();
+          _streamingThinkingId = id;
+          _timeline.add(ThinkingItem(id: id, text: text, streaming: true));
+        } else {
+          final idx = _timeline.indexWhere(
+            (it) => it is ThinkingItem && it.id == _streamingThinkingId,
+          );
+          if (idx != -1) {
+            final current = _timeline[idx] as ThinkingItem;
+            _timeline[idx] = current.copyWith(text: current.text + text);
+          }
+        }
+        _pushTimeline();
+        break;
       case 'system':
         final text = msg['text'] as String;
         if (text.startsWith('⚠')) {
@@ -198,6 +236,7 @@ class AgentSocket {
         }
         break;
       case 'error':
+        _endThinking();
         _timeline.add(
           LogItem(
             id: _id(),
