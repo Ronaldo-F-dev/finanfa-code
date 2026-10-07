@@ -8,6 +8,9 @@ interface ConfigShape {
   baseUrl?: string;
   apiKey?: string;
   anthropicApiKey?: string;
+  deepseekApiKey?: string;
+  xaiApiKey?: string;
+  geminiApiKey?: string;
   visionProvider?: string;
   visionModel?: string;
   visionBaseUrl?: string;
@@ -15,6 +18,13 @@ interface ConfigShape {
 }
 
 type Theme = "dark" | "light";
+
+// Cloud providers offered in the model picker next to Claude; the key goes to its own config field.
+const CLOUD_KEYS = [
+  { configKey: "deepseekApiKey", name: "DeepSeek", placeholder: "sk-…" },
+  { configKey: "xaiApiKey", name: "Grok (xAI)", placeholder: "xai-…" },
+  { configKey: "geminiApiKey", name: "Gemini (Google)", placeholder: "AIza…" },
+] as const;
 type Section = "general" | "models" | "vision";
 
 const SECTIONS: { id: Section; labelKey: string; icon: IconName }[] = [
@@ -67,6 +77,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [saved, setSaved] = useState<ConfigShape>({});
   const [savedApiKeys, setSavedApiKeys] = useState<string[]>([]);
   const [anthropicKeyDraft, setAnthropicKeyDraft] = useState("");
+  const [cloudDrafts, setCloudDrafts] = useState<Record<string, string>>({});
   const [baseUrlDraft, setBaseUrlDraft] = useState("");
   const [modelDraft, setModelDraft] = useState("");
   const [otherKeyDraft, setOtherKeyDraft] = useState("");
@@ -99,6 +110,21 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     const data = await res.json();
     setStatus(data.note ?? t("settings.saved"));
     setAnthropicKeyDraft("");
+    refresh();
+  }
+
+  async function saveCloudKey(configKey: (typeof CLOUD_KEYS)[number]["configKey"]) {
+    const key = cloudDrafts[configKey]?.trim();
+    if (!key) return;
+    setStatus(t("settings.saving"));
+    const res = await fetch("/api/config", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ [configKey]: key }),
+    });
+    const data = await res.json();
+    setStatus(data.note ?? t("settings.saved"));
+    setCloudDrafts((d) => ({ ...d, [configKey]: "" }));
     refresh();
   }
 
@@ -242,6 +268,30 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
                     </button>
                   </div>
                 </div>
+
+                {CLOUD_KEYS.map(({ configKey, name, placeholder }) => (
+                  <div className="provider-card" key={configKey}>
+                    <div className="provider-card-title">
+                      {name}
+                      {saved[configKey] && <span className="provider-badge">{t("settings.configured")}</span>}
+                    </div>
+                    <p className="settings-hint">
+                      {saved[configKey] ? t("settings.cloudKeySaved", { key: saved[configKey]! }) : t("settings.cloudNoKey", { name })}
+                    </p>
+                    <div className="provider-card-row">
+                      <input
+                        type="password"
+                        placeholder={placeholder}
+                        value={cloudDrafts[configKey] ?? ""}
+                        onChange={(e) => setCloudDrafts((d) => ({ ...d, [configKey]: e.target.value }))}
+                        onKeyDown={(e) => e.key === "Enter" && saveCloudKey(configKey)}
+                      />
+                      <button className="btn btn-allow" onClick={() => saveCloudKey(configKey)} disabled={!cloudDrafts[configKey]?.trim()}>
+                        {t("settings.save")}
+                      </button>
+                    </div>
+                  </div>
+                ))}
 
                 <div className="provider-card">
                   <div className="provider-card-title">
