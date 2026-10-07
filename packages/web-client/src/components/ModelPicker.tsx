@@ -9,6 +9,8 @@ export interface ModelOption {
   baseUrl?: string;
   /** The real model string the provider expects — only differs from `id` for a local model, where `id` is a display label ("Ollama: llama3.1:8b") for the picker. */
   localModelId?: string;
+  /** Set for a cloud provider's model (DeepSeek, Grok, Gemini): shown under the name. */
+  provider?: string;
 }
 
 const BLURB_KEYS: Record<string, string> = {
@@ -65,6 +67,7 @@ export function ModelPicker({
                 <div>
                   <div className="model-picker-name">{m.id}</div>
                   {BLURB_KEYS[m.id] && <div className="model-picker-blurb">{t(BLURB_KEYS[m.id]!)}</div>}
+                  {m.provider && <div className="model-picker-blurb">{m.provider}</div>}
                   {!m.configured && <div className="model-picker-warn">{t("modelPicker.needsKey")}</div>}
                 </div>
                 {modelId === model && <span className="model-picker-check">✓</span>}
