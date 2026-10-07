@@ -15,6 +15,8 @@ An npm workspaces monorepo:
 - `packages/web-server` — the API/WebSocket server for the browser UI.
 - `packages/web-client` — the React/Vite browser chat UI.
 - `packages/vscode-extension` — the VS Code extension.
+- `packages/desktop` — the Electron shell: runs the web server and shows
+  the web UI in a native window (see `packages/desktop/README.md`).
 
 See the [README](README.md) for how to run each of these, and
 [docs/plugins.md](docs/plugins.md) for the plugin contract if you're
