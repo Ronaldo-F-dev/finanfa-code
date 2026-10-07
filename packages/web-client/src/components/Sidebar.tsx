@@ -71,7 +71,7 @@ export function Sidebar({
       <button className="sidebar-project" onClick={onOpenProjects} title={t("sidebar.browseProjects")}>
         <Icon name="projects" />
           <span>{t("sidebar.projects")}</span>
-        {projectName ? ` — ${projectName}` : ""}
+        {projectName ? ` · ${projectName}` : ""}
       </button>
 
       <div className="sidebar-section-label">{t("sidebar.chats")}</div>
