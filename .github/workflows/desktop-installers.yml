@@ -1,0 +1,78 @@
+name: Desktop installers
+
+# Builds the installers of the Electron desktop app (packages/desktop): .dmg and .zip for macOS (Apple silicon and
+# Intel), an installer for Windows, an AppImage and a .deb for Linux. Each is built on its own operating system because
+# the server inside carries native packages (images, serial ports, PDF rendering) that differ per system.
+#
+# Runs on a pull request that touches the desktop app or this workflow (so a change that breaks packaging is caught
+# before it merges), by hand, and on a version tag (v1.2.3), which also publishes a GitHub release.
+# The installers are not signed: macOS asks to confirm the first launch (right-click, Open) and Windows shows a
+# SmartScreen notice. Signing is turned on by adding the usual electron-builder secrets (CSC_LINK, CSC_KEY_PASSWORD,
+# APPLE_ID, ...) to the repository; nothing here needs to change.
+on:
+  workflow_dispatch: {}
+  push:
+    tags:
+      - "v*"
+  pull_request:
+    paths:
+      - "packages/desktop/**"
+      - "packages/web-server/src/**"
+      - ".github/workflows/desktop-installers.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: macos-latest, name: macos-arm64, flags: "--mac --arm64" }
+          - { os: macos-15-intel, name: macos-x64, flags: "--mac --x64" }
+          - { os: windows-latest, name: windows-x64, flags: "--win --x64" }
+          - { os: ubuntu-latest, name: linux-x64, flags: "--linux --x64" }
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-node@v7
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci
+      - name: Use the tag as the version
+        if: startsWith(github.ref, 'refs/tags/v')
+        shell: bash
+        run: npm pkg set version="${GITHUB_REF_NAME#v}" --workspace @finanfa/desktop
+      - name: Build the installers
+        run: npm run dist -w @finanfa/desktop -- ${{ matrix.flags }}
+      - uses: actions/upload-artifact@v7
+        with:
+          name: finanfa-desktop-${{ matrix.name }}
+          path: |
+            packages/desktop/release/*.dmg
+            packages/desktop/release/*.zip
+            packages/desktop/release/*.exe
+            packages/desktop/release/*.AppImage
+            packages/desktop/release/*.deb
+          if-no-files-found: error
+          retention-days: 14
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          path: installers
+          merge-multiple: true
+      - name: Publish the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          gh release create "$TAG" installers/* --repo "$GITHUB_REPOSITORY" --title "Finanfa $TAG" --generate-notes

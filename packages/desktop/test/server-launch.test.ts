@@ -13,7 +13,12 @@ describe("buildServerSpawn", () => {
 
   it("when packaged runs the bundled server from the app's resources", () => {
     const spec = buildServerSpawn({ ...base, packaged: true, resourcesPath: "/Apps/Finanfa/resources" });
-    expect(spec.args).toEqual(["/Apps/Finanfa/resources/server/server.cjs"]);
+    expect(spec.args).toEqual(["/Apps/Finanfa/resources/server/server.mjs"]);
+    expect(spec.env.FINANFA_WEB_CLIENT_DIST).toBe("/Apps/Finanfa/resources/web-client/dist");
+  });
+
+  it("does not point a source-checkout server at a bundled web client", () => {
+    expect(buildServerSpawn({ ...base, packaged: false }).env.FINANFA_WEB_CLIENT_DIST).toBeUndefined();
   });
 
   it("locks the server down: loopback, a free port, the per-launch token, the chosen workspace", () => {

@@ -5,8 +5,8 @@ A native window around the web UI. Opening it starts finanfa's web server in the
 everything it started. It is the same agent, tools and config as the terminal and browser
 UIs — this is another way in, not another product.
 
-> Status: runs from a source checkout. **Installers (.dmg / .exe / .AppImage) are not built yet** —
-> see "What is not done".
+> Status: runs from a source checkout, and installers for macOS, Windows and Linux are built by a workflow
+> (see "Installers"). They are not signed yet, and there is no auto-update.
 
 ## Run it
 
@@ -54,6 +54,42 @@ Electron main process (packages/desktop)
   force-quit, the server notices (`FINANFA_PARENT_PID`) and exits within a couple of seconds.
 - **If the server dies**, a dialog shows its last output and offers Restart or Quit.
 
+## Installers
+
+The workflow **Desktop installers** (`.github/workflows/desktop-installers.yml`) builds, each on its own system:
+
+| System | Files |
+| --- | --- |
+| macOS, Apple silicon and Intel | `.dmg` and `.zip` |
+| Windows | an installer (`.exe`) |
+| Linux | an `.AppImage` and a `.deb` |
+
+Run it from the Actions tab, or push a tag such as `v0.1.0`: the tag also publishes a GitHub release with every file.
+Each system builds its own because the server inside carries native packages (images, serial ports, PDF rendering)
+that differ per system.
+
+To build one here, on the system you are on:
+
+```bash
+npm run pack -w @finanfa/desktop      # an unpacked app in packages/desktop/release (quick to test)
+npm run dist -w @finanfa/desktop      # the installers for this system
+```
+
+How it is put together: `scripts/bundle-server.mjs` bundles the web server into one file (`server.mjs`) and copies the
+few packages that cannot be bundled (`sharp`, `serialport`, `@napi-rs/canvas`, `playwright-core`, `web-tree-sitter` and
+the grammars the repo map uses) next to it; `electron-builder.yml` packs the window, the server and the built web
+client; `scripts/after-pack.cjs` puts the native packages into the app, because electron-builder never copies a
+`node_modules` folder into resources. The installed app starts the bundled server the same way a source checkout
+starts the TypeScript one.
+
+- **Signing.** Without a certificate the macOS app is signed ad hoc (so Apple silicon does not call it damaged) and
+  the first launch needs a confirmation: right-click the app, then Open. Windows shows a SmartScreen notice. To sign,
+  add the usual electron-builder secrets to the repository (`CSC_LINK`, `CSC_KEY_PASSWORD`, and for notarization
+  `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`); the build uses them as soon as they exist and never
+  uses a certificate it finds on its own in a keychain.
+- **Left out of the installers:** the local embedding model (`@huggingface/transformers`, about 400 MB), which the
+  feature loads on demand and reports as missing.
+
 ## Verify it
 
 ```bash
@@ -83,9 +119,8 @@ display (`xvfb-run`). Unit tests: `npx vitest run packages/desktop`.
 
 ## What is not done
 
-- **Installers and auto-update.** Packaging means bundling the server for Electron
-  (native modules such as `sharp` and `serialport`, `playwright`, the built web client) and signing
-  per platform; that is its own piece of work.
+- **Signed installers and auto-update.** The installers exist but are unsigned (see "Installers"); updating means
+  downloading the next release by hand.
 - **More app-specific UI** — approval toggles per category and per-feature model choice. The window shows
   the web UI, which already has a diff view when you approve a file edit and a "Restore" button to go back to
   before any message of the current conversation (undoing the file edits made since).

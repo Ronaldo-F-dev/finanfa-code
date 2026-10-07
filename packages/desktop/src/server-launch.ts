@@ -37,7 +37,7 @@ export function generateToken(): string {
 
 export function buildServerSpawn(input: ServerSpawnInput): ServerSpawn {
   const entry = input.packaged
-    ? [path.join(input.resourcesPath ?? "", "server", "server.cjs")]
+    ? [path.join(input.resourcesPath ?? "", "server", "server.mjs")]
     : [path.join(input.repoRoot, "node_modules", "tsx", "dist", "cli.mjs"), path.join(input.repoRoot, "packages", "web-server", "src", "index.ts")];
 
   const env: NodeJS.ProcessEnv = {
@@ -50,9 +50,10 @@ export function buildServerSpawn(input: ServerSpawnInput): ServerSpawn {
     FINANFA_WEB_USERS: `desktop:${input.token}`,
     FINANFA_WEB_CWD: input.workspace,
     FINANFA_PARENT_PID: String(input.parentPid),
+    // A packaged app serves the web client it ships; a source checkout finds it next to the server sources.
+    ...(input.packaged ? { FINANFA_WEB_CLIENT_DIST: path.join(input.resourcesPath ?? "", "web-client", "dist") } : {}),
   };
-  // A source-checkout run serves the built web client from the repo; the packaged app finds it next to the server bundle.
-  return { command: input.execPath, args: entry, env };
+    return { command: input.execPath, args: entry, env };
 }
 
 const READY_RE = /listening on http:\/\/localhost:(\d+)/;
