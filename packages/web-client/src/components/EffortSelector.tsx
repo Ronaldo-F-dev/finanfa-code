@@ -8,6 +8,9 @@ interface EffortTierInfo {
   model: string;
   ollamaModel?: string;
   installed: boolean;
+  /** "low" and "medium": the model is picked from what is already installed, never downloaded. */
+  pickLocal?: boolean;
+  unavailable?: boolean;
 }
 
 /**
@@ -141,6 +144,8 @@ export function EffortSelector({
                   </div>
                   <div className="effort-selector-blurb">{tier.description}</div>
                   {tier.ollamaModel && !tier.installed && <div className="effort-selector-warn">{t("effort.notInstalled")}</div>}
+                  {tier.pickLocal && tier.unavailable && <div className="effort-selector-warn">{t("effort.noLocalModel")}</div>}
+                  {tier.pickLocal && !tier.unavailable && <div className="effort-selector-blurb">{t("effort.usesModel", { model: tier.model })}</div>}
                 </div>
                 <button
                   type="button"
