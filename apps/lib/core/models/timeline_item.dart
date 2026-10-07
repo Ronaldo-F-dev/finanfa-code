@@ -45,16 +45,45 @@ ToolRiskLevel toolRiskLevelFromString(String raw) => switch (raw) {
   _ => ToolRiskLevel.safe,
 };
 
+/// A finished tool call's output — `isError` colors it the way an error log
+/// line is colored; `content` is the tool's real output, not a summary.
+class ToolResult {
+  final bool isError;
+  final String content;
+  const ToolResult({required this.isError, required this.content});
+}
+
 class ToolCallItem extends TimelineItem {
   final String toolName;
   final String description;
   final ToolRiskLevel riskLevel;
+
+  /// The model's own stable tool_use id — what a later "tool_result" event
+  /// is matched against (same correlation the web client and the VS Code
+  /// webview use), already carried by every tool_call announcement.
+  final String toolCallId;
+
+  /// Filled in once the matching "tool_result" arrives; null while the call
+  /// is still running.
+  final ToolResult? result;
+
   const ToolCallItem({
     required super.id,
+    required this.toolCallId,
     required this.toolName,
     required this.description,
     required this.riskLevel,
+    this.result,
   });
+
+  ToolCallItem copyWith({ToolResult? result}) => ToolCallItem(
+    id: id,
+    toolCallId: toolCallId,
+    toolName: toolName,
+    description: description,
+    riskLevel: riskLevel,
+    result: result ?? this.result,
+  );
 }
 
 class MediaItem extends TimelineItem {

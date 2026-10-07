@@ -64,11 +64,17 @@ class TimelineTile extends StatelessWidget {
         text: text,
         isError: variant == LogVariant.error,
       ),
-      ToolCallItem(:final toolName, :final description, :final riskLevel) =>
-        _ToolChip(
+      ToolCallItem(
+        :final toolName,
+        :final description,
+        :final riskLevel,
+        :final result,
+      ) =>
+        _ToolCallTile(
           toolName: toolName,
           description: description,
           riskLevel: riskLevel,
+          result: result,
         ),
       MediaItem(:final path, :final mediaKind) => _LogLine(
         text: '${mediaKind == "image" ? "🖼️" : "🎵"} $path',
@@ -431,10 +437,20 @@ class _ToolChip extends StatelessWidget {
   final String toolName;
   final String description;
   final ToolRiskLevel riskLevel;
+
+  /// Optional end-of-row widget — the expand chevron (or the muted "…" for
+  /// a call still running) `_ToolCallTile` adds.
+  final Widget? trailing;
+
+  /// Set only when there is something to reveal; a running call's chip
+  /// stays inert, exactly as before results existed.
+  final VoidCallback? onTap;
   const _ToolChip({
     required this.toolName,
     required this.description,
     required this.riskLevel,
+    this.trailing,
+    this.onTap,
   });
 
   @override
@@ -450,7 +466,7 @@ class _ToolChip extends StatelessWidget {
       ToolRiskLevel.ask => (Icons.pan_tool_alt_rounded, c.warning),
       ToolRiskLevel.safe => (Icons.check_rounded, c.success),
     };
-    return Container(
+    final chip = Container(
       margin: const EdgeInsets.symmetric(vertical: FinanfaSpace.xs),
       padding: const EdgeInsets.symmetric(
         horizontal: FinanfaSpace.md,
@@ -494,8 +510,84 @@ class _ToolChip extends StatelessWidget {
               ],
             ),
           ),
+          ?trailing,
         ],
       ),
+    );
+    if (onTap == null) return chip;
+    return GestureDetector(onTap: onTap, child: chip);
+  }
+}
+
+/// A tool call with its real output — collapsed to the same chip the app
+/// always showed, expandable to the tool's actual result, mirroring the web
+/// client's and the VS Code webview's IN/OUT block. A call whose result
+/// hasn't arrived yet shows the chip with a muted "…" and stays inert.
+class _ToolCallTile extends StatefulWidget {
+  final String toolName;
+  final String description;
+  final ToolRiskLevel riskLevel;
+  final ToolResult? result;
+  const _ToolCallTile({
+    required this.toolName,
+    required this.description,
+    required this.riskLevel,
+    required this.result,
+  });
+
+  @override
+  State<_ToolCallTile> createState() => _ToolCallTileState();
+}
+
+class _ToolCallTileState extends State<_ToolCallTile> {
+  // Collapsed by default, same as the web and VS Code clients — a long
+  // turn with several tool calls would otherwise flood the conversation.
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    final mono = Theme.of(context).textTheme.labelMedium;
+    final result = widget.result;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _ToolChip(
+          toolName: widget.toolName,
+          description: widget.description,
+          riskLevel: widget.riskLevel,
+          trailing: result == null
+              ? Text('…', style: context.textStyles.caption)
+              : Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 16,
+                  color: c.textMuted,
+                ),
+          onTap: result == null
+              ? null
+              : () => setState(() => _expanded = !_expanded),
+        ),
+        if (_expanded && result != null)
+          Container(
+            margin: const EdgeInsets.only(bottom: FinanfaSpace.xs, left: 8),
+            padding: const EdgeInsets.all(FinanfaSpace.sm + 2),
+            constraints: const BoxConstraints(maxHeight: 220),
+            decoration: BoxDecoration(
+              color: c.bgCard,
+              borderRadius: BorderRadius.circular(FinanfaRadii.md),
+              border: Border.all(color: result.isError ? c.danger : c.border),
+            ),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                result.content.isEmpty ? '…' : result.content,
+                style: mono?.copyWith(
+                  fontSize: 12,
+                  color: result.isError ? c.danger : c.textMuted,
+                ),
+              ),
+            ),
+          ),
+      ],
     );
   }
 }

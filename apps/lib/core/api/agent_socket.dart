@@ -211,12 +211,28 @@ class AgentSocket {
         _timeline.add(
           ToolCallItem(
             id: _id(),
+            toolCallId: msg['toolCallId'] as String,
             toolName: msg['toolName'] as String,
             description: msg['description'] as String,
             riskLevel: toolRiskLevelFromString(msg['riskLevel'] as String),
           ),
         );
         _pushTimeline();
+        break;
+      case 'tool_result':
+        final toolCallId = msg['toolCallId'] as String;
+        final idx = _timeline.indexWhere(
+          (it) => it is ToolCallItem && it.toolCallId == toolCallId,
+        );
+        if (idx != -1) {
+          _timeline[idx] = (_timeline[idx] as ToolCallItem).copyWith(
+            result: ToolResult(
+              isError: msg['isError'] as bool,
+              content: msg['content'] as String,
+            ),
+          );
+          _pushTimeline();
+        }
         break;
       case 'media':
         _timeline.add(
