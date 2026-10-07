@@ -39,7 +39,7 @@ import {
   loadStartupContext,
   registerSkillAndMemoryTools,
 } from "@finanfa/core/src/app.js";
-import { isEffortLevel } from "@finanfa/core/src/core/effort-level.js";
+import { DEFAULT_EFFORT_LEVEL, isEffortLevel } from "@finanfa/core/src/core/effort-level.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
 import { CLOUD_PROVIDERS, cloudApiKey, cloudProviderForBaseUrl } from "@finanfa/core/src/core/cloud-providers.js";
 import {
@@ -1575,6 +1575,10 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
         }
         turnInFlight = true;
         try {
+          // A local model with a launch command in the config (localServices) may not be running yet, the default one
+          // included: start it before the first request instead of failing with "fetch failed". A no-op for any other model.
+          const local = await ensureLocalTextModelForSwitch(config, session.model, adapter);
+          if (local.handled && !local.ok) return;
           const images = Array.isArray(msg.images) ? (msg.images as NeutralImage[]) : undefined;
           // Deep research: not a separate model/effort parameter (nothing
           // like that exists in the engine — see the "effort" discussion),
@@ -1991,7 +1995,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
       // How much the current model thinks (see effort-level.ts). Applies from the next message and changes nothing
       // else: not the model, not the tools. null clears it, back to the model's and the config's own behaviour.
       async function handleSetEffortLevel(msg: { type: string; [key: string]: unknown }): Promise<void> {
-        if (msg.level === null) session.effortLevel = undefined;
+        if (msg.level === null) session.effortLevel = DEFAULT_EFFORT_LEVEL;
         else if (isEffortLevel(msg.level)) session.effortLevel = msg.level;
         else return;
         sendSessionInfo();

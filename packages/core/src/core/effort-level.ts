@@ -13,10 +13,16 @@ export function isEffortLevel(value: unknown): value is EffortLevel {
   return value === "low" || value === "medium" || value === "high";
 }
 
-/** Extended-thinking token budget for Anthropic models; undefined means no extended thinking. */
-export function thinkingBudgetFor(level: EffortLevel): number | undefined {
+/** Medium is the default level and must change nothing: it keeps whatever thinking budget the configuration already sets. */
+export const DEFAULT_EFFORT_LEVEL: EffortLevel = "medium";
+
+/**
+ * Extended-thinking token budget for Anthropic models; undefined means no extended thinking. Low turns it off, high
+ * turns it up, medium leaves the configured budget (if any) alone.
+ */
+export function thinkingBudgetFor(level: EffortLevel, configured?: number): number | undefined {
   if (level === "low") return undefined;
-  return level === "medium" ? 4096 : 16384;
+  return level === "high" ? 16384 : configured;
 }
 
 /** The instruction added to the system prompt; medium is the model's normal behaviour, so it adds nothing. */
