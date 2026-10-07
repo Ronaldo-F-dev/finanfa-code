@@ -48,6 +48,48 @@ function tokenize(text: string): string[] {
   return text.toLowerCase().match(/[a-z0-9]+/g) ?? [];
 }
 
+// Tool names and descriptions are English, but the model searches in the user's language: a French "recherche en ligne"
+// shares no word with "web_search". These are the words people reach for, mapped to the English terms the tools use.
+const QUERY_SYNONYMS: Record<string, string[]> = {
+  recherche: ["search"],
+  rechercher: ["search"],
+  chercher: ["search"],
+  cherche: ["search"],
+  internet: ["web"],
+  ligne: ["web"],
+  site: ["web", "fetch"],
+  page: ["fetch", "web"],
+  actualite: ["web", "search"],
+  actualites: ["web", "search"],
+  fichier: ["file"],
+  fichiers: ["file"],
+  lire: ["read"],
+  lis: ["read"],
+  ecrire: ["write"],
+  modifier: ["edit"],
+  commande: ["command", "shell"],
+  terminal: ["shell", "bash"],
+  envoyer: ["send"],
+  courriel: ["email"],
+  mail: ["email"],
+  image: ["image"],
+  telecharger: ["fetch", "download"],
+};
+
+/** The query's own words plus the English terms that go with its non-English ones. */
+function expandQuery(query: string): string[] {
+  const folded = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const terms = tokenize(folded);
+  return [...new Set([...terms, ...terms.flatMap((t) => QUERY_SYNONYMS[t] ?? [])])];
+}
+
+/** The first sentence of a description, capped: what search_tools promises ("a one-line description"), instead of a whole page per hit. */
+export function oneLine(description: string, max = 160): string {
+  const flat = description.replace(/\s+/g, " ").trim();
+  const sentence = /^.*?[.!?](\s|$)/.exec(flat)?.[0].trim() ?? flat;
+  return sentence.length > max ? `${sentence.slice(0, max - 1).trimEnd()}…` : sentence;
+}
+
 export interface ToolSearchHit {
   tool: ToolDefinition;
   score: number;
@@ -55,7 +97,7 @@ export interface ToolSearchHit {
 
 /** Ranks `tools` by real BM25 relevance to `query` over each tool's name+description — returns only tools with a nonzero score (an honest "nothing matched", not a random top-N fallback), best match first. */
 export function rankToolsByQuery(tools: ToolDefinition[], query: string, limit = DEFAULT_SEARCH_LIMIT): ToolSearchHit[] {
-  const queryTerms = [...new Set(tokenize(query))];
+  const queryTerms = expandQuery(query);
   if (queryTerms.length === 0 || tools.length === 0) return [];
 
   const docs = tools.map((tool) => tokenize(`${tool.name} ${tool.description}`));
@@ -123,7 +165,7 @@ export function createToolSearchMetaTools(getAvailableTools: () => ToolDefinitio
     async handler(input) {
       const hits = rankToolsByQuery(getAvailableTools(), input.query, input.limit ?? DEFAULT_SEARCH_LIMIT);
       if (hits.length === 0) return { content: `No tool matched "${input.query}", try broader or different terms.`, isError: false };
-      return { content: hits.map((h) => `- ${h.tool.name}: ${h.tool.description}`).join("\n"), isError: false };
+      return { content: hits.map((h) => `- ${h.tool.name}: ${oneLine(h.tool.description)}`).join("\n"), isError: false };
     },
   };
 
