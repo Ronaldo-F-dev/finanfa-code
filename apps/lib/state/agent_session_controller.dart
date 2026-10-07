@@ -61,6 +61,10 @@ class AgentSessionController extends ChangeNotifier {
     todos = const [];
     localModelWarning = null;
     connectionFailed = false;
+    // A new connection starts from "not connected": the previous socket's
+    // true used to survive a session/project switch, so a new connection
+    // that then failed still showed the composer as usable.
+    connected = false;
     notifyListeners();
 
     final socket = AgentSocket(
