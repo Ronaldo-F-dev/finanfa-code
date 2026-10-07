@@ -1,0 +1,47 @@
+# Installers for the desktop app: a .dmg and .zip on macOS, an NSIS installer on Windows, an AppImage and a .deb on
+# Linux. Built by `npm run dist -w @finanfa/desktop` on each system (see .github/workflows/desktop-installers.yml):
+# the server's native packages are copied from the node_modules of the system doing the build.
+appId: dev.finanfa.desktop
+productName: Finanfa
+copyright: Finanfa
+directories:
+  output: release
+  buildResources: assets
+asar: true
+files:
+  - dist/main.cjs
+  - assets/icon.png
+  - package.json
+# Outside the asar archive: the server runs as a separate process and loads native modules, neither of which can live in one.
+extraResources:
+  - from: build/server
+    to: server
+  - from: ../web-client/dist
+    to: web-client/dist
+# electron-builder never copies a node_modules folder into resources, so the server's native packages are put there by this hook.
+afterPack: scripts/after-pack.cjs
+artifactName: Finanfa-${version}-${os}-${arch}.${ext}
+mac:
+  category: public.app-category.developer-tools
+  icon: assets/icon.png
+  target:
+    - dmg
+    - zip
+dmg:
+  title: Finanfa ${version}
+win:
+  icon: assets/icon.png
+  target:
+    - nsis
+nsis:
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  deleteAppDataOnUninstall: false
+linux:
+  icon: assets/icon.png
+  category: Development
+  maintainer: Finanfa <cohortedata@gotolearn.com>
+  target:
+    - AppImage
+    - deb
