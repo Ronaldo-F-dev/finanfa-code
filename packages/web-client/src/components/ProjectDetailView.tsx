@@ -275,6 +275,8 @@ export function ProjectDetailView({
                     setSelection({ kind: "model", model: m, family, baseUrl });
                   }}
                   onNeedsKey={() => {}}
+                  currentEffort={selection?.kind === "effort" ? selection.level : undefined}
+                  onSelectLegal={() => setSelection({ kind: "effort", level: "legal" })}
                 />
                 <EffortSelector
                   currentEffort={selection?.kind === "effort" ? selection.level : undefined}
