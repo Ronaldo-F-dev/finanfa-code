@@ -75,7 +75,7 @@ function finalizeToolCalls(pending: Map<number, PendingToolCall>, rawFinishReaso
     let input: unknown = {};
     try {
       input = call.argumentsJson.trim() ? JSON.parse(call.argumentsJson) : {};
-    } catch {
+    } catch (err) {
       // Same reasoning as OpenAiCompatibleProvider's own tool-call JSON
       // handling: a stream cut off mid-argument for a reason OTHER than
       // hitting the model's own max-token limit is usually just
@@ -85,11 +85,23 @@ function finalizeToolCalls(pending: Map<number, PendingToolCall>, rawFinishReaso
       // incomplete, and silently closing the JSON around it would hide
       // that from the model instead of letting it recover correctly.
       const repaired = rawFinishReason !== Cohere.ChatFinishReason.MaxTokens ? repairTruncatedToolCallJson(call.argumentsJson) : undefined;
-      // A provider streaming malformed JSON is the agent loop's problem to
-      // reject (see findMissingRequiredFields/JSON-parse handling in
-      // loop.ts) the same way a malformed OpenAI/Anthropic tool call
-      // already is — not this function's to silently paper over.
-      input = repaired !== undefined ? repaired : { __unparsable_arguments__: call.argumentsJson };
+      if (repaired !== undefined) {
+        input = repaired;
+      } else if (rawFinishReason === Cohere.ChatFinishReason.MaxTokens) {
+        // The response hit its own output limit mid-argument. The loop has
+        // a dedicated marker for exactly this (see loop.ts's
+        // __toolCallTruncated branch), which tells the model to split the
+        // work instead of regenerating the same oversized call — the
+        // marker Cohere used to emit here (__unparsable_arguments__) was
+        // recognized by nothing, so this case fell through to a generic
+        // "missing required fields" and the model retried the same call.
+        input = { __toolCallTruncated: true };
+      } else {
+        // Malformed beyond repair: surface the real parse error through the
+        // same marker OpenAI's parser already uses, so the loop explains
+        // what was actually wrong instead of blaming missing fields.
+        input = { __toolCallParseError: err instanceof Error ? err.message : String(err) };
+      }
     }
     calls.push({ id: call.id, name: call.name, input });
   }
