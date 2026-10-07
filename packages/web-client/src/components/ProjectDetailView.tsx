@@ -22,6 +22,7 @@ export interface StartChatOptions {
   family?: string;
   baseUrl?: string;
   effort?: string;
+  effortLevel?: string;
   webSearchEnabled: boolean;
   imageGenEnabled: boolean;
   deepResearch: boolean;
@@ -86,6 +87,7 @@ export function ProjectDetailView({
   const [selection, setSelection] = useState<
     { kind: "model"; model: string; family: string; baseUrl?: string } | { kind: "effort"; level: string } | null
   >(null);
+  const [effortLevel, setEffortLevel] = useState<string | undefined>(undefined);
   const [webSearchEnabled, setWebSearchEnabled] = useState(true);
   const [imageGenEnabled, setImageGenEnabled] = useState(true);
   const [deepResearch, setDeepResearch] = useState(false);
@@ -178,6 +180,7 @@ export function ProjectDetailView({
     onStartChat(composer.trim(), {
       ...(selection?.kind === "model" ? { model: selection.model, family: selection.family, baseUrl: selection.baseUrl } : {}),
       ...(selection?.kind === "effort" ? { effort: selection.level } : {}),
+      ...(effortLevel ? { effortLevel } : {}),
       webSearchEnabled,
       imageGenEnabled,
       deepResearch,
@@ -279,9 +282,10 @@ export function ProjectDetailView({
                   onSelectLegal={() => setSelection({ kind: "effort", level: "legal" })}
                 />
                 <EffortSelector
-                  currentEffort={selection?.kind === "effort" ? selection.level : undefined}
+                  currentLevel={effortLevel}
                   needsDownload={null}
-                  onSelect={(level) => setSelection({ kind: "effort", level })}
+                  onSelect={(level) => setEffortLevel(level)}
+                  onSelectPreset={() => {}}
                   onDismissNeedsDownload={() => {}}
                 />
               </div>

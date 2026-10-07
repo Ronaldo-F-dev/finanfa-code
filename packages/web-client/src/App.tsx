@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAgentSocket, type Attachment } from "./hooks/useAgentSocket";
 import { ChatMessageView } from "./components/ChatMessage";
 import { ModelPicker, type ModelOption } from "./components/ModelPicker";
-import { EffortSelector, getDefaultEffortPreference } from "./components/EffortSelector";
+import { EffortSelector, getDefaultEffortPreference, isEffortLevel } from "./components/EffortSelector";
 import { BusyIndicator } from "./components/BusyIndicator";
 import { PermissionModal } from "./components/PermissionModal";
 import { Sidebar } from "./components/Sidebar";
@@ -152,6 +152,7 @@ export default function App() {
     requestToolsStatus,
     setPlanMode,
     setEffort,
+    setEffortLevel,
   } = useAgentSocket(connectModel || undefined, activeSessionId, activeProjectId, onTitled, onRewound);
   addNoteRef.current = addNote;
 
@@ -187,8 +188,8 @@ export default function App() {
     if (appliedDefaultEffortForSessionRef.current.has(sessionInfo.id)) return;
     appliedDefaultEffortForSessionRef.current.add(sessionInfo.id);
     const pref = getDefaultEffortPreference();
-    if (pref && sessionInfo.effort !== pref) setEffort(pref);
-  }, [connected, activeSessionId, sessionInfo, setEffort]);
+    if (isEffortLevel(pref) && sessionInfo.effortLevel !== pref) setEffortLevel(pref);
+  }, [connected, activeSessionId, sessionInfo, setEffortLevel]);
 
   useEffect(() => {
     if (sessionInfo?.model && sessionInfo.model !== model) setModel(sessionInfo.model);
@@ -229,6 +230,7 @@ export default function App() {
           setToolEnabled("generate_2d", false);
           setToolEnabled("generate_3d", false);
         }
+        if (opts.effortLevel) setEffortLevel(opts.effortLevel);
         setWebSearchEnabled(opts.webSearchEnabled);
         setImageGenEnabled(opts.imageGenEnabled);
         setDeepResearch(opts.deepResearch);
@@ -238,7 +240,7 @@ export default function App() {
       pendingFirstMessageOptionsRef.current = null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [connected, sendMessage, setEffort, switchModel, setToolEnabled]);
+  }, [connected, sendMessage, setEffort, setEffortLevel, switchModel, setToolEnabled]);
 
   useEffect(() => {
     if (!isNearBottomRef.current) return;
@@ -549,9 +551,10 @@ export default function App() {
                       onSelectLegal={() => setEffort("legal")}
                     />
                     <EffortSelector
-                      currentEffort={sessionInfo?.effort}
+                      currentLevel={sessionInfo?.effortLevel}
                       needsDownload={effortNeedsDownload}
-                      onSelect={(level) => setEffort(level)}
+                      onSelect={(level) => setEffortLevel(level)}
+                      onSelectPreset={(level) => setEffort(level)}
                       onDismissNeedsDownload={dismissEffortNeedsDownload}
                     />
                   </div>
