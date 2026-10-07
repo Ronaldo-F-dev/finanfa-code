@@ -14,3 +14,6 @@ dist/
 
 # macOS dev bundle named "Finanfa" (scripts/dev-app.mjs) — generated, never committed
 packages/desktop/.dev/
+
+# Test runs that treat "~" as a literal directory leave these behind
+**/~/
