@@ -144,7 +144,9 @@ export function ChatMessageView({ item, projectId, restorePoint, canRestore = fa
   }
 
   if (item.kind === "tool_call") {
-    const icon = TOOL_RISK_ICON[item.riskLevel];
+    // A failed call is marked on its own line (the engine does not repeat the failure as a separate row).
+    const failed = item.result?.isError === true;
+    const icon = failed ? "✕" : TOOL_RISK_ICON[item.riskLevel];
     return (
       <div className="row row-log">
         {/* <details>/<summary>: an expandable IN/OUT block (the tool call
@@ -153,7 +155,7 @@ export function ChatMessageView({ item, projectId, restorePoint, canRestore = fa
             same shape as the VS Code webview's ChatMessage.tsx, and needs
             no extra React state to track open/closed. */}
         <details className="tool-call-details">
-          <summary className={`tool-call tool-call-${item.riskLevel}`}>
+          <summary className={`tool-call tool-call-${item.riskLevel}${failed ? " tool-call-failed" : ""}`}>
             <span className="tool-call-icon">{icon}</span>
             <span className="tool-call-name" title={item.toolName}>{toolLabel(item.toolName, language)}</span>
             {item.description && <span className="tool-call-description">{item.description}</span>}
