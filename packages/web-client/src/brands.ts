@@ -7,7 +7,14 @@ export interface Brand {
   color: string;
   /** SVG path (24x24 viewBox) of the brand's mark, when we have it. */
   path?: string;
+  /** URL of the brand's own full-colour logo file, when one was dropped into src/assets/brands/. */
+  image?: string;
 }
+
+// Official logo files, named after the brand key (slack.svg, microsoft-365.svg...). Any file found here is shown in
+// place of the initials tile; see src/assets/brands/README.md.
+const LOGO_FILES = import.meta.glob("./assets/brands/*.{svg,png}", { eager: true, query: "?url", import: "default" }) as Record<string, string>;
+const logoFor = (key: string): string | undefined => Object.entries(LOGO_FILES).find(([file]) => file.replace(/^.*\/|\.[a-z]+$/g, "") === key)?.[1];
 
 const fromIcon = (icon: { title: string; hex: string; path: string }, label = icon.title): Brand => ({ label, color: icon.hex, path: icon.path });
 
@@ -93,7 +100,7 @@ export function resolveBrand(id: string): ResolvedBrand {
   if (known) {
     // A sub-service (hostinger-hosting) keeps the family's mark but says which part it is.
     const label = id.toLowerCase() === brandKey(id) ? known.label : `${known.label} ${id.slice(brandKey(id).length + 1).replace(/[-_]+/g, " ")}`;
-    return { ...known, label, known: true, initials: initialsOf(known.label) };
+    return { ...known, label, known: true, initials: initialsOf(known.label), image: logoFor(brandKey(id)) };
   }
   const label = prettify(id);
   return { label, color: "6E6E73", known: false, initials: initialsOf(label) };
