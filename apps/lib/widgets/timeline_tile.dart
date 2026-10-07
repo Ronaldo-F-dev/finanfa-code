@@ -5,7 +5,9 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../core/models/timeline_item.dart';
 import '../i18n/tool_names.dart';
+import '../state/api_client_provider.dart';
 import '../state/language_provider.dart';
+import '../state/project_provider.dart';
 import '../state/tts_provider.dart';
 import '../syntax.dart';
 import '../theme.dart';
@@ -83,9 +85,9 @@ class TimelineTile extends StatelessWidget {
           riskLevel: riskLevel,
           result: result,
         ),
-      MediaItem(:final path, :final mediaKind) => _LogLine(
-        text: '${mediaKind == "image" ? "🖼️" : "🎵"} $path',
-        isError: false,
+      MediaItem(:final path, :final mediaKind) => _MediaTile(
+        path: path,
+        mediaKind: mediaKind,
       ),
     };
   }
@@ -703,6 +705,44 @@ class _ThinkingTileState extends ConsumerState<_ThinkingTile> {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Media produced by a tool (a generated image, a screenshot). Images render
+/// inline from the server's own workspace-file route — the one the web client
+/// fetches — with the bearer token in the headers when the server requires
+/// login; audio keeps its path line, since playing it would need a new
+/// dependency. Any failed fetch (missing file, stale path after a server
+/// restart, no connection) falls back to that same line instead of a red
+/// error box.
+class _MediaTile extends ConsumerWidget {
+  final String path;
+  final String mediaKind;
+  const _MediaTile({required this.path, required this.mediaKind});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final line = '${mediaKind == "image" ? "🖼️" : "🎵"} $path';
+    if (mediaKind != "image") return _LogLine(text: line, isError: false);
+    final client = ref.watch(apiClientProvider);
+    if (client == null) return _LogLine(text: line, isError: false);
+    final uri = client.workspaceFileUri(
+      path,
+      projectId: ref.watch(currentProjectProvider),
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: FinanfaSpace.xs),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(FinanfaRadii.md),
+        child: Image.network(
+          uri.toString(),
+          headers: client.authHeaders,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stack) =>
+              _LogLine(text: line, isError: false),
+        ),
+      ),
     );
   }
 }
