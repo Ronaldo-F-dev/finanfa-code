@@ -1094,6 +1094,14 @@ details.tool-call-details > summary.tool-call::marker {
   color: var(--danger);
   border-color: var(--danger);
 }
+/* Reasoning block — deliberately reuses the tool-call block's own classes
+   (see ChatMessage.tsx); only these two rules are thinking-specific. */
+.tool-call-thinking > summary.tool-call {
+  border-style: dashed;
+}
+.tool-call-thinking .tool-call-name {
+  font-style: italic;
+}
 .log-busy {
   display: flex;
   align-items: center;

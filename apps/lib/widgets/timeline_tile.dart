@@ -64,6 +64,10 @@ class TimelineTile extends StatelessWidget {
         text: text,
         isError: variant == LogVariant.error,
       ),
+      ThinkingItem(:final text, :final streaming) => _ThinkingTile(
+        text: text,
+        streaming: streaming,
+      ),
       ToolCallItem(
         :final toolName,
         :final description,
@@ -583,6 +587,91 @@ class _ToolCallTileState extends State<_ToolCallTile> {
                 style: mono?.copyWith(
                   fontSize: 12,
                   color: result.isError ? c.danger : c.textMuted,
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
+/// The model's reasoning, streamed before the reply — the app equivalent of
+/// the web client's collapsed "Reasoning" block and the CLI's dim italic
+/// text. Collapsed by default; a running block shows a muted "…", and a tap
+/// reveals the reasoning itself.
+class _ThinkingTile extends ConsumerStatefulWidget {
+  final String text;
+  final bool streaming;
+  const _ThinkingTile({required this.text, required this.streaming});
+
+  @override
+  ConsumerState<_ThinkingTile> createState() => _ThinkingTileState();
+}
+
+class _ThinkingTileState extends ConsumerState<_ThinkingTile> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = context.colors;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        GestureDetector(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Container(
+            margin: const EdgeInsets.symmetric(vertical: FinanfaSpace.xs),
+            padding: const EdgeInsets.symmetric(
+              horizontal: FinanfaSpace.md,
+              vertical: FinanfaSpace.sm + 2,
+            ),
+            decoration: BoxDecoration(
+              color: c.bgElevated,
+              borderRadius: BorderRadius.circular(FinanfaRadii.md),
+              border: Border.all(color: c.border),
+            ),
+            child: Row(
+              children: [
+                Icon(Icons.auto_awesome, size: 14, color: c.accent),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    t(ref, 'thinking.title'),
+                    style: Theme.of(
+                      context,
+                    ).textTheme.labelMedium?.copyWith(fontSize: 13),
+                  ),
+                ),
+                if (widget.streaming)
+                  Text('…', style: context.textStyles.caption)
+                else
+                  Icon(
+                    _expanded ? Icons.expand_less : Icons.expand_more,
+                    size: 16,
+                    color: c.textMuted,
+                  ),
+              ],
+            ),
+          ),
+        ),
+        if (_expanded)
+          Container(
+            margin: const EdgeInsets.only(bottom: FinanfaSpace.xs, left: 8),
+            padding: const EdgeInsets.all(FinanfaSpace.sm + 2),
+            constraints: const BoxConstraints(maxHeight: 220),
+            decoration: BoxDecoration(
+              color: c.bgCard,
+              borderRadius: BorderRadius.circular(FinanfaRadii.md),
+              border: Border.all(color: c.border),
+            ),
+            child: SingleChildScrollView(
+              child: SelectableText(
+                widget.text.isEmpty ? '…' : widget.text,
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
+                  fontSize: 12,
+                  fontStyle: FontStyle.italic,
+                  color: c.textMuted,
                 ),
               ),
             ),

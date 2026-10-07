@@ -7,6 +7,7 @@ describe("createVscodeUiAdapter", () => {
     const { adapter } = createVscodeUiAdapter(post);
 
     adapter.writeAssistantDelta("hello");
+    adapter.writeThinkingDelta?.("let me think");
     adapter.endAssistantMessage();
     adapter.writeBanner("1.0.0");
     adapter.writeSystem("sys");
@@ -19,6 +20,7 @@ describe("createVscodeUiAdapter", () => {
     adapter.setBusy(true, "thinking");
 
     expect(post).toHaveBeenCalledWith({ type: "assistant_delta", text: "hello" });
+    expect(post).toHaveBeenCalledWith({ type: "thinking_delta", text: "let me think" });
     expect(post).toHaveBeenCalledWith({ type: "assistant_end" });
     expect(post).toHaveBeenCalledWith({ type: "banner", version: "1.0.0" });
     expect(post).toHaveBeenCalledWith({ type: "system", text: "sys" });

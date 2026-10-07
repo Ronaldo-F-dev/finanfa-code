@@ -26,7 +26,20 @@ export const readFileTool: ToolDefinition<ReadFileInput> = {
   describeCall: (input) => `read ${input.path}`,
   async handler(input, ctx) {
     const filePath = resolveAllowedPath(ctx.cwd, input.path);
-    const raw = await readFile(filePath, "utf-8");
+    let raw: string;
+    try {
+      raw = await readFile(filePath, "utf-8");
+    } catch (err) {
+      if ((err as NodeJS.ErrnoException).code !== "ENOENT") throw err;
+      // A small model sometimes passes a page title or a URL here. Say what read_file is for and what to use instead,
+      // rather than the bare "ENOENT" it cannot act on.
+      return {
+        content:
+          `No such file: ${input.path}. read_file reads files of the project: use glob to find a file by name, and ` +
+          "web_fetch (with an https:// address) to read a web page.",
+        isError: true,
+      };
+    }
     const lines = raw.split("\n");
 
     const start = Math.max(0, (input.offset ?? 1) - 1);
