@@ -36,6 +36,18 @@ class FinanfaApiClient {
       Uri.parse('${connection.normalizedBaseUrl}$path')
           .replace(queryParameters: query?.isEmpty == true ? null : query);
 
+  /// The URL a native widget (an inline image) can fetch a workspace file
+  /// from — the same route the web client builds — plus [authHeaders], which
+  /// it must send: this client's own helpers are private, and
+  /// `Image.network` needs both.
+  Uri workspaceFileUri(String path, {String? projectId}) =>
+      _uri('/api/workspace-file', {
+        'path': path,
+        'project': ?projectId,
+      });
+
+  Map<String, String> get authHeaders => _headers;
+
   Future<T> _get<T>(
     String path,
     T Function(dynamic json) parse, {
