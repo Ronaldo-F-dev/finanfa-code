@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { useLanguage } from "../i18n/LanguageContext";
-import { Icon } from "./Icon";
+import { Icon, type IconName } from "./Icon";
 
 interface ConfigShape {
   provider?: string;
@@ -15,6 +15,20 @@ interface ConfigShape {
 }
 
 type Theme = "dark" | "light";
+type Section = "general" | "models" | "vision";
+
+const SECTIONS: { id: Section; labelKey: string; icon: IconName }[] = [
+  { id: "general", labelKey: "settings.nav.general", icon: "settings" },
+  { id: "models", labelKey: "settings.nav.models", icon: "models" },
+  { id: "vision", labelKey: "settings.nav.vision", icon: "image" },
+];
+
+const VISION_FIELDS = [
+  { key: "visionProvider", labelKey: "settings.vision.provider" },
+  { key: "visionModel", labelKey: "settings.vision.model" },
+  { key: "visionBaseUrl", labelKey: "settings.vision.baseUrl" },
+  { key: "visionApiKey", labelKey: "settings.vision.apiKey" },
+] as const;
 
 // Known openai-compatible provider presets — DeepSeek's own pricing page
 // gives its OpenAI-format base URL as exactly "https://api.deepseek.com"
@@ -57,7 +71,7 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
   const [modelDraft, setModelDraft] = useState("");
   const [otherKeyDraft, setOtherKeyDraft] = useState("");
   const [apiKeysDraft, setApiKeysDraft] = useState("");
-  const [showVision, setShowVision] = useState(false);
+  const [section, setSection] = useState<Section>("general");
   const [visionDraft, setVisionDraft] = useState<Partial<ConfigShape>>({});
   const [status, setStatus] = useState<string | null>(null);
   const [theme, setTheme] = useState<Theme>(getStoredTheme());
@@ -135,6 +149,8 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
     applyTheme(next);
   }
 
+  const claudeConfigured = Boolean(saved.anthropicApiKey || (saved.provider === "anthropic" && saved.apiKey));
+
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div className="modal settings-modal" onClick={(e) => e.stopPropagation()}>
@@ -148,161 +164,181 @@ export function SettingsModal({ onClose }: { onClose: () => void }) {
           </button>
         </div>
 
-        <div className="side-panel-title settings-first-title">{t("settings.appearance")}</div>
-        <div className="theme-switch">
-          <button className={`btn btn-toggle ${theme === "dark" ? "btn-toggle-on" : ""}`} onClick={() => handleThemeChange("dark")}>
-            {t("settings.dark")}
-          </button>
-          <button className={`btn btn-toggle ${theme === "light" ? "btn-toggle-on" : ""}`} onClick={() => handleThemeChange("light")}>
-            {t("settings.light")}
-          </button>
-        </div>
-
-        <div className="side-panel-title">{t("settings.language")}</div>
-        <div className="theme-switch">
-          <button className={`btn btn-toggle ${language === "en" ? "btn-toggle-on" : ""}`} onClick={() => setLanguage("en")}>
-            English
-          </button>
-          <button className={`btn btn-toggle ${language === "fr" ? "btn-toggle-on" : ""}`} onClick={() => setLanguage("fr")}>
-            Français
-          </button>
-        </div>
-
-        <div className="side-panel-title">{t("settings.modelsAndTokens")}</div>
-        <p className="settings-hint">{t("settings.modelsHint")}</p>
-
-        <div className="provider-card">
-          <div className="provider-card-title">
-            {t("settings.anthropicTitle")}
-            {/* apiKey is a single field shared with the "Other provider" card below, scoped by
-                which one `provider` currently names — only anthropicApiKey unambiguously belongs
-                here, so a saved apiKey only counts when provider is actually "anthropic" too
-                (otherwise it's the other card's key and showing "configured" here would be a lie). */}
-            {(saved.anthropicApiKey || (saved.provider === "anthropic" && saved.apiKey)) && (
-              <span className="provider-badge">{t("settings.configured")}</span>
-            )}
-          </div>
-          <p className="settings-hint">
-            {saved.anthropicApiKey ? t("settings.anthropicKeySaved", { key: saved.anthropicApiKey }) : t("settings.anthropicNoKey")}
-          </p>
-          <div className="provider-card-row">
-            <input
-              type="password"
-              placeholder="sk-ant-…"
-              value={anthropicKeyDraft}
-              onChange={(e) => setAnthropicKeyDraft(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && saveAnthropic()}
-            />
-            <button className="btn btn-allow" onClick={saveAnthropic} disabled={!anthropicKeyDraft.trim()}>
-              {t("settings.save")}
-            </button>
-          </div>
-        </div>
-
-        <div className="provider-card">
-          <div className="provider-card-title">
-            {t("settings.otherProviderTitle")} <span className="provider-card-sub">{t("settings.otherProviderSub")}</span>
-            {saved.baseUrl && <span className="provider-badge">{t("settings.configured")}</span>}
-          </div>
-          <div className="provider-preset-row">
-            <span>{t("settings.quickSetup")}</span>
-            {Object.entries(OPENAI_COMPATIBLE_PRESETS).map(([key, preset]) => (
+        <div className="settings-shell">
+          <nav className="settings-nav" aria-label={t("settings.title")}>
+            {SECTIONS.map((item) => (
               <button
-                key={key}
+                key={item.id}
                 type="button"
-                className="btn btn-ghost"
-                onClick={() => {
-                  setBaseUrlDraft(preset.baseUrl);
-                  setModelDraft(preset.models[0] ?? "");
-                }}
+                className={`settings-nav-item ${section === item.id ? "settings-nav-item-on" : ""}`}
+                onClick={() => setSection(item.id)}
               >
-                {key === "deepseek" ? "DeepSeek" : key}
+                <Icon name={item.icon} size={16} />
+                {t(item.labelKey)}
               </button>
             ))}
-          </div>
-          <label className="settings-field">
-            <span>{t("settings.baseUrl")}</span>
-            <input
-              type="text"
-              placeholder={saved.baseUrl ?? "https://…/v1"}
-              value={baseUrlDraft}
-              onChange={(e) => setBaseUrlDraft(e.target.value)}
-            />
-          </label>
-          <label className="settings-field">
-            <span>{t("settings.model")}</span>
-            <input
-              type="text"
-              list="openai-compatible-model-suggestions"
-              placeholder={saved.model ?? "e.g. llama3.1"}
-              value={modelDraft}
-              onChange={(e) => setModelDraft(e.target.value)}
-            />
-            <datalist id="openai-compatible-model-suggestions">
-              {Object.values(OPENAI_COMPATIBLE_PRESETS)
-                .flatMap((p) => p.models)
-                .map((m) => (
-                  <option key={m} value={m} />
+          </nav>
+
+          <div className="settings-pane">
+            {section === "general" && (
+              <>
+                <div className="settings-row">
+                  <div className="settings-row-text">
+                    <div className="settings-row-title">{t("settings.appearance")}</div>
+                    <div className="settings-row-sub">{t("settings.appearanceSub")}</div>
+                  </div>
+                  <div className="segmented" role="group">
+                    <button type="button" className={`segmented-item ${theme === "dark" ? "segmented-item-on" : ""}`} onClick={() => handleThemeChange("dark")}>
+                      {t("settings.dark")}
+                    </button>
+                    <button type="button" className={`segmented-item ${theme === "light" ? "segmented-item-on" : ""}`} onClick={() => handleThemeChange("light")}>
+                      {t("settings.light")}
+                    </button>
+                  </div>
+                </div>
+                <div className="settings-row">
+                  <div className="settings-row-text">
+                    <div className="settings-row-title">{t("settings.language")}</div>
+                    <div className="settings-row-sub">{t("settings.languageSub")}</div>
+                  </div>
+                  <div className="segmented" role="group">
+                    <button type="button" className={`segmented-item ${language === "en" ? "segmented-item-on" : ""}`} onClick={() => setLanguage("en")}>
+                      English
+                    </button>
+                    <button type="button" className={`segmented-item ${language === "fr" ? "segmented-item-on" : ""}`} onClick={() => setLanguage("fr")}>
+                      Français
+                    </button>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {section === "models" && (
+              <>
+                <p className="settings-hint">{t("settings.modelsHint")}</p>
+
+                <div className="provider-card">
+                  <div className="provider-card-title">
+                    {t("settings.anthropicTitle")}
+                    {/* apiKey is a single field shared with the "Other provider" card below, scoped by
+                        which one `provider` currently names: only anthropicApiKey unambiguously belongs
+                        here, so a saved apiKey only counts when provider is actually "anthropic" too
+                        (otherwise it's the other card's key and showing "configured" here would be a lie). */}
+                    {claudeConfigured && <span className="provider-badge">{t("settings.configured")}</span>}
+                  </div>
+                  <p className="settings-hint">
+                    {saved.anthropicApiKey ? t("settings.anthropicKeySaved", { key: saved.anthropicApiKey }) : t("settings.anthropicNoKey")}
+                  </p>
+                  <div className="provider-card-row">
+                    <input
+                      type="password"
+                      placeholder="sk-ant-…"
+                      value={anthropicKeyDraft}
+                      onChange={(e) => setAnthropicKeyDraft(e.target.value)}
+                      onKeyDown={(e) => e.key === "Enter" && saveAnthropic()}
+                    />
+                    <button className="btn btn-allow" onClick={saveAnthropic} disabled={!anthropicKeyDraft.trim()}>
+                      {t("settings.save")}
+                    </button>
+                  </div>
+                </div>
+
+                <div className="provider-card">
+                  <div className="provider-card-title">
+                    {t("settings.otherProviderTitle")} <span className="provider-card-sub">{t("settings.otherProviderSub")}</span>
+                    {saved.baseUrl && <span className="provider-badge">{t("settings.configured")}</span>}
+                  </div>
+                  <div className="provider-preset-row">
+                    <span>{t("settings.quickSetup")}</span>
+                    {Object.entries(OPENAI_COMPATIBLE_PRESETS).map(([key, preset]) => (
+                      <button
+                        key={key}
+                        type="button"
+                        className="btn btn-ghost"
+                        onClick={() => {
+                          setBaseUrlDraft(preset.baseUrl);
+                          setModelDraft(preset.models[0] ?? "");
+                        }}
+                      >
+                        {key === "deepseek" ? "DeepSeek" : key}
+                      </button>
+                    ))}
+                  </div>
+                  <label className="settings-field">
+                    <span>{t("settings.baseUrl")}</span>
+                    <input type="text" placeholder={saved.baseUrl ?? "https://…/v1"} value={baseUrlDraft} onChange={(e) => setBaseUrlDraft(e.target.value)} />
+                  </label>
+                  <div className="settings-field-row">
+                    <label className="settings-field">
+                      <span>{t("settings.model")}</span>
+                      <input
+                        type="text"
+                        list="openai-compatible-model-suggestions"
+                        placeholder={saved.model ?? "e.g. llama3.1"}
+                        value={modelDraft}
+                        onChange={(e) => setModelDraft(e.target.value)}
+                      />
+                      <datalist id="openai-compatible-model-suggestions">
+                        {Object.values(OPENAI_COMPATIBLE_PRESETS)
+                          .flatMap((p) => p.models)
+                          .map((m) => (
+                            <option key={m} value={m} />
+                          ))}
+                      </datalist>
+                    </label>
+                    <label className="settings-field">
+                      <span>{t("settings.apiKeyOptional")}</span>
+                      <input
+                        type="password"
+                        placeholder={saved.apiKey ? t("settings.apiKeySaved", { key: saved.apiKey }) : t("settings.apiKeyBlank")}
+                        value={otherKeyDraft}
+                        onChange={(e) => setOtherKeyDraft(e.target.value)}
+                      />
+                    </label>
+                  </div>
+                  <details className="settings-advanced">
+                    <summary>
+                      {t("settings.multipleApiKeys")}{" "}
+                      {savedApiKeys.length > 0 && <span className="provider-badge">{t("settings.savedCount", { count: savedApiKeys.length })}</span>}
+                    </summary>
+                    <p className="settings-hint">{t("settings.multipleKeysHint")}</p>
+                    {savedApiKeys.length > 0 && <p className="settings-hint">{t("settings.savedKeysList", { keys: savedApiKeys.join(", ") })}</p>}
+                    <textarea
+                      className="instructions-textarea"
+                      placeholder={"key1\nkey2\nkey3"}
+                      value={apiKeysDraft}
+                      onChange={(e) => setApiKeysDraft(e.target.value)}
+                    />
+                  </details>
+                  <button className="btn btn-allow" onClick={saveOther}>
+                    {t("settings.save")}
+                  </button>
+                </div>
+              </>
+            )}
+
+            {section === "vision" && (
+              <div className="provider-card">
+                <p className="settings-hint">{t("settings.visionHint")}</p>
+                {VISION_FIELDS.map(({ key, labelKey }) => (
+                  <label className="settings-field" key={key}>
+                    <span>{t(labelKey)}</span>
+                    <input
+                      type={key === "visionApiKey" ? "password" : "text"}
+                      value={visionDraft[key] ?? ""}
+                      placeholder={key === "visionApiKey" && saved[key] ? t("settings.apiKeySaved", { key: saved[key]! }) : (saved[key] ?? "")}
+                      onChange={(e) => setVisionDraft((d) => ({ ...d, [key]: e.target.value }))}
+                    />
+                  </label>
                 ))}
-            </datalist>
-          </label>
-          <label className="settings-field">
-            <span>{t("settings.apiKeyOptional")}</span>
-            <input
-              type="password"
-              placeholder={saved.apiKey ? t("settings.apiKeySaved", { key: saved.apiKey }) : t("settings.apiKeyBlank")}
-              value={otherKeyDraft}
-              onChange={(e) => setOtherKeyDraft(e.target.value)}
-            />
-          </label>
-          <label className="settings-field">
-            <span>
-              {t("settings.multipleApiKeys")}{" "}
-              {savedApiKeys.length > 0 && <span className="provider-badge">{t("settings.savedCount", { count: savedApiKeys.length })}</span>}
-            </span>
-            <p className="settings-hint">{t("settings.multipleKeysHint")}</p>
-            {savedApiKeys.length > 0 && <p className="settings-hint">{t("settings.savedKeysList", { keys: savedApiKeys.join(", ") })}</p>}
-            <textarea
-              className="instructions-textarea"
-              placeholder={"key1\nkey2\nkey3"}
-              value={apiKeysDraft}
-              onChange={(e) => setApiKeysDraft(e.target.value)}
-            />
-          </label>
-          <button className="btn btn-allow" onClick={saveOther}>
-            {t("settings.save")}
-          </button>
-        </div>
+                <button className="btn btn-allow" onClick={saveVision}>
+                  {t("settings.saveVisionRouting")}
+                </button>
+              </div>
+            )}
 
-        <button className="settings-toggle" onClick={() => setShowVision((v) => !v)}>
-          {showVision ? t("settings.hideVision") : t("settings.showVision")}
-        </button>
-        {showVision && (
-          <div className="provider-card">
-            <p className="settings-hint">{t("settings.visionHint")}</p>
-            {(["visionProvider", "visionModel", "visionBaseUrl", "visionApiKey"] as const).map((key) => (
-              <label className="settings-field" key={key}>
-                <span>{key.replace("vision", "Vision ")}</span>
-                <input
-                  type={key === "visionApiKey" ? "password" : "text"}
-                  value={visionDraft[key] ?? ""}
-                  placeholder={key === "visionApiKey" && saved[key] ? t("settings.apiKeySaved", { key: saved[key]! }) : (saved[key] ?? "")}
-                  onChange={(e) => setVisionDraft((d) => ({ ...d, [key]: e.target.value }))}
-                />
-              </label>
-            ))}
-            <button className="btn btn-allow" onClick={saveVision}>
-              {t("settings.saveVisionRouting")}
-            </button>
+            {status && <div className="settings-status">{status}</div>}
           </div>
-        )}
-
-        {status && <div className="settings-status">{status}</div>}
-
-        <div className="modal-actions">
-          <button className="btn btn-ghost" onClick={onClose}>
-            {t("settings.close")}
-          </button>
         </div>
       </div>
     </div>
