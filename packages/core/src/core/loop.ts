@@ -19,7 +19,7 @@ import { withSpan } from "../observability/tracing.js";
 import { CALL_TOOL_NAME, SEARCH_TOOLS_NAME, DESCRIBE_TOOL_NAME, createToolSearchMetaTools, createCallToolMetaTool } from "./tool-search.js";
 import { LOCAL_MODEL_LEAN_EXCLUDED_TOOLS } from "./local-model-lean.js";
 import { MINIMAL_TOOL_SET } from "./effort-tiers.js";
-import { effortPromptFor, thinkingBudgetFor } from "./effort-level.js";
+import { DEFAULT_EFFORT_LEVEL, effortPromptFor, thinkingBudgetFor } from "./effort-level.js";
 import { OpenAiCompatibleProvider, listAvailableModels } from "../providers/openai-compatible-provider.js";
 
 /**
@@ -499,9 +499,19 @@ function consumeImageMessage(session: AgentSession, note: string): void {
  */
 function describeError(err: unknown): string {
   if (!(err instanceof Error)) return String(err);
-  const cause = err.cause instanceof Error ? err.cause.message : undefined;
+  const cause = err.cause instanceof Error ? (err.cause.message || causeCode(err.cause)) : undefined;
   return cause ? `${err.message}: ${cause}` : err.message;
 }
+
+/** A connection that fails on both IPv4 and IPv6 comes back as an AggregateError with an empty message: the useful part is the code (ECONNREFUSED...) on it or on its first member. */
+function causeCode(cause: Error): string | undefined {
+  const own = (cause as NodeJS.ErrnoException).code;
+  if (own) return own;
+  const first = (cause as AggregateError).errors?.[0] as NodeJS.ErrnoException | undefined;
+  return first?.code ?? first?.message;
+}
+
+const CONNECTION_REFUSED_PATTERN = /ECONNREFUSED|fetch failed/i;
 
 // compactForProvider only ever shrinks tool results — a long conversation
 // dominated by assistant/user text instead (or one with more large tool
@@ -974,8 +984,8 @@ export async function runTurn(
           onTextDelta: (text) => ui.writeAssistantDelta(text),
           signal: streamController.signal,
           maxTokens: session.maxTokens,
-          // An explicit effort level decides the thinking budget; without one the configured budget (if any) applies.
-          thinkingBudgetTokens: session.effortLevel ? thinkingBudgetFor(session.effortLevel) : session.thinkingBudgetTokens,
+          // The effort level decides the thinking budget (medium keeps the configured one, if any).
+          thinkingBudgetTokens: thinkingBudgetFor(session.effortLevel ?? DEFAULT_EFFORT_LEVEL, session.thinkingBudgetTokens),
           reasoningEffort: session.effortLevel,
           onThinkingDelta: (text) => ui.writeThinkingDelta?.(text),
           onToolCallStart: (call) => ui.writeToolCallStarting?.(call),
@@ -1050,6 +1060,10 @@ export async function runTurn(
               "actually started (Ollama defaults to 11434, LM Studio to 1234, an MLX/vLLM server to whatever " +
               "you passed --port) and that the model name is exactly what that server calls it. Original " +
               `error: ${message})`;
+      } else if (CONNECTION_REFUSED_PATTERN.test(message) && active.provider instanceof OpenAiCompatibleProvider) {
+        displayMessage =
+          `(the model call failed: nothing answers at ${active.provider.baseUrl}. If ${active.model} is a local model, ` +
+          `its server is not running: start it, then send your message again. Original error: ${message})`;
       } else {
         displayMessage = `(the model call failed: ${message})`;
       }
