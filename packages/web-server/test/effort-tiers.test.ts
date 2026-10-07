@@ -235,12 +235,13 @@ describe("web-server set_effort (real subprocess, real Ollama server when presen
   it("effort level: applies to the current model and changes neither the model nor the tools", async () => {
     const { ws, events } = await connect(port);
     const first = await waitFor(events, (e) => e.type === "session_info");
+    expect(first.effortLevel).toBe("medium"); // the default level
     ws.send(JSON.stringify({ type: "set_effort_level", level: "high" }));
     const high = await waitFor(events, (e) => e.type === "session_info" && e.effortLevel === "high");
     expect(high.model).toBe(first.model);
     expect(high.effort).toBeUndefined();
     ws.send(JSON.stringify({ type: "set_effort_level", level: null }));
-    const cleared = await waitFor(events, (e) => e.type === "session_info" && e.effortLevel === undefined && e !== first && e !== high);
+    const cleared = await waitFor(events, (e) => e.type === "session_info" && e.effortLevel === "medium" && e !== first);
     expect(cleared.model).toBe(first.model);
     expect(events.some((e) => e.type === "effort_needs_download" || e.type === "model_unavailable")).toBe(false);
     ws.close();
