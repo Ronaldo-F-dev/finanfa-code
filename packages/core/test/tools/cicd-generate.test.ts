@@ -2,7 +2,7 @@ import { describe, expect, it, beforeEach, afterEach } from "vitest";
 import { mkdtemp, rm, mkdir, writeFile, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { generateGithubActionsWorkflowTool, generateGitlabCiConfigTool } from "../../src/tools/builtin/cicd-generate.js";
 
 describe("generate_github_actions_workflow / generate_gitlab_ci_config (pure template generation)", () => {
