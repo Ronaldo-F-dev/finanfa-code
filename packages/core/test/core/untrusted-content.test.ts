@@ -26,3 +26,15 @@ describe("wrapUntrustedContent", () => {
     expect(() => wrapped).not.toThrow();
   });
 });
+
+import { summarizeUntrustedContent } from "../../src/core/untrusted-content.js";
+
+describe("summarizeUntrustedContent", () => {
+  it("reduces wrapped content to its source and size", () => {
+    const wrapped = wrapUntrustedContent("https://example.com/a", "page text");
+    expect(summarizeUntrustedContent(wrapped)).toBe(`(content from https://example.com/a, ${wrapped.length} characters)`);
+  });
+  it("is undefined for anything that is not wrapped", () => {
+    expect(summarizeUntrustedContent("plain output")).toBeUndefined();
+  });
+});

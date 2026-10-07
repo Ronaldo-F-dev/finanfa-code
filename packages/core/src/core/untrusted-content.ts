@@ -18,3 +18,16 @@ export function wrapUntrustedContent(sourceLabel: string, content: string): stri
     "</untrusted-external-content>"
   );
 }
+
+/** A one-line stand-in for wrapped external content, for places that show it to a person: "(page content from <source>, 12,345 characters)". Undefined when the content is not wrapped. */
+export function summarizeUntrustedContent(content: string): string | undefined {
+  const match = /^<untrusted-external-content source=("(?:[^"\\]|\\.)*")>/.exec(content.trimStart());
+  if (!match) return undefined;
+  let source = match[1]!;
+  try {
+    source = JSON.parse(source) as string;
+  } catch {
+    // keep the raw label
+  }
+  return `(content from ${source}, ${content.length.toLocaleString("en-US")} characters)`;
+}
