@@ -106,7 +106,7 @@ export function createToolSearchMetaTools(getAvailableTools: () => ToolDefinitio
   const searchTools: ToolDefinition<{ query: string; limit?: number }> = {
     name: SEARCH_TOOLS_NAME,
     description:
-      "Find which of this project's tools can do what you need — most tools are NOT sent to you directly " +
+      "Find which of this project's tools can do what you need, most tools are NOT sent to you directly " +
       "(there are too many to list every turn), so start here instead of guessing a name. Returns up to " +
       `${DEFAULT_SEARCH_LIMIT} matching tool names with a one-line description, ranked by relevance. Follow ` +
       `up with ${DESCRIBE_TOOL_NAME} for a match's full input schema, then ${CALL_TOOL_NAME} to actually run it.`,
@@ -122,7 +122,7 @@ export function createToolSearchMetaTools(getAvailableTools: () => ToolDefinitio
     describeCall: (input) => `search tools matching "${input.query}"`,
     async handler(input) {
       const hits = rankToolsByQuery(getAvailableTools(), input.query, input.limit ?? DEFAULT_SEARCH_LIMIT);
-      if (hits.length === 0) return { content: `No tool matched "${input.query}" — try broader or different terms.`, isError: false };
+      if (hits.length === 0) return { content: `No tool matched "${input.query}", try broader or different terms.`, isError: false };
       return { content: hits.map((h) => `- ${h.tool.name}: ${h.tool.description}`).join("\n"), isError: false };
     },
   };
@@ -135,7 +135,7 @@ export function createToolSearchMetaTools(getAvailableTools: () => ToolDefinitio
     describeCall: (input) => `describe tool "${input.name}"`,
     async handler(input) {
       const tool = getAvailableTools().find((t) => t.name === input.name);
-      if (!tool) return { content: `No tool named "${input.name}" available right now — use ${SEARCH_TOOLS_NAME} to find the right name.`, isError: true };
+      if (!tool) return { content: `No tool named "${input.name}" available right now, use ${SEARCH_TOOLS_NAME} to find the right name.`, isError: true };
       return {
         content: JSON.stringify({ name: tool.name, description: tool.description, riskLevel: tool.riskLevel, inputSchema: tool.inputSchema }, null, 2),
         isError: false,
@@ -162,7 +162,7 @@ export function createCallToolMetaTool(): ToolDefinition<{ name: string; input?:
     },
     describeCall: (input) => `call tool "${input.name}"`,
     async handler() {
-      throw new Error(`${CALL_TOOL_NAME} must be intercepted by the agent loop before its handler ever runs — see toolsForProvider/runOneToolCall in loop.ts.`);
+      throw new Error(`${CALL_TOOL_NAME} must be intercepted by the agent loop before its handler ever runs, see toolsForProvider/runOneToolCall in loop.ts.`);
     },
   };
 }

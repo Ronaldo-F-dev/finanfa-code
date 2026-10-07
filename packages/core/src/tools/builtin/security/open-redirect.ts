@@ -75,7 +75,7 @@ async function testParam(target: URL, paramName: string): Promise<Finding | unde
         description: `Setting '${paramName}' to an external URL causes the server to issue a redirect there instead of validating the destination stays on-site.`,
         evidence: `GET ${url} -> Location: ${location}`,
         impact:
-          "An attacker can craft a link that appears to point at this trusted domain but actually forwards the victim to an attacker-controlled site — commonly used for phishing, OAuth token theft via a manipulated redirect_uri, or to lend credibility to a malicious download.",
+          "An attacker can craft a link that appears to point at this trusted domain but actually forwards the victim to an attacker-controlled site, commonly used for phishing, OAuth token theft via a manipulated redirect_uri, or to lend credibility to a malicious download.",
         remediation:
           "Validate redirect destinations against an allow-list of known-safe, same-origin paths instead of forwarding to any URL supplied in a parameter. If external redirects are required, use an indirection token mapped server-side to the real destination rather than accepting a raw URL.",
         affectedEndpoint: url,
@@ -126,7 +126,7 @@ export const securityScanOpenRedirectTool: ToolDefinition<SecurityScanOpenRedire
   name: "security_scan_open_redirect",
   description:
     "Security tool. Tests query parameters on a URL (ones named like a redirect target, or whose value is " +
-    "already a URL/path) for open-redirect behavior — injects an external canary URL and only flags it when " +
+    "already a URL/path) for open-redirect behavior, injects an external canary URL and only flags it when " +
     "the server actually issues a 3xx redirect there (not merely reflecting the payload in the body). GET-only, " +
     "safe to run. A port of the user's own cyberlens scanner's open_redirect check, scoped to the given URL's " +
     "own query string (no site crawler exists in this project to discover more). " +

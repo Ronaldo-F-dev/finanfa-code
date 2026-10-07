@@ -118,8 +118,8 @@ export function createSendTelegramMessageTool(config: TelegramConfig | undefined
     name: "send_telegram_message",
     description:
       "Send a real message to a Telegram chat via the Bot API (sendMessage). Requires TELEGRAM_BOT_TOKEN to be " +
-      "configured as an environment variable — this tool never takes credentials as input. IMPORTANT: this " +
-      "posts a real, visible message to a real chat — confirm the chat/content with the user before calling " +
+      "configured as an environment variable, this tool never takes credentials as input. IMPORTANT: this " +
+      "posts a real, visible message to a real chat, confirm the chat/content with the user before calling " +
       "this unless they've explicitly asked for this exact message.",
     riskLevel: "ask",
     inputSchema: {
@@ -133,7 +133,7 @@ export function createSendTelegramMessageTool(config: TelegramConfig | undefined
     describeCall: (input) => `send Telegram message to ${input.chatId}: "${input.text.slice(0, 60)}"`,
     async handler(input) {
       if (!config) {
-        return { content: "Telegram is not configured — set TELEGRAM_BOT_TOKEN as an environment variable to enable send_telegram_message.", isError: true };
+        return { content: "Telegram is not configured, set TELEGRAM_BOT_TOKEN as an environment variable to enable send_telegram_message.", isError: true };
       }
       const result = await postTelegramMessage(config, input, apiBaseUrl);
       if (!result.ok) {

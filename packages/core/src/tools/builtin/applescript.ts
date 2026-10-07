@@ -29,10 +29,10 @@ export function createRunAppleScriptTool(): ToolDefinition<RunAppleScriptInput> 
   return {
     name: "run_applescript",
     description:
-      "Run a real AppleScript via osascript (macOS only) — drives other applications directly: Finder, Mail, " +
+      "Run a real AppleScript via osascript (macOS only), drives other applications directly: Finder, Mail, " +
       "Music, System Events (cross-app UI scripting: clicking a button, reading a window's contents, sending " +
       "keystrokes to whatever app is frontmost), or any app exposing an AppleScript dictionary. " +
-      "IMPORTANT: this controls real running applications on the user's machine — confirm what it will do " +
+      "IMPORTANT: this controls real running applications on the user's machine, confirm what it will do " +
       "before calling this unless the user has explicitly asked for this exact action.",
     riskLevel: "dangerous",
     inputSchema: {

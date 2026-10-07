@@ -239,7 +239,7 @@ export async function checkMysql(hostname: string, port = 3306): Promise<Finding
             cwe: "CWE-521",
             description: `MySQL on port ${port} (${parsed.version}) accepted the default credential pair '${username}'/'${password || "(empty)"}'.`,
             evidence: `MySQL handshake version: ${parsed.version}; login with ${username}/${password || "(empty)"} succeeded (OK packet returned).`,
-            impact: "Full read/write access to every database on the server — a default-credential MySQL login is equivalent to a full compromise of all data it holds.",
+            impact: "Full read/write access to every database on the server, a default-credential MySQL login is equivalent to a full compromise of all data it holds.",
             remediation: "Set a strong, unique root/admin password immediately, remove default accounts, and restrict network access to trusted internal hosts only.",
             affectedEndpoint: `${hostname}:${port}`,
           }),
@@ -347,7 +347,7 @@ export async function checkPostgresql(hostname: string, port = 5432): Promise<Fi
       cwe: "CWE-521",
       description: `PostgreSQL on port ${port} accepted the default credential pair '${username}'/'${password}'.`,
       evidence: `Login with ${username}/${password} succeeded (AuthenticationOk returned).`,
-      impact: "Full read/write access to every database on the server — a default-credential PostgreSQL login is equivalent to a full compromise of all data it holds.",
+      impact: "Full read/write access to every database on the server, a default-credential PostgreSQL login is equivalent to a full compromise of all data it holds.",
       remediation: "Set a strong, unique password for every role immediately, remove default accounts, and restrict network access to trusted internal hosts only.",
       affectedEndpoint: `${hostname}:${port}`,
     });
@@ -439,15 +439,15 @@ export const securityScanInfraExposureTool: ToolDefinition<SecurityScanInfraExpo
     "their well-known default ports: Elasticsearch, Kibana, Grafana, Prometheus, RabbitMQ Management, Docker " +
     "API, Kubernetes Dashboard, MinIO Console, Jenkins (HTTP fingerprints), plus Redis (unauthenticated PING), " +
     "MySQL and PostgreSQL (completes the real wire-protocol handshake against a short list of well-known " +
-    "DEFAULT credentials only — never brute-forcing/guessing; a finding only fires on confirmed access), and " +
-    "MSSQL (reachability only, via TDS PRELOGIN — a full login needs a TLS negotiation this doesn't attempt). " +
+    "DEFAULT credentials only, never brute-forcing/guessing; a finding only fires on confirmed access), and " +
+    "MSSQL (reachability only, via TDS PRELOGIN, a full login needs a TLS negotiation this doesn't attempt). " +
     "Never probes a different host than the target's own hostname. A faithful port of the user's own cyberlens " +
     "scanner's infra_exposure check. " +
     "IMPORTANT: only scan a target the user owns or has explicit, documented authorization to test.",
   riskLevel: "ask",
   inputSchema: {
     type: "object",
-    properties: { url: { type: "string", description: "Target URL, e.g. https://example.com — its hostname's common infra ports are probed" } },
+    properties: { url: { type: "string", description: "Target URL, e.g. https://example.com, its hostname's common infra ports are probed" } },
     required: ["url"],
   },
   describeCall: (input) => `probe for exposed infrastructure: ${input.url}`,

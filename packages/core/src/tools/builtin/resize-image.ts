@@ -19,9 +19,9 @@ export const resizeImageTool: ToolDefinition<ResizeImageInput> = {
   name: "resize_image",
   description:
     "Resize and/or convert the format of an image (PNG/JPEG/WebP/GIF). Give width, height, or both to resize " +
-    "— with only one, the other scales to preserve aspect ratio. With both and the default fit \"inside\", the " +
+    "- with only one, the other scales to preserve aspect ratio. With both and the default fit \"inside\", the " +
     "image scales to fit within that box without cropping or exceeding it (so the actual output size may " +
-    "differ from what you asked for) — use fit \"cover\" if you specifically want an exact-size crop instead. " +
+    "differ from what you asked for), use fit \"cover\" if you specifically want an exact-size crop instead. " +
     "Give format alone with neither width nor height for a pure format conversion at the original size (e.g. " +
     "PNG to JPEG). Without outputPath, overwrites the original file.",
   riskLevel: "ask",
@@ -35,7 +35,7 @@ export const resizeImageTool: ToolDefinition<ResizeImageInput> = {
       fit: {
         type: "string",
         enum: ["inside", "cover", "contain", "fill"],
-        description: 'How to fit both dimensions when both are given (default "inside" — no cropping)',
+        description: 'How to fit both dimensions when both are given (default "inside", no cropping)',
       },
       format: { type: "string", enum: ["png", "jpeg", "webp", "gif"], description: "Convert to this format" },
     },

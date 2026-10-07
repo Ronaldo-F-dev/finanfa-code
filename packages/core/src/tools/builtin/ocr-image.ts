@@ -56,10 +56,10 @@ interface OcrImageInput {
 export const ocrImageTool: ToolDefinition<OcrImageInput> = {
   name: "ocr_image",
   description:
-    "Extract text from an image (PNG/JPEG/etc.) via Tesseract OCR — for a photo of a document, a screenshot " +
+    "Extract text from an image (PNG/JPEG/etc.) via Tesseract OCR, for a photo of a document, a screenshot " +
     "with text, or a scanned page. For a scanned PDF (no real text layer, so read_document returns nothing " +
     "useful), use convert_pdf_to_image first, then ocr_image on each rendered page. `lang` defaults to " +
-    "\"eng\" and must be an installed Tesseract language pack (e.g. \"fra\" for French) — if it's missing, " +
+    "\"eng\" and must be an installed Tesseract language pack (e.g. \"fra\" for French), if it's missing, " +
     "tesseract reports that clearly rather than silently falling back to English; tell the user which pack to " +
     "install rather than trying to install it yourself.",
   riskLevel: "safe",
@@ -76,8 +76,8 @@ export const ocrImageTool: ToolDefinition<OcrImageInput> = {
     if (!(await commandAvailable("tesseract", ["--version"]))) {
       return {
         content:
-          "tesseract isn't available. Install it — `apt install tesseract-ocr` on Debian/Ubuntu, `brew " +
-          "install tesseract` on macOS — then retry.",
+          "tesseract isn't available. Install it, `apt install tesseract-ocr` on Debian/Ubuntu, `brew " +
+          "install tesseract` on macOS, then retry.",
         isError: true,
       };
     }

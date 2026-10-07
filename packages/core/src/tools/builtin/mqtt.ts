@@ -50,9 +50,9 @@ function connectClient(brokerUrl: string): Promise<mqtt.MqttClient> {
 export const mqttPublishTool: ToolDefinition<MqttPublishInput> = {
   name: "mqtt_publish",
   description:
-    "Publish one message to an MQTT topic (connects, publishes, disconnects — a one-shot call, like " +
+    "Publish one message to an MQTT topic (connects, publishes, disconnects, a one-shot call, like " +
     "mosquitto_pub). IMPORTANT: this sends a real message to a real broker, which may cause a real device to " +
-    "act on it — confirm the broker/topic/message with the user before calling this unless they've explicitly " +
+    "act on it, confirm the broker/topic/message with the user before calling this unless they've explicitly " +
     "asked for this exact publish.",
   riskLevel: "ask",
   inputSchema: {
@@ -98,7 +98,7 @@ export const mqttSubscribeTool: ToolDefinition<MqttSubscribeInput> = {
   name: "mqtt_subscribe",
   description:
     "Subscribe to an MQTT topic (supports wildcards, e.g. 'sensors/+/temperature' or 'sensors/#') and collect " +
-    `whatever messages arrive within timeout_ms (default 5000), then disconnect — a one-shot snapshot, not a ` +
+    `whatever messages arrive within timeout_ms (default 5000), then disconnect, a one-shot snapshot, not a ` +
     "persistent subscription (like `mosquitto_sub -W <seconds>`).",
   riskLevel: "safe",
   inputSchema: {

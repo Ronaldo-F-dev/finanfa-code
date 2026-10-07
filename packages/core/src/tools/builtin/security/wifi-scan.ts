@@ -87,7 +87,7 @@ function parseAirportScan(stdout: string): WifiNetwork[] {
 
 async function scanMacAirport(bin: string): Promise<{ networks: WifiNetwork[]; available: boolean; note: string }> {
   if (!isCommandAvailable(bin)) {
-    return { networks: [], available: false, note: "airport utility not found (Apple removed it from some macOS versions) — falling back to system_profiler for the currently associated network only." };
+    return { networks: [], available: false, note: "airport utility not found (Apple removed it from some macOS versions), falling back to system_profiler for the currently associated network only." };
   }
   const result = await run(bin, ["-s"]);
   if (result.code !== 0) return { networks: [], available: true, note: `airport -s exited with an error: ${result.stderr.trim() || result.code}` };
@@ -341,18 +341,18 @@ export function createSecurityScanWifiTool(options: SecurityScanWifiOptions = {}
     name: "security_scan_wifi",
     description:
       "Wi-Fi reconnaissance: passively lists nearby wireless networks (SSID/BSSID/channel/signal/security type) " +
-      "using each OS's own standard tooling — no special hardware or drivers required. macOS: the `airport -s` " +
+      "using each OS's own standard tooling, no special hardware or drivers required. macOS: the `airport -s` " +
       "utility if still present (Apple has removed it on some macOS versions), falling back to " +
       "`system_profiler SPAirPortDataType` for just the currently-associated network's details when it's gone. " +
       "Linux: `nmcli device wifi list`, falling back to `iwlist scan` (often needs root). Windows: `netsh wlan " +
       "show networks mode=bssid` (best-effort, unverified on real Windows hardware). Flags open/WEP/WPA-only " +
       "networks as findings. " +
       "OUT OF SCOPE, not implemented here: monitor mode, packet injection, deauthentication attacks, WPA " +
-      "handshake capture or offline cracking, and anything requiring a specialized adapter in monitor mode — " +
+      "handshake capture or offline cracking, and anything requiring a specialized adapter in monitor mode, " +
       "those need dedicated hardware/drivers this tool can't assume exist, and several of them are attack " +
       "actions against a network's other clients rather than passive enumeration. " +
       "Alternatively, pass `captureFilePath` to analyze an already-captured classic-pcap file offline (e.g. " +
-      "from tcpdump or security_start_wifi_capture) instead of doing a live scan — parses 802.11 beacon/" +
+      "from tcpdump or security_start_wifi_capture) instead of doing a live scan, parses 802.11 beacon/" +
       "probe-response frames (radiotap-aware) for the same SSID/channel/encryption fields, plus flags hidden " +
       "SSIDs.",
     // Passive scanning only (the radio listens to beacon frames already being

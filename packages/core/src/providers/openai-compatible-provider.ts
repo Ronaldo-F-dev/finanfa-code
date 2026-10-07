@@ -291,7 +291,7 @@ async function attemptStreamChatCompletion(
     let idleTimer: ReturnType<typeof setTimeout>;
     const idleTimeout = new Promise<never>((_, reject) => {
       idleTimer = setTimeout(
-        () => reject(new Error(`No data received for ${idleTimeoutMs}ms — the connection appears to have stalled.`)),
+        () => reject(new Error(`No data received for ${idleTimeoutMs}ms, the connection appears to have stalled.`)),
         idleTimeoutMs,
       );
     });

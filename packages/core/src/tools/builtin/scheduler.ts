@@ -140,7 +140,7 @@ export function createSchedulerTools(deps: SchedulerDeps = {}): ToolDefinition[]
       "minutes). The scheduled run happens non-interactively (any tool call needing approval is auto-denied) " +
       "in the CURRENT project directory, with output appended to .finanfa-code/cron.log. " +
       "IMPORTANT: this modifies the user's real system crontab and creates a genuinely recurring, unattended " +
-      "execution — confirm the schedule and prompt with the user before calling this, and prefer scheduling " +
+      "execution, confirm the schedule and prompt with the user before calling this, and prefer scheduling " +
       "narrow, well-defined prompts (e.g. 'run the test suite and report failures') over open-ended ones for " +
       "an unattended run.",
     riskLevel: "dangerous",

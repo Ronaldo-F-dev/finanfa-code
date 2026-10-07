@@ -61,7 +61,7 @@ export const multiEditFileTool: ToolDefinition<MultiEditFileInput> = {
     "against the result of the previous ones, and either every edit applies cleanly or NONE of them are " +
     "written to disk. Each edit's old_string must match exactly and occur exactly once, unless replace_all is " +
     "set for that edit. Prefer this over several edit_file calls when making multiple related changes to the " +
-    "same file — it's one confirmation instead of several, and never leaves the file half-edited.",
+    "same file, it's one confirmation instead of several, and never leaves the file half-edited.",
   riskLevel: "ask",
   inputSchema: {
     type: "object",

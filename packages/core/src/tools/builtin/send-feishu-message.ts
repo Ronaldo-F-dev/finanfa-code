@@ -66,8 +66,8 @@ export function createSendFeishuMessageTool(config: FeishuConfig | undefined, ap
     name: "send_feishu_message",
     description:
       "Send a real message to a Feishu/Lark chat via the IM API. Requires FEISHU_APP_ID and FEISHU_APP_SECRET " +
-      "as environment variables — this tool never takes credentials as input. IMPORTANT: this posts a real, " +
-      "visible message to a real chat — confirm the chat/content with the user before calling this unless " +
+      "as environment variables, this tool never takes credentials as input. IMPORTANT: this posts a real, " +
+      "visible message to a real chat, confirm the chat/content with the user before calling this unless " +
       "they've explicitly asked for this exact message.",
     riskLevel: "ask",
     inputSchema: {
@@ -81,7 +81,7 @@ export function createSendFeishuMessageTool(config: FeishuConfig | undefined, ap
     describeCall: (input) => `send Feishu message to ${input.chatId}: "${input.text.slice(0, 60)}"`,
     async handler(input) {
       if (!config) {
-        return { content: "Feishu is not configured — set FEISHU_APP_ID and FEISHU_APP_SECRET as environment variables to enable send_feishu_message.", isError: true };
+        return { content: "Feishu is not configured, set FEISHU_APP_ID and FEISHU_APP_SECRET as environment variables to enable send_feishu_message.", isError: true };
       }
       const result = await postFeishuMessage(config, input, apiBaseUrl);
       if (!result.ok) return { content: result.error, isError: true };

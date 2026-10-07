@@ -62,7 +62,7 @@ export const lintPythonTool: ToolDefinition<LintPythonInput> = {
   description:
     "Run ruff on a Python file or project and report the errors/warnings, the same way lint_javascript " +
     "reports ESLint's. Prefers an already-installed `ruff`, falling back to `uvx ruff` (uv's equivalent of " +
-    "npx) if uv is installed — unlike Pyright, ruff isn't published as an npm package, so plain npx can't " +
+    "npx) if uv is installed, unlike Pyright, ruff isn't published as an npm package, so plain npx can't " +
     "fetch it.",
   riskLevel: "safe",
   inputSchema: {
@@ -87,8 +87,8 @@ export const lintPythonTool: ToolDefinition<LintPythonInput> = {
     if (!runner) {
       return {
         content:
-          "ruff isn't available: no `ruff` on PATH, and no `uvx` (uv) to fetch it on demand. Install one — " +
-          "`pip install ruff`, or install uv (https://docs.astral.sh/uv/) — then retry.",
+          "ruff isn't available: no `ruff` on PATH, and no `uvx` (uv) to fetch it on demand. Install one, " +
+          "`pip install ruff`, or install uv (https://docs.astral.sh/uv/), then retry.",
         isError: true,
       };
     }

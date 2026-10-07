@@ -190,7 +190,7 @@ async function refuseIfExists(cwd: string, relPath: string): Promise<{ error: st
   if (await pathExists(resolved)) {
     return {
       error:
-        `${relPath} already exists — refusing to overwrite it. Pass a different output path, or delete/rename ` +
+        `${relPath} already exists, refusing to overwrite it. Pass a different output path, or delete/rename ` +
         `the existing file first if you actually want to replace it.`,
     };
   }
@@ -207,10 +207,10 @@ export const generateGithubActionsWorkflowTool: ToolDefinition<GenerateGithubAct
   name: "generate_github_actions_workflow",
   description:
     "Generate a real, working GitHub Actions CI workflow YAML file (default .github/workflows/ci.yml) for a " +
-    "node/python/go/docker project — checkout + language setup + a test step, and, if `options.deployTarget` " +
+    "node/python/go/docker project, checkout + language setup + a test step, and, if `options.deployTarget` " +
     "is set, a docker build+push or kubectl apply deploy job. Uses current, real Actions syntax " +
     "(actions/checkout@v4+, actions/setup-node@v4+/actions/setup-python@v5+/actions/setup-go@v5+). Refuses to " +
-    "overwrite an existing workflow file at the target path — pass a different outputPath if one already " +
+    "overwrite an existing workflow file at the target path, pass a different outputPath if one already " +
     "exists there.",
   riskLevel: "ask",
   riskKey: (input) => input.outputPath ?? ".github/workflows/ci.yml",
@@ -253,9 +253,9 @@ export const generateGitlabCiConfigTool: ToolDefinition<GenerateGitlabCiInput> =
   name: "generate_gitlab_ci_config",
   description:
     "Generate a real, working .gitlab-ci.yml (default output path .gitlab-ci.yml) for a node/python/go/docker " +
-    "project — a test stage tailored to the project type, and, if `options.deployTarget` is set, a deploy " +
+    "project, a test stage tailored to the project type, and, if `options.deployTarget` is set, a deploy " +
     "stage (docker build+push or kubectl apply). Refuses to overwrite an existing .gitlab-ci.yml at the target " +
-    "path — pass a different outputPath if one already exists there.",
+    "path, pass a different outputPath if one already exists there.",
   riskLevel: "ask",
   riskKey: (input) => input.outputPath ?? ".gitlab-ci.yml",
   inputSchema: {

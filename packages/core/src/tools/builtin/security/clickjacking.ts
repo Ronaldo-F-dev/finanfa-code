@@ -47,7 +47,7 @@ async function scanClickjacking(target: string): Promise<{ output: ScanOutput; s
   try {
     browser = await chromium.launch({ headless: true });
   } catch (err) {
-    throw new Error(`Failed to launch Chromium — run \`npx playwright install chromium\` first. Original error: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(`Failed to launch Chromium, run \`npx playwright install chromium\` first. Original error: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   let screenshotBase64: string | undefined;
@@ -98,7 +98,7 @@ export const securityScanClickjackingTool: ToolDefinition<SecurityScanClickjacki
   description:
     "Security tool. Actively confirms whether a page can really be embedded in a third-party iframe " +
     "(clickjacking), by rendering it inside one with a real headless Chromium and checking whether it actually " +
-    "loaded — not just checking for the presence of protective headers (use security_scan_headers for that). " +
+    "loaded, not just checking for the presence of protective headers (use security_scan_headers for that). " +
     "Requires Chromium (`npx playwright install chromium`). A faithful port of the user's own cyberlens " +
     "scanner's clickjacking check, Chromium-only (vs. its multi-engine run). " +
     "IMPORTANT: only scan a target the user owns or has explicit, documented authorization to test.",

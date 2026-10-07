@@ -20,7 +20,7 @@ export function createRegisterRemoteHostTool(): ToolDefinition<RegisterRemoteHos
     description:
       "Add (or update) a named remote machine in this project's known-hosts registry, so it shows up in " +
       "list_remote_hosts and can be health-checked without re-typing its connection details every time. " +
-      "Doesn't itself connect to anything — auth/keys/known_hosts still come from the user's own real SSH setup.",
+      "Doesn't itself connect to anything, auth/keys/known_hosts still come from the user's own real SSH setup.",
     riskLevel: "ask",
     inputSchema: {
       type: "object",
@@ -63,7 +63,7 @@ export function createRemoveRemoteHostTool(): ToolDefinition<RemoteHostAliasInpu
 export function createListRemoteHostsTool(): ToolDefinition<Record<string, never>> {
   return {
     name: "list_remote_hosts",
-    description: "List every registered remote host, with its last-known health status (see check_remote_host_health) — not re-checked live on every call.",
+    description: "List every registered remote host, with its last-known health status (see check_remote_host_health), not re-checked live on every call.",
     riskLevel: "safe",
     inputSchema: { type: "object", properties: {} },
     async handler() {
@@ -91,13 +91,13 @@ export function createCheckRemoteHostHealthTool(options: RemoteHostsToolOptions 
     description:
       "Runs a real, read-only health probe (uptime + disk usage) on a registered remote host over SSH, and " +
       "records the outcome for list_remote_hosts. A failure means the host is genuinely unreachable right now " +
-      "(or SSH auth failed) — not necessarily that anything is wrong with it.",
+      "(or SSH auth failed), not necessarily that anything is wrong with it.",
     riskLevel: "safe",
     inputSchema: { type: "object", properties: { alias: { type: "string" } }, required: ["alias"] },
     describeCall: (input) => `check health of remote host "${input.alias}"`,
     async handler(input) {
       const result = await checkAndRecordRemoteHostHealth(input.alias, undefined, binary);
-      if (!result) return { content: `No registered remote host named "${input.alias}" — see register_remote_host.`, isError: true };
+      if (!result) return { content: `No registered remote host named "${input.alias}", see register_remote_host.`, isError: true };
       if (!result.healthy) return { content: `"${input.alias}" is unreachable: ${result.summary}`, isError: true };
       return { content: `"${input.alias}" is healthy:\n${result.summary}`, isError: false };
     },

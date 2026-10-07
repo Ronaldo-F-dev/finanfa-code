@@ -9,7 +9,7 @@ export const todoWriteTool: ToolDefinition<TodoWriteInput> = {
   name: "todo_write",
   description:
     "Replace the current task checklist with the given list, shown live to the user. Use this to plan " +
-    "multi-step work up front and update item statuses as you make progress — helps the user track long-running tasks.",
+    "multi-step work up front and update item statuses as you make progress, helps the user track long-running tasks.",
   riskLevel: "safe",
   inputSchema: {
     type: "object",

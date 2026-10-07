@@ -149,7 +149,7 @@ export function createGetSpotifyNowPlayingTool(config: SpotifyConfig | undefined
     inputSchema: { type: "object", properties: {} },
     async handler() {
       if (!config) {
-        return { content: "Spotify is not configured — set SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET/SPOTIFY_REFRESH_TOKEN as environment variables to enable get_spotify_now_playing.", isError: true };
+        return { content: "Spotify is not configured, set SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET/SPOTIFY_REFRESH_TOKEN as environment variables to enable get_spotify_now_playing.", isError: true };
       }
       const result = await getSpotifyNowPlaying(config, apiBaseUrl, accountsBaseUrl);
       if (!result.ok) return { content: result.error, isError: true };
@@ -173,7 +173,7 @@ export function createControlSpotifyPlaybackTool(
       "Control real Spotify playback (play/pause/skip to the next or previous track) on the user's currently " +
       "active device, via the real Spotify Web API. Requires SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET/" +
       "SPOTIFY_REFRESH_TOKEN to be configured as environment variables. " +
-      "IMPORTANT: this changes real, audible playback on a real device — confirm with the user before calling " +
+      "IMPORTANT: this changes real, audible playback on a real device, confirm with the user before calling " +
       "this unless they've explicitly asked for this exact action.",
     riskLevel: "ask",
     inputSchema: {
@@ -184,7 +184,7 @@ export function createControlSpotifyPlaybackTool(
     describeCall: (input) => `${input.action} Spotify playback`,
     async handler(input) {
       if (!config) {
-        return { content: "Spotify is not configured — set SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET/SPOTIFY_REFRESH_TOKEN as environment variables to enable control_spotify_playback.", isError: true };
+        return { content: "Spotify is not configured, set SPOTIFY_CLIENT_ID/SPOTIFY_CLIENT_SECRET/SPOTIFY_REFRESH_TOKEN as environment variables to enable control_spotify_playback.", isError: true };
       }
       const result = await controlSpotifyPlayback(config, input.action, apiBaseUrl, accountsBaseUrl);
       if (!result.ok) return { content: result.error, isError: true };

@@ -100,17 +100,17 @@ export function createSecurityRunNmapTool(options: RunNmapOptions = {}): ToolDef
   return {
     name: "security_run_nmap",
     description:
-      "Security tool. Runs the real `nmap` CLI against a target host, with the given flags — version detection " +
+      "Security tool. Runs the real `nmap` CLI against a target host, with the given flags, version detection " +
       "(-sV), OS detection (-O), aggressive scan (-A), port ranges (-p 1-1000), default/custom script scans " +
       "(-sC, --script <name|category|expression>), timing templates (-T4), and any other real nmap flag; " +
       "nothing here is a curated subset. Pass flags in `args` as a plain array (e.g. ['-sV', '-p', '1-1000']) " +
-      "— the target is appended automatically, so don't include it in args. Unlike security_scan_ports (a " +
+      "- the target is appended automatically, so don't include it in args. Unlike security_scan_ports (a " +
       "dependency-free TCP connect-scan reimplementation), this is the real nmap binary and its full real " +
       "output. " +
-      "IMPORTANT: only scan a host the user owns or has explicit, documented authorization to test — this is a " +
+      "IMPORTANT: only scan a host the user owns or has explicit, documented authorization to test, this is a " +
       "real active network scan the target can log/alert on. The `dos` NSE script category (--script dos, or " +
-      "any boolean script expression containing it) actually tries to crash/hang the target service — real " +
-      "denial-of-service, not recon — so it still runs, but only after the user explicitly confirms this tool's " +
+      "any boolean script expression containing it) actually tries to crash/hang the target service, real " +
+      "denial-of-service, not recon, so it still runs, but only after the user explicitly confirms this tool's " +
       "permission prompt; it is never auto-approved silently.",
     riskLevel: "ask",
     riskKey: (input) => (isDosScriptRequest(input.args ?? []) ? "security_run_nmap:dos-script" : "security_run_nmap"),
@@ -119,16 +119,16 @@ export function createSecurityRunNmapTool(options: RunNmapOptions = {}): ToolDef
       properties: {
         target: { type: "string", description: "Target hostname, IP, or CIDR range to scan" },
         args: { type: "array", items: { type: "string" }, description: "nmap flags, as a plain array, e.g. ['-sV', '-p', '22,80,443']. Don't include the target here." },
-        timeoutMs: { type: "number", description: `Timeout in milliseconds (default ${DEFAULT_TIMEOUT_MS} — nmap scans can run long)` },
+        timeoutMs: { type: "number", description: `Timeout in milliseconds (default ${DEFAULT_TIMEOUT_MS}, nmap scans can run long)` },
       },
       required: ["target"],
     },
     describeCall: (input) =>
-      `nmap ${(input.args ?? []).join(" ")} ${input.target}${isDosScriptRequest(input.args ?? []) ? " (dos script — real denial-of-service, requires confirmation)" : ""}`.trim(),
+      `nmap ${(input.args ?? []).join(" ")} ${input.target}${isDosScriptRequest(input.args ?? []) ? " (dos script, real denial-of-service, requires confirmation)" : ""}`.trim(),
     async handler(input, ctx) {
       const args = input.args ?? [];
       if (!isCommandAvailable(nmapBin)) {
-        return { content: "nmap not available — install nmap (e.g. `brew install nmap` / `apt install nmap`) and ensure it's on PATH.", isError: true };
+        return { content: "nmap not available, install nmap (e.g. `brew install nmap` / `apt install nmap`) and ensure it's on PATH.", isError: true };
       }
       const result = await run(nmapBin, [...args, input.target], input.timeoutMs ?? DEFAULT_TIMEOUT_MS, ctx.signal);
       if (result.error) {

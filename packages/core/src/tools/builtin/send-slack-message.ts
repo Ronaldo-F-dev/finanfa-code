@@ -83,8 +83,8 @@ export function createSendSlackMessageTool(config: SlackConfig | undefined, apiB
     description:
       "Post a real message to a Slack channel via the Slack Web API (chat.postMessage). Requires " +
       "SLACK_BOT_TOKEN to be configured as an environment variable (a bot token with the chat:write scope, " +
-      "invited to the target channel) — this tool never takes credentials as input. " +
-      "IMPORTANT: this posts a real, visible message to a real channel — confirm the channel/content with the " +
+      "invited to the target channel), this tool never takes credentials as input. " +
+      "IMPORTANT: this posts a real, visible message to a real channel, confirm the channel/content with the " +
       "user before calling this unless they've explicitly asked for this exact message.",
     riskLevel: "ask",
     inputSchema: {
@@ -98,7 +98,7 @@ export function createSendSlackMessageTool(config: SlackConfig | undefined, apiB
     describeCall: (input) => `post Slack message to ${input.channel}: "${input.text.slice(0, 60)}"`,
     async handler(input) {
       if (!config) {
-        return { content: "Slack is not configured — set SLACK_BOT_TOKEN as an environment variable to enable send_slack_message.", isError: true };
+        return { content: "Slack is not configured, set SLACK_BOT_TOKEN as an environment variable to enable send_slack_message.", isError: true };
       }
       const result = await postSlackMessage(config, input, apiBaseUrl);
       if (!result.ok) {

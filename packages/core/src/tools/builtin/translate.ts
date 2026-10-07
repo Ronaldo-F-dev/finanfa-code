@@ -75,7 +75,7 @@ async function translateViaGoogle(input: TranslateInput): Promise<string> {
   if (!isSupportedByGoogle(input.to_lang) || (input.from_lang && !isSupportedByGoogle(input.from_lang))) {
     throw new Error(
       `"${isSupportedByGoogle(input.to_lang) ? input.from_lang : input.to_lang}" isn't a language Google Translate supports ` +
-        "(this notably includes Bariba and Dendi — no free or paid translation backend covers either right now).",
+        "(this notably includes Bariba and Dendi, no free or paid translation backend covers either right now).",
     );
   }
   const result = await googleTranslate(input.text, { from: input.from_lang || "auto", to: input.to_lang });
@@ -85,7 +85,7 @@ async function translateViaGoogle(input: TranslateInput): Promise<string> {
 export const translateTextTool: ToolDefinition<TranslateInput> = {
   name: "translate_text",
   description:
-    "Translate text between languages. Uses the free Google Translate backend by default — no configuration " +
+    "Translate text between languages. Uses the free Google Translate backend by default, no configuration " +
     "needed, and it includes Fon and Yoruba (Beninese local languages the model's own training data and web " +
     "search both cover unreliably) alongside major world languages; Bariba and Dendi aren't supported by any " +
     "backend currently. If FONIKA_AUTH_TOKEN/FONIKA_API_TOKEN (a private 229Langues account) are configured, " +
@@ -97,7 +97,7 @@ export const translateTextTool: ToolDefinition<TranslateInput> = {
     properties: {
       text: { type: "string", description: "The text to translate" },
       to_lang: { type: "string", description: 'Target language code, e.g. "en", "fon", "yo"' },
-      from_lang: { type: "string", description: "Source language code — omit to auto-detect" },
+      from_lang: { type: "string", description: "Source language code, omit to auto-detect" },
     },
     required: ["text", "to_lang"],
   },

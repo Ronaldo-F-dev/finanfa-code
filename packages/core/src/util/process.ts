@@ -129,7 +129,7 @@ export function runSubprocess(command: string, opts: RunSubprocessOptions): Prom
       clearTimeout(timer);
       opts.signal?.removeEventListener("abort", onAbort);
       void (async () => {
-        const header = aborted ? "(cancelled — user interrupted)\n" : timedOut ? `(timed out after ${opts.timeoutMs}ms)\n` : `(exit code ${code})\n`;
+        const header = aborted ? "(cancelled, user interrupted)\n" : timedOut ? `(timed out after ${opts.timeoutMs}ms)\n` : `(exit code ${code})\n`;
         let content: string;
         if (opts.format === "compact") {
           const stderrBlock = stderr ? `\n--- stderr ---\n${await truncateOrSpill(opts.cwd, opts.sessionId, "stderr", stderr, TRUNCATE_LARGE)}` : "";

@@ -125,20 +125,20 @@ export function createReadNotionPageTool(config: NotionConfig | undefined, apiBa
     description:
       "Read a Notion page's (or block's) direct content as plain text, via the real Notion API. Requires " +
       "NOTION_API_KEY (an internal integration token, shared with the target page in Notion's own UI) to be " +
-      "configured as an environment variable — this tool never takes credentials as input. Reads one level of " +
+      "configured as an environment variable, this tool never takes credentials as input. Reads one level of " +
       "content (a nested toggle/sub-page's own content isn't recursed into) and the first 100 blocks.",
     riskLevel: "safe",
     inputSchema: {
       type: "object",
-      properties: { page_id: { type: "string", description: "Notion page id (or any block id) — the UUID from the page's own URL" } },
+      properties: { page_id: { type: "string", description: "Notion page id (or any block id), the UUID from the page's own URL" } },
       required: ["page_id"],
     },
     describeCall: (input) => `read Notion page ${input.page_id}`,
     async handler(input) {
-      if (!config) return { content: "Notion is not configured — set NOTION_API_KEY as an environment variable to enable read_notion_page.", isError: true };
+      if (!config) return { content: "Notion is not configured, set NOTION_API_KEY as an environment variable to enable read_notion_page.", isError: true };
       const result = await readNotionPageBlocks(config, input.page_id, apiBaseUrl);
       if (!result.ok) return { content: result.error, isError: true };
-      const truncationNote = result.hasMore ? "\n\n(more content exists beyond the first 100 blocks — not fetched)" : "";
+      const truncationNote = result.hasMore ? "\n\n(more content exists beyond the first 100 blocks, not fetched)" : "";
       return { content: (result.text || "(this page has no readable text content)") + truncationNote, isError: false };
     },
   };
@@ -153,23 +153,23 @@ export function createWriteNotionPageTool(config: NotionConfig | undefined, apiB
   return {
     name: "write_notion_page",
     description:
-      "Append plain-text content to a Notion page (or block), via the real Notion API — one paragraph block per " +
+      "Append plain-text content to a Notion page (or block), via the real Notion API, one paragraph block per " +
       "line of the given text. Requires NOTION_API_KEY (an internal integration token, shared with the target " +
       "page in Notion's own UI) to be configured as an environment variable. " +
-      "IMPORTANT: this writes real, visible content to a real Notion page — confirm the page/content with the " +
+      "IMPORTANT: this writes real, visible content to a real Notion page, confirm the page/content with the " +
       "user before calling this unless they've explicitly asked for this exact content.",
     riskLevel: "ask",
     inputSchema: {
       type: "object",
       properties: {
-        page_id: { type: "string", description: "Notion page id (or any block id) — the UUID from the page's own URL" },
+        page_id: { type: "string", description: "Notion page id (or any block id), the UUID from the page's own URL" },
         text: { type: "string", description: "Plain text to append; each line becomes its own paragraph block" },
       },
       required: ["page_id", "text"],
     },
     describeCall: (input) => `append to Notion page ${input.page_id}: "${input.text.slice(0, 60)}"`,
     async handler(input) {
-      if (!config) return { content: "Notion is not configured — set NOTION_API_KEY as an environment variable to enable write_notion_page.", isError: true };
+      if (!config) return { content: "Notion is not configured, set NOTION_API_KEY as an environment variable to enable write_notion_page.", isError: true };
       const result = await appendNotionParagraphs(config, input.page_id, input.text, apiBaseUrl);
       if (!result.ok) return { content: result.error, isError: true };
       return { content: `Appended to Notion page ${input.page_id}.`, isError: false };

@@ -71,7 +71,7 @@ async function scanSri(target: string): Promise<ScanOutput> {
     throw new Error(`Could not reach ${target}: ${err instanceof Error ? err.message : String(err)}`);
   }
   if (!response.headers.get("content-type")?.includes("html")) {
-    passed.push({ label: "Subresource Integrity", detail: "Response is not HTML — nothing to check." });
+    passed.push({ label: "Subresource Integrity", detail: "Response is not HTML, nothing to check." });
     return { findings, passedControls: passed };
   }
 
@@ -116,7 +116,7 @@ export const securityScanSriTool: ToolDefinition<SecurityScanSriInput> = {
   name: "security_scan_sri",
   description:
     "Security tool. Flags externally-hosted <script>/<link rel=stylesheet> tags on a page that load without a " +
-    "Subresource Integrity (integrity=...) attribute — a port of the user's own cyberlens scanner's SRI check, " +
+    "Subresource Integrity (integrity=...) attribute, a port of the user's own cyberlens scanner's SRI check, " +
     "scoped to a single page here (no site crawler exists in this project yet, unlike cyberlens's own " +
     "multi-page version). " +
     "IMPORTANT: only scan a target the user owns or has explicit, documented authorization to test.",

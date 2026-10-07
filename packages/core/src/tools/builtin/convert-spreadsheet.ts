@@ -17,7 +17,7 @@ function defaultOutputPath(sourcePath: string, targetExt: string): string {
 export const convertSpreadsheetTool: ToolDefinition<ConvertSpreadsheetInput> = {
   name: "convert_spreadsheet",
   description:
-    "Convert between .xlsx and .csv — direction is automatic from the source file's extension (.xlsx in " +
+    "Convert between .xlsx and .csv, direction is automatic from the source file's extension (.xlsx in " +
     "produces .csv out, and vice versa). Converting from .xlsx exports one sheet (sheetName, default: the " +
     "first) since CSV has no concept of multiple sheets. Without outputPath, writes next to the source with " +
     "the same name and the other extension.",
@@ -42,7 +42,7 @@ export const convertSpreadsheetTool: ToolDefinition<ConvertSpreadsheetInput> = {
     const ext = path.extname(sourcePath).toLowerCase();
 
     if (ext !== ".xlsx" && ext !== ".csv") {
-      return { content: `Unsupported source format "${ext}" — convert_spreadsheet handles .xlsx and .csv only.`, isError: true };
+      return { content: `Unsupported source format "${ext}", convert_spreadsheet handles .xlsx and .csv only.`, isError: true };
     }
 
     const targetExt = ext === ".csv" ? ".xlsx" : ".csv";

@@ -41,7 +41,7 @@ export class SerialManager {
   }
 
   async write(data: string): Promise<void> {
-    if (!this.port || !this.port.isOpen) throw new Error("No serial port is open — call serial_open first.");
+    if (!this.port || !this.port.isOpen) throw new Error("No serial port is open, call serial_open first.");
     await new Promise<void>((resolve, reject) => {
       this.port!.write(data, (err) => (err ? reject(err) : resolve()));
     });
@@ -49,7 +49,7 @@ export class SerialManager {
 
   /** Drains whatever has arrived since the last read (or since open), waiting up to `timeoutMs` for at least something if the buffer is currently empty — a real device's response arrives asynchronously, so this can't just return immediately. */
   async readAvailable(timeoutMs: number): Promise<string> {
-    if (!this.port || !this.port.isOpen) throw new Error("No serial port is open — call serial_open first.");
+    if (!this.port || !this.port.isOpen) throw new Error("No serial port is open, call serial_open first.");
     if (this.buffer.length === 0) {
       await new Promise<void>((resolve) => {
         const timer = setTimeout(resolve, timeoutMs);

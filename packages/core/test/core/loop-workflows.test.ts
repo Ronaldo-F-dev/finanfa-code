@@ -104,7 +104,7 @@ describe("output styles", () => {
     const ctx = { session: s.session, ui: s.ui, tools: s.tools, permissions: s.permissions, mcp: {}, provider: s.provider, cwd, args: "explanatory", setSession: vi.fn() } as never;
     await commands.get("output-style")!(ctx);
     await runTurn(s.session, s.provider, s.ui, s.tools, s.permissions, "hi");
-    expect(s.calls[0].system).toContain("Output style — explanatory");
+    expect(s.calls[0].system).toContain("Output style, explanatory");
 
     await commands.get("output-style")!({ ...(ctx as object), args: "bogus" } as never);
     expect(s.ui.writeError).toHaveBeenCalledWith(expect.stringContaining('Unknown output style "bogus"'));

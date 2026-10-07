@@ -50,12 +50,12 @@ const CHECK_SECTIONS: CheckSection[] = [
 // report's "fix" line and by doctor_fix_project's refusal message so the
 // two never drift apart.
 const NO_AUTOFIX_EXPLANATIONS: Record<string, string> = {
-  "lockfile-missing": "run `npm install` (or `yarn install`/`pnpm install`) once and commit the generated lockfile — this tool won't choose a package manager or install packages for you",
-  "lockfile-conflict": "pick one package manager and delete the other lockfile(s) yourself — this tool won't guess which one is authoritative",
-  "npm-audit-vulnerabilities": "review the `npm audit` output and update the affected packages yourself (e.g. `npm audit fix`) — changing dependency versions can alter behavior or break things, so this tool won't do it automatically",
+  "lockfile-missing": "run `npm install` (or `yarn install`/`pnpm install`) once and commit the generated lockfile, this tool won't choose a package manager or install packages for you",
+  "lockfile-conflict": "pick one package manager and delete the other lockfile(s) yourself, this tool won't guess which one is authoritative",
+  "npm-audit-vulnerabilities": "review the `npm audit` output and update the affected packages yourself (e.g. `npm audit fix`), changing dependency versions can alter behavior or break things, so this tool won't do it automatically",
   "npm-audit-failed": "run `npm audit` manually and investigate why it failed (missing lockfile, offline, registry auth, ...)",
   "npm-audit-unavailable": "install Node.js/npm, then run `npm audit` manually",
-  "gitignore-file-missing": "create a .gitignore file yourself with entries appropriate for this project — this tool only auto-fixes a *missing entry* in an existing/new .gitignore for a specific secret file it already found (a gitignore-missing-entry:<file> finding), not authoring a whole .gitignore from scratch",
+  "gitignore-file-missing": "create a .gitignore file yourself with entries appropriate for this project, this tool only auto-fixes a *missing entry* in an existing/new .gitignore for a specific secret file it already found (a gitignore-missing-entry:<file> finding), not authoring a whole .gitignore from scratch",
 };
 
 async function pathExists(target: string): Promise<boolean> {
@@ -168,7 +168,7 @@ async function runChecks(
       findings.push({
         id: "lockfile-missing",
         problem: "package.json exists but no lockfile (package-lock.json/yarn.lock/pnpm-lock.yaml) was found",
-        why: "without a lockfile, installs aren't reproducible — the same package.json can resolve to different dependency versions on different machines/CI runs",
+        why: "without a lockfile, installs aren't reproducible, the same package.json can resolve to different dependency versions on different machines/CI runs",
         fix: "run `npm install` (or yarn/pnpm install) once and commit the generated lockfile",
       });
     } else if (present.length > 1) {
@@ -196,7 +196,7 @@ async function runChecks(
       findings.push({
         id: "npm-audit-failed",
         problem: `npm audit failed to run${detail ? `: ${detail}` : ""}`,
-        why: "dependency vulnerabilities could not be checked — this doesn't mean there are none",
+        why: "dependency vulnerabilities could not be checked, this doesn't mean there are none",
         fix: "run `npm audit` manually and investigate why it failed",
       });
 
@@ -223,7 +223,7 @@ async function runChecks(
         findings.push({
           id: "npm-audit-vulnerabilities",
           problem: `npm audit found ${total} vulnerable dependenc${total === 1 ? "y" : "ies"} (${bySeverity})`,
-          why: "vulnerable dependencies are a real, exploitable attack surface — some allow remote code execution",
+          why: "vulnerable dependencies are a real, exploitable attack surface, some allow remote code execution",
           fix: "review `npm audit` output and update/patch the affected packages (`npm audit fix` for non-breaking fixes; check breaking ones manually)",
         });
       }
@@ -264,11 +264,11 @@ function formatReport(directory: string, findings: Finding[], skipped: { check: 
     const skip = skipped.find((s) => s.check === section.name);
     const related = findings.filter((f) => section.idPrefixes.some((prefix) => f.id.startsWith(prefix)));
     if (skip) {
-      lines.push(`[SKIPPED] ${section.name} — ${skip.reason}`);
+      lines.push(`[SKIPPED] ${section.name}, ${skip.reason}`);
     } else if (related.length === 0) {
       lines.push(`[PASS] ${section.name}`);
     } else {
-      lines.push(`[FAIL] ${section.name} — ${related.length} issue${related.length === 1 ? "" : "s"}`);
+      lines.push(`[FAIL] ${section.name}, ${related.length} issue${related.length === 1 ? "" : "s"}`);
       for (const finding of related) {
         lines.push(`  - ${finding.problem}`);
         lines.push(`    why: ${finding.why}`);
@@ -335,7 +335,7 @@ export function createDoctorTools(options: DoctorToolOptions = {}): ToolDefiniti
       "types have a well-defined, genuinely-safe automated fix: `gitignore-missing-entry:<file>` (appends that " +
       "exact line to .gitignore, creating it if missing) and `file-permissions:<file>` (chmod 600). Every other " +
       "finding id (missing/conflicting lockfiles, npm audit results) is refused with a clear explanation of what " +
-      "to do manually — running `npm audit fix` or choosing a package manager for someone is a real, " +
+      "to do manually, running `npm audit fix` or choosing a package manager for someone is a real, " +
       "consequential decision this tool won't make silently. Reports per-finding what was actually changed, " +
       "never a blanket \"done\".",
     riskLevel: "ask",
@@ -359,14 +359,14 @@ export function createDoctorTools(options: DoctorToolOptions = {}): ToolDefiniti
             const gitignorePath = path.join(directory, ".gitignore");
             const existing = await readFile(gitignorePath, "utf-8").catch(() => "");
             if (existing.split("\n").some((line) => line.trim() === file)) {
-              results.push(`${id}: skipped — "${file}" is already in .gitignore`);
+              results.push(`${id}: skipped, "${file}" is already in .gitignore`);
               continue;
             }
             const needsNewline = existing.length > 0 && !existing.endsWith("\n");
             await writeFile(gitignorePath, `${existing}${needsNewline ? "\n" : ""}${file}\n`, "utf-8");
             results.push(`${id}: added "${file}" to .gitignore`);
           } catch (err) {
-            results.push(`${id}: failed — ${err instanceof Error ? err.message : String(err)}`);
+            results.push(`${id}: failed, ${err instanceof Error ? err.message : String(err)}`);
           }
         } else if (id.startsWith("file-permissions:")) {
           const file = id.slice("file-permissions:".length);
@@ -374,11 +374,11 @@ export function createDoctorTools(options: DoctorToolOptions = {}): ToolDefiniti
             await chmod(path.join(directory, file), 0o600);
             results.push(`${id}: chmod'd to 600`);
           } catch (err) {
-            results.push(`${id}: failed — ${err instanceof Error ? err.message : String(err)}`);
+            results.push(`${id}: failed, ${err instanceof Error ? err.message : String(err)}`);
           }
         } else {
-          const explanation = NO_AUTOFIX_EXPLANATIONS[id] ?? "no safe automated fix is known for this finding id — fix it manually";
-          results.push(`${id}: not auto-fixed — ${explanation}`);
+          const explanation = NO_AUTOFIX_EXPLANATIONS[id] ?? "no safe automated fix is known for this finding id, fix it manually";
+          results.push(`${id}: not auto-fixed, ${explanation}`);
         }
       }
 

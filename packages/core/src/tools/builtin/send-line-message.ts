@@ -61,8 +61,8 @@ export function createSendLineMessageTool(config: LineConfig | undefined, apiBas
     name: "send_line_message",
     description:
       "Send a real message to a LINE user/group/room via the Messaging API's push endpoint. Requires " +
-      "LINE_CHANNEL_ACCESS_TOKEN as an environment variable — this tool never takes credentials as input. " +
-      "IMPORTANT: this posts a real, visible message — confirm the recipient/content with the user before " +
+      "LINE_CHANNEL_ACCESS_TOKEN as an environment variable, this tool never takes credentials as input. " +
+      "IMPORTANT: this posts a real, visible message, confirm the recipient/content with the user before " +
       "calling this unless they've explicitly asked for this exact message.",
     riskLevel: "ask",
     inputSchema: {
@@ -76,7 +76,7 @@ export function createSendLineMessageTool(config: LineConfig | undefined, apiBas
     describeCall: (input) => `send LINE message to ${input.to}: "${input.text.slice(0, 60)}"`,
     async handler(input) {
       if (!config) {
-        return { content: "LINE is not configured — set LINE_CHANNEL_ACCESS_TOKEN as an environment variable to enable send_line_message.", isError: true };
+        return { content: "LINE is not configured, set LINE_CHANNEL_ACCESS_TOKEN as an environment variable to enable send_line_message.", isError: true };
       }
       const result = await postLineMessage(config, input, apiBaseUrl);
       if (!result.ok) return { content: result.error, isError: true };

@@ -72,8 +72,8 @@ export function createSendMatrixMessageTool(config: MatrixConfig | undefined): T
     name: "send_matrix_message",
     description:
       "Send a real message to a Matrix room via the Client-Server API, as the configured Application Service. " +
-      "Requires MATRIX_HOMESERVER_URL and MATRIX_AS_TOKEN as environment variables — this tool never takes " +
-      "credentials as input. IMPORTANT: this posts a real, visible message to a real room — confirm the " +
+      "Requires MATRIX_HOMESERVER_URL and MATRIX_AS_TOKEN as environment variables, this tool never takes " +
+      "credentials as input. IMPORTANT: this posts a real, visible message to a real room, confirm the " +
       "room/content with the user before calling this unless they've explicitly asked for this exact message.",
     riskLevel: "ask",
     inputSchema: {
@@ -87,7 +87,7 @@ export function createSendMatrixMessageTool(config: MatrixConfig | undefined): T
     describeCall: (input) => `send Matrix message to ${input.roomId}: "${input.text.slice(0, 60)}"`,
     async handler(input) {
       if (!config) {
-        return { content: "Matrix is not configured — set MATRIX_HOMESERVER_URL and MATRIX_AS_TOKEN as environment variables to enable send_matrix_message.", isError: true };
+        return { content: "Matrix is not configured, set MATRIX_HOMESERVER_URL and MATRIX_AS_TOKEN as environment variables to enable send_matrix_message.", isError: true };
       }
       const result = await postMatrixMessage(config, input);
       if (!result.ok) return { content: result.error, isError: true };

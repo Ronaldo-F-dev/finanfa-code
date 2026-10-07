@@ -22,7 +22,7 @@ export const checkTypescriptTypesTool: ToolDefinition<CheckTypescriptTypesInput>
   name: "check_typescript_types",
   description:
     "Run the TypeScript compiler (tsc --noEmit) on this project and report the errors, the same way " +
-    "check_python_types reports Pyright's. Always whole-project, not scoped to a path — unlike Pyright/ESLint, " +
+    "check_python_types reports Pyright's. Always whole-project, not scoped to a path, unlike Pyright/ESLint, " +
     "tsc refuses to combine a project's tsconfig.json with a file given on the command line (verified " +
     "directly: it errors with \"tsconfig.json is present but will not be loaded if files are specified on " +
     "commandline\"), so there's no reliable way to check just one file with the real project config applied.",
@@ -36,7 +36,7 @@ export const checkTypescriptTypesTool: ToolDefinition<CheckTypescriptTypesInput>
   describeCall: () => "check_typescript_types (whole project)",
   async handler(input, ctx) {
     if (!(await hasTsconfig(ctx.cwd))) {
-      return { content: "No tsconfig.json found in this project — tsc has nothing to check against.", isError: true };
+      return { content: "No tsconfig.json found in this project, tsc has nothing to check against.", isError: true };
     }
 
     // `npx tsc` resolves to an unrelated squatted npm package (a stub with a

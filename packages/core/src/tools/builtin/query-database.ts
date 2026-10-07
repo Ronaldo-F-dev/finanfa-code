@@ -116,7 +116,7 @@ export const queryDatabaseTool: ToolDefinition<QueryDatabaseInput> = {
   name: "query_database",
   description:
     "Run a SQL query against SQLite, PostgreSQL, or MySQL, picked from the connectionString's scheme: " +
-    '"sqlite://path/to/file.db" (or "sqlite::memory:" for a throwaway one — note it does NOT persist between ' +
+    '"sqlite://path/to/file.db" (or "sqlite::memory:" for a throwaway one, note it does NOT persist between ' +
     'calls, a fresh empty database is created each time), "postgres://user:pass@host:port/db", or ' +
     '"mysql://user:pass@host:port/db". Returns rows as JSON for a query that produces them, or an affected-row ' +
     "count otherwise. Placeholder syntax differs by database and isn't portable: SQLite/MySQL use \"?\", " +

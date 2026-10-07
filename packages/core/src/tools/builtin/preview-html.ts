@@ -13,7 +13,7 @@ export function createPreviewHtmlTool(server: PreviewServer): ToolDefinition<Pre
     name: "preview_html",
     description:
       "Open a local HTML file (e.g. a UI mockup written with write_file) in the user's default browser, via a " +
-      "real local HTTP server rooted at the project — not a bare file:// URL, so relative CSS/JS/image " +
+      "real local HTTP server rooted at the project, not a bare file:// URL, so relative CSS/JS/image " +
       "references and fetch() calls in the page actually work. The server persists for the rest of the " +
       "session and is reused for later previews.",
     riskLevel: "safe",

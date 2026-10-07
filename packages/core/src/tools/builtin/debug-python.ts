@@ -65,7 +65,7 @@ export function createDebugPythonTracebackTool(options: DebugPythonToolOptions =
     name: "debug_python_traceback",
     description:
       "Run a real Python script; if it raises an uncaught exception, capture the full traceback AND the local " +
-      "variables of the frame where it actually failed (post-mortem inspection) — shows what a variable held at " +
+      "variables of the frame where it actually failed (post-mortem inspection), shows what a variable held at " +
       "the point of failure, instead of just naming the failing line the way a plain `python3 script.py` run " +
       "would. For genuinely interactive step-through debugging (breakpoints, stepping, inspecting as you go), " +
       "run `python3 -m pdb <script>` inside a tmux session instead (tmux_new_session/tmux_send_keys).",

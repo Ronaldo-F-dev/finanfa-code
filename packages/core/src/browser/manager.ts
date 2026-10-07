@@ -113,7 +113,7 @@ export class BrowserManager {
         this.browser = await chromium.launch({ headless: true });
       } catch (err) {
         throw new Error(
-          "Failed to launch Chromium — has it been installed? Run `npx playwright install chromium`.\n" +
+          "Failed to launch Chromium, has it been installed? Run `npx playwright install chromium`.\n" +
             `Original error: ${err instanceof Error ? err.message : String(err)}`,
         );
       }

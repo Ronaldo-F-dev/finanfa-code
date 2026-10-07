@@ -15,7 +15,7 @@ const DEFAULT_CALLBACK_PORT = 51789;
 /** Thrown by connect() when allowOAuthPrompt is false and the server has no saved token yet, or by FileOAuthClientProvider.redirectToAuthorization when a *silent* provider hits a 401 mid-session — distinct from a real connection failure, so callers can report it separately (and without ever opening a browser). */
 export class NeedsAuthorizationError extends Error {
   constructor(readonly serverName: string) {
-    super(`MCP server "${serverName}" needs authorization — no saved token yet.`);
+    super(`MCP server "${serverName}" needs authorization, no saved token yet.`);
   }
 }
 
@@ -120,7 +120,7 @@ export class FileOAuthClientProvider implements OAuthClientProvider {
 
   codeVerifier(): string {
     if (!this.codeVerifierMemo) {
-      throw new Error("No PKCE code verifier available — did the authorization flow start?");
+      throw new Error("No PKCE code verifier available, did the authorization flow start?");
     }
     return this.codeVerifierMemo;
   }
@@ -131,7 +131,7 @@ export class FileOAuthClientProvider implements OAuthClientProvider {
     }
     if (callbackServerActive) {
       throw new Error(
-        `Another connector's authorization is already in progress — finish that browser tab first, or wait up to 5 minutes for it to time out, then try "${this.serverName}" again.`,
+        `Another connector's authorization is already in progress, finish that browser tab first, or wait up to 5 minutes for it to time out, then try "${this.serverName}" again.`,
       );
     }
     console.error(

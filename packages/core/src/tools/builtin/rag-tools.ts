@@ -73,7 +73,7 @@ export function createIndexProjectDocumentsTool(config: FinanfaConfig, provider:
       "Builds (or refreshes) a local search index over this project's documents (Markdown, text, PDF, Word, " +
       "and other formats document-loader supports) so search_project_documents can find relevant passages by " +
       "meaning, not just filename. Stores the index as a SQLite file under .finanfa-code/rag-index.sqlite in " +
-      "the indexed project. Safe to re-run any time — a document whose content hasn't changed since the last " +
+      "the indexed project. Safe to re-run any time, a document whose content hasn't changed since the last " +
       "run is skipped without re-embedding, so a second run over an unchanged project is cheap. The first run " +
       "over a real document set does real embedding work (a real, if modest, cost) and downloads a small local " +
       "embedding model on its very first use process-wide.",
@@ -116,7 +116,7 @@ export function createSearchProjectDocumentsTool(config: FinanfaConfig, provider
       "Searches this project's indexed documents (via index_project_documents) for passages relevant to a " +
       "natural-language query, returning a formatted context block ranked by relevance with each passage's " +
       "source file and character range. Use this instead of grep/read_file to answer a question that might be " +
-      "covered in project docs/specs/notes rather than code — it matches by meaning, so it can find a relevant " +
+      "covered in project docs/specs/notes rather than code, it matches by meaning, so it can find a relevant " +
       "passage with none of the query's exact words. Returns a clear message if nothing has been indexed yet.",
     riskLevel: "safe",
     inputSchema: {
@@ -170,7 +170,7 @@ function formatMultiSourceNote(chunks: { sourcePath: string; score: number }[]):
   const distinctSources = [...new Set(chunks.filter((c) => c.score > MEANINGFUL_RELEVANCE_FLOOR).map((c) => c.sourcePath))];
   if (distinctSources.length < 2) return "";
   return (
-    `\n\n(Results came from ${distinctSources.length} different documents: ${distinctSources.join(", ")} — ` +
+    `\n\n(Results came from ${distinctSources.length} different documents: ${distinctSources.join(", ")}, ` +
     "this only means multiple independent sources answered the query, not that they disagree. If they cover " +
     "the same point, check both before treating either as authoritative.)"
   );
@@ -194,7 +194,7 @@ export function createCheckClaimGroundingTool(config: FinanfaConfig, provider: E
       "This is a similarity signal, NOT a fact-checker or a grounding guarantee: a claim can score high " +
       "similarity to a chunk that actually contradicts it (similar wording, opposite meaning), and a claim can " +
       "be true but still score low if the indexed documents simply don't cover it. Use it to spot-check a key " +
-      "claim before asserting it confidently, not as a verdict — read the matched text yourself before treating " +
+      "claim before asserting it confidently, not as a verdict, read the matched text yourself before treating " +
       "a high or low score as confirming or refuting the claim.",
     riskLevel: "safe",
     inputSchema: {
@@ -220,7 +220,7 @@ export function createCheckClaimGroundingTool(config: FinanfaConfig, provider: E
       if (chunks.length === 0) {
         return {
           content:
-            `No indexed chunk is even weakly similar to "${input.claim}" — either this project's documents don't ` +
+            `No indexed chunk is even weakly similar to "${input.claim}", either this project's documents don't ` +
             "cover this topic at all, or the claim is genuinely unrelated to anything indexed. A low/no score here " +
             "doesn't mean the claim is false, only that the index doesn't speak to it either way.",
           isError: false,

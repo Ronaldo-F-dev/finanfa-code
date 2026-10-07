@@ -78,13 +78,13 @@ export function createSecurityWifiActiveHandshakeCaptureTool(options: WifiActive
   return {
     name: "security_wifi_active_handshake_capture",
     description:
-      "STUB — NOT YET IMPLEMENTED. Intended to capture a WPA/WPA2 4-way handshake by putting an interface into " +
+      "STUB, NOT YET IMPLEMENTED. Intended to capture a WPA/WPA2 4-way handshake by putting an interface into " +
       "monitor mode, sending deauthentication frames at a target BSSID to force a client to reassociate, and " +
       "recording the resulting handshake with the aircrack-ng suite. This is an attack against a network's " +
       "other clients (not passive enumeration) and requires explicit, documented authorization for the target " +
       "network before ever being run. Currently only verifies real preconditions (platform, aircrack-ng suite " +
       "installed, monitor-mode-capable interface, target BSSID given) and then returns a clear " +
-      "not-implemented error — see this tool's handler in wifi-active-handshake.ts for the TODO describing " +
+      "not-implemented error, see this tool's handler in wifi-active-handshake.ts for the TODO describing " +
       "what belongs in it.",
     riskLevel: "dangerous",
     inputSchema: {
@@ -118,13 +118,13 @@ export function createSecurityWifiActiveHandshakeCaptureTool(options: WifiActive
         return { content: `Interface "${input.interfaceName}" not found via \`iw dev\`. Known interfaces: ${interfaces.map((i) => i.name).join(", ") || "(none detected)"}.`, isError: true };
       }
       if (iface.supportsMonitorMode !== true) {
-        return { content: `Interface "${input.interfaceName}" does not report monitor-mode support (\`iw phy ... info\` has no "monitor" under supported interface modes) — a monitor-mode-capable adapter is required for deauthentication/handshake capture.`, isError: true };
+        return { content: `Interface "${input.interfaceName}" does not report monitor-mode support (\`iw phy ... info\` has no "monitor" under supported interface modes), a monitor-mode-capable adapter is required for deauthentication/handshake capture.`, isError: true };
       }
       if (!input.targetBssid) {
         return { content: "A target BSSID is required.", isError: true };
       }
       if (!isValidBssid(input.targetBssid)) {
-        return { content: `"${input.targetBssid}" is not a valid BSSID — expected a MAC address like "AA:BB:CC:DD:EE:FF".`, isError: true };
+        return { content: `"${input.targetBssid}" is not a valid BSSID, expected a MAC address like "AA:BB:CC:DD:EE:FF".`, isError: true };
       }
 
       // --- not implemented past this point ---
@@ -157,7 +157,7 @@ export function createSecurityWifiActiveHandshakeCaptureTool(options: WifiActive
       return {
         content:
           "Preconditions verified (platform, aircrack-ng suite, monitor-mode-capable interface, target BSSID), " +
-          "but the actual capture sequence is not implemented yet — see the TODO comment in this tool's handler " +
+          "but the actual capture sequence is not implemented yet, see the TODO comment in this tool's handler " +
           "(packages/core/src/tools/builtin/security/wifi-active-handshake.ts) for the 6 steps it needs.",
         isError: true,
       };

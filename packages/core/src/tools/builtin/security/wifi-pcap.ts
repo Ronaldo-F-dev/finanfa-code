@@ -41,7 +41,7 @@ export function parsePcap(buffer: Buffer): PcapFile {
   const format = detectMagic(buffer);
   if (format === "pcapng") {
     throw new UnsupportedCaptureFormatError(
-      "PCAPNG format detected. This analyzer supports classic pcap only — convert with `tcpdump -r in.pcapng -w out.pcap` or `editcap` first.",
+      "PCAPNG format detected. This analyzer supports classic pcap only, convert with `tcpdump -r in.pcapng -w out.pcap` or `editcap` first.",
     );
   }
   if (format === "unknown") {

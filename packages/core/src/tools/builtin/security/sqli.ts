@@ -116,10 +116,10 @@ async function runProbes(target: URL, paramName: string): Promise<Finding | unde
       cvssVector: "AV:N/AC:L/PR:N/UI:N/S:U/C:H/I:H/A:H",
       cvssScore: score,
       cwe: "CWE-89",
-      description: `Injecting always-true vs. always-false boolean SQL conditions into '${paramName}' produces meaningfully different responses — a heuristic signal of blind SQL injection, not a certainty.`,
+      description: `Injecting always-true vs. always-false boolean SQL conditions into '${paramName}' produces meaningfully different responses, a heuristic signal of blind SQL injection, not a certainty.`,
       evidence: `GET ${location}: true-condition (${JSON.stringify(BOOLEAN_TRUE)}) and false-condition (${JSON.stringify(BOOLEAN_FALSE)}) payloads produced different response sizes/status codes.`,
       impact: "If confirmed, an attacker can extract data bit-by-bit via blind SQL injection even without visible error messages.",
-      remediation: "Use parameterized queries/prepared statements exclusively. Manually verify this finding before remediation — boolean-based heuristics can false-positive on naturally dynamic pages.",
+      remediation: "Use parameterized queries/prepared statements exclusively. Manually verify this finding before remediation, boolean-based heuristics can false-positive on naturally dynamic pages.",
       affectedEndpoint: location,
     };
   }
@@ -146,7 +146,7 @@ async function scanSqli(targetUrl: string): Promise<ScanOutput> {
   }
 
   if (candidates.length === 0) {
-    passed.push({ label: "No injectable parameters found", detail: "No query parameters were found on the given URL (POST forms aren't tested — no form discovery in this project)." });
+    passed.push({ label: "No injectable parameters found", detail: "No query parameters were found on the given URL (POST forms aren't tested, no form discovery in this project)." });
   } else if (findings.length === 0) {
     passed.push({
       label: "No SQL injection detected",
@@ -165,12 +165,12 @@ export const securityScanSqliTool: ToolDefinition<SecurityScanSqliInput> = {
   name: "security_scan_sqli",
   description:
     "Security tool. Tests a URL's query parameters for SQL injection: error-based (a single quote triggers a " +
-    "database error signature — high confidence) and boolean-based blind (always-true vs always-false " +
-    "conditions produce meaningfully different responses — heuristic, needs manual verification). Sends real " +
+    "database error signature, high confidence) and boolean-based blind (always-true vs always-false " +
+    "conditions produce meaningfully different responses, heuristic, needs manual verification). Sends real " +
     "SQL-injection-style payloads to a live target. GET-only. Does NOT attempt time-based blind SQLi (SLEEP()/" +
-    "WAITFOR) — that means deliberately loading the target's database for seconds per parameter, a heavier " +
+    "WAITFOR), that means deliberately loading the target's database for seconds per parameter, a heavier " +
     "footprint this tool avoids. A port of the user's own cyberlens scanner's sqli check. " +
-    "IMPORTANT: only test a target you own or have explicit, documented authorization to test — this sends " +
+    "IMPORTANT: only test a target you own or have explicit, documented authorization to test, this sends " +
     "real exploit-style payloads, unlike the passive/recon security_scan_* tools.",
   riskLevel: "dangerous",
   inputSchema: {

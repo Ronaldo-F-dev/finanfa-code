@@ -25,10 +25,10 @@ export function createRead1PasswordSecretTool(options: Read1PasswordSecretToolOp
   return {
     name: "read_1password_secret",
     description:
-      'Read a secret from 1Password via the real `op` CLI (must already be signed in — this tool never handles ' +
+      'Read a secret from 1Password via the real `op` CLI (must already be signed in, this tool never handles ' +
       'credentials itself). `reference` is a real 1Password secret reference URI, e.g. ' +
       '"op://VaultName/ItemName/fieldName" (see `op read --help`). The returned value becomes real, visible ' +
-      "model context — treat it with the same care as any other secret you'd paste into a chat.",
+      "model context, treat it with the same care as any other secret you'd paste into a chat.",
     riskLevel: "dangerous",
     inputSchema: {
       type: "object",

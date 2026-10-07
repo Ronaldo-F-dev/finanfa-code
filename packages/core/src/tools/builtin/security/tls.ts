@@ -177,8 +177,8 @@ interface SecurityScanTlsInput {
 export const securityScanTlsTool: ToolDefinition<SecurityScanTlsInput> = {
   name: "security_scan_tls",
   description:
-    "Security tool. Check a target's TLS configuration — protocol version, negotiated cipher, and certificate " +
-    "expiry — a direct port of the user's own cyberlens scanner's TLS check. Flags plaintext HTTP, deprecated " +
+    "Security tool. Check a target's TLS configuration, protocol version, negotiated cipher, and certificate " +
+    "expiry, a direct port of the user's own cyberlens scanner's TLS check. Flags plaintext HTTP, deprecated " +
     "protocols (SSLv2/3, TLS 1.0/1.1), known-weak ciphers, and an expired/soon-to-expire certificate. " +
     "IMPORTANT: only scan a target the user owns or has explicit, documented authorization to test.",
   riskLevel: "ask",

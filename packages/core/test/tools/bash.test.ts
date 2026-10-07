@@ -29,7 +29,7 @@ describe("bash tool", () => {
   });
 
   it(
-    "does not hang forever on a backgrounded, non-redirected child process — a real regression test",
+    "does not hang forever on a backgrounded, non-redirected child process, a real regression test",
     async () => {
       // Real bug: `server &` with no output redirection leaves an orphaned
       // process holding the inherited stdout pipe open, so plain
@@ -75,7 +75,7 @@ describe("bash tool", () => {
       await rm(dir, { recursive: true, force: true });
     });
 
-    it("expands brace patterns ({a,b,c}) — real bug: dash creates one literal garbage path instead", async () => {
+    it("expands brace patterns ({a,b,c}), real bug: dash creates one literal garbage path instead", async () => {
       // Reproduces the exact failure seen in a real session: dash doesn't
       // support brace expansion, so `mkdir -p project/{app,models}` created
       // a single directory literally named "{app,models}" instead of two.
@@ -106,18 +106,18 @@ describe("bash tool", () => {
     // of letting the permission flow deny the call gracefully.
     it("riskKey does not throw when command is undefined", () => {
       expect(() => bashTool.riskKey?.({} as never)).not.toThrow();
-      expect(bashTool.riskKey?.({} as never)).toBe("(no command — malformed arguments)");
+      expect(bashTool.riskKey?.({} as never)).toBe("(no command, malformed arguments)");
     });
 
     it("describeCall does not throw when command is undefined", () => {
       expect(() => bashTool.describeCall?.({} as never)).not.toThrow();
-      expect(bashTool.describeCall?.({} as never)).toBe("(no command — malformed arguments)");
+      expect(bashTool.describeCall?.({} as never)).toBe("(no command, malformed arguments)");
     });
   });
 });
 
 // bubblewrap is Linux-only; skipped elsewhere, and locally when bwrap is missing (required on Linux CI).
-describe.skipIf(!isLinux || skipLocally(hasCommand("bwrap")))("bash tool — OS-level sandbox (real bubblewrap, workspace-write mode)", () => {
+describe.skipIf(!isLinux || skipLocally(hasCommand("bwrap")))("bash tool, OS-level sandbox (real bubblewrap, workspace-write mode)", () => {
   const sandboxedTool = createBashTool({ mode: "workspace-write" });
   let dir: string;
 
@@ -142,13 +142,13 @@ describe.skipIf(!isLinux || skipLocally(hasCommand("bwrap")))("bash tool — OS-
     expect(result.content).toContain("inside");
   });
 
-  it("cannot write anywhere outside its cwd — the whole point of the sandbox", async () => {
+  it("cannot write anywhere outside its cwd, the whole point of the sandbox", async () => {
     const result = await sandboxedTool.handler({ command: "touch /etc/finanfa-sandbox-test-should-fail" }, { ...ctx, cwd: dir });
     expect(result.isError).toBe(true);
     expect(result.content.toLowerCase()).toContain("read-only file system");
   });
 
-  it("cannot write into an unrelated directory it wasn't given (outside /tmp, which stays writable everywhere — see sandbox.ts)", async () => {
+  it("cannot write into an unrelated directory it wasn't given (outside /tmp, which stays writable everywhere, see sandbox.ts)", async () => {
     // Deliberately NOT under os.tmpdir(): buildBwrapArgs binds all of /tmp
     // read-write (for cross-call scratch-file persistence, matching today's
     // unsandboxed behavior), so a sibling under /tmp wouldn't prove
@@ -190,7 +190,7 @@ describe.skipIf(!isLinux || skipLocally(hasCommand("bwrap")))("bash tool — OS-
     expect(elapsed).toBeLessThan(2000);
   }, 10_000);
 
-  it("{mode: 'off'} stays fully unsandboxed even when bwrap is available — can write outside cwd", async () => {
+  it("{mode: 'off'} stays fully unsandboxed even when bwrap is available, can write outside cwd", async () => {
     const offTool = createBashTool({ mode: "off" });
     const target = path.join(tmpdir(), `finanfa-sandbox-off-test-${Date.now()}`);
     try {

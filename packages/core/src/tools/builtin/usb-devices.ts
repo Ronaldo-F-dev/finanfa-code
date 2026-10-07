@@ -124,7 +124,7 @@ function parseLsusb(stdout: string): UsbDevice[] {
 }
 
 async function listLinuxUsb(bin: string): Promise<{ devices: UsbDevice[]; available: boolean; note: string }> {
-  if (!isCommandAvailable(bin)) return { devices: [], available: false, note: "lsusb not found — install usbutils (e.g. `apt install usbutils`) for generic USB enumeration." };
+  if (!isCommandAvailable(bin)) return { devices: [], available: false, note: "lsusb not found, install usbutils (e.g. `apt install usbutils`) for generic USB enumeration." };
   const result = await run(bin, []);
   if (result.code !== 0) return { devices: [], available: true, note: `lsusb exited with an error: ${result.stderr.trim() || result.code}` };
   const devices = parseLsusb(result.stdout);
@@ -138,7 +138,7 @@ async function listLinuxUsb(bin: string): Promise<{ devices: UsbDevice[]; availa
 // not been run against a real Windows machine — treat it as best-effort.
 
 async function listWindowsUsb(bin: string): Promise<{ devices: UsbDevice[]; available: boolean; note: string }> {
-  if (!isCommandAvailable(bin)) return { devices: [], available: false, note: "PowerShell not found — skipped Windows USB enumeration." };
+  if (!isCommandAvailable(bin)) return { devices: [], available: false, note: "PowerShell not found, skipped Windows USB enumeration." };
   const result = await run(
     bin,
     ["-NoProfile", "-Command", "Get-PnpDevice -PresentOnly | Where-Object { $_.InstanceId -like 'USB*' } | Select-Object FriendlyName,InstanceId | ConvertTo-Json"],
@@ -160,7 +160,7 @@ async function listWindowsUsb(bin: string): Promise<{ devices: UsbDevice[]; avai
 // --- Android: adb devices -l --------------------------------------------
 
 async function listAndroidDevices(bin: string): Promise<{ devices: UsbDevice[]; available: boolean; note: string }> {
-  if (!isCommandAvailable(bin)) return { devices: [], available: false, note: "adb not available — not found on PATH. Install Android Platform Tools to detect Android devices." };
+  if (!isCommandAvailable(bin)) return { devices: [], available: false, note: "adb not available, not found on PATH. Install Android Platform Tools to detect Android devices." };
   const result = await run(bin, ["devices", "-l"]);
   if (result.code !== 0) return { devices: [], available: true, note: `adb devices exited with an error: ${result.stderr.trim() || result.code}` };
   const devices: UsbDevice[] = [];
@@ -184,7 +184,7 @@ async function listAndroidDevices(bin: string): Promise<{ devices: UsbDevice[]; 
 // --- iOS: idevice_id -l / ideviceinfo (libimobiledevice) ----------------
 
 async function listIosDevices(ideviceIdBin: string, ideviceinfoBin: string): Promise<{ devices: UsbDevice[]; available: boolean; note: string }> {
-  if (!isCommandAvailable(ideviceIdBin)) return { devices: [], available: false, note: "idevice_id not available — install libimobiledevice (e.g. `brew install libimobiledevice`) to detect iOS devices by UDID." };
+  if (!isCommandAvailable(ideviceIdBin)) return { devices: [], available: false, note: "idevice_id not available, install libimobiledevice (e.g. `brew install libimobiledevice`) to detect iOS devices by UDID." };
   const result = await run(ideviceIdBin, ["-l"]);
   if (result.code !== 0) return { devices: [], available: true, note: `idevice_id exited with an error: ${result.stderr.trim() || result.code}` };
   const udids = result.stdout.split("\n").map((l) => l.trim()).filter(Boolean);
@@ -198,7 +198,7 @@ async function listIosDevices(ideviceIdBin: string, ideviceinfoBin: string): Pro
     }
     devices.push({ name, type: "phone (iOS)", id: udid });
   }
-  return { devices, available: true, note: `idevice_id: ${devices.length} iOS device(s) found${ideviceinfoAvailable ? "" : " (ideviceinfo not available — names are generic)"}.` };
+  return { devices, available: true, note: `idevice_id: ${devices.length} iOS device(s) found${ideviceinfoAvailable ? "" : " (ideviceinfo not available, names are generic)"}.` };
 }
 
 /** Folds phones positively identified by adb/idevice_id into the generic (system_profiler/lsusb) list — attaching the serial/UDID to a matching not-yet-identified entry of the same guessed type where one exists, otherwise appending a new entry. Best-effort: there's no shared USB identifier between "system_profiler says an iPhone is here" and "idevice_id says UDID X is here" to match on precisely. */
@@ -242,9 +242,9 @@ export function createListUsbDevicesTool(options: ListUsbDevicesOptions = {}): T
       "`ideviceinfo` (libimobiledevice) to positively identify iOS devices by UDID. On Linux, uses `lsusb`. " +
       "On both, also checks for `adb` (Android Platform Tools) to positively identify Android devices by " +
       "serial. Windows support is best-effort (PowerShell Get-PnpDevice) and unverified on real hardware. " +
-      "None of these external tools need to be installed — the result reports which detection methods " +
+      "None of these external tools need to be installed, the result reports which detection methods " +
       "actually ran vs were skipped (not installed) rather than failing outright. An identified phone's id " +
-      "(an adb serial or iOS UDID) is what run_adb_command/run_ios_ssh_command target — note that iOS command " +
+      "(an adb serial or iOS UDID) is what run_adb_command/run_ios_ssh_command target, note that iOS command " +
       "execution only works on a JAILBROKEN device running an SSH server (see run_ios_ssh_command).",
     riskLevel: "safe",
     inputSchema: { type: "object", properties: {} },
@@ -278,7 +278,7 @@ export function createListUsbDevicesTool(options: ListUsbDevicesOptions = {}): T
 
       const lines =
         devices.length > 0
-          ? devices.map((d) => `${d.type}: ${d.name}${d.vendor ? ` — ${d.vendor}` : ""}${d.id ? ` (id=${d.id})` : ""}${d.raw ? ` [${d.raw}]` : ""}`)
+          ? devices.map((d) => `${d.type}: ${d.name}${d.vendor ? `, ${d.vendor}` : ""}${d.id ? ` (id=${d.id})` : ""}${d.raw ? ` [${d.raw}]` : ""}`)
           : ["No USB devices found."];
 
       return {
@@ -304,10 +304,10 @@ export function createRunAdbCommandTool(options: RunAdbCommandOptions = {}): Too
       "list_usb_devices for available serials). Pass the adb subcommand and its arguments as a plain array, " +
       "e.g. ['shell', 'pm', 'list', 'packages'], ['install', 'app.apk'], ['push', 'local.txt', '/sdcard/'], " +
       "['pull', '/sdcard/file.txt', 'local.txt']. " +
-      "IMPORTANT: this runs a real command against real physical hardware over USB — install/push/pull/shell " +
+      "IMPORTANT: this runs a real command against real physical hardware over USB, install/push/pull/shell " +
       "can modify the device's real filesystem or installed apps, so confirm with the user before running " +
       "anything destructive. Android only: stock iOS does not allow arbitrary shell command execution over " +
-      "USB without jailbreaking — for a JAILBROKEN iOS device with an SSH server installed, see " +
+      "USB without jailbreaking, for a JAILBROKEN iOS device with an SSH server installed, see " +
       "run_ios_ssh_command instead.",
     riskLevel: "dangerous",
     inputSchema: {
@@ -324,7 +324,7 @@ export function createRunAdbCommandTool(options: RunAdbCommandOptions = {}): Too
     async handler(input) {
       if (!isCommandAvailable(adbBin)) {
         return {
-          content: "adb not found — install Android Platform Tools (https://developer.android.com/tools/releases/platform-tools) and ensure `adb` is on PATH.",
+          content: "adb not found, install Android Platform Tools (https://developer.android.com/tools/releases/platform-tools) and ensure `adb` is on PATH.",
           isError: true,
         };
       }
@@ -408,22 +408,22 @@ export function createRunIosSshCommandTool(options: RunIosSshCommandOptions = {}
     name: "run_ios_ssh_command",
     description:
       "Run a real shell command on a connected iOS device over USB, via SSH tunneled through `iproxy` " +
-      "(libimobiledevice). ONLY works on a JAILBROKEN device — stock iOS has no SSH server at all, so this " +
+      "(libimobiledevice). ONLY works on a JAILBROKEN device, stock iOS has no SSH server at all, so this " +
       "will fail on any non-jailbroken device even if list_usb_devices detects it by UDID. Requires: (1) " +
       "`iproxy` installed locally (part of libimobiledevice, e.g. `brew install libimobiledevice`), and (2) " +
-      "the device's own SSH server (OpenSSH via Cydia/Sileo) actually running — this tool does not install " +
+      "the device's own SSH server (OpenSSH via Cydia/Sileo) actually running, this tool does not install " +
       "or start one. Targets the device by UDID (see list_usb_devices). Auth is key-based only (ssh-agent or " +
-      "identity_file) — like run_remote_command, this never takes a password as input; a device still using " +
+      "identity_file), like run_remote_command, this never takes a password as input; a device still using " +
       "the well-known default jailbreak root password ('alpine') should have that changed. " +
-      "IMPORTANT: this runs a real command against real physical hardware, typically as root — confirm with " +
+      "IMPORTANT: this runs a real command against real physical hardware, typically as root, confirm with " +
       "the user before running anything destructive.",
     riskLevel: "dangerous",
     inputSchema: {
       type: "object",
       properties: {
         udid: { type: "string", description: "Device UDID from list_usb_devices' output" },
-        command: { type: "string", description: "Command to run on the device — interpreted by the device's remote shell" },
-        user: { type: "string", description: "SSH username (default 'root' — jailbroken iOS's SSH default)" },
+        command: { type: "string", description: "Command to run on the device, interpreted by the device's remote shell" },
+        user: { type: "string", description: "SSH username (default 'root', jailbroken iOS's SSH default)" },
         device_port: { type: "number", description: "SSH port on the device itself (default 22)" },
         local_port: { type: "number", description: "Local port to tunnel through. Omit to auto-pick a free one." },
         identity_file: { type: "string", description: "Path to a specific private key, if not already resolved via ssh-agent" },
@@ -435,7 +435,7 @@ export function createRunIosSshCommandTool(options: RunIosSshCommandOptions = {}
     describeCall: (input) => `ssh (via iproxy) ${input.user ?? "root"}@<iOS ${input.udid}>: ${input.command}`,
     async handler(input) {
       if (!isCommandAvailable(iproxyBin)) {
-        return { content: "iproxy not found — install libimobiledevice (e.g. `brew install libimobiledevice`).", isError: true };
+        return { content: "iproxy not found, install libimobiledevice (e.g. `brew install libimobiledevice`).", isError: true };
       }
 
       const devicePort = input.device_port ?? 22;

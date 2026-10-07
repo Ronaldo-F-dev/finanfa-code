@@ -26,13 +26,13 @@ export function createFirmwareFlashTools(options: FirmwareFlashToolOptions = {})
   const esptool = createGenericCliTool(
     "run_esptool",
     "esptool",
-    "Run esptool (Espressif's official ESP32/ESP8266 serial utility) — flash firmware (write-flash), read " +
+    "Run esptool (Espressif's official ESP32/ESP8266 serial utility), flash firmware (write-flash), read " +
       "chip info (chip-id, flash-id, read-mac), inspect a firmware image (image-info, doesn't need a real " +
       "device), merge binaries (merge-bin), erase flash, and more. Pass the subcommand as args[0] (e.g. " +
       "['write-flash', '0x1000', 'firmware.bin'], ['chip-id'], ['image-info', 'firmware.bin']) plus --port/" +
       "--baud/--chip as needed. " +
       "IMPORTANT: write-flash/erase-flash/write-flash-status modify real hardware and can be destructive " +
-      "(overwriting existing firmware) — confirm with the user before running one of those against a real " +
+      "(overwriting existing firmware), confirm with the user before running one of those against a real " +
       "device.",
     { binaryOverride: options.esptoolBinary, defaultTimeoutMs: DEFAULT_TIMEOUT_MS },
   );
@@ -40,11 +40,11 @@ export function createFirmwareFlashTools(options: FirmwareFlashToolOptions = {})
   const avrdude = createGenericCliTool(
     "run_avrdude",
     "avrdude",
-    "Run avrdude (the standard AVR/Arduino programmer) — flash firmware (.hex) to an AVR microcontroller, " +
+    "Run avrdude (the standard AVR/Arduino programmer), flash firmware (.hex) to an AVR microcontroller, " +
       "read/write fuse bits, verify flash contents. Pass args as a plain array (e.g. ['-c', 'arduino', '-p', " +
       "'atmega328p', '-P', '/dev/ttyUSB0', '-b', '115200', '-U', 'flash:w:firmware.hex:i']). " +
       "IMPORTANT: writing flash/fuses modifies real hardware and can be destructive (a wrong fuse setting can " +
-      "brick the chip until it's reprogrammed via a hardware programmer) — confirm with the user before " +
+      "brick the chip until it's reprogrammed via a hardware programmer), confirm with the user before " +
       "writing anything to a real device.",
     { binaryOverride: options.avrdudeBinary, defaultTimeoutMs: DEFAULT_TIMEOUT_MS },
   );

@@ -40,7 +40,7 @@ export const checkPythonTypesTool: ToolDefinition<CheckPythonTypesInput> = {
   name: "check_python_types",
   description:
     "Run Pyright to type-check a Python file or project and report the errors/warnings, the same way " +
-    "run_tests reports test failures. Uses `npx pyright` — no separate pip install needed, it's an npm " +
+    "run_tests reports test failures. Uses `npx pyright`, no separate pip install needed, it's an npm " +
     "package. Static analysis only, doesn't execute any code.",
   riskLevel: "safe",
   inputSchema: {

@@ -44,7 +44,7 @@ async function scanXxe(endpoint: string): Promise<ScanOutput> {
     evidence: `POST ${endpoint} with an XXE payload -> response contains '${DISCLOSURE_MARKER}'.`,
     impact:
       "XXE can be used to read arbitrary local files, and in some configurations to perform server-side request forgery (SSRF) or achieve remote code execution via exposed XML parsers.",
-    remediation: "Disable external entity resolution (DTD processing) in the XML parser — every major XML library has a documented way to do this. Prefer a safe/hardened parser configuration by default.",
+    remediation: "Disable external entity resolution (DTD processing) in the XML parser, every major XML library has a documented way to do this. Prefer a safe/hardened parser configuration by default.",
     affectedEndpoint: endpoint,
   };
 
@@ -59,9 +59,9 @@ export const securityScanXxeTool: ToolDefinition<SecurityScanXxeInput> = {
   name: "security_scan_xxe",
   description:
     "Security tool. POSTs a raw XML body containing an external entity (pointing at /etc/passwd) to an " +
-    "endpoint and checks whether the response reflects local file contents — the classic XXE file-disclosure " +
+    "endpoint and checks whether the response reflects local file contents, the classic XXE file-disclosure " +
     "signature. Sends a real, unsolicited POST request with a payload to an endpoint that may not expect XML " +
-    "at all — a real side-effect risk (same reason cyberlens's own --active-forms flag gates this), not a " +
+    "at all, a real side-effect risk (same reason cyberlens's own --active-forms flag gates this), not a " +
     "safe-by-default GET probe. A faithful port of the user's own cyberlens scanner's xxe check, scoped to one " +
     "endpoint at a time (no site crawler exists in this project to discover more). " +
     "IMPORTANT: only test an endpoint the user owns or has explicit, documented authorization to test.",

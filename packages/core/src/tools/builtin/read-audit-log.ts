@@ -23,7 +23,7 @@ function summarize(events: AuditEvent[]): string {
   lines.push(`${denies.length} denied.`);
   if (denies.length > 0) {
     lines.push("", "Denied:");
-    for (const e of denies) lines.push(`  ${e.ts} ${e.tool} (${e.riskKey}) — source: ${e.source}, session ${e.sessionId}`);
+    for (const e of denies) lines.push(`  ${e.ts} ${e.tool} (${e.riskKey}), source: ${e.source}, session ${e.sessionId}`);
   }
   return lines.join("\n");
 }
@@ -37,7 +37,7 @@ export const readAuditLogTool: ToolDefinition<ReadAuditLogInput> = {
   name: "read_audit_log",
   description:
     "Read this agent's own structured audit trail of permission decisions (every tool call allow/deny, which " +
-    "code path decided it — a hook, yolo, an allowlist, a config rule, or a direct user answer) recorded so far " +
+    "code path decided it, a hook, yolo, an allowlist, a config rule, or a direct user answer) recorded so far " +
     "today (or a given date). Independent of the OpenTelemetry trace file (read_traces): a denied call never " +
     "reaches that one, since the tool is never actually invoked. Use this for a security/compliance review of " +
     "what this agent was allowed or refused to do. Pass raw:true to get the unsummarized JSONL instead.",
@@ -58,7 +58,7 @@ export const readAuditLogTool: ToolDefinition<ReadAuditLogInput> = {
     try {
       raw = await readFile(auditFilePath(date), "utf-8");
     } catch {
-      return { content: "No audit log file for that date — no permission decisions have been recorded yet.", isError: false };
+      return { content: "No audit log file for that date, no permission decisions have been recorded yet.", isError: false };
     }
 
     if (input.raw) return { content: raw, isError: false };

@@ -42,7 +42,7 @@ describe("audit log (real JSONL file on disk)", () => {
     expect(result.isError).toBe(false);
     expect(result.content).toContain("2 permission decision(s) recorded");
     expect(result.content).toContain("1 denied");
-    expect(result.content).toContain("bash (bash:rm -rf /) — source: user_prompt");
+    expect(result.content).toContain("bash (bash:rm -rf /), source: user_prompt");
   });
 
   it("read_audit_log reports no file for a date nothing was recorded on", async () => {

@@ -87,7 +87,7 @@ async function scanStorage(targetUrl: string): Promise<ScanOutput> {
   try {
     browser = await chromium.launch({ headless: true });
   } catch (err) {
-    throw new Error(`Failed to launch Chromium — run \`npx playwright install chromium\` first. Original error: ${err instanceof Error ? err.message : String(err)}`);
+    throw new Error(`Failed to launch Chromium, run \`npx playwright install chromium\` first. Original error: ${err instanceof Error ? err.message : String(err)}`);
   }
 
   const findings: Finding[] = [];

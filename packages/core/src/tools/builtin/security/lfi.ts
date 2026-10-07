@@ -86,7 +86,7 @@ interface SecurityScanLfiInput {
 export const securityScanLfiTool: ToolDefinition<SecurityScanLfiInput> = {
   name: "security_scan_lfi",
   description:
-    "Security tool. Tests a URL's query parameters for Local File Inclusion / path traversal — injects a " +
+    "Security tool. Tests a URL's query parameters for Local File Inclusion / path traversal, injects a " +
     "couple of traversal payloads targeting /etc/passwd and only flags a parameter when the response actually " +
     "discloses its contents, never a generic error/status heuristic. GET-only, safe to run. A port of the " +
     "user's own cyberlens scanner's lfi check, scoped to the given URL's own query string. " +

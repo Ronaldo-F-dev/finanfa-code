@@ -35,10 +35,10 @@ function outputExtension(format: "png" | "jpeg"): string {
 export const convertPdfToImageTool: ToolDefinition<ConvertPdfToImageInput> = {
   name: "convert_pdf_to_image",
   description:
-    "Render PDF pages to PNG/JPEG images, via poppler's `pdftoppm` (a real PDF rasterizer — headless Chromium " +
+    "Render PDF pages to PNG/JPEG images, via poppler's `pdftoppm` (a real PDF rasterizer, headless Chromium " +
     "can't do this; navigating it to a PDF triggers a download instead of rendering one). Without `page`, " +
     "renders every page, named <prefix>-1.<ext>, <prefix>-2.<ext>, etc.; with `page`, renders just that one " +
-    "page as <prefix>.<ext>. Needs pdftoppm installed (part of poppler-utils) — if it's missing, say so rather " +
+    "page as <prefix>.<ext>. Needs pdftoppm installed (part of poppler-utils), if it's missing, say so rather " +
     "than trying to install it yourself.",
   riskLevel: "ask",
   inputSchema: {
@@ -48,7 +48,7 @@ export const convertPdfToImageTool: ToolDefinition<ConvertPdfToImageInput> = {
       outputPrefix: { type: "string", description: "Output filename prefix, without extension (default: source path without .pdf)" },
       page: { type: "number", description: "Render only this 1-based page instead of every page" },
       format: { type: "string", enum: ["png", "jpeg"], description: 'Output format (default "png")' },
-      dpi: { type: "number", description: "Resolution in DPI (default 150 — pdftoppm's own default)" },
+      dpi: { type: "number", description: "Resolution in DPI (default 150, pdftoppm's own default)" },
     },
     required: ["path"],
   },
@@ -58,8 +58,8 @@ export const convertPdfToImageTool: ToolDefinition<ConvertPdfToImageInput> = {
     if (!(await commandAvailable("pdftoppm", ["-v"]))) {
       return {
         content:
-          "pdftoppm isn't available (part of poppler-utils). Install it — `apt install poppler-utils` on " +
-          "Debian/Ubuntu, `brew install poppler` on macOS — then retry.",
+          "pdftoppm isn't available (part of poppler-utils). Install it, `apt install poppler-utils` on " +
+          "Debian/Ubuntu, `brew install poppler` on macOS, then retry.",
         isError: true,
       };
     }
@@ -89,7 +89,7 @@ export const convertPdfToImageTool: ToolDefinition<ConvertPdfToImageInput> = {
       .map((name) => path.relative(ctx.cwd, path.join(path.dirname(prefixPath), name)));
 
     if (created.length === 0) {
-      return { content: "pdftoppm ran without error but produced no output files — unexpected.", isError: true };
+      return { content: "pdftoppm ran without error but produced no output files, unexpected.", isError: true };
     }
     return { content: `Rendered ${created.length} page(s):\n${created.join("\n")}`, isError: false };
   },

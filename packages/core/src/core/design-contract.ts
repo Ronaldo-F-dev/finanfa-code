@@ -10,11 +10,11 @@ import path from "node:path";
  * create themselves before getting any benefit).
  */
 const DEFAULT_DESIGN_CONTRACT = `Design system (apply unless the request clearly calls for something else):
-- Palette: a neutral base (slate-50 background, slate-900 text) plus exactly one accent color fit to the request's context (default indigo-600 if nothing else fits) — never leave default Tailwind black/white/gray with no deliberate accent choice.
-- Spacing: Tailwind's default scale, used consistently — p-4/p-6 for card padding, gap-4/gap-6 between related elements, never an eyeballed one-off pixel value.
-- Typography: one weight step per hierarchy level (font-bold for headings, font-medium for emphasis, regular for body) — text-sm for secondary/meta text, text-base for body, text-lg or larger for headings.
+- Palette: a neutral base (slate-50 background, slate-900 text) plus exactly one accent color fit to the request's context (default indigo-600 if nothing else fits), never leave default Tailwind black/white/gray with no deliberate accent choice.
+- Spacing: Tailwind's default scale, used consistently, p-4/p-6 for card padding, gap-4/gap-6 between related elements, never an eyeballed one-off pixel value.
+- Typography: one weight step per hierarchy level (font-bold for headings, font-medium for emphasis, regular for body), text-sm for secondary/meta text, text-base for body, text-lg or larger for headings.
 - Components: rounded-lg or rounded-xl consistently for cards/buttons (not mismatched radii in one view), shadow-sm for resting elevation, shadow-lg reserved for one explicitly featured/elevated element, slate-200 borders when borders are used at all.
-- Interactivity: every clickable element gets a visible hover state (hover:bg-*, hover:shadow, or similar) — a button/card with no hover response reads as broken, not calm.`;
+- Interactivity: every clickable element gets a visible hover state (hover:bg-*, hover:shadow, or similar), a button/card with no hover response reads as broken, not calm.`;
 
 function designContractPath(cwd: string): string {
   return path.join(cwd, "finanfa-design.md");

@@ -44,7 +44,7 @@ describe("/help command", () => {
   it("lists builtin commands", async () => {
     const ctx = baseCtx();
     await commands.get("help")!(ctx);
-    expect(ctx.ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/cost — Show token usage"));
+    expect(ctx.ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/cost: Show token usage"));
     expect(ctx.ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/plan"));
   });
 
@@ -54,7 +54,7 @@ describe("/help command", () => {
     ]);
     const ctx = baseCtx(customCommands);
     await commands.get("help")!(ctx);
-    expect(ctx.ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/ship — Review the current diff"));
+    expect(ctx.ui.writeSystem).toHaveBeenCalledWith(expect.stringContaining("/ship: Review the current diff"));
   });
 
   it("does not list a custom command that shares a name with a builtin (it's shadowed)", async () => {

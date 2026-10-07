@@ -96,7 +96,7 @@ export async function pollForAccessToken(
     const check = await checkDeviceAuthorization(deviceCode, clientId, baseUrl);
     if (check.status === "authorized") return check.accessToken;
     if (check.status === "denied") throw new Error("GitHub Copilot device authorization was denied.");
-    if (check.status === "expired") throw new Error("GitHub Copilot device code expired before it was authorized — run the setup step again.");
+    if (check.status === "expired") throw new Error("GitHub Copilot device code expired before it was authorized, run the setup step again.");
     if (check.status === "slow_down") waitMs += 5000;
   }
 }

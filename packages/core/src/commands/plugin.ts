@@ -70,7 +70,7 @@ async function handleMarketplace(ctx: CommandContext, words: string[]): Promise<
   }
   if (action === "list" || !action) {
     const markets = await listMarketplaces();
-    return ctx.ui.writeSystem(markets.length === 0 ? "No marketplaces registered. Add one with /plugin marketplace add <git-url|dir>." : markets.map((m) => `${m.name} — ${m.pluginCount} plugin(s) — ${m.source}`).join("\n"));
+    return ctx.ui.writeSystem(markets.length === 0 ? "No marketplaces registered. Add one with /plugin marketplace add <git-url|dir>." : markets.map((m) => `${m.name}, ${m.pluginCount} plugin(s), ${m.source}`).join("\n"));
   }
   if (action === "update") {
     if (!arg) return ctx.ui.writeError("Usage: /plugin marketplace update <name>");
@@ -94,12 +94,12 @@ async function dispatch(ctx: CommandContext): Promise<void> {
       const plugins = await discoverPlugins(ctx.cwd);
       if (plugins.length === 0) return ctx.ui.writeSystem("No plugins installed. Try /plugin marketplace add <git-url|dir>, then /plugin search.");
       return ctx.ui.writeSystem(
-        plugins.map((p) => `${p.name}${p.manifest.version ? `@${p.manifest.version}` : ""} [${p.scope}${p.enabled ? "" : ", disabled"}]${p.manifest.description ? ` — ${p.manifest.description}` : ""}`).join("\n"),
+        plugins.map((p) => `${p.name}${p.manifest.version ? `@${p.manifest.version}` : ""} [${p.scope}${p.enabled ? "" : ", disabled"}]${p.manifest.description ? `, ${p.manifest.description}` : ""}`).join("\n"),
       );
     }
     case "search": {
       const found = await searchMarketplaces(arg);
-      return ctx.ui.writeSystem(found.length === 0 ? "No matching plugins (register a marketplace with /plugin marketplace add)." : found.map((f) => `${f.name}@${f.marketplace}${f.description ? ` — ${f.description}` : ""}`).join("\n"));
+      return ctx.ui.writeSystem(found.length === 0 ? "No matching plugins (register a marketplace with /plugin marketplace add)." : found.map((f) => `${f.name}@${f.marketplace}${f.description ? `, ${f.description}` : ""}`).join("\n"));
     }
     case "install": {
       if (!arg) return ctx.ui.writeError("Usage: /plugin install <plugin>[@<marketplace>]");
@@ -118,7 +118,7 @@ async function dispatch(ctx: CommandContext): Promise<void> {
     case "enable":
     case "disable": {
       if (!arg) return ctx.ui.writeError(`Usage: /plugin ${sub} <plugin>`);
-      if (!(await setPluginEnabled(arg, sub === "enable", ctx.cwd))) return ctx.ui.writeError(`No plugin named "${arg}" — see /plugin list.`);
+      if (!(await setPluginEnabled(arg, sub === "enable", ctx.cwd))) return ctx.ui.writeError(`No plugin named "${arg}", see /plugin list.`);
       return ctx.ui.writeSystem(`${sub === "enable" ? "Enabled" : "Disabled"} "${arg}". Reloaded: ${await reloadPluginContent(ctx)}. ${RESTART_NOTE}`);
     }
     case "reload":

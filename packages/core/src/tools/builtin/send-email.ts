@@ -47,8 +47,8 @@ export function createSendEmailTool(config: EmailConfig | undefined): ToolDefini
     name: "send_email",
     description:
       "Send a real email via SMTP. Requires SMTP_HOST/SMTP_FROM (and usually SMTP_USER/SMTP_PASS/SMTP_PORT/" +
-      "SMTP_SECURE) to be configured as environment variables — this tool never takes credentials as input. " +
-      "IMPORTANT: this sends a real, irreversible email to a real recipient — confirm the recipient/subject/" +
+      "SMTP_SECURE) to be configured as environment variables, this tool never takes credentials as input. " +
+      "IMPORTANT: this sends a real, irreversible email to a real recipient, confirm the recipient/subject/" +
       "body with the user before calling this unless they've explicitly asked for this exact email.",
     riskLevel: "ask",
     inputSchema: {
@@ -57,7 +57,7 @@ export function createSendEmailTool(config: EmailConfig | undefined): ToolDefini
         to: { type: "string", description: "Recipient email address" },
         subject: { type: "string", description: "Email subject" },
         body: { type: "string", description: "Email body text (or HTML if html:true)" },
-        html: { type: "boolean", description: "Whether `body` is HTML (default false — plain text)" },
+        html: { type: "boolean", description: "Whether `body` is HTML (default false, plain text)" },
       },
       required: ["to", "subject", "body"],
     },
@@ -65,7 +65,7 @@ export function createSendEmailTool(config: EmailConfig | undefined): ToolDefini
     async handler(input) {
       if (!config) {
         return {
-          content: "SMTP is not configured — set SMTP_HOST and SMTP_FROM (and usually SMTP_USER/SMTP_PASS) as environment variables to enable send_email.",
+          content: "SMTP is not configured, set SMTP_HOST and SMTP_FROM (and usually SMTP_USER/SMTP_PASS) as environment variables to enable send_email.",
           isError: true,
         };
       }

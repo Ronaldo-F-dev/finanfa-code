@@ -66,7 +66,7 @@ describe("/models command", () => {
     const result = await commands.get("models")!(ctx);
 
     const written = (ctx.ui.writeSystem as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-    expect(written).toContain("Ollama — http://localhost:11434/v1");
+    expect(written).toContain("Ollama, http://localhost:11434/v1");
     expect(written).toContain("llama3.2:latest");
     expect(written).toContain("FINANFA_BASE_URL=http://localhost:11434/v1 FINANFA_MODEL=llama3.2:latest");
     expect(written).not.toContain("LM Studio");
@@ -119,7 +119,7 @@ describe("/models command", () => {
     await commands.get("models")!(ctx);
 
     const written = (ctx.ui.writeSystem as ReturnType<typeof vi.fn>).mock.calls[0][0] as string;
-    expect(written).toContain("LM Studio — http://localhost:1234/v1");
+    expect(written).toContain("LM Studio, http://localhost:1234/v1");
     expect(written).toContain("reachable, but reports no models");
   });
 });

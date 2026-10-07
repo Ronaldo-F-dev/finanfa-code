@@ -12,7 +12,7 @@ export function createGpioTools(manager: GpioManager): ToolDefinition[] {
   const exportPin: ToolDefinition<{ pin: number }> = {
     name: "gpio_export",
     description:
-      "Export a GPIO pin (by its Linux GPIO number, not necessarily the board's physical pin numbering — " +
+      "Export a GPIO pin (by its Linux GPIO number, not necessarily the board's physical pin numbering, " +
       "check the board's pinout docs) via sysfs, making it controllable. Usually requires root or gpio-group " +
       "membership. Required before gpio_set_direction/gpio_write/gpio_read.",
     riskLevel: "ask",
@@ -71,7 +71,7 @@ export function createGpioTools(manager: GpioManager): ToolDefinition[] {
     name: "gpio_write",
     description:
       "Drive an exported, output-direction GPIO pin high (1) or low (0). " +
-      "IMPORTANT: this can trigger a real physical action (a relay, motor, LED, etc.) — confirm with the user " +
+      "IMPORTANT: this can trigger a real physical action (a relay, motor, LED, etc.), confirm with the user " +
       "before writing to a pin unless they've explicitly asked for this exact change.",
     riskLevel: "ask",
     inputSchema: {

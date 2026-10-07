@@ -13,7 +13,7 @@ export const imagesToPdfTool: ToolDefinition<ImagesToPdfInput> = {
   name: "images_to_pdf",
   description:
     "Combine PNG/JPEG images into a single PDF, one image per page (in the given order), each page sized to " +
-    "match its image so nothing is cropped or distorted. Other image formats aren't supported — convert with " +
+    "match its image so nothing is cropped or distorted. Other image formats aren't supported, convert with " +
     "resize_image first if needed.",
   riskLevel: "ask",
   inputSchema: {
@@ -41,7 +41,7 @@ export const imagesToPdfTool: ToolDefinition<ImagesToPdfInput> = {
       } else if (ext === ".jpg" || ext === ".jpeg") {
         embedded = await doc.embedJpg(bytes);
       } else {
-        return { content: `Unsupported image format "${ext}" for ${p} — only .png and .jpg/.jpeg are supported.`, isError: true };
+        return { content: `Unsupported image format "${ext}" for ${p}, only .png and .jpg/.jpeg are supported.`, isError: true };
       }
 
       const page = doc.addPage([embedded.width, embedded.height]);

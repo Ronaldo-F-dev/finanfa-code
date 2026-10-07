@@ -32,7 +32,7 @@ export const repoMapTool: ToolDefinition<RepoMapInput> = {
   description:
     "Get a condensed map of the repository's most important source files and their top-level definitions " +
     "(functions, classes, methods, interfaces), ranked by how much other code in the repo actually references " +
-    "each file — real tree-sitter parsing, not a keyword guess. Use this to orient in a large or unfamiliar " +
+    "each file, real tree-sitter parsing, not a keyword guess. Use this to orient in a large or unfamiliar " +
     "codebase before diving into individual files with read_file/grep. Supports JS/TS/TSX/JSX, Python, Go, " +
     "Rust, and Java; other file types are silently excluded from the map (use glob/grep for those). Optionally " +
     "pass `focusFiles` (paths you're already looking at) to bias the ranking toward files related to them, and " +

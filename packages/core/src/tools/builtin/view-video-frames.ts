@@ -56,9 +56,9 @@ interface ViewVideoFramesInput {
 export const viewVideoFramesTool: ToolDefinition<ViewVideoFramesInput> = {
   name: "view_video_frames",
   description:
-    "View a set of evenly-spaced still frames extracted from a video file (mp4, mov, webm, ...) — for a screen " +
+    "View a set of evenly-spaced still frames extracted from a video file (mp4, mov, webm, ...), for a screen " +
     "recording, a demo clip, or a video the user referenced. This samples still frames (the same way you'd " +
-    "manually scrub through a video player and grab a few to look at), not full video understanding — motion " +
+    "manually scrub through a video player and grab a few to look at), not full video understanding, motion " +
     "between frames, exact timing, and audio aren't captured (use transcribe_audio for the audio track).",
   riskLevel: "safe",
   inputSchema: {
@@ -80,8 +80,8 @@ export const viewVideoFramesTool: ToolDefinition<ViewVideoFramesInput> = {
     if (missing.length > 0) {
       return {
         content:
-          `${missing.join(" and ")} isn't available. Install ffmpeg (it provides both) — ` +
-          "`apt install ffmpeg` on Debian/Ubuntu, `brew install ffmpeg` on macOS — then retry.",
+          `${missing.join(" and ")} isn't available. Install ffmpeg (it provides both), ` +
+          "`apt install ffmpeg` on Debian/Ubuntu, `brew install ffmpeg` on macOS, then retry.",
         isError: true,
       };
     }

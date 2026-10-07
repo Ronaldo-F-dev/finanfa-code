@@ -25,7 +25,7 @@ function defaultWorktreePath(cwd: string, branch: string): string {
 export const gitWorktree: ToolDefinition<GitWorktreeInput> = {
   name: "git_worktree",
   description:
-    "Manage git worktrees: extra working directories of the same repository, each on its own branch — the way to work on " +
+    "Manage git worktrees: extra working directories of the same repository, each on its own branch, the way to work on " +
     "several changes in parallel (or hand a sub-task its own isolated checkout) without stashing or switching branches. " +
     "action 'list' shows them; 'add' creates one for `branch` (create: true makes a new branch) at `path` (default: a sibling " +
     "<project>-worktrees/<branch> directory); 'remove' deletes one by `path` (force: true discards uncommitted changes). " +
@@ -67,6 +67,6 @@ export const gitWorktree: ToolDefinition<GitWorktreeInput> = {
       return runGit(ctx.cwd, ctx.sessionId, ["worktree", "remove", ...(input.force ? ["--force"] : []), target]);
     }
 
-    return { content: `Unknown action "${String(input.action)}" — use list, add or remove.`, isError: true };
+    return { content: `Unknown action "${String(input.action)}", use list, add or remove.`, isError: true };
   },
 };

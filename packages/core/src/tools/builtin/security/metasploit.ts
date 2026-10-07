@@ -67,11 +67,11 @@ export function createSecurityRunMetasploitTool(options: RunMetasploitOptions = 
       "Security tool. Runs a sequence of real msfconsole commands (e.g. ['use auxiliary/scanner/portscan/tcp', " +
       "'set RHOSTS 10.0.0.5', 'set PORTS 1-1000', 'run']) via `msfconsole -q -x \"<cmds joined by ;>\"` and " +
       "returns the real captured console output. This is the actual Metasploit Framework, not a simulation: " +
-      "it can load and run real exploit and auxiliary modules — port/service scanners, vulnerability checks, " +
+      "it can load and run real exploit and auxiliary modules, port/service scanners, vulnerability checks, " +
       "and actual exploit modules that gain code execution or otherwise compromise a target, including staged " +
       "payloads (e.g. 'set PAYLOAD ...', 'exploit'). " +
       "IMPORTANT: only ever use this against a host the user owns or has clear, explicit, documented " +
-      "authorization to test — unlike the scanner tools in this directory, an exploit module run here performs " +
+      "authorization to test, unlike the scanner tools in this directory, an exploit module run here performs " +
       "a real attack action against the target (not just a probe), which is illegal and harmful against " +
       "anything else. Confirm scope and authorization before running anything beyond a read-only scanner " +
       "module.",
@@ -80,14 +80,14 @@ export function createSecurityRunMetasploitTool(options: RunMetasploitOptions = 
       type: "object",
       properties: {
         commands: { type: "array", items: { type: "string" }, description: "msfconsole commands to run in order, e.g. ['use auxiliary/scanner/portscan/tcp', 'set RHOSTS 10.0.0.5', 'run']" },
-        timeoutMs: { type: "number", description: `Timeout in milliseconds (default ${DEFAULT_TIMEOUT_MS} — exploit/scanner runs can take a while)` },
+        timeoutMs: { type: "number", description: `Timeout in milliseconds (default ${DEFAULT_TIMEOUT_MS}, exploit/scanner runs can take a while)` },
       },
       required: ["commands"],
     },
     describeCall: (input) => `msfconsole -x "${input.commands.join("; ")}"`,
     async handler(input, ctx) {
       if (!isCommandAvailable(msfconsoleBin)) {
-        return { content: "msfconsole not available — install the Metasploit Framework (https://www.metasploit.com/) and ensure `msfconsole` is on PATH.", isError: true };
+        return { content: "msfconsole not available, install the Metasploit Framework (https://www.metasploit.com/) and ensure `msfconsole` is on PATH.", isError: true };
       }
       const commandString = input.commands.join("; ");
       const result = await run(msfconsoleBin, ["-q", "-x", commandString], input.timeoutMs ?? DEFAULT_TIMEOUT_MS, ctx.signal);

@@ -36,7 +36,7 @@ function buildClassifierPrompt(tool: ToolDefinition, input: unknown): string {
     }
   })();
   return (
-    `Classify the ACTUAL risk of this one tool call — its real arguments, not just the tool's general category.\n\n` +
+    `Classify the ACTUAL risk of this one tool call, its real arguments, not just the tool's general category.\n\n` +
     `Tool: ${tool.name}\nArguments: ${inputJson}\n\n` +
     `Respond with ONLY a JSON object, no other text: {"risk": "low"|"medium"|"high", "justification": "<one short sentence>"}\n` +
     `low: read-only or trivially reversible, no meaningful blast radius.\n` +

@@ -196,7 +196,7 @@ export class VectorStore {
         throw new Error(
           `Embedding dimension mismatch: query embedding has ${queryEmbedding.length} dimensions but the stored chunk ` +
             `at ${row.sourcePath} (chunk ${row.chunkIndex}) has ${embedding.length}. This usually means the embedding ` +
-            `provider/model changed since this project was indexed — re-run indexing with the current provider to fix it.`,
+            `provider/model changed since this project was indexed, re-run indexing with the current provider to fix it.`,
         );
       }
       return {

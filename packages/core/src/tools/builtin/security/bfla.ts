@@ -106,7 +106,7 @@ async function testCandidate(url: string, baseline: Baseline | undefined, header
     try {
       const authResponse = await fetch(url, { headers, redirect: "follow", signal: AbortSignal.timeout(10_000) });
       if (await looksFunctional(authResponse, baseline)) {
-        return bflaFinding(url, "the authenticated test account — verify it isn't legitimately an administrator", true);
+        return bflaFinding(url, "the authenticated test account, verify it isn't legitimately an administrator", true);
       }
     } catch {
       // fall through to "not reachable" below
@@ -178,10 +178,10 @@ export const securityScanBflaTool: ToolDefinition<SecurityScanBflaInput> = {
   description:
     "Security tool. Checks whether common admin/management function paths (wp-admin, Django-style " +
     "/administrator, Spring Boot Actuator, /manage, /console, /phpmyadmin, ...) are reachable by an anonymous " +
-    "visitor with functional content, not a login gate — Broken Function Level Authorization. Uses a soft-404 " +
+    "visitor with functional content, not a login gate, Broken Function Level Authorization. Uses a soft-404 " +
     "baseline so a JS-SPA serving the same shell for every path isn't misread as every admin path being " +
     "reachable. Optionally also retests with a supplied non-admin session's `headers` (a weaker heuristic " +
-    "signal — this tool can't confirm the account isn't legitimately an administrator). Adds any admin-" +
+    "signal, this tool can't confirm the account isn't legitimately an administrator). Adds any admin-" +
     "keyword-matching URL as an extra candidate from `observedEndpoints` if given, else automatically from a " +
     "security_scan_crawler run against the same site earlier in this session, if any. GET-only. A full port " +
     "of the user's own cyberlens scanner's bfla check. " +

@@ -63,7 +63,7 @@ function formatResults(sessions: GroupedSession[], scope: "project" | "all"): st
   const lines: string[] = [`${sessions.length} matching past session(s) (${scope === "all" ? "across all projects" : "this project"}):`, ""];
   for (const s of sessions) {
     const when = s.mtimeMs > 0 ? new Date(s.mtimeMs).toISOString() : "unknown time";
-    const titlePart = s.title ? ` — "${s.title}"` : "";
+    const titlePart = s.title ? `, "${s.title}"` : "";
     const cwdPart = scope === "all" ? ` [${s.cwd}]` : "";
     lines.push(`session ${s.id}${titlePart} (${when})${cwdPart}`);
     for (const excerpt of s.excerpts) lines.push(`  ${excerpt.role}: ${excerpt.text}`);
@@ -102,7 +102,7 @@ export function createRecallSessionsTool(embeddingsConfig: EmbeddingsConfig | un
       "with a short excerpt around the match, ranked by relevance. Use /resume <session id> to actually reopen " +
       'a matched session. mode "keyword" (default) does real full-text term matching. mode "semantic" finds a ' +
       "conceptually related match even with no shared keywords (e.g. \"login\" finding a message about JWT " +
-      "tokens) via a real OpenAI embeddings call — needs OPENAI_API_KEY configured, and costs a real API call " +
+      "tokens) via a real OpenAI embeddings call, needs OPENAI_API_KEY configured, and costs a real API call " +
       "each time, so prefer keyword mode unless it's genuinely come up empty on a query you're confident is in there.",
     riskLevel: "safe",
     inputSchema: {
@@ -125,7 +125,7 @@ export function createRecallSessionsTool(embeddingsConfig: EmbeddingsConfig | un
 
       if (mode === "semantic") {
         if (!embeddingsConfig) {
-          return { content: "Semantic recall is not configured — set OPENAI_API_KEY as an environment variable, or use mode \"keyword\" instead.", isError: true };
+          return { content: "Semantic recall is not configured, set OPENAI_API_KEY as an environment variable, or use mode \"keyword\" instead.", isError: true };
         }
         const hits = await searchSessionIndexBySimilarity(
           input.query,

@@ -67,7 +67,7 @@ export async function checkOutboundUrl(rawUrl: string, resolve: (hostname: strin
     return { ok: false, reason: `"${rawUrl}" is not a valid URL.` };
   }
   if (!ALLOWED_PROTOCOLS.has(url.protocol)) {
-    return { ok: false, reason: `Protocol "${url.protocol}" is not allowed here — only http/https.` };
+    return { ok: false, reason: `Protocol "${url.protocol}" is not allowed here, only http/https.` };
   }
   if (url.username || url.password) {
     return { ok: false, reason: "URLs with embedded credentials (user:pass@host) are not allowed." };
@@ -85,7 +85,7 @@ export async function checkOutboundUrl(rawUrl: string, resolve: (hostname: strin
   }
   const blocked = addresses.find(isPrivateOrReservedIp);
   if (blocked) {
-    return { ok: false, reason: `"${url.hostname}" resolves to ${blocked}, a private/internal address — blocked to prevent SSRF.` };
+    return { ok: false, reason: `"${url.hostname}" resolves to ${blocked}, a private/internal address, blocked to prevent SSRF.` };
   }
   return { ok: true };
 }

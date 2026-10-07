@@ -73,7 +73,7 @@ export async function resolveTrust(cwd: string, ui: UIAdapter, nonInteractive = 
   if (trusted) {
     await trustFolder(cwd);
   } else {
-    ui.writeError("Folder not trusted — this project's .finanfa-code/settings.json (permission rules and hooks) and plugins will be ignored. Your global config still applies.");
+    ui.writeError("Folder not trusted, this project's .finanfa-code/settings.json (permission rules and hooks) and plugins will be ignored. Your global config still applies.");
   }
   return trusted;
 }

@@ -212,14 +212,14 @@ export const gitPush: ToolDefinition<GitPushInput> = {
   name: "git_push",
   description:
     "Push the current branch to a remote (default: origin). Use setUpstream: true the first time you push a " +
-    "newly created branch. Never force-pushes — there's no force option, by design.",
+    "newly created branch. Never force-pushes, there's no force option, by design.",
   riskLevel: "ask",
   inputSchema: {
     type: "object",
     properties: {
       remote: { type: "string", description: 'Remote name (default: "origin")' },
       branch: { type: "string", description: "Branch to push (default: the current branch)" },
-      setUpstream: { type: "boolean", description: "Set upstream tracking (-u) — needed the first push of a new branch" },
+      setUpstream: { type: "boolean", description: "Set upstream tracking (-u), needed the first push of a new branch" },
     },
   },
   riskKey: (input) => input.branch ?? "current-branch",
@@ -325,14 +325,14 @@ export const gitReset: ToolDefinition<GitResetInput> = {
   name: "git_reset",
   description:
     "Unstage one or more files (paths, keeps working-tree edits), or with hard: true, discard ALL uncommitted " +
-    "changes and reset to ref (default HEAD) — destructive, use git_stash instead if the changes might still be needed.",
+    "changes and reset to ref (default HEAD), destructive, use git_stash instead if the changes might still be needed.",
   riskLevel: "ask",
   inputSchema: {
     type: "object",
     properties: {
-      paths: { type: "array", items: { type: "string" }, description: "Files to unstage, relative to the project root — omit for a full/hard reset" },
+      paths: { type: "array", items: { type: "string" }, description: "Files to unstage, relative to the project root, omit for a full/hard reset" },
       hard: { type: "boolean", description: "Discard uncommitted changes entirely instead of just unstaging" },
-      ref: { type: "string", description: 'Only with hard: true — reset to this ref instead of HEAD (default "HEAD")' },
+      ref: { type: "string", description: 'Only with hard: true, reset to this ref instead of HEAD (default "HEAD")' },
     },
   },
   riskKey: (input) => (input.hard ? "hard" : "unstage"),

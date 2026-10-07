@@ -15,7 +15,7 @@ interface HttpRequestInput {
 export const httpRequestTool: ToolDefinition<HttpRequestInput> = {
   name: "http_request",
   description:
-    "Send an HTTP request with any method (GET/POST/PUT/PATCH/DELETE/...), headers, and body — for testing an " +
+    "Send an HTTP request with any method (GET/POST/PUT/PATCH/DELETE/...), headers, and body, for testing an " +
     "API endpoint (e.g. an app you're developing, running locally or elsewhere), not for reading a web page " +
     "(use web_fetch for that; it also strips HTML, which this doesn't). Returns status, headers, and body.",
   riskLevel: "ask",
@@ -25,7 +25,7 @@ export const httpRequestTool: ToolDefinition<HttpRequestInput> = {
       url: { type: "string", description: "Request URL" },
       method: { type: "string", description: "HTTP method (default GET)" },
       headers: { type: "object", additionalProperties: { type: "string" }, description: "Request headers" },
-      body: { type: "string", description: "Request body (e.g. a JSON string) — set a Content-Type header yourself" },
+      body: { type: "string", description: "Request body (e.g. a JSON string), set a Content-Type header yourself" },
       timeout_ms: { type: "number", description: "Timeout in milliseconds (default 30000)" },
     },
     required: ["url"],

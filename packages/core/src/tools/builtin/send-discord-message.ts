@@ -178,9 +178,9 @@ export function createSendDiscordMessageTool(config: DiscordConfig | undefined, 
     name: "send_discord_message",
     description:
       "Send a real message to a Discord channel via the REST API. Requires DISCORD_BOT_TOKEN to be configured " +
-      "as an environment variable (a bot invited to the target server with the Send Messages permission) — " +
+      "as an environment variable (a bot invited to the target server with the Send Messages permission), " +
       "this tool never takes credentials as input. IMPORTANT: this posts a real, visible message to a real " +
-      "channel — confirm the channel/content with the user before calling this unless they've explicitly asked " +
+      "channel, confirm the channel/content with the user before calling this unless they've explicitly asked " +
       "for this exact message.",
     riskLevel: "ask",
     inputSchema: {
@@ -194,7 +194,7 @@ export function createSendDiscordMessageTool(config: DiscordConfig | undefined, 
     describeCall: (input) => `send Discord message to channel ${input.channelId}: "${input.text.slice(0, 60)}"`,
     async handler(input) {
       if (!config) {
-        return { content: "Discord is not configured — set DISCORD_BOT_TOKEN as an environment variable to enable send_discord_message.", isError: true };
+        return { content: "Discord is not configured, set DISCORD_BOT_TOKEN as an environment variable to enable send_discord_message.", isError: true };
       }
       const result = await postDiscordMessage(config, input, apiBaseUrl);
       if (!result.ok) {

@@ -19,11 +19,11 @@ export function createPythonReplTool(manager: PythonReplManager): ToolDefinition
   return {
     name: "python_repl",
     description:
-      "Run Python code in a persistent session — variables, imports, and function defs from earlier calls " +
+      "Run Python code in a persistent session, variables, imports, and function defs from earlier calls " +
       "are still there, unlike `bash: python3 -c \"...\"` which starts fresh every time. The value of the " +
       "last expression (if any) is returned, same as typing it in an interactive shell. Pass reset: true to " +
       "clear the session and start over (e.g. after an infinite loop forced a timeout-triggered restart, or " +
-      "just to start clean). Calling input() will hang — there's no interactive stdin here.",
+      "just to start clean). Calling input() will hang, there's no interactive stdin here.",
     riskLevel: "dangerous",
     inputSchema: {
       type: "object",
@@ -43,11 +43,11 @@ export function createPythonReplTool(manager: PythonReplManager): ToolDefinition
 
       const result = await manager.run(input.code, input.timeout_ms ?? DEFAULT_TIMEOUT_MS, ctx.cwd, ctx.sessionId, ctx.signal);
       if (result.interrupted) {
-        return { content: "Interrupted by the user — the session was killed and will restart fresh on the next call (state lost).", isError: true };
+        return { content: "Interrupted by the user, the session was killed and will restart fresh on the next call (state lost).", isError: true };
       }
       if (result.timedOut) {
         return {
-          content: `Timed out after ${input.timeout_ms ?? DEFAULT_TIMEOUT_MS}ms — the session was killed and will restart fresh on the next call (state lost).`,
+          content: `Timed out after ${input.timeout_ms ?? DEFAULT_TIMEOUT_MS}ms, the session was killed and will restart fresh on the next call (state lost).`,
           isError: true,
         };
       }

@@ -84,7 +84,7 @@ export function createDebugNodeTracebackTool(options: DebugNodeToolOptions = {})
     description:
       "Run a real Node.js script; if it throws an uncaught exception or unhandled rejection, capture the full " +
       "stack trace AND the error's own additional properties (`.cause` chains, `AggregateError.errors`, any " +
-      "custom fields) — a plain `node script.js` run only shows message+stack. For genuinely interactive " +
+      "custom fields), a plain `node script.js` run only shows message+stack. For genuinely interactive " +
       "step-through debugging (breakpoints, watch expressions, live scope inspection), run `node inspect " +
       "<script>` inside a tmux session instead (tmux_new_session/tmux_send_keys).",
     riskLevel: "ask",

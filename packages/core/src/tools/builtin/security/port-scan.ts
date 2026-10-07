@@ -169,7 +169,7 @@ export const securityScanPortsTool: ToolDefinition<SecurityScanPortsInput> = {
     `to ${MAX_CONCURRENCY} connections at once, capped at ${MAX_PORTS_PER_SCAN} ports per scan. Unlike ` +
     "security_scan_infra_exposure (which only probes a fixed list of known service ports on the target's own " +
     "hostname), this can scan any host across any ports you specify. " +
-    "IMPORTANT: only scan a host the user owns or has explicit, documented authorization to test — this sends " +
+    "IMPORTANT: only scan a host the user owns or has explicit, documented authorization to test, this sends " +
     "real TCP connection attempts to whatever host is given, which can be logged/alerted on by the target and " +
     "may be against policy or law if unauthorized.",
   // Same "ask" tier as recon.ts/infra-exposure.ts: no exploit-style payload

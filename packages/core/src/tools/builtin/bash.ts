@@ -19,7 +19,7 @@ const DEFAULT_TIMEOUT_MS = 120_000;
  */
 function commandPrefix(command: string | undefined): string {
   const first = (command ?? "").trim().split(/\s+/, 1)[0];
-  return first || "(no command — malformed arguments)";
+  return first || "(no command, malformed arguments)";
 }
 
 /**
@@ -41,14 +41,14 @@ export function createBashTool(sandboxConfig?: SandboxConfig): ToolDefinition<Ba
     name: "bash",
     description:
       "Run a shell command in the project directory and capture its output. Each call is a fresh " +
-      "non-interactive shell — job control (`kill %1`, `fg`, `bg`) doesn't work; to stop a process you " +
+      "non-interactive shell, job control (`kill %1`, `fg`, `bg`) doesn't work; to stop a process you " +
       "started earlier, use its actual PID (capture it with `cmd & echo $!`, or a pidfile) or `pkill -f pattern`. " +
       "When backgrounding a long-running process (a dev server, a watcher), redirect its output " +
-      "(`cmd > /tmp/out.log 2>&1 &`) — otherwise the orphaned process keeps the pipe open and this call " +
+      "(`cmd > /tmp/out.log 2>&1 &`), otherwise the orphaned process keeps the pipe open and this call " +
       "won't return until the timeout." +
       (sandboxed
         ? " Runs inside an OS-level sandbox (bubblewrap): the rest of the filesystem is read-only, writes are " +
-          "confined to this project's directory plus standard dev-tool cache dirs (~/.npm, ~/.cache, etc.) — a " +
+          "confined to this project's directory plus standard dev-tool cache dirs (~/.npm, ~/.cache, etc.), a " +
           "command that tries to write or delete outside those will fail with a read-only-filesystem error, " +
           "that's expected, not a bug. Network access still works normally."
         : ""),
@@ -63,7 +63,7 @@ export function createBashTool(sandboxConfig?: SandboxConfig): ToolDefinition<Ba
       required: ["command"],
     },
     riskKey: (input) => commandPrefix(input.command),
-    describeCall: (input) => input.command ?? "(no command — malformed arguments)",
+    describeCall: (input) => input.command ?? "(no command, malformed arguments)",
     async handler(input, ctx) {
       const cwd = input.cwd ? `${ctx.cwd}/${input.cwd}` : ctx.cwd;
       const timeoutMs = input.timeout_ms ?? DEFAULT_TIMEOUT_MS;

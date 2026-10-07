@@ -80,7 +80,7 @@ async function scanSsti(targetUrl: string): Promise<ScanOutput> {
   }
 
   if (candidates.length === 0) {
-    passed.push({ label: "No injectable parameters found", detail: "No query parameters were found on the given URL (POST forms aren't tested — no form discovery in this project)." });
+    passed.push({ label: "No injectable parameters found", detail: "No query parameters were found on the given URL (POST forms aren't tested, no form discovery in this project)." });
   } else if (findings.length === 0) {
     passed.push({ label: "No SSTI detected", detail: `Tested ${candidates.length} GET parameter(s) with a template-injection canary; none evaluated it.` });
   }
@@ -95,12 +95,12 @@ interface SecurityScanSstiInput {
 export const securityScanSstiTool: ToolDefinition<SecurityScanSstiInput> = {
   name: "security_scan_ssti",
   description:
-    "Security tool. Tests a URL's query parameters for Server-Side Template Injection — injects a canary " +
+    "Security tool. Tests a URL's query parameters for Server-Side Template Injection, injects a canary " +
     "combining several template engines' delimiter syntax (Jinja2/Twig, JSP/OGNL/Freemarker, ERB, Ruby) and " +
     "checks whether 7*77 got evaluated into the literal text 539 in the response, versus a baseline. Sends a " +
     "real template-expression payload to a live target. GET-only. A port of the user's own cyberlens " +
     "scanner's ssti check. " +
-    "IMPORTANT: only test a target you own or have explicit, documented authorization to test — SSTI " +
+    "IMPORTANT: only test a target you own or have explicit, documented authorization to test, SSTI " +
     "frequently leads to full remote code execution if confirmed.",
   riskLevel: "dangerous",
   inputSchema: {
