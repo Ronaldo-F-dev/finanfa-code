@@ -3,6 +3,7 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { PermissionManager } from "../../src/permissions/manager.js";
+import { resolveClassifierModel } from "../../src/permissions/classifier.js";
 import { DEFAULT_PERMISSION_CONFIG, type PermissionConfig } from "../../src/permissions/config.js";
 import type { ToolDefinition, ToolContext } from "../../src/core/types.js";
 import type { UIAdapter } from "../../src/ui/adapter.js";
@@ -216,5 +217,14 @@ describe("PermissionManager auto-approval classifier", () => {
     const raw = await readFile(auditFilePath(), "utf-8");
     const events = raw.trim().split("\n").map((l) => JSON.parse(l));
     expect(events[0]).toMatchObject({ decision: "allow", source: "auto_approval_classifier" });
+  });
+});
+
+describe("resolveClassifierModel", () => {
+  it("uses the configured model, and never an empty one (the default must always name a real model)", () => {
+    expect(resolveClassifierModel({ enabled: true, model: "claude-haiku-4-5" })).toBe("claude-haiku-4-5");
+    expect(resolveClassifierModel(undefined)).toBeTruthy();
+    expect(resolveClassifierModel({ enabled: true })).toBeTruthy();
+    expect(resolveClassifierModel({ enabled: true, model: "  " })).toBeTruthy();
   });
 });

@@ -1,5 +1,4 @@
 import type { LlmProvider, ToolDefinition } from "../core/types.js";
-import { getEffortTier } from "../core/effort-tiers.js";
 
 export type ClassifiedRisk = "low" | "medium" | "high";
 
@@ -12,19 +11,19 @@ export interface AutoApprovalClassifierConfig {
   enabled: boolean;
   /**
    * Model id used ONLY for classification calls, never the main
-   * conversation model. Defaults to effort-tiers' "low" tier model (see
-   * effort-tiers.ts) — the same "small task → cheaper/local model"
-   * selection this codebase already applies elsewhere, reused here instead
-   * of hardcoding a separate model name.
+   * conversation model. Defaults to a small local model (gemma2:2b).
    */
   model?: string;
 }
 
 const CLASSIFIER_TIMEOUT_MS = 10_000;
 
-/** An explicit config.model always wins; otherwise reuses effort-tiers' "low" tier model, falling back to its own literal only if that tier is ever removed. */
+/** The model used when nothing is configured: a small local one, as before (the "low" effort level no longer names a model of its own, so it cannot be asked). */
+const DEFAULT_CLASSIFIER_MODEL = "gemma2:2b";
+
+/** An explicit config.model always wins; an empty one counts as unset. */
 export function resolveClassifierModel(config: AutoApprovalClassifierConfig | undefined): string {
-  return config?.model ?? getEffortTier("low")?.model ?? "gemma2:2b";
+  return config?.model?.trim() || DEFAULT_CLASSIFIER_MODEL;
 }
 
 function buildClassifierPrompt(tool: ToolDefinition, input: unknown): string {
