@@ -44,6 +44,9 @@ class SessionInfo {
   final String providerKind;
   final int toolCount;
   final String? effort;
+  /// "low", "medium" or "high": how much the current model thinks (see
+  /// core/src/core/effort-level.ts). Medium is the server's default.
+  final String effortLevel;
   const SessionInfo({
     required this.id,
     this.title,
@@ -51,6 +54,7 @@ class SessionInfo {
     required this.providerKind,
     required this.toolCount,
     this.effort,
+    this.effortLevel = 'medium',
   });
 
   factory SessionInfo.fromJson(Map<String, dynamic> json) => SessionInfo(
@@ -60,6 +64,7 @@ class SessionInfo {
     providerKind: json["providerKind"] as String,
     toolCount: (json["toolCount"] as num).toInt(),
     effort: json["effort"] as String?,
+    effortLevel: (json["effortLevel"] as String?) ?? 'medium',
   );
 }
 
@@ -155,6 +160,12 @@ class ModelOption {
   // to show a "starting" pill instead of implying it's already live.
   final bool local;
   final bool running;
+  /// False while the model's provider has no API key saved (Claude, DeepSeek,
+  /// Grok, Gemini): the picker shows a "key needed" chip and sends the user
+  /// to Settings instead of a switch the server would refuse.
+  final bool configured;
+  /// Set for a cloud provider's model (DeepSeek, Grok, Gemini): its group title.
+  final String? provider;
   const ModelOption({
     required this.id,
     required this.label,
@@ -163,6 +174,8 @@ class ModelOption {
     this.localModelId,
     this.local = false,
     this.running = false,
+    this.configured = true,
+    this.provider,
   });
 
   factory ModelOption.fromJson(Map<String, dynamic> json) => ModelOption(
@@ -173,6 +186,8 @@ class ModelOption {
     localModelId: json["localModelId"] as String?,
     local: json["local"] as bool? ?? false,
     running: json["running"] as bool? ?? false,
+    configured: json["configured"] as bool? ?? true,
+    provider: json["provider"] as String?,
   );
 }
 
@@ -187,27 +202,6 @@ class SessionListItem {
         id: json["id"] as String,
         title: json["title"] as String?,
         mtime: json["mtime"] as String,
-      );
-}
-
-class EffortTierOption {
-  final String id;
-  final String label;
-  final String model;
-  final bool installed;
-  const EffortTierOption({
-    required this.id,
-    required this.label,
-    required this.model,
-    required this.installed,
-  });
-
-  factory EffortTierOption.fromJson(Map<String, dynamic> json) =>
-      EffortTierOption(
-        id: json["id"] as String,
-        label: json["label"] as String,
-        model: json["model"] as String,
-        installed: json["installed"] as bool? ?? true,
       );
 }
 
