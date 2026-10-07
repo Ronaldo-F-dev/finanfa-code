@@ -5,6 +5,12 @@ export type ToolRiskLevel = "safe" | "ask" | "dangerous";
 export type TimelineItem =
   | { kind: "user"; id: string; text: string; images?: Attachment[] }
   | { kind: "assistant"; id: string; text: string; streaming: boolean }
+  | {
+      kind: "thinking";
+      id: string;
+      text: string;
+      streaming: boolean;
+    }
   | { kind: "log"; id: string; variant: "system" | "error"; text: string }
   | {
       kind: "tool_call";
@@ -133,6 +139,37 @@ export function useAgentBridge() {
     // No origin check: inside a VS Code webview this channel only ever
     // carries messages from the owning extension host (postMessage), not
     // arbitrary web content — there is no other origin able to reach it.
+    // At most one reasoning block streams at a time, and its position is
+    // derived from the timeline itself rather than tracked in a ref: scan
+    // from the end for the open block. Slicing only the touched index keeps
+    // React re-rendering just this item.
+    function appendThinking(text: string): void {
+      setTimeline((t) => {
+        for (let i = t.length - 1; i >= 0; i--) {
+          const item = t[i];
+          if (item.kind === "thinking" && item.streaming) {
+            const next = t.slice();
+            next[i] = { ...item, text: item.text + text };
+            return next;
+          }
+        }
+        return [...t, { kind: "thinking", id: uid(), text, streaming: true }];
+      });
+    }
+
+    /** A copy of `t` with the open reasoning block closed, if any — thinking always precedes the reply (or an error/turn end), and a block left "streaming" would keep its live indicator on. */
+    function closingThinking(t: TimelineItem[]): TimelineItem[] {
+      for (let i = t.length - 1; i >= 0; i--) {
+        const item = t[i];
+        if (item.kind === "thinking" && item.streaming) {
+          const next = t.slice();
+          next[i] = { ...item, streaming: false };
+          return next;
+        }
+      }
+      return t;
+    }
+
     function onMessage(event: MessageEvent): void {
       const msg = event.data;
       switch (msg.type) {
@@ -140,7 +177,7 @@ export function useAgentBridge() {
           if (!streamingIdRef.current) {
             const id = uid();
             streamingIdRef.current = id;
-            setTimeline((t) => [...t, { kind: "assistant", id, text: msg.text, streaming: true }]);
+            setTimeline((t) => [...closingThinking(t), { kind: "assistant", id, text: msg.text, streaming: true }]);
           } else {
             const id = streamingIdRef.current;
             setTimeline((t) => t.map((item) => (item.kind === "assistant" && item.id === id ? { ...item, text: item.text + msg.text } : item)));
@@ -148,15 +185,20 @@ export function useAgentBridge() {
           break;
         }
         case "assistant_end": {
+          setTimeline(closingThinking);
           const id = streamingIdRef.current;
           streamingIdRef.current = null;
           if (id) setTimeline((t) => t.map((item) => (item.kind === "assistant" && item.id === id ? { ...item, streaming: false } : item)));
           break;
         }
+        case "thinking_delta":
+          appendThinking(msg.text);
+          break;
         case "system":
           setTimeline((t) => [...t, { kind: "log", id: uid(), variant: "system", text: msg.text }]);
           break;
         case "error":
+          setTimeline(closingThinking);
           setTimeline((t) => [...t, { kind: "log", id: uid(), variant: "error", text: msg.text }]);
           break;
         case "tool_call":

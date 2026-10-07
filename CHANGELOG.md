@@ -16,6 +16,12 @@ first tagged release.
 
 ### Added
 
+- The VS Code chat view now shows the model's reasoning while it streams,
+  as a collapsed "Raisonnement" block above the reply (same expandable
+  block as tool calls). `UIAdapter.writeThinkingDelta` existed and
+  `loop.ts` already called it, but the extension's UI adapter never
+  implemented the method, so the webview received no reasoning at all.
+  The web UI, the CLI and the app already had it; this closes the series.
 - Desktop app: it is named **Finanfa** with the brand icon in the Dock, menu bar and Cmd-Tab (on macOS the dev
   run uses a generated, renamed copy of Electron), opens straight into `~/Finanfa` instead of asking for a folder
   at launch, shows that folder in the window title, and has **File → Show workspace in Finder**.
