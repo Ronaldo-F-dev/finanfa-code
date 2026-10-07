@@ -979,7 +979,9 @@ body {
 
 .bubble-user {
   background: var(--user-bubble);
-  max-width: 80%;
+  /* The 80% cap sits on .user-column: a percentage on this bubble would resolve against a column that is itself as
+     wide as the bubble, so even a short sentence would wrap. */
+  max-width: 100%;
 }
 
 .row-assistant {
@@ -1510,7 +1512,7 @@ details.tool-call-details > summary.tool-call::marker {
   display: flex;
   flex-direction: column;
   align-items: flex-end;
-  max-width: 100%;
+  max-width: 80%;
 }
 .restore-btn {
   margin-top: 4px;
@@ -2268,7 +2270,7 @@ details.tool-call-details > summary.tool-call::marker {
     padding: 6px 12px;
   }
 
-  .bubble-user {
+  .user-column {
     max-width: 90%;
   }
 
