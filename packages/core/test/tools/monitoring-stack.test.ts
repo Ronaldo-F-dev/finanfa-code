@@ -3,7 +3,7 @@ import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import yaml from "js-yaml";
+import * as yaml from "js-yaml";
 import { createMonitoringStackTools } from "../../src/tools/builtin/monitoring-stack.js";
 
 const FAKE_DOCKER_COMPOSE = fileURLToPath(new URL("../fixtures/fake-docker-compose.mjs", import.meta.url));
