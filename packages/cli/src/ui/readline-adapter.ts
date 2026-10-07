@@ -109,7 +109,7 @@ export function createReadlineAdapter(): UIAdapter {
       const CYAN = "\x1b[36m";
       const RESET = "\x1b[0m";
       const title = `ƒ finanfa-code v${version}`;
-      const tagline = "your own coding agent — code, design, docs, data";
+      const tagline = "your own coding agent: code, design, docs, data";
       // Padding is computed from the plain text first — ANSI escape codes
       // are invisible but still count toward string length, so wrapping a
       // string in color codes before measuring it would silently misalign
