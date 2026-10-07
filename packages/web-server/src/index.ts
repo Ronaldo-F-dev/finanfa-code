@@ -51,7 +51,7 @@ import {
   purgeDockerModels,
 } from "@finanfa/core/src/core/docker-models.js";
 import { isOllamaAvailable, listOllamaModels, pullOllamaModel, deleteOllamaModel } from "@finanfa/core/src/core/ollama-models.js";
-import { EFFORT_TIERS, getEffortTier, isDefaultProviderTier, MINIMAL_TOOL_SET, type EffortTier } from "@finanfa/core/src/core/effort-tiers.js";
+import { EFFORT_TIERS, getEffortTier, isDefaultProviderTier, MINIMAL_TOOL_SET, OLLAMA_BASE_URL, pickModelForTier, type EffortTier, type LocalModelInfo } from "@finanfa/core/src/core/effort-tiers.js";
 import { AnthropicProvider } from "@finanfa/core/src/providers/anthropic-provider.js";
 import { OpenAiCompatibleProvider } from "@finanfa/core/src/providers/openai-compatible-provider.js";
 import type { LlmProvider, NeutralImage, ToolContext, ToolDefinition } from "@finanfa/core/src/core/types.js";
@@ -519,18 +519,37 @@ app.delete("/api/docker-models/purge", async (_req, res) => {
 // Static catalog — no per-request work — plus each local tier's real
 // installed/missing state, so the UI can show "download needed" without a
 // separate round trip.
+/** Every model already usable on this machine: what Ollama has installed, plus whatever other local runtime answers right now. */
+async function gatherLocalModels(): Promise<LocalModelInfo[]> {
+  const found: LocalModelInfo[] = [];
+  if (await isOllamaAvailable().catch(() => false)) {
+    for (const m of await listOllamaModels().catch(() => [])) found.push({ name: m.name, baseUrl: OLLAMA_BASE_URL, size: m.size, supportsTools: m.supportsTools });
+  }
+  for (const m of await detectLocalProviders().catch(() => [])) {
+    if (m.source !== "Ollama") found.push({ name: m.id, baseUrl: m.baseUrl });
+  }
+  return found;
+}
+
 app.get("/api/effort-tiers", async (req, res) => {
   const cwd = await resolveCwd(req.query.project as string | undefined).catch(() => DEFAULT_CWD);
   const config = await loadConfig(cwd);
   const { defaultModel } = selectProvider(config);
-  const ollamaModels = (await isOllamaAvailable().catch(() => false)) ? await listOllamaModels().catch(() => []) : [];
-  const installedNames = new Set(ollamaModels.map((m) => m.name));
+  const localModels = await gatherLocalModels();
+  const installedNames = new Set(localModels.map((m) => m.name));
   res.json({
-    tiers: EFFORT_TIERS.map((t) => ({
-      ...t,
-      model: isDefaultProviderTier(t) ? (defaultModel ?? t.model) : t.model,
-      installed: t.ollamaModel ? installedNames.has(t.ollamaModel) : true,
-    })),
+    tiers: EFFORT_TIERS.map((t) => {
+      if (t.pickLocal) {
+        // Never a download: the level uses a model that is already here, or is unavailable.
+        const picked = pickModelForTier(t.id, localModels);
+        return { ...t, model: picked?.name ?? "", installed: Boolean(picked), unavailable: !picked };
+      }
+      return {
+        ...t,
+        model: isDefaultProviderTier(t) ? (defaultModel ?? t.model) : t.model,
+        installed: t.ollamaModel ? installedNames.has(t.ollamaModel) : true,
+      };
+    }),
   });
 });
 
@@ -1984,10 +2003,27 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
         // tools every time: one message picks a model, a max_tokens cap,
         // and a curated tool budget together (see effort-tiers.ts for why
         // each tier's exact settings are what they are).
-        const tier = getEffortTier(msg.level);
-        if (!tier) {
+        const baseTier = getEffortTier(msg.level);
+        if (!baseTier) {
           ws.send(JSON.stringify({ type: "error", text: `Unknown effort level: ${msg.level}` }));
           return;
+        }
+        // "low" and "medium" take a model that is already installed or running here, and never offer to download one.
+        let tier: EffortTier = baseTier;
+        if (baseTier.pickLocal) {
+          const picked = pickModelForTier(baseTier.id, await gatherLocalModels());
+          if (!picked) {
+            ws.send(
+              JSON.stringify({
+                type: "model_unavailable",
+                model: baseTier.label,
+                family: "openai-compatible",
+                message: "No installed local model fits this level. Install one from Models (Ollama or Docker Model Runner), then pick the level again.",
+              }),
+            );
+            return;
+          }
+          tier = { ...baseTier, model: picked.name, family: "openai-compatible", baseUrl: picked.baseUrl };
         }
         // Same rollback snapshot as set_model above, for the same reason —
         // a tier whose model is local-server-served can fail the switch at
