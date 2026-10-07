@@ -78,6 +78,11 @@ export const translations: Record<Language, Record<string, string>> = {
     "channels.tunnelOn": "Public tunnel active: {url}, webhook URLs below use it automatically.",
     "channels.tunnelOff": "No public tunnel, webhook URLs below only work if this server is already reachable from the internet. Set FINANFA_TUNNEL=1 (requires cloudflared) to get one automatically.",
 
+    // ErrorBoundary.tsx
+    "error.title": "Something went wrong",
+    "error.body": "The interface hit an unexpected error. Your session is intact — reload to continue.",
+    "error.reload": "Reload",
+
     // ChatMessage.tsx
     "toolCall.running": "Running…",
     "thinking.title": "Reasoning",
@@ -379,6 +384,10 @@ export const translations: Record<Language, Record<string, string>> = {
     "channels.discordCommandRegistered": "Commande /ask enregistrée auprès de Discord.",
     "channels.tunnelOn": "Tunnel public actif : {url}, les URLs de webhook ci-dessous l'utilisent automatiquement.",
     "channels.tunnelOff": "Pas de tunnel public, les URLs de webhook ci-dessous ne fonctionnent que si ce serveur est déjà accessible depuis internet. Définissez FINANFA_TUNNEL=1 (nécessite cloudflared) pour en obtenir un automatiquement.",
+
+    "error.title": "Une erreur est survenue",
+    "error.body": "L'interface a rencontré une erreur inattendue. Ta session est intacte — recharge pour continuer.",
+    "error.reload": "Recharger",
 
     "toolCall.running": "En cours…",
     "thinking.title": "Raisonnement",

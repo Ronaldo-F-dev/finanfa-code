@@ -202,7 +202,18 @@ export function useAgentSocket(
     };
 
     ws.onmessage = (event) => {
-      const msg = JSON.parse(event.data as string);
+      // A malformed frame (a truncated read, a stray proxy frame) must not
+      // throw inside this handler: the exception would surface as an
+      // uncaught error with the frame lost, and every real frame after it
+      // is still valid JSON. Dropping it keeps the connection and later
+      // frames usable.
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- the wire message is JSON with no schema on this side, same as before this guard.
+      let msg: any;
+      try {
+        msg = JSON.parse(event.data as string);
+      } catch {
+        return;
+      }
       switch (msg.type) {
         case "assistant_delta": {
           endThinking();
