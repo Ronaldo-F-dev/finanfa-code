@@ -4,7 +4,8 @@ name: Desktop installers
 # Intel), an installer for Windows, an AppImage and a .deb for Linux. Each is built on its own operating system because
 # the server inside carries native packages (images, serial ports, PDF rendering) that differ per system.
 #
-# Not run on every push: trigger it by hand, or push a version tag (v1.2.3), which also publishes a GitHub release.
+# Runs on a pull request that touches the desktop app or this workflow (so a change that breaks packaging is caught
+# before it merges), by hand, and on a version tag (v1.2.3), which also publishes a GitHub release.
 # The installers are not signed: macOS asks to confirm the first launch (right-click, Open) and Windows shows a
 # SmartScreen notice. Signing is turned on by adding the usual electron-builder secrets (CSC_LINK, CSC_KEY_PASSWORD,
 # APPLE_ID, ...) to the repository; nothing here needs to change.
@@ -13,6 +14,11 @@ on:
   push:
     tags:
       - "v*"
+  pull_request:
+    paths:
+      - "packages/desktop/**"
+      - "packages/web-server/src/**"
+      - ".github/workflows/desktop-installers.yml"
 
 permissions:
   contents: read
@@ -51,6 +57,7 @@ jobs:
             packages/desktop/release/*.AppImage
             packages/desktop/release/*.deb
           if-no-files-found: error
+          retention-days: 14
 
   release:
     if: startsWith(github.ref, 'refs/tags/v')
