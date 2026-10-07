@@ -6,6 +6,7 @@ import { PermissionManager } from "../../src/permissions/manager.js";
 import { DEFAULT_PERMISSION_CONFIG } from "../../src/permissions/config.js";
 import type { LlmProvider, StreamTurnResult } from "../../src/core/types.js";
 import type { UIAdapter } from "../../src/ui/adapter.js";
+import { wrapUntrustedContent } from "../../src/core/untrusted-content.js";
 
 function makeStubUi(): UIAdapter {
   return {
@@ -143,5 +144,61 @@ describe("runTurn: tool output is echoed to the UI, not just the invocation line
     await runTurn(session, new (oneToolCallThenDone("throws"))(), ui, tools, permissions, "run it");
 
     expect(ui.writeError).toHaveBeenCalledWith("boom");
+  });
+
+  it("does not repeat a successful result as a raw block when the UI already has an expandable result for it", async () => {
+    const tools = new ToolRegistry();
+    tools.register({
+      name: "noisy",
+      description: "",
+      riskLevel: "safe",
+      inputSchema: { type: "object" },
+      handler: async () => ({ content: "Index: src/total.ts\n=====\n+export const total = 1;", isError: false }),
+    });
+    const ui = { ...makeStubUi(), writeToolResult: vi.fn() };
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(session, new (oneToolCallThenDone("noisy"))(), ui, tools, permissions, "run it");
+
+    expect(ui.writeToolResult).toHaveBeenCalledWith(expect.objectContaining({ isError: false, content: expect.stringContaining("Index: src/total.ts") }));
+    expect(ui.writeSystem).not.toHaveBeenCalledWith(expect.stringContaining("Index: src/total.ts"));
+  });
+
+  it("still shows a failure in the conversation, even when the UI has an expandable result", async () => {
+    const tools = new ToolRegistry();
+    tools.register({
+      name: "failing",
+      description: "",
+      riskLevel: "safe",
+      inputSchema: { type: "object" },
+      handler: async () => ({ content: "TypeError: x is not a function", isError: true }),
+    });
+    const ui = { ...makeStubUi(), writeToolResult: vi.fn() };
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(session, new (oneToolCallThenDone("failing"))(), ui, tools, permissions, "run it");
+
+    expect(ui.writeError).toHaveBeenCalledWith("TypeError: x is not a function");
+  });
+
+  it("reduces fetched web content to one line in a terminal instead of printing the page", async () => {
+    const tools = new ToolRegistry();
+    tools.register({
+      name: "web_search",
+      description: "",
+      riskLevel: "safe",
+      inputSchema: { type: "object" },
+      handler: async () => ({ content: wrapUntrustedContent("web_search: benin president", "1. President of Benin - Wikipedia"), isError: false }),
+    });
+    const ui = makeStubUi();
+    const permissions = new PermissionManager({ config: DEFAULT_PERMISSION_CONFIG, ui, yolo: true });
+    const session = new AgentSession({ cwd: "/tmp", model: "test-model", systemPrompt: "sys" });
+
+    await runTurn(session, new (oneToolCallThenDone("web_search"))(), ui, tools, permissions, "who");
+
+    expect(ui.writeSystem).toHaveBeenCalledWith(expect.stringMatching(/^\(content from web_search: benin president, [\d,]+ characters\)$/));
+    expect(ui.writeSystem).not.toHaveBeenCalledWith(expect.stringContaining("untrusted-external-content"));
   });
 });

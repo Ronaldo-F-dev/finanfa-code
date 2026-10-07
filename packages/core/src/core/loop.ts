@@ -1,3 +1,4 @@
+import { summarizeUntrustedContent } from "./untrusted-content.js";
 import type { AgentSession } from "./session.js";
 import type { UIAdapter } from "../ui/adapter.js";
 import type { ToolRegistry } from "../tools/registry.js";
@@ -373,12 +374,20 @@ async function runOneToolCall(
 
 const TOOL_OUTPUT_ECHO_LIMIT = 2000;
 
+/**
+ * A short echo of a tool's output for the person. Where the interface already has an expandable result under the
+ * tool's own line (writeToolResult: the web app, VS Code), a successful result is not repeated as a raw block in the
+ * conversation, only a failure is, so it is not missed. A terminal has no such line, so it gets the echo, with fetched
+ * web content reduced to one line instead of a page of text.
+ */
 function echoToolOutput(ui: UIAdapter, content: string, isError: boolean): void {
   const trimmed = content.trim();
   if (trimmed.length === 0) return;
+  if (!isError && ui.writeToolResult) return;
+  const summary = isError ? undefined : summarizeUntrustedContent(trimmed);
   const truncated = trimmed.length > TOOL_OUTPUT_ECHO_LIMIT ? `${trimmed.slice(0, TOOL_OUTPUT_ECHO_LIMIT)}\n... (truncated)` : trimmed;
   if (isError) ui.writeError(truncated);
-  else ui.writeSystem(truncated);
+  else ui.writeSystem(summary ?? truncated);
 }
 
 interface ToolBatchOutcome {
