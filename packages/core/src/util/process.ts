@@ -106,6 +106,10 @@ export function runSubprocess(command: string, opts: RunSubprocessOptions): Prom
       : opts.args
         ? spawn(command, opts.args, { cwd: opts.cwd, detached: true })
         : spawn(command, { cwd: opts.cwd, shell: SHELL, detached: true });
+    // Nothing is ever written to a command's input: close it, so a command that waits for typed input (a credential
+    // prompt, `cat` with no file) gets end-of-file at once instead of hanging until the timeout.
+    child.stdin?.on("error", () => {});
+    child.stdin?.end();
     let stdout = "";
     let stderr = "";
     let timedOut = false;
