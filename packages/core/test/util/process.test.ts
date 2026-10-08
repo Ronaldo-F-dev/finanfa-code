@@ -63,6 +63,14 @@ describe("runSubprocess (shared by bash/run_tests/check_python_types/lint_javasc
     expect(result.content).toContain("hello-args");
   });
 
+  it("gives a command that waits for typed input an end-of-file at once, instead of hanging until the timeout", async () => {
+    const started = Date.now();
+    const result = await runSubprocess("sh", { args: ["-c", "read line; echo got:[$line]"], cwd: process.cwd(), sessionId: "test", timeoutMs: 20_000 });
+    expect(Date.now() - started).toBeLessThan(10_000);
+    expect(result.content).toContain("got:[]");
+    expect(result.content).not.toContain("timed out");
+  });
+
   it("default isError treats any nonzero exit as failure", async () => {
     const result = await runSubprocess("exit 1", { cwd: process.cwd(), sessionId: "test", timeoutMs: 5000 });
     expect(result.isError).toBe(true);
