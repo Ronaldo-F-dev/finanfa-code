@@ -57,7 +57,8 @@ describe.skipIf(skipLocally(hasCommand("kubectl")))("run_kubectl (real kubectl b
     const result = await kubectl.handler({ args: ["--server=https://127.0.0.1:1", "get", "pods"] }, ctx); // unreachable server, even if the local kubeconfig has a live cluster
     expect(result.isError).toBe(true);
     expect(result.content.toLowerCase()).toMatch(/connection|refused|unable to connect/);
-  }, 20_000);
+    // kubectl retries a refused connection several times before giving up: well over 20 s on a slow CI runner.
+  }, 60_000);
 });
 
 describe("createContainerTools (binary override, for environments without docker/kubectl)", () => {
