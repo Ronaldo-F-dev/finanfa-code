@@ -60,10 +60,11 @@ class FinanfaApiClient {
   Future<T> _post<T>(
     String path,
     Map<String, dynamic> body,
-    T Function(dynamic json) parse,
-  ) async {
+    T Function(dynamic json) parse, {
+    Map<String, String>? query,
+  }) async {
     final res = await _http.post(
-      _uri(path),
+      _uri(path, query),
       headers: _headers,
       body: jsonEncode(body),
     );
@@ -267,5 +268,56 @@ class FinanfaApiClient {
         }
       }
     }
+  }
+
+  /// The project's own and global memory notes (see /api/memory) — the
+  /// server returns both, each entry carrying its own scope.
+  Future<List<MemoryEntry>> fetchMemory({String? projectId}) => _get(
+    '/api/memory',
+    (json) => (json['memories'] as List)
+        .map((m) => MemoryEntry.fromJson(m as Map<String, dynamic>))
+        .toList(),
+    query: {'project': ?projectId},
+  );
+
+  Future<void> saveMemory(MemoryEntry memory, {String? projectId}) => _post(
+    '/api/memory',
+    memory.toJson(),
+    (_) {},
+    query: {'project': ?projectId},
+  );
+
+  Future<void> deleteMemory(String name, String scope, {String? projectId}) =>
+      _delete('/api/memory/${Uri.encodeComponent(name)}', {
+        'scope': scope,
+        'project': ?projectId,
+      });
+
+  Future<List<SkillEntry>> fetchSkills({String? projectId}) => _get(
+    '/api/skills',
+    (json) => (json['skills'] as List)
+        .map((s) => SkillEntry.fromJson(s as Map<String, dynamic>))
+        .toList(),
+    query: {'project': ?projectId},
+  );
+
+  Future<void> saveSkill(SkillEntry skill, {String? projectId}) => _post(
+    '/api/skills',
+    skill.toJson(),
+    (_) {},
+    query: {'project': ?projectId},
+  );
+
+  Future<void> deleteSkill(String name, String scope, {String? projectId}) =>
+      _delete('/api/skills/${Uri.encodeComponent(name)}', {
+        'scope': scope,
+        'project': ?projectId,
+      });
+
+  /// DELETE with a query string — the two delete routes above need `scope`
+  /// (which store the entry lives in) alongside the optional project.
+  Future<void> _delete(String path, Map<String, String> query) async {
+    final res = await _http.delete(_uri(path, query), headers: _headers);
+    _decode(res);
   }
 }
