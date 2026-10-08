@@ -54,11 +54,12 @@ describe.skipIf(skipLocally(hasCommand("kubectl")))("run_kubectl (real kubectl b
 
   it("reports a real connection-refused error when no cluster is reachable, not a thrown exception", async () => {
     const [, kubectl] = createContainerTools();
-    const result = await kubectl.handler({ args: ["--server=https://127.0.0.1:1", "get", "pods"] }, ctx); // unreachable server, even if the local kubeconfig has a live cluster
+    // An unreachable server, no kubeconfig read (a runner may have one with a credential plugin that waits for input)
+    // and a short request timeout, so a call that cannot connect fails fast instead of waiting on kubectl's retries.
+    const result = await kubectl.handler({ args: ["--kubeconfig=/dev/null", "--server=https://127.0.0.1:1", "--request-timeout=5s", "get", "pods"] }, ctx);
     expect(result.isError).toBe(true);
-    expect(result.content.toLowerCase()).toMatch(/connection|refused|unable to connect/);
-    // kubectl retries a refused connection several times before giving up: well over 20 s on a slow CI runner.
-  }, 60_000);
+    expect(result.content.toLowerCase()).toMatch(/connection|refused|unable to connect|timeout|deadline/);
+  }, 30_000);
 });
 
 describe("createContainerTools (binary override, for environments without docker/kubectl)", () => {
