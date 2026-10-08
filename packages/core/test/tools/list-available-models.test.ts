@@ -62,7 +62,7 @@ describe("list_available_models tool", () => {
     it("lists real models for amazon-bedrock, formatted with id/name/kind", async () => {
       const result = await listAvailableModelsTool.handler({}, { cwd: projectDir, sessionId: "s", signal: new AbortController().signal });
       expect(result.isError).toBe(false);
-      expect(result.content).toContain("anthropic.claude-sonnet-5-20250929-v1:0 — Claude Sonnet 5 (foundation-model)");
+      expect(result.content).toContain("anthropic.claude-sonnet-5-20250929-v1:0, Claude Sonnet 5 (foundation-model)");
     });
   });
 });
