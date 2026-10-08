@@ -11,6 +11,24 @@ const FAKE_IPROXY = fileURLToPath(new URL("../fixtures/fake-iproxy.mjs", import.
 const FAKE_SSH = fileURLToPath(new URL("../fixtures/fake-ssh.mjs", import.meta.url));
 const MISSING_BIN = "/nonexistent/definitely-not-a-real-binary-xyz";
 
+/**
+ * An OS-assigned free port — the fixed 3920x values this suite used collided
+ * with whatever else a loaded CI runner had bound (a real observed
+ * EADDRINUSE in this suite's own teardown test), the same lesson as
+ * spawn-server.ts's PORT=0 switch.
+ */
+async function freePort(): Promise<number> {
+  const net = await import("node:net");
+  return new Promise((resolve, reject) => {
+    const probe = net.createServer();
+    probe.once("error", reject);
+    probe.listen(0, "127.0.0.1", () => {
+      const { port } = probe.address() as import("node:net").AddressInfo;
+      probe.close(() => resolve(port));
+    });
+  });
+}
+
 describe("list_usb_devices (real subprocess, fake system_profiler/adb stand-ins)", () => {
   it("has 'safe' risk level", () => {
     const tool = createListUsbDevicesTool();
@@ -118,19 +136,20 @@ describe("run_ios_ssh_command (real subprocess, fake iproxy + ssh stand-ins)", (
   it("starts the iproxy tunnel, runs the SSH command against the tunneled local port, and returns real output", async () => {
     resetCommandAvailabilityCacheForTests();
     const tool = createRunIosSshCommandTool({ iproxyBinary: FAKE_IPROXY, sshBinary: FAKE_SSH });
-    const result = await tool.handler({ udid: "00008030-000ABC123", command: "whoami", local_port: 39201 }, ctx);
+    const port = await freePort();
+    const result = await tool.handler({ udid: "00008030-000ABC123", command: "whoami", local_port: port }, ctx);
     expect(result.isError).toBe(false);
     // fake-ssh.mjs echoes its own real argv for the "whoami" command — confirms
     // the tunnel's local port and default root user actually made it into the
     // real ssh argv, not just some hardcoded/skipped value.
-    expect(result.content).toContain('"-p","39201"');
+    expect(result.content).toContain(`"-p","${port}"`);
     expect(result.content).toContain('"root@127.0.0.1"');
   }, 15_000);
 
   it("respects an overridden user", async () => {
     resetCommandAvailabilityCacheForTests();
     const tool = createRunIosSshCommandTool({ iproxyBinary: FAKE_IPROXY, sshBinary: FAKE_SSH });
-    const result = await tool.handler({ udid: "00008030-000ABC124", command: "whoami", local_port: 39202, user: "mobile" }, ctx);
+    const result = await tool.handler({ udid: "00008030-000ABC124", command: "whoami", local_port: await freePort(), user: "mobile" }, ctx);
     expect(result.isError).toBe(false);
     expect(result.content).toContain('"mobile@127.0.0.1"');
   }, 15_000);
@@ -148,7 +167,7 @@ describe("run_ios_ssh_command (real subprocess, fake iproxy + ssh stand-ins)", (
   it("tears down the iproxy process after the command completes — the local port is free again afterwards", async () => {
     resetCommandAvailabilityCacheForTests();
     const tool = createRunIosSshCommandTool({ iproxyBinary: FAKE_IPROXY, sshBinary: FAKE_SSH });
-    const port = 39203;
+    const port = await freePort();
     const result = await tool.handler({ udid: "00008030-000ABC126", command: "whoami", local_port: port }, ctx);
     expect(result.isError).toBe(false);
 
@@ -171,7 +190,7 @@ describe("run_ios_ssh_command (real subprocess, fake iproxy + ssh stand-ins)", (
     // server isn't running. Real ssh fails the handshake fast (exit 255),
     // it doesn't hang.
     const tool = createRunIosSshCommandTool({ iproxyBinary: FAKE_IPROXY });
-    const result = await tool.handler({ udid: "00008030-refused-device", command: "whoami", local_port: 39204, timeout_ms: 8_000 }, ctx);
+    const result = await tool.handler({ udid: "00008030-refused-device", command: "whoami", local_port: await freePort(), timeout_ms: 8_000 }, ctx);
     expect(result.isError).toBe(true);
   }, 20_000);
 });

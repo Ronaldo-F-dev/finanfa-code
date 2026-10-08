@@ -3,7 +3,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm, readFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { killProcessGroup, runSubprocess } from "../../src/util/process.js";
+import { killProcessGroup, killProcessGroupAndWait, runSubprocess } from "../../src/util/process.js";
 
 async function waitUntil(check: () => Promise<boolean>, timeoutMs = 3000): Promise<void> {
   const start = Date.now();
@@ -46,6 +46,36 @@ describe("killProcessGroup", () => {
   it("does not throw when pid is missing (spawn failed)", () => {
     const fakeChild = { pid: undefined, kill: () => true } as unknown as ReturnType<typeof spawn>;
     expect(() => killProcessGroup(fakeChild)).not.toThrow();
+  });
+});
+
+describe("killProcessGroupAndWait", () => {
+  it("resolves only once the port the process held is free again", async () => {
+    const net = await import("node:net");
+    // A real child holding a real port — the exact symptom the usb-devices
+    // teardown test hit on CI: a caller returning right after the kill could
+    // still see the port bound a moment later.
+    const child = spawn(process.execPath, ["-e", "const net=require('net');const s=net.createServer();s.listen(0,'127.0.0.1',()=>console.log(s.address().port));"], { detached: true });
+    let out = "";
+    child.stdout?.on("data", (d) => (out += d.toString()));
+    await waitUntil(async () => out.trim().length > 0);
+    const port = Number(out.trim());
+    expect(Number.isNaN(port)).toBe(false);
+
+    await killProcessGroupAndWait(child);
+
+    await new Promise<void>((resolve, reject) => {
+      const probe = net.createServer();
+      probe.once("error", reject);
+      probe.listen(port, "127.0.0.1", () => probe.close(() => resolve()));
+    });
+  });
+
+  it("resolves immediately for a process that already exited", async () => {
+    const child = spawn("true", [], { detached: true });
+    await waitForExit(child);
+
+    await expect(killProcessGroupAndWait(child)).resolves.toBeUndefined();
   });
 });
 

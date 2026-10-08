@@ -32,6 +32,30 @@ export function killProcessGroup(child: ChildProcess): void {
   }
 }
 
+/**
+ * As killProcessGroup, but resolves once the process has actually exited
+ * (or after a short grace period, if its exit event never arrives) — for a
+ * caller that needs whatever the process held, typically a listening port,
+ * released before it returns. Real observed race: run_ios_ssh_command's
+ * tunnel teardown returned right after sending the kill, and a loaded CI
+ * runner still saw the port bound a moment later (an EADDRINUSE racing the
+ * teardown test itself).
+ */
+export function killProcessGroupAndWait(child: ChildProcess, graceMs = 2_000): Promise<void> {
+  return new Promise((resolve) => {
+    if (child.exitCode !== null || child.signalCode !== null) {
+      resolve();
+      return;
+    }
+    const timer = setTimeout(resolve, graceMs);
+    child.once("exit", () => {
+      clearTimeout(timer);
+      resolve();
+    });
+    killProcessGroup(child);
+  });
+}
+
 export interface RunSubprocessOptions {
   cwd: string;
   /** Used only to namespace spilled (overflow) output on disk — see truncateOrSpill. */

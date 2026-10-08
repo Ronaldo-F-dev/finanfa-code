@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import net from "node:net";
 import type { ToolDefinition } from "../../core/types.js";
 import { isCommandAvailable } from "../../util/command-availability.js";
-import { killProcessGroup } from "../../util/process.js";
+import { killProcessGroupAndWait } from "../../util/process.js";
 import { waitForPort } from "./wait-for-port.js";
 import { buildSshArgs, runSshWithRetry } from "./remote-exec.js";
 
@@ -479,8 +479,11 @@ export function createRunIosSshCommandTool(options: RunIosSshCommandOptions = {}
         return { content: `${header}--- stdout ---\n${result.stdout}\n--- stderr ---\n${result.stderr}`, isError: result.isError };
       } finally {
         // Tear down the tunnel unconditionally (success or failure) so it
-        // never leaks a lingering iproxy process across calls.
-        killProcessGroup(iproxy);
+        // never leaks a lingering iproxy process across calls — and wait for
+        // it to actually exit before returning: a caller that got control
+        // back while iproxy was still dying could otherwise try to reuse the
+        // same local port and hit EADDRINUSE (real observed race).
+        await killProcessGroupAndWait(iproxy);
       }
     },
   };
