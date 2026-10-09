@@ -26,6 +26,7 @@ import 'channels_screen.dart';
 import 'connectors_screen.dart';
 import 'projects_screen.dart';
 import 'settings_screen.dart';
+import 'tools_screen.dart';
 
 const _imageExtensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'};
 const _imageMimeTypes = {
@@ -339,6 +340,8 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
     void onOpenChannels() =>
         Navigator.of(context)
             .push(MaterialPageRoute(builder: (_) => const ChannelsScreen()));
+    void onOpenTools() => Navigator.of(context)
+        .push(MaterialPageRoute(builder: (_) => const ToolsScreen()));
 
     // Desktop-width windows: show the sessions panel permanently instead of
     // behind a hamburger — see _SessionsPanel's doc comment. `wide` is
@@ -356,6 +359,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
               onNewChat: onNewChat,
               onOpenSettings: onOpenSettings,
               onOpenConnectors: onOpenConnectors,
+              onOpenTools: onOpenTools,
               onOpenProjects: onOpenProjects,
               onOpenArtifacts: onOpenArtifacts,
               onOpenChannels: onOpenChannels,
@@ -633,6 +637,7 @@ class _ChatScreenState extends ConsumerState<ChatScreen> {
           onNewChat: onNewChat,
           onOpenSettings: onOpenSettings,
           onOpenConnectors: onOpenConnectors,
+              onOpenTools: onOpenTools,
           onOpenProjects: onOpenProjects,
           onOpenArtifacts: onOpenArtifacts,
           onOpenChannels: onOpenChannels,
@@ -886,6 +891,7 @@ class _SessionsDrawer extends StatelessWidget {
   final VoidCallback onNewChat;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenConnectors;
+  final VoidCallback onOpenTools;
   final VoidCallback onOpenProjects;
   final VoidCallback onOpenArtifacts;
   final VoidCallback onOpenChannels;
@@ -896,6 +902,7 @@ class _SessionsDrawer extends StatelessWidget {
     required this.onNewChat,
     required this.onOpenSettings,
     required this.onOpenConnectors,
+    required this.onOpenTools,
     required this.onOpenProjects,
     required this.onOpenArtifacts,
     required this.onOpenChannels,
@@ -922,6 +929,10 @@ class _SessionsDrawer extends StatelessWidget {
         onOpenConnectors: () {
           Navigator.of(context).pop();
           onOpenConnectors();
+        },
+        onOpenTools: () {
+          Navigator.of(context).pop();
+          onOpenTools();
         },
         onOpenProjects: () {
           Navigator.of(context).pop();
@@ -956,6 +967,7 @@ class _SessionsPanel extends StatelessWidget {
   final VoidCallback onNewChat;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenConnectors;
+  final VoidCallback onOpenTools;
   final VoidCallback onOpenProjects;
   final VoidCallback onOpenArtifacts;
   final VoidCallback onOpenChannels;
@@ -966,6 +978,7 @@ class _SessionsPanel extends StatelessWidget {
     required this.onNewChat,
     required this.onOpenSettings,
     required this.onOpenConnectors,
+    required this.onOpenTools,
     required this.onOpenProjects,
     required this.onOpenArtifacts,
     required this.onOpenChannels,
@@ -994,6 +1007,7 @@ class _SessionsPanel extends StatelessWidget {
                 onNewChat: onNewChat,
                 onOpenSettings: onOpenSettings,
                 onOpenConnectors: onOpenConnectors,
+                onOpenTools: onOpenTools,
                 onOpenProjects: onOpenProjects,
                 onOpenArtifacts: onOpenArtifacts,
                 onOpenChannels: onOpenChannels,
@@ -1014,6 +1028,7 @@ class _SessionsPanelContent extends ConsumerWidget {
   final VoidCallback onNewChat;
   final VoidCallback onOpenSettings;
   final VoidCallback onOpenConnectors;
+  final VoidCallback onOpenTools;
   final VoidCallback onOpenProjects;
   final VoidCallback onOpenArtifacts;
   final VoidCallback onOpenChannels;
@@ -1024,6 +1039,7 @@ class _SessionsPanelContent extends ConsumerWidget {
     required this.onNewChat,
     required this.onOpenSettings,
     required this.onOpenConnectors,
+    required this.onOpenTools,
     required this.onOpenProjects,
     required this.onOpenArtifacts,
     required this.onOpenChannels,
@@ -1145,6 +1161,14 @@ class _SessionsPanelContent extends ConsumerWidget {
                   ),
                   title: Text(t(ref, 'drawer.connectors')),
                   onTap: onOpenConnectors,
+                ),
+                ListTile(
+                  leading: _DrawerIcon(
+                    Icons.handyman_outlined,
+                    const Color(0xFF2E9E6B),
+                  ),
+                  title: Text(t(ref, 'drawer.tools')),
+                  onTap: onOpenTools,
                 ),
                 ListTile(
                   leading: _DrawerIcon(
