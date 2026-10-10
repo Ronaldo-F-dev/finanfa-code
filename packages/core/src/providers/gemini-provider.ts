@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { Agent, fetch as undiciFetch } from "undici";
 import type {
   LlmProvider,
   NeutralMessage,
@@ -144,10 +145,23 @@ export function parseSseEvents(chunkText: string, dataLineBuffer: string[]): { e
 export interface GeminiProviderOptions {
   apiKey: string;
   baseUrl?: string; // for tests — defaults to the real API
+  /** Time to first byte, ms — tests override this to stay fast. */
+  ttfbTimeoutMs?: number;
+  /** Max silence between stream chunks, ms — tests override this to stay fast. */
+  idleTimeoutMs?: number;
 }
 
 const DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
-const REQUEST_TIMEOUT_MS = 60_000;
+// Same reasoning as OpenAiCompatibleProvider's own constants and dispatcher:
+// this file used a flat AbortSignal.timeout(60s), which stays attached to
+// the connection for the whole body read — a healthy, still-generating
+// response was killed the moment total duration crossed a minute, and
+// undici's own hidden headers/body timeouts would silently override any
+// shorter one. Time-to-first-byte plus a per-chunk idle timeout, both
+// resetting, are what actually distinguish "stuck" from "slow".
+const DEFAULT_TTFB_TIMEOUT_MS = 300_000;
+const DEFAULT_STREAM_IDLE_TIMEOUT_MS = 300_000;
+const dispatcher = new Agent({ bodyTimeout: 0, headersTimeout: 0 });
 
 export class GeminiProvider implements LlmProvider {
   constructor(private readonly opts: GeminiProviderOptions) {}
@@ -160,14 +174,30 @@ export class GeminiProvider implements LlmProvider {
       systemInstruction: { parts: [{ text: params.systemPrompt }] },
       contents: toGeminiContents(params.messages),
       tools: toGeminiTools(params.tools),
+      // The loop's per-turn output budget (effort tiers, session maxTokens)
+      // was silently ignored here, unlike every other provider.
+      generationConfig: params.maxTokens ? { maxOutputTokens: params.maxTokens } : undefined,
     };
 
-    const response = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify(body),
-      signal: params.signal ? AbortSignal.any([AbortSignal.timeout(REQUEST_TIMEOUT_MS), params.signal]) : AbortSignal.timeout(REQUEST_TIMEOUT_MS),
-    });
+    const callerSignal = params.signal;
+    const ttfbTimeoutMs = this.opts.ttfbTimeoutMs ?? DEFAULT_TTFB_TIMEOUT_MS;
+    const ttfbController = new AbortController();
+    const ttfbTimer = setTimeout(() => ttfbController.abort(new Error(`No response within ${ttfbTimeoutMs}ms`)), ttfbTimeoutMs);
+    let response: Response;
+    try {
+      response = (await undiciFetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+        signal: callerSignal ? AbortSignal.any([ttfbController.signal, callerSignal]) : ttfbController.signal,
+        // See the dispatcher module-level comment above — without this,
+        // undici's own default Agent silently overrides every timeout this
+        // file implements.
+        dispatcher,
+      })) as unknown as Response;
+    } finally {
+      clearTimeout(ttfbTimer);
+    }
 
     if (!response.ok || !response.body) {
       const text = await response.text().catch(() => "");
@@ -184,8 +214,35 @@ export class GeminiProvider implements LlmProvider {
     let candidateTokens = 0;
     const toolCalls: NeutralToolCall[] = [];
 
+    const idleTimeoutMs = this.opts.idleTimeoutMs ?? DEFAULT_STREAM_IDLE_TIMEOUT_MS;
     for (;;) {
-      const { done, value } = await reader.read();
+      // A per-read idle timeout, not one overall timeout for the whole
+      // stream — a long-but-healthy generation is fine, a server that stops
+      // sending bytes mid-stream (stalls without closing the socket or ever
+      // sending a finishReason) previously hung this read forever.
+      let idleTimer: ReturnType<typeof setTimeout>;
+      const idleTimeout = new Promise<never>((_, reject) => {
+        idleTimer = setTimeout(() => reject(new Error(`No data received for ${idleTimeoutMs}ms, the connection appears to have stalled.`)), idleTimeoutMs);
+      });
+      // Races the read against the idle timeout and a user interrupt —
+      // aborting the fetch above also errors the body stream, but that
+      // rejection can lag; racing an explicit abort listener here makes a
+      // Stop during a real generation take effect immediately.
+      const abortRace = callerSignal
+        ? new Promise<never>((_, reject) => {
+            if (callerSignal.aborted) reject(callerSignal.reason ?? new DOMException("Aborted", "AbortError"));
+            else callerSignal.addEventListener("abort", () => reject(callerSignal.reason ?? new DOMException("Aborted", "AbortError")), { once: true });
+          })
+        : undefined;
+      let done: boolean, value: Uint8Array | undefined;
+      try {
+        ({ done, value } = await Promise.race([reader.read(), idleTimeout, ...(abortRace ? [abortRace] : [])]));
+      } catch (err) {
+        await reader.cancel().catch(() => {});
+        throw err;
+      } finally {
+        clearTimeout(idleTimer!);
+      }
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const { events, remainder } = parseSseEvents(buffer, dataLineBuffer);

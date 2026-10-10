@@ -205,4 +205,106 @@ describe("GeminiProvider.streamTurn (real local HTTP server, real Gemini-shaped 
 
     badServer.close();
   });
+
+  it("honors the loop's maxTokens budget as generationConfig.maxOutputTokens", async () => {
+    responseScript = (res) => {
+      res.write('data: {"candidates":[{"content":{"parts":[{"text":"ok"}]},"finishReason":"STOP"}]}\n\n');
+      res.end();
+    };
+    const provider = new GeminiProvider({ apiKey: "k", baseUrl });
+    await provider.streamTurn({
+      model: "gemini-2.5-flash",
+      systemPrompt: "s",
+      messages: [{ role: "user", content: "hi" }],
+      tools: [],
+      onTextDelta: () => {},
+      maxTokens: 2048,
+    });
+
+    expect((lastRequest?.body as { generationConfig?: unknown } | undefined)?.generationConfig).toEqual({ maxOutputTokens: 2048 });
+  });
+
+  it("gives up on a server that never sends response headers, with an informative timeout", async () => {
+    const silent = http.createServer((req) => {
+      req.on("data", () => {});
+      // Never responds.
+    });
+    await new Promise<void>((resolve) => silent.listen(0, "127.0.0.1", resolve));
+    const port = (silent.address() as AddressInfo).port;
+
+    try {
+      const provider = new GeminiProvider({ apiKey: "k", baseUrl: `http://127.0.0.1:${port}`, ttfbTimeoutMs: 150 });
+      await expect(
+        provider.streamTurn({ model: "gemini-2.5-flash", systemPrompt: "s", messages: [{ role: "user", content: "hi" }], tools: [], onTextDelta: () => {} }),
+      ).rejects.toThrow(/No response within 150ms/);
+    } finally {
+      silent.closeAllConnections();
+      silent.close();
+    }
+  });
+
+  it("gives up when the stream stalls mid-response instead of hanging forever", async () => {
+    const stalling = http.createServer((req, res) => {
+      req.on("data", () => {});
+      req.on("end", () => {
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        res.write('data: {"candidates":[{"content":{"parts":[{"text":"par"}]}}]}\n\n');
+        // ...then goes silent without ever ending the response.
+      });
+    });
+    await new Promise<void>((resolve) => stalling.listen(0, "127.0.0.1", resolve));
+    const port = (stalling.address() as AddressInfo).port;
+
+    try {
+      const provider = new GeminiProvider({ apiKey: "k", baseUrl: `http://127.0.0.1:${port}`, idleTimeoutMs: 150 });
+      await expect(
+        provider.streamTurn({ model: "gemini-2.5-flash", systemPrompt: "s", messages: [{ role: "user", content: "hi" }], tools: [], onTextDelta: () => {} }),
+      ).rejects.toThrow(/No data received for 150ms/);
+    } finally {
+      stalling.closeAllConnections();
+      stalling.close();
+    }
+  });
+
+  it("does not kill a long but healthy stream: the idle window resets on every chunk", async () => {
+    const slow = http.createServer((req, res) => {
+      req.on("data", () => {});
+      req.on("end", () => {
+        res.writeHead(200, { "content-type": "text/event-stream" });
+        let n = 0;
+        const timer = setInterval(() => {
+          if (n < 3) {
+            res.write(`data: {"candidates":[{"content":{"parts":[{"text":"${n}"}]}}]}\n\n`);
+            n++;
+            return;
+          }
+          clearInterval(timer);
+          res.write('data: {"candidates":[{"content":{"parts":[]},"finishReason":"STOP"}]}\n\n');
+          res.end();
+        }, 80);
+      });
+    });
+    await new Promise<void>((resolve) => slow.listen(0, "127.0.0.1", resolve));
+    const port = (slow.address() as AddressInfo).port;
+
+    try {
+      // Every gap is 80ms (well under the 200ms window) while the stream as
+      // a whole lasts longer than it — only a per-chunk reset passes this.
+      const provider = new GeminiProvider({ apiKey: "k", baseUrl: `http://127.0.0.1:${port}`, ttfbTimeoutMs: 200, idleTimeoutMs: 200 });
+      let streamed = "";
+      const result = await provider.streamTurn({
+        model: "gemini-2.5-flash",
+        systemPrompt: "s",
+        messages: [{ role: "user", content: "hi" }],
+        tools: [],
+        onTextDelta: (t) => (streamed += t),
+      });
+
+      expect(streamed).toBe("012");
+      expect(result.assistantMessage.content).toBe("012");
+    } finally {
+      slow.closeAllConnections();
+      slow.close();
+    }
+  });
 });
