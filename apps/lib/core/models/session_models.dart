@@ -340,3 +340,65 @@ class OllamaPullError extends OllamaPullEvent {
   final String message;
   const OllamaPullError(this.message);
 }
+
+/// A saved memory note or skill — the same shape the web MemoryPanel edits
+/// through /api/memory and /api/skills. `scope` decides which store it lives
+/// in (this project's .finanfa-code/ or the global ~/.finanfa-code/) and is
+/// sent back on delete so the server removes the right copy.
+class MemoryEntry {
+  final String name;
+  final String description;
+  final String type;
+  final String content;
+  final String scope;
+  const MemoryEntry({
+    required this.name,
+    required this.description,
+    required this.type,
+    required this.content,
+    required this.scope,
+  });
+
+  factory MemoryEntry.fromJson(Map<String, dynamic> json) => MemoryEntry(
+    name: json["name"] as String,
+    description: json["description"] as String? ?? "",
+    type: json["type"] as String? ?? "user",
+    content: json["content"] as String? ?? "",
+    scope: json["scope"] as String? ?? "global",
+  );
+
+  Map<String, dynamic> toJson() => {
+    "name": name,
+    "description": description,
+    "type": type,
+    "content": content,
+    "scope": scope,
+  };
+}
+
+class SkillEntry {
+  final String name;
+  final String description;
+  final String content;
+  final String scope;
+  const SkillEntry({
+    required this.name,
+    required this.description,
+    required this.content,
+    required this.scope,
+  });
+
+  factory SkillEntry.fromJson(Map<String, dynamic> json) => SkillEntry(
+    name: json["name"] as String,
+    description: json["description"] as String? ?? "",
+    content: json["content"] as String? ?? "",
+    scope: json["scope"] as String? ?? "global",
+  );
+
+  Map<String, dynamic> toJson() => {
+    "name": name,
+    "description": description,
+    "content": content,
+    "scope": scope,
+  };
+}
