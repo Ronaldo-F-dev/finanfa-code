@@ -27,6 +27,7 @@ import 'connectors_screen.dart';
 import 'projects_screen.dart';
 import 'memory_screen.dart';
 import 'settings_screen.dart';
+import 'tools_screen.dart';
 
 const _imageExtensions = {'png', 'jpg', 'jpeg', 'gif', 'webp'};
 const _imageMimeTypes = {
