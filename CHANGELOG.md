@@ -177,6 +177,14 @@ first tagged release.
   thousands of tokens before the first user message, which a small-context
   local model can't fit — `useAgentBridge.ts` used to list this panel as
   deliberately dropped, it is now a real port.
+- VS Code: the **Connecteurs** panel — the web UI's MCP list, ported: each
+  server's transport and state (connected, disabled, authorization pending,
+  not yet added), "+ Ajouter" connects a catalog connector (writing it to
+  `.finanfa-code/mcp.json` first), enable/disable for connected ones, and a
+  "Recharger les outils" action. The connect/toggle/reload bodies now live
+  once in `@finanfa/core/src/mcp/connect.ts`, shared by the web server's own
+  handlers instead of duplicated; the connector catalog moved to core with
+  them.
 
 ### Security
 

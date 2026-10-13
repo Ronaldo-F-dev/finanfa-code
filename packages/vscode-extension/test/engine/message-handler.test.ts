@@ -33,6 +33,10 @@ async function makeFakeRunner(
     listEffortTiers: vi.fn().mockResolvedValue([]),
     switchModel: vi.fn().mockResolvedValue({ ok: true }),
     setEffort: vi.fn().mockResolvedValue({ ok: true }),
+    listMcpStatus: vi.fn().mockResolvedValue([]),
+    mcpConnect: vi.fn().mockResolvedValue(undefined),
+    mcpToggle: vi.fn(),
+    reloadMcpTools: vi.fn().mockResolvedValue(undefined),
     listToolStatus: vi.fn().mockReturnValue([]),
     setToolEnabled: vi.fn(),
     pullOllamaModel: vi.fn().mockResolvedValue(undefined),
@@ -335,6 +339,87 @@ describe("createChatMessageHandler", () => {
       await handle({ type: "pull_ollama_model", name: "qwen3:4b-instruct" });
 
       expect(post).toHaveBeenCalledWith({ type: "ollama_pull_error", name: "qwen3:4b-instruct", message: "network down" });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("mcp_status replies with the runner's own server list", async () => {
+    const servers = [{ name: "notion", transport: "http", connected: true, disabled: false, needsAuth: false, inProject: true }];
+    const { runner, dir } = await makeFakeRunner(vi.fn(), { listMcpStatus: vi.fn().mockResolvedValue(servers) });
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "mcp_status" });
+
+      expect(post).toHaveBeenCalledWith({ type: "mcp_status", servers });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("mcp_connect connects on the runner and answers with the refreshed status", async () => {
+    const servers = [{ name: "notion", transport: "http", connected: true, disabled: false, needsAuth: false, inProject: true }];
+    const { runner, dir } = await makeFakeRunner(vi.fn(), { listMcpStatus: vi.fn().mockResolvedValue(servers) });
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "mcp_connect", name: "notion" });
+
+      expect(runner.mcpConnect).toHaveBeenCalledWith("notion");
+      expect(post).toHaveBeenCalledWith({ type: "mcp_status", servers });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("mcp_disable/mcp_enable route to the runner's own enable flag and refresh the list", async () => {
+    const { runner, dir } = await makeFakeRunner();
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "mcp_disable", name: "notion" });
+      expect(runner.mcpToggle).toHaveBeenCalledWith("notion", false);
+
+      await handle({ type: "mcp_enable", name: "notion" });
+      expect(runner.mcpToggle).toHaveBeenLastCalledWith("notion", true);
+      // Every mutation is answered with a fresh list, same as the web server.
+      expect(post).toHaveBeenCalledWith({ type: "mcp_status", servers: [] });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("mcp_reload reloads tools and answers with the refreshed status", async () => {
+    const { runner, dir } = await makeFakeRunner();
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "mcp_reload" });
+
+      expect(runner.reloadMcpTools).toHaveBeenCalled();
+      expect(post).toHaveBeenCalledWith({ type: "mcp_status", servers: [] });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("mcp_connect/mcp_enable ignore a malformed payload without touching the runner", async () => {
+    const { runner, dir } = await makeFakeRunner();
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "mcp_connect" });
+      await handle({ type: "mcp_enable", name: 7 });
+
+      expect(runner.mcpConnect).not.toHaveBeenCalled();
+      expect(runner.mcpToggle).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalled();
     } finally {
       await rm(dir, { recursive: true, force: true });
     }

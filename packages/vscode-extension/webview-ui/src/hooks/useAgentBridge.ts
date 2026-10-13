@@ -36,6 +36,17 @@ export interface StatusInfo {
   planMode?: boolean;
 }
 
+/** One row of the "mcp_status" payload (see McpPanel.tsx) — the same shape web-client's useAgentSocket delivers. */
+export interface McpServerStatus {
+  name: string;
+  transport: string;
+  connected: boolean;
+  disabled: boolean;
+  needsAuth: boolean;
+  /** Already in this project's .finanfa-code/mcp.json, vs. shown from the built-in catalog and not yet added. */
+  inProject: boolean;
+}
+
 /** One row of the "tools_status" payload the panel groups by riskLevel — enabled mirrors the session's disabledTools set on the extension side. */
 export interface ToolStatus {
   name: string;
@@ -140,6 +151,10 @@ export function useAgentBridge() {
   const [ollamaPull, setOllamaPull] = useState<OllamaPullState | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [composerInsert, setComposerInsert] = useState<ComposerInsertRequest | null>(null);
+  const [mcpServers, setMcpServers] = useState<McpServerStatus[]>([]);
+  // Distinguishes "the extension hasn't answered yet" from "the panel is
+  // genuinely empty" — same loaded flag web-client's own MCP panel uses.
+  const [mcpLoaded, setMcpLoaded] = useState(false);
   const [toolsStatus, setToolsStatus] = useState<ToolStatus[]>([]);
   const streamingIdRef = useRef<string | null>(null);
   const composerInsertNonceRef = useRef(0);
@@ -247,6 +262,10 @@ export function useAgentBridge() {
         case "effort_tiers":
           setEffortTiers(msg.tiers);
           break;
+        case "mcp_status":
+          setMcpServers(msg.servers);
+          setMcpLoaded(true);
+          break;
         case "tools_status":
           setToolsStatus(msg.tools);
           break;
@@ -325,6 +344,15 @@ export function useAgentBridge() {
   const listSessions = useCallback(() => vscode.postMessage({ type: "list_sessions" }), []);
   const switchSession = useCallback((id: string) => vscode.postMessage({ type: "switch_session", id }), []);
   const deleteSession = useCallback((id: string) => vscode.postMessage({ type: "delete_session", id }), []);
+  // the web client; every mutation answers with a fresh mcp_status, so all
+  // of these land in the case above.
+  const requestMcpStatus = useCallback(() => vscode.postMessage({ type: "mcp_status" }), []);
+  const mcpConnect = useCallback((name: string) => vscode.postMessage({ type: "mcp_connect", name }), []);
+  const mcpToggle = useCallback(
+    (name: string, enabled: boolean) => vscode.postMessage({ type: enabled ? "mcp_enable" : "mcp_disable", name }),
+    [],
+  );
+  const mcpReload = useCallback(() => vscode.postMessage({ type: "mcp_reload" }), []);
   // Same "ask on open, the extension answers with the full list" contract as
   // the web client — set_tool_enabled's reply refreshes the panel, so both
   // paths land in the same tools_status case above.
@@ -359,6 +387,12 @@ export function useAgentBridge() {
     switchSession,
     deleteSession,
     composerInsert,
+    mcpServers,
+    mcpLoaded,
+    requestMcpStatus,
+    mcpConnect,
+    mcpToggle,
+    mcpReload,
     toolsStatus,
     requestToolsStatus,
     setToolEnabled,

@@ -10,6 +10,9 @@ import { resolveTrust } from "@finanfa/core/src/core/trust-gate.js";
 import { CommandRegistry } from "@finanfa/core/src/commands/registry.js";
 import { registerBuiltinCommands } from "@finanfa/core/src/commands/builtin.js";
 import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
+import { loadMcpServers } from "@finanfa/core/src/mcp/config.js";
+import { MCP_CATALOG } from "@finanfa/core/src/mcp/catalog.js";
+import { connectMcpServer, reloadMcpTools as reloadMcpToolsCore } from "@finanfa/core/src/mcp/connect.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
 import { formatSkillIndex } from "@finanfa/core/src/skills/loader.js";
 import { formatMemoryIndex } from "@finanfa/core/src/memory/loader.js";
@@ -122,6 +125,16 @@ function buildProvider(family: ProviderFamily, config: FinanfaConfig): LlmProvid
  * always available here (the webview), so permission prompts and the trust
  * gate work exactly like the CLI's interactive REPL, never auto-approved.
  */
+export interface McpServerStatus {
+  name: string;
+  transport: string;
+  connected: boolean;
+  disabled: boolean;
+  needsAuth: boolean;
+  /** Already in this project's .finanfa-code/mcp.json, vs. shown from the built-in catalog and not yet added. */
+  inProject: boolean;
+}
+
 export interface SessionRunner {
   session: AgentSession;
   provider: LlmProvider;
@@ -142,6 +155,14 @@ export interface SessionRunner {
   switchModel(model: string, family: string, baseUrl?: string): Promise<SetModelResult>;
   /** Mirrors web-server's "set_effort" ws handler — applies a curated model/maxTokens/tool-budget tier in one call, offering to pull a missing local model instead of failing outright. */
   setEffort(level: string): Promise<SetEffortResult>;
+  /** Mirrors web-server's "mcp_status" message — configured servers plus catalog entries not yet added, with this session's connect/disable state. */
+  listMcpStatus(): Promise<McpServerStatus[]>;
+  /** Mirrors web-server's "mcp_connect" handler (the real body is shared, see core's connect.ts) — writes its own system/error notes through the UI adapter. */
+  mcpConnect(name: string): Promise<void>;
+  /** Mirrors web-server's "mcp_enable"/"mcp_disable" handlers — session.disabledMcpServers is what persist() already stores. */
+  mcpToggle(name: string, enabled: boolean): void;
+  /** Mirrors web-server's "mcp_reload": re-registers the mcp__* tools from every connected server. */
+  reloadMcpTools(): Promise<void>;
   /** Mirrors web-server's "tools_status" message — every registered tool with this session's own enablement (session.disabledTools). */
   listToolStatus(): { name: string; riskLevel: ToolRiskLevel; enabled: boolean }[];
   /** Mirrors web-server's "set_tool_enabled" handler — session.disabledTools is what persist() already stores, so the choice survives a resume. */
@@ -251,6 +272,10 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
   await loadPlugins(cwd, tools, commands);
 
   await connectMcpServers(cwd, mcp, ui);
+  // needsAuth comes back from that same startup pass; the panel shows these
+  // servers as "autorisation requise" until a fresh mcpConnect succeeds
+  // (mirrors web-server's own needsAuthSet, cleared the same way).
+  const needsAuthSet = new Set((await connectMcpServers(cwd, mcp, ui)).needsAuth);
   for (const def of await mcp.listAllTools()) tools.register(def);
 
   registerStatefulBuiltins(tools, { provider, permissions, ui, model, cwd, browser, designContract: designContract.content, systemPrompt, agentTypes });
@@ -302,6 +327,35 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
         })),
       ];
       return { activeProviderKind: initial.kind, defaultModel, models };
+    },
+    async listMcpStatus(): Promise<McpServerStatus[]> {
+      const configured = await loadMcpServers(cwd);
+      const configuredNames = new Set(configured.map((s) => s.name));
+      // Catalog entries fill in connectors this project hasn't added yet —
+      // the same "known integrations with a Connect button" list web-server's
+      // panel shows, not just what's already wired up.
+      const all = [...configured, ...MCP_CATALOG.filter((c) => !configuredNames.has(c.name))];
+      const connected = new Set(mcp.connectedServers());
+      return all.map((s) => ({
+        name: s.name,
+        transport: s.transport,
+        connected: connected.has(s.name),
+        disabled: session.disabledMcpServers.has(s.name),
+        needsAuth: needsAuthSet.has(s.name),
+        inProject: configuredNames.has(s.name),
+      }));
+    },
+    async mcpConnect(name) {
+      if (await connectMcpServer(cwd, mcp, tools, name, ui)) needsAuthSet.delete(name);
+    },
+    mcpToggle(name, enabled) {
+      if (!mcp.connectedServers().includes(name)) ui.writeError(`No connected MCP server named "${name}".`);
+      else if (enabled) session.disabledMcpServers.delete(name);
+      else session.disabledMcpServers.add(name);
+    },
+    async reloadMcpTools() {
+      await reloadMcpToolsCore(tools, mcp);
+      ui.writeSystem("MCP tools reloaded.");
     },
     listToolStatus() {
       return tools.list().map((t) => ({ name: t.name, riskLevel: t.riskLevel, enabled: !session.disabledTools.has(t.name) }));

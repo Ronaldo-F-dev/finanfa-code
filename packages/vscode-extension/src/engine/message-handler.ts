@@ -151,6 +151,29 @@ export function createChatMessageHandler(
     }
   }
 
+  async function handleMcpStatus(): Promise<void> {
+    post({ type: "mcp_status", servers: await runner.listMcpStatus() });
+  }
+
+  async function handleMcpConnect(msg: WebviewMessage): Promise<void> {
+    if (typeof msg.name !== "string") return;
+    await runner.mcpConnect(msg.name);
+    // The connect may have just registered new mcp__* tools (or failed) —
+    // answer with the fresh status either way, same as the web server.
+    await handleMcpStatus();
+  }
+
+  async function handleMcpToggle(msg: WebviewMessage, enabled: boolean): Promise<void> {
+    if (typeof msg.name !== "string") return;
+    runner.mcpToggle(msg.name, enabled);
+    await handleMcpStatus();
+  }
+
+  async function handleMcpReload(): Promise<void> {
+    await runner.reloadMcpTools();
+    await handleMcpStatus();
+  }
+
   function handleToolsStatus(): void {
     post({ type: "tools_status", tools: runner.listToolStatus() });
   }
@@ -196,6 +219,16 @@ export function createChatMessageHandler(
         return handleCompact();
       case "interrupt":
         return handleInterrupt();
+      case "mcp_status":
+        return handleMcpStatus();
+      case "mcp_connect":
+        return handleMcpConnect(msg);
+      case "mcp_enable":
+        return handleMcpToggle(msg, true);
+      case "mcp_disable":
+        return handleMcpToggle(msg, false);
+      case "mcp_reload":
+        return handleMcpReload();
       case "tools_status":
         return handleToolsStatus();
       case "set_tool_enabled":
