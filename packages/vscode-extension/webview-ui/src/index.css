@@ -285,6 +285,10 @@ body {
 .mcp-dot-auth {
   background: #e3b341;
 }
+/* The Tools panel's "dangerous" risk dot — same red as web-client's own. */
+.tool-dot-danger {
+  background: var(--danger);
+}
 
 .mcp-name {
   font-size: 13px;

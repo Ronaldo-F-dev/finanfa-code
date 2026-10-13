@@ -5,12 +5,13 @@ import { BusyIndicator } from "./components/BusyIndicator";
 import { PermissionModal } from "./components/PermissionModal";
 import { Composer } from "./components/Composer";
 import { SessionHistory } from "./components/SessionHistory";
+import { ToolsPanel } from "./components/ToolsPanel";
 
 /**
  * Root component — the webview equivalent of web-client's App.tsx, minus
  * everything the plan marks out of scope for Phase 1 (sidebar, MCP/Memory/
- * Models/Tools/Settings panels, plan mode, /rewind, multi-root). One
- * session per workspace, no session switcher.
+ * Models/Settings panels, plan mode, /rewind, multi-root). One session per
+ * workspace, no session switcher.
  */
 export function App() {
   const {
@@ -38,10 +39,14 @@ export function App() {
     switchSession,
     deleteSession,
     composerInsert,
+    toolsStatus,
+    requestToolsStatus,
+    setToolEnabled,
   } = useAgentBridge();
 
   const [input, setInput] = useState("");
   const [pendingImages, setPendingImages] = useState<Attachment[]>([]);
+  const [toolsOpen, setToolsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const wasNeedingDownloadRef = useRef(false);
 
@@ -97,6 +102,21 @@ export function App() {
         <div className="brand">{sessionInfo?.title ?? "finanfa-code"}</div>
         <div className="topbar-right">
           <SessionHistory sessions={sessions} activeId={sessionInfo?.id} onRefresh={listSessions} onSwitch={switchSession} onDelete={deleteSession} />
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              // Ask first, open second: the panel renders whatever
+              // tools_status last delivered, so the click both refreshes and
+              // opens — no stale list from a previous model switch.
+              requestToolsStatus();
+              setToolsOpen(true);
+            }}
+            disabled={!connected}
+            title="Activer ou désactiver les outils envoyés au modèle à chaque tour"
+          >
+            Outils
+          </button>
           {timeline.length > 0 && (
             <button
               type="button"
@@ -151,6 +171,7 @@ export function App() {
       />
 
       {permissionRequest && <PermissionModal request={permissionRequest} onAnswer={(answer) => answerPermission(permissionRequest.requestId, answer)} />}
+      {toolsOpen && <ToolsPanel tools={toolsStatus} onClose={() => setToolsOpen(false)} onToggle={setToolEnabled} />}
     </div>
   );
 }
