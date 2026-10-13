@@ -36,6 +36,13 @@ export interface StatusInfo {
   planMode?: boolean;
 }
 
+/** One row of the "tools_status" payload the panel groups by riskLevel — enabled mirrors the session's disabledTools set on the extension side. */
+export interface ToolStatus {
+  name: string;
+  riskLevel: ToolRiskLevel;
+  enabled: boolean;
+}
+
 export interface SessionInfo {
   id: string;
   title?: string;
@@ -112,11 +119,12 @@ const vscode = acquireVsCodeApi();
  * close to a line-for-line port as possible (review-friendly diff, keeps
  * the door open to a real shared package later).
  *
- * Dropped vs. the web version (see plan's "what to drop" list): MCP/Tools
- * panel plumbing (mcpConnect/mcpToggle/mcpReload/setToolEnabled/
- * requestToolsStatus), plan mode, and the sessionId/projectId/reconnect
- * concerns — exactly one persistent connection per webview panel here,
- * no "switch to a different session" (that's the out-of-scope sidebar).
+ * Dropped vs. the web version (see plan's "what to drop" list): MCP panel
+ * plumbing (mcpConnect/mcpToggle/mcpReload), plan mode, and the
+ * sessionId/projectId/reconnect concerns — exactly one persistent
+ * connection per webview panel here, no "switch to a different session"
+ * (that's the out-of-scope sidebar). The Tools panel's own plumbing
+ * (requestToolsStatus/setToolEnabled) is ported — see ToolsPanel.tsx.
  */
 export function useAgentBridge() {
   const [connected] = useState(true); // The extension host is always "there" once the webview exists — no connect/disconnect lifecycle to track.
@@ -132,6 +140,7 @@ export function useAgentBridge() {
   const [ollamaPull, setOllamaPull] = useState<OllamaPullState | null>(null);
   const [sessions, setSessions] = useState<SessionSummary[]>([]);
   const [composerInsert, setComposerInsert] = useState<ComposerInsertRequest | null>(null);
+  const [toolsStatus, setToolsStatus] = useState<ToolStatus[]>([]);
   const streamingIdRef = useRef<string | null>(null);
   const composerInsertNonceRef = useRef(0);
 
@@ -238,6 +247,9 @@ export function useAgentBridge() {
         case "effort_tiers":
           setEffortTiers(msg.tiers);
           break;
+        case "tools_status":
+          setToolsStatus(msg.tools);
+          break;
         case "sessions":
           setSessions(msg.sessions);
           break;
@@ -313,6 +325,11 @@ export function useAgentBridge() {
   const listSessions = useCallback(() => vscode.postMessage({ type: "list_sessions" }), []);
   const switchSession = useCallback((id: string) => vscode.postMessage({ type: "switch_session", id }), []);
   const deleteSession = useCallback((id: string) => vscode.postMessage({ type: "delete_session", id }), []);
+  // Same "ask on open, the extension answers with the full list" contract as
+  // the web client — set_tool_enabled's reply refreshes the panel, so both
+  // paths land in the same tools_status case above.
+  const requestToolsStatus = useCallback(() => vscode.postMessage({ type: "tools_status" }), []);
+  const setToolEnabled = useCallback((name: string, enabled: boolean) => vscode.postMessage({ type: "set_tool_enabled", name, enabled }), []);
 
   return {
     connected,
@@ -342,5 +359,8 @@ export function useAgentBridge() {
     switchSession,
     deleteSession,
     composerInsert,
+    toolsStatus,
+    requestToolsStatus,
+    setToolEnabled,
   };
 }
