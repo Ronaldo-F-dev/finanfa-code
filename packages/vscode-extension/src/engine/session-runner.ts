@@ -20,7 +20,7 @@ import { formatProjectInstructions } from "@finanfa/core/src/core/project-instru
 import { formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
 import type { FinanfaConfig } from "@finanfa/core/src/core/config.js";
-import type { LlmProvider, NeutralImage } from "@finanfa/core/src/core/types.js";
+import type { LlmProvider, NeutralImage, ToolRiskLevel } from "@finanfa/core/src/core/types.js";
 import { loadConfig, thinkingBudgetTokensFromConfig, resolveToolSearchEnabled, resolveLocalModelLeanEnabled } from "@finanfa/core/src/core/config.js";
 import { BASE_SYSTEM_PROMPT, selectProvider, selectVisionProvider, connectMcpServers, isLocalProviderConfig, loadStartupContext, registerSkillAndMemoryTools } from "@finanfa/core/src/app.js";
 import { detectLocalProviders } from "@finanfa/core/src/core/local-providers.js";
@@ -163,6 +163,10 @@ export interface SessionRunner {
   mcpToggle(name: string, enabled: boolean): void;
   /** Mirrors web-server's "mcp_reload": re-registers the mcp__* tools from every connected server. */
   reloadMcpTools(): Promise<void>;
+  /** Mirrors web-server's "tools_status" message — every registered tool with this session's own enablement (session.disabledTools). */
+  listToolStatus(): { name: string; riskLevel: ToolRiskLevel; enabled: boolean }[];
+  /** Mirrors web-server's "set_tool_enabled" handler — session.disabledTools is what persist() already stores, so the choice survives a resume. */
+  setToolEnabled(name: string, enabled: boolean): void;
   /** Mirrors web-server's GET /api/ollama-models/pull SSE endpoint, minus the transport (no HTTP server here) — progress is reported via the callback instead of writing SSE frames. */
   pullOllamaModel(name: string, onProgress: (completed: number | undefined, total: number | undefined) => void): Promise<void>;
   /** Persists the session and closes MCP/browser connections — call once, on extension deactivate or webview panel disposal, never awaited from a path that itself must stay responsive to shutdown. */
@@ -352,6 +356,13 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
     async reloadMcpTools() {
       await reloadMcpToolsCore(tools, mcp);
       ui.writeSystem("MCP tools reloaded.");
+    },
+    listToolStatus() {
+      return tools.list().map((t) => ({ name: t.name, riskLevel: t.riskLevel, enabled: !session.disabledTools.has(t.name) }));
+    },
+    setToolEnabled(name, enabled) {
+      if (enabled) session.disabledTools.delete(name);
+      else session.disabledTools.add(name);
     },
     async listEffortTiers(): Promise<EffortTierInfo[]> {
       const ollamaModels = (await isOllamaAvailable().catch(() => false)) ? await listOllamaModels().catch(() => []) : [];

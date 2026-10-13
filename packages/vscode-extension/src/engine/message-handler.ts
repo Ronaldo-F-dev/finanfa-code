@@ -174,6 +174,18 @@ export function createChatMessageHandler(
     await handleMcpStatus();
   }
 
+  function handleToolsStatus(): void {
+    post({ type: "tools_status", tools: runner.listToolStatus() });
+  }
+
+  function handleSetToolEnabled(msg: WebviewMessage): void {
+    if (typeof msg.name !== "string" || typeof msg.enabled !== "boolean") return;
+    runner.setToolEnabled(msg.name, msg.enabled);
+    // Answer with the fresh list, like the web server does — the panel shows
+    // the stored state, not just the click.
+    post({ type: "tools_status", tools: runner.listToolStatus() });
+  }
+
   function handleInterrupt(): void {
     // Real reported regression this must not repeat (see git log: "Fix
     // Stop/interrupt being queued behind..."): interrupt has to preempt an
@@ -217,6 +229,10 @@ export function createChatMessageHandler(
         return handleMcpToggle(msg, false);
       case "mcp_reload":
         return handleMcpReload();
+      case "tools_status":
+        return handleToolsStatus();
+      case "set_tool_enabled":
+        return handleSetToolEnabled(msg);
       case "permission_response":
         return handlePermissionResponse(msg);
       default:

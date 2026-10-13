@@ -168,6 +168,15 @@ first tagged release.
   clear install instruction instead of this project trying to fetch or
   run a third-party binary on its own. The tunnel process is stopped on
   SIGINT/SIGTERM so it doesn't linger as an orphan after the server exits.
+- VS Code: the **Tools** panel, opened from a new *Outils* button in the
+  toolbar — the web UI's grouped-by-risk list with search, per-tool and
+  per-group switches, and the same `tools_status`/`set_tool_enabled`
+  contract as the web server, backed by the session's own `disabledTools`
+  set so the choice survives a resume. Same real use case as the web
+  panel: the system prompt plus the full tool list runs to tens of
+  thousands of tokens before the first user message, which a small-context
+  local model can't fit — `useAgentBridge.ts` used to list this panel as
+  deliberately dropped, it is now a real port.
 - VS Code: the **Connecteurs** panel — the web UI's MCP list, ported: each
   server's transport and state (connected, disabled, authorization pending,
   not yet added), "+ Ajouter" connects a catalog connector (writing it to

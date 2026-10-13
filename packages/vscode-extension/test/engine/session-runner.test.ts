@@ -156,6 +156,24 @@ describe("createSessionRunner (real local SSE server, no VS Code involved)", () 
     await runner.dispose();
   });
 
+  it("setToolEnabled round-trips through session.disabledTools and listToolStatus", async () => {
+    const runner = await createSessionRunner(projectDir, makeStubUi());
+    const target = runner.tools.list()[0]!;
+
+    expect(runner.listToolStatus().find((t) => t.name === target.name)?.enabled).toBe(true);
+
+    runner.setToolEnabled(target.name, false);
+
+    expect(runner.session.disabledTools.has(target.name)).toBe(true);
+    expect(runner.listToolStatus().find((t) => t.name === target.name)?.enabled).toBe(false);
+
+    runner.setToolEnabled(target.name, true);
+
+    expect(runner.session.disabledTools.has(target.name)).toBe(false);
+    expect(runner.listToolStatus().find((t) => t.name === target.name)?.enabled).toBe(true);
+    await runner.dispose();
+  });
+
   it("falls back to a fresh session and warns when asked to resume an unknown id", async () => {
     const ui = makeStubUi();
     const runner = await createSessionRunner(projectDir, ui, { resumeSessionId: "does-not-exist" });

@@ -37,6 +37,8 @@ async function makeFakeRunner(
     mcpConnect: vi.fn().mockResolvedValue(undefined),
     mcpToggle: vi.fn(),
     reloadMcpTools: vi.fn().mockResolvedValue(undefined),
+    listToolStatus: vi.fn().mockReturnValue([]),
+    setToolEnabled: vi.fn(),
     pullOllamaModel: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn(),
     ...overrides,
@@ -418,6 +420,58 @@ describe("createChatMessageHandler", () => {
       expect(runner.mcpConnect).not.toHaveBeenCalled();
       expect(runner.mcpToggle).not.toHaveBeenCalled();
       expect(post).not.toHaveBeenCalled();
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("tools_status replies with the runner's own tool list", async () => {
+    const tools = [
+      { name: "read_file", riskLevel: "safe" as const, enabled: true },
+      { name: "bash", riskLevel: "ask" as const, enabled: false },
+    ];
+    const { runner, dir } = await makeFakeRunner(vi.fn(), { listToolStatus: vi.fn().mockReturnValue(tools) });
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "tools_status" });
+
+      expect(post).toHaveBeenCalledWith({ type: "tools_status", tools });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("set_tool_enabled applies the toggle on the runner and answers with the refreshed list", async () => {
+    const refreshed = [{ name: "bash", riskLevel: "ask" as const, enabled: false }];
+    const { runner, dir } = await makeFakeRunner(vi.fn(), { listToolStatus: vi.fn().mockReturnValue(refreshed) });
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "set_tool_enabled", name: "bash", enabled: false });
+
+      expect(runner.setToolEnabled).toHaveBeenCalledWith("bash", false);
+      // The panel renders only what tools_status delivered, so this reply is
+      // what actually flips the row — not the click itself.
+      expect(post).toHaveBeenCalledWith({ type: "tools_status", tools: refreshed });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("set_tool_enabled ignores a malformed payload without touching the runner", async () => {
+    const { runner, dir } = await makeFakeRunner();
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "set_tool_enabled", name: "bash" });
+      await handle({ type: "set_tool_enabled", name: 7, enabled: true });
+
+      expect(runner.setToolEnabled).not.toHaveBeenCalled();
+      expect(post).not.toHaveBeenCalledWith(expect.objectContaining({ type: "tools_status" }));
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
