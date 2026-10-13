@@ -12,9 +12,10 @@ import { PermissionManager, type PermissionManagerOptions } from "@finanfa/core/
 import { loadPermissionConfig } from "@finanfa/core/src/permissions/config.js";
 import { loadHooksConfig } from "@finanfa/core/src/hooks/config.js";
 import { resolveTrust } from "@finanfa/core/src/core/trust-gate.js";
-import { McpClientManager, MCP_TOOL_PREFIX } from "@finanfa/core/src/mcp/client-manager.js";
+import { McpClientManager } from "@finanfa/core/src/mcp/client-manager.js";
 import { loadMcpServers } from "@finanfa/core/src/mcp/config.js";
-import { MCP_CATALOG } from "./mcp-catalog.js";
+import { MCP_CATALOG } from "@finanfa/core/src/mcp/catalog.js";
+import { connectMcpServer, reloadMcpTools } from "@finanfa/core/src/mcp/connect.js";
 import { loadSkills, formatSkillIndex, writeSkill, deleteSkill } from "@finanfa/core/src/skills/loader.js";
 import {
   loadMemories,
@@ -1439,11 +1440,6 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
       ws.send(JSON.stringify({ type: "auto_approve", settings: permissions.getAutoApprove(), forbidden: permissions.isAutoApproveForbidden(), categories: APPROVAL_CATEGORIES }));
     }
 
-    async function reloadMcpTools(): Promise<void> {
-      tools.unregisterByPrefix(MCP_TOOL_PREFIX);
-      for (const def of await mcp.listAllTools()) tools.register(def);
-    }
-
     // Sent as a structured event (not just parsed out of the text banner
     // below) so the client can sync its model selector / title state
     // exactly, including when a resumed session's model differs from
@@ -2081,36 +2077,11 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
 
       async function handleMcpConnect(msg: { type: string; [key: string]: unknown }): Promise<void> {
         if (typeof msg.name !== "string") return;
-        const existing = await loadMcpServers(CWD);
-        let config = existing.find((s) => s.name === msg.name);
-        if (!config) {
-          // Not yet in this project's mcp.json — if it's a known catalog
-          // entry (see mcp-catalog.ts), add it there first, same file
-          // write the CLI's own /mcp add does, then fall through to
-          // connect it below.
-          const fromCatalog = MCP_CATALOG.find((c) => c.name === msg.name);
-          if (fromCatalog) {
-            const file = path.join(CWD, ".finanfa-code", "mcp.json");
-            await mkdir(path.dirname(file), { recursive: true });
-            await writeFile(file, JSON.stringify({ servers: [...existing, fromCatalog] }, null, 2), "utf-8");
-            config = fromCatalog;
-          }
-        }
-        if (!config) {
-          adapter.writeError(`No MCP server named "${msg.name}" in .finanfa-code/mcp.json.`);
-        } else if (mcp.connectedServers().includes(msg.name)) {
-          adapter.writeSystem(`"${msg.name}" is already connected.`);
-        } else {
-          if (config.transport !== "stdio") adapter.writeSystem(`Connecting to "${msg.name}", if it requires authorization, a browser tab will open on the server...`);
-          try {
-            await mcp.connect(config);
-            needsAuthSet.delete(msg.name);
-            await reloadMcpTools();
-            adapter.writeSystem(`Connected "${msg.name}".`);
-          } catch (err) {
-            adapter.writeError(`Failed to connect "${msg.name}": ${err instanceof Error ? err.message : err}`);
-          }
-        }
+        // The whole add-if-catalog-then-connect body lives in core now
+        // (@finanfa/core/src/mcp/connect.js) — the VS Code runner's own
+        // mcpConnect needed exactly the same steps. The boolean is "a fresh
+        // connect succeeded": only then is the needsAuth marker cleared.
+        if (await connectMcpServer(CWD, mcp, tools, msg.name, adapter)) needsAuthSet.delete(msg.name);
         await sendMcpStatus();
       }
 
@@ -2127,7 +2098,7 @@ async function handleConnection(ws: WebSocket, url: string, user: string | undef
       }
 
       async function handleMcpReload(): Promise<void> {
-        await reloadMcpTools();
+        await reloadMcpTools(tools, mcp);
         adapter.writeSystem("MCP tools reloaded.");
         await sendMcpStatus();
       }

@@ -5,10 +5,11 @@ import { BusyIndicator } from "./components/BusyIndicator";
 import { PermissionModal } from "./components/PermissionModal";
 import { Composer } from "./components/Composer";
 import { SessionHistory } from "./components/SessionHistory";
+import { McpPanel } from "./components/McpPanel";
 
 /**
  * Root component — the webview equivalent of web-client's App.tsx, minus
- * everything the plan marks out of scope for Phase 1 (sidebar, MCP/Memory/
+ * everything the plan marks out of scope for Phase 1 (sidebar, Memory/
  * Models/Tools/Settings panels, plan mode, /rewind, multi-root). One
  * session per workspace, no session switcher.
  */
@@ -38,10 +39,17 @@ export function App() {
     switchSession,
     deleteSession,
     composerInsert,
+    mcpServers,
+    mcpLoaded,
+    requestMcpStatus,
+    mcpConnect,
+    mcpToggle,
+    mcpReload,
   } = useAgentBridge();
 
   const [input, setInput] = useState("");
   const [pendingImages, setPendingImages] = useState<Attachment[]>([]);
+  const [mcpOpen, setMcpOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const wasNeedingDownloadRef = useRef(false);
 
@@ -97,6 +105,20 @@ export function App() {
         <div className="brand">{sessionInfo?.title ?? "finanfa-code"}</div>
         <div className="topbar-right">
           <SessionHistory sessions={sessions} activeId={sessionInfo?.id} onRefresh={listSessions} onSwitch={switchSession} onDelete={deleteSession} />
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => {
+              // Ask first, open second: every mutation answers with a fresh
+              // mcp_status, so stale rows never survive a reconnect.
+              requestMcpStatus();
+              setMcpOpen(true);
+            }}
+            disabled={!connected}
+            title="Connecter des serveurs MCP et choisir lesquels cet agent peut appeler"
+          >
+            Connecteurs
+          </button>
           {timeline.length > 0 && (
             <button
               type="button"
@@ -151,6 +173,16 @@ export function App() {
       />
 
       {permissionRequest && <PermissionModal request={permissionRequest} onAnswer={(answer) => answerPermission(permissionRequest.requestId, answer)} />}
+      {mcpOpen && (
+        <McpPanel
+          servers={mcpServers}
+          loaded={mcpLoaded}
+          onClose={() => setMcpOpen(false)}
+          onConnect={mcpConnect}
+          onToggle={mcpToggle}
+          onReload={mcpReload}
+        />
+      )}
     </div>
   );
 }

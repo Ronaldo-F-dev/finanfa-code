@@ -168,6 +168,14 @@ first tagged release.
   clear install instruction instead of this project trying to fetch or
   run a third-party binary on its own. The tunnel process is stopped on
   SIGINT/SIGTERM so it doesn't linger as an orphan after the server exits.
+- VS Code: the **Connecteurs** panel — the web UI's MCP list, ported: each
+  server's transport and state (connected, disabled, authorization pending,
+  not yet added), "+ Ajouter" connects a catalog connector (writing it to
+  `.finanfa-code/mcp.json` first), enable/disable for connected ones, and a
+  "Recharger les outils" action. The connect/toggle/reload bodies now live
+  once in `@finanfa/core/src/mcp/connect.ts`, shared by the web server's own
+  handlers instead of duplicated; the connector catalog moved to core with
+  them.
 
 ### Security
 

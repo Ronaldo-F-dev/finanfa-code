@@ -139,6 +139,23 @@ describe("createSessionRunner (real local SSE server, no VS Code involved)", () 
     20_000,
   );
 
+  it("listMcpStatus offers catalog connectors until they're added, and mcpToggle refuses unknown servers", async () => {
+    const ui = makeStubUi();
+    const runner = await createSessionRunner(projectDir, ui);
+
+    const status = await runner.listMcpStatus();
+    expect(status.length).toBeGreaterThan(0);
+    // The test project has no mcp.json at all: everything shown comes from
+    // the catalog — nothing connected, disabled, pending auth or inProject.
+    expect(status.every((s) => !s.inProject && !s.connected && !s.disabled && !s.needsAuth)).toBe(true);
+
+    runner.mcpToggle("not-a-server", false);
+    expect(ui.writeError).toHaveBeenCalledWith(expect.stringContaining("not-a-server"));
+    expect(runner.session.disabledMcpServers.size).toBe(0);
+
+    await runner.dispose();
+  });
+
   it("falls back to a fresh session and warns when asked to resume an unknown id", async () => {
     const ui = makeStubUi();
     const runner = await createSessionRunner(projectDir, ui, { resumeSessionId: "does-not-exist" });

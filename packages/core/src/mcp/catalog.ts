@@ -1,4 +1,4 @@
-import type { McpServerConfig } from "@finanfa/core/src/mcp/config.js";
+import type { McpServerConfig } from "./config.js";
 
 // Well-known connectors offered even to a project that hasn't configured
 // any MCP server yet — matching what Claude's own Connectors page shows
