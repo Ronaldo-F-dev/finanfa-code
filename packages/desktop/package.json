@@ -13,7 +13,7 @@
     "dist": "npm run build -w @finanfa/web-client && npm run build && npm run bundle && node scripts/installers.mjs"
   },
   "devDependencies": {
-    "electron": "^44.5.1",
+    "electron": "^44.7.0",
     "electron-builder": "^26.15.3"
   },
   "author": {
