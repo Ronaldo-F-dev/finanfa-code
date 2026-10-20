@@ -1387,6 +1387,12 @@ details.tool-call-details > summary.tool-call::marker {
   margin-top: 0;
 }
 
+/* Both lists and an open editor can exceed a short window; the webview has no
+   page scroll behind the backdrop, so the modal itself has to scroll. */
+.memory-modal {
+  max-height: 85vh;
+  overflow-y: auto;
+}
 .memory-row {
   cursor: pointer;
   flex-direction: column;

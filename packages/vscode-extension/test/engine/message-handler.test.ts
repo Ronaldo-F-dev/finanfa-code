@@ -39,6 +39,11 @@ async function makeFakeRunner(
     reloadMcpTools: vi.fn().mockResolvedValue(undefined),
     listToolStatus: vi.fn().mockReturnValue([]),
     setToolEnabled: vi.fn(),
+    listMemoryStatus: vi.fn().mockResolvedValue({ memories: [], skills: [] }),
+    saveMemory: vi.fn().mockResolvedValue(undefined),
+    deleteMemory: vi.fn().mockResolvedValue(undefined),
+    saveSkill: vi.fn().mockResolvedValue(undefined),
+    deleteSkill: vi.fn().mockResolvedValue(undefined),
     pullOllamaModel: vi.fn().mockResolvedValue(undefined),
     dispose: vi.fn(),
     ...overrides,
@@ -472,6 +477,146 @@ describe("createChatMessageHandler", () => {
 
       expect(runner.setToolEnabled).not.toHaveBeenCalled();
       expect(post).not.toHaveBeenCalledWith(expect.objectContaining({ type: "tools_status" }));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("memory_status replies with both the memory and skill lists", async () => {
+    const memories = [{ name: "deploy", description: "How we ship", type: "project", content: "Run the workflow.", scope: "project" as const }];
+    const skills = [{ name: "release", description: "Steps", content: "Tag first.", scope: "global" as const }];
+    const { runner, dir } = await makeFakeRunner(vi.fn(), { listMemoryStatus: vi.fn().mockResolvedValue({ memories, skills }) });
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "memory_status" });
+
+      expect(post).toHaveBeenCalledWith({ type: "memory_status", memories, skills });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("memory_status reports a loader failure instead of rejecting the handler", async () => {
+    const { runner, dir } = await makeFakeRunner(vi.fn(), {
+      listMemoryStatus: vi.fn().mockRejectedValue(new Error("permission denied")),
+    });
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await expect(handle({ type: "memory_status" })).resolves.toBeUndefined();
+
+      expect(post).toHaveBeenCalledWith({ type: "error", text: expect.stringContaining("permission denied") });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("save_memory forwards the entry and answers with the refreshed lists", async () => {
+    const refreshed = {
+      memories: [{ name: "deploy-notes", description: "How we ship", type: "feedback", content: "Use the workflow.", scope: "global" as const }],
+      skills: [],
+    };
+    const { runner, dir } = await makeFakeRunner(vi.fn(), { listMemoryStatus: vi.fn().mockResolvedValue(refreshed) });
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({
+        type: "save_memory",
+        name: "Deploy notes",
+        description: "How we ship",
+        memoryType: "feedback",
+        content: "Use the workflow.",
+        scope: "global",
+      });
+
+      expect(runner.saveMemory).toHaveBeenCalledWith({
+        name: "Deploy notes",
+        description: "How we ship",
+        type: "feedback",
+        content: "Use the workflow.",
+        scope: "global",
+      });
+      expect(post).toHaveBeenCalledWith({ type: "memory_status", memories: refreshed.memories, skills: [] });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("save_memory defaults a missing type/description/scope and ignores an empty payload", async () => {
+    const { runner, dir } = await makeFakeRunner();
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "save_memory", name: "deploy", content: "Run it." });
+
+      expect(runner.saveMemory).toHaveBeenCalledWith({
+        name: "deploy",
+        description: "",
+        type: "user",
+        content: "Run it.",
+        scope: "project",
+      });
+
+      await handle({ type: "save_memory", name: "no-content" });
+      expect(runner.saveMemory).toHaveBeenCalledTimes(1);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("save_memory reports a loader failure as an error instead of rejecting the handler", async () => {
+    const { runner, dir } = await makeFakeRunner(vi.fn(), { saveMemory: vi.fn().mockRejectedValue(new Error("bad name")) });
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await expect(handle({ type: "save_memory", name: "!!!", content: "x" })).resolves.toBeUndefined();
+
+      expect(post).toHaveBeenCalledWith({ type: "error", text: expect.stringContaining("bad name") });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("delete_memory deletes from the entry's own scope and refreshes the lists", async () => {
+    const { runner, dir } = await makeFakeRunner();
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "delete_memory", name: "deploy-notes", scope: "global" });
+
+      expect(runner.deleteMemory).toHaveBeenCalledWith("deploy-notes", "global");
+      expect(post).toHaveBeenCalledWith({ type: "memory_status", memories: [], skills: [] });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("save_skill/delete_skill forward the entry and refresh the lists", async () => {
+    const { runner, dir } = await makeFakeRunner();
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "save_skill", name: "Release", description: "Steps", content: "Tag first.", scope: "global" });
+      expect(runner.saveSkill).toHaveBeenCalledWith({ name: "Release", description: "Steps", content: "Tag first.", scope: "global" });
+
+      await handle({ type: "delete_skill", name: "release", scope: "project" });
+      expect(runner.deleteSkill).toHaveBeenCalledWith("release", "project");
+
+      // Neither malformed payload reached the runner.
+      await handle({ type: "save_skill", name: "no-content" });
+      await handle({ type: "delete_skill" });
+      expect(runner.saveSkill).toHaveBeenCalledTimes(1);
+      expect(runner.deleteSkill).toHaveBeenCalledTimes(1);
+
+      expect(post).toHaveBeenCalledWith({ type: "memory_status", memories: [], skills: [] });
     } finally {
       await rm(dir, { recursive: true, force: true });
     }
