@@ -327,6 +327,9 @@ export function useAgentBridge() {
   const interrupt = useCallback(() => vscode.postMessage({ type: "interrupt" }), []);
   const newChat = useCallback(() => vscode.postMessage({ type: "new_chat" }), []);
   const compact = useCallback(() => vscode.postMessage({ type: "compact" }), []);
+  // Same gate as /plan in the CLI and web-server's set_plan_mode: core's
+  // runTurn only allows read-only tools and exit_plan_mode while this is on.
+  const setPlanMode = useCallback((enabled: boolean) => vscode.postMessage({ type: "set_plan_mode", enabled }), []);
   const switchModel = useCallback(
     (newModel: string, family: string, baseUrl?: string) => vscode.postMessage({ type: "set_model", model: newModel, family, baseUrl }),
     [],
@@ -376,6 +379,7 @@ export function useAgentBridge() {
     interrupt,
     newChat,
     compact,
+    setPlanMode,
     switchModel,
     setEffort,
     pullOllamaModel,

@@ -22,6 +22,7 @@ first tagged release.
 - Desktop app: it is named **Finanfa** with the brand icon in the Dock, menu bar and Cmd-Tab (on macOS the dev
   run uses a generated, renamed copy of Electron), opens straight into `~/Finanfa` instead of asking for a folder
   at launch, shows that folder in the window title, and has **File → Show workspace in Finder**.
+- VS Code: a **Plan mode** toggle in the webview limits the agent to read-only tools until it presents a plan for approval, the same gate as the CLI's `/plan` and the web UI.
 - Hooks: new `Stop` (can keep the turn going with feedback), `SessionStart`
   (stdout becomes context for the first prompt) and `PreCompact` events;
   `SubagentStop`, `SessionEnd` and `Notification` are accepted in the config
