@@ -16,6 +16,9 @@ first tagged release.
 
 ### Added
 
+- VS Code: the webview has the **Memory & skills** panel the web UI and the app already had — list,
+  create, edit and delete project/global memory notes and skills, written through the same core
+  functions the agent's own memory tools use.
 - Desktop installers: the **Desktop installers** workflow builds a `.dmg` and `.zip` (macOS, Apple silicon and
   Intel), an installer for Windows, and an `.AppImage` and `.deb` for Linux, each with the server bundled inside;
   a `v*` tag also publishes them as a GitHub release. They are not signed yet. See `docs/desktop.md`.

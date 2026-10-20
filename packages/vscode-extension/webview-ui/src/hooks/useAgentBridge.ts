@@ -54,6 +54,29 @@ export interface ToolStatus {
   enabled: boolean;
 }
 
+export type MemoryScope = "project" | "global";
+
+/** One row of the "memory_status" payload — the same shape web-client's MemoryPanel consumes. */
+export interface MemoryEntry {
+  name: string;
+  description: string;
+  type: string;
+  content: string;
+  scope: MemoryScope;
+}
+
+export interface SkillEntry {
+  name: string;
+  description: string;
+  content: string;
+  scope: MemoryScope;
+}
+
+export interface MemoryStatus {
+  memories: MemoryEntry[];
+  skills: SkillEntry[];
+}
+
 export interface SessionInfo {
   id: string;
   title?: string;
@@ -130,12 +153,12 @@ const vscode = acquireVsCodeApi();
  * close to a line-for-line port as possible (review-friendly diff, keeps
  * the door open to a real shared package later).
  *
- * Dropped vs. the web version (see plan's "what to drop" list): MCP panel
- * plumbing (mcpConnect/mcpToggle/mcpReload), plan mode, and the
- * sessionId/projectId/reconnect concerns — exactly one persistent
+ * Dropped vs. the web version (see plan's "what to drop" list): plan mode
+ * and the sessionId/projectId/reconnect concerns — exactly one persistent
  * connection per webview panel here, no "switch to a different session"
- * (that's the out-of-scope sidebar). The Tools panel's own plumbing
- * (requestToolsStatus/setToolEnabled) is ported — see ToolsPanel.tsx.
+ * (that's the out-of-scope sidebar). The Tools, MCP and Memory panels'
+ * plumbing is ported — see ToolsPanel.tsx, McpPanel.tsx and
+ * MemoryPanel.tsx.
  */
 export function useAgentBridge() {
   const [connected] = useState(true); // The extension host is always "there" once the webview exists — no connect/disconnect lifecycle to track.
@@ -156,6 +179,10 @@ export function useAgentBridge() {
   // genuinely empty" — same loaded flag web-client's own MCP panel uses.
   const [mcpLoaded, setMcpLoaded] = useState(false);
   const [toolsStatus, setToolsStatus] = useState<ToolStatus[]>([]);
+  const [memoryStatus, setMemoryStatus] = useState<MemoryStatus>({ memories: [], skills: [] });
+  // Same loaded flag as mcpLoaded: "no entry yet" must not render as "the
+  // panel is genuinely empty" before the extension has answered at all.
+  const [memoryLoaded, setMemoryLoaded] = useState(false);
   const streamingIdRef = useRef<string | null>(null);
   const composerInsertNonceRef = useRef(0);
 
@@ -269,6 +296,10 @@ export function useAgentBridge() {
         case "tools_status":
           setToolsStatus(msg.tools);
           break;
+        case "memory_status":
+          setMemoryStatus({ memories: msg.memories ?? [], skills: msg.skills ?? [] });
+          setMemoryLoaded(true);
+          break;
         case "sessions":
           setSessions(msg.sessions);
           break;
@@ -358,6 +389,30 @@ export function useAgentBridge() {
   // paths land in the same tools_status case above.
   const requestToolsStatus = useCallback(() => vscode.postMessage({ type: "tools_status" }), []);
   const setToolEnabled = useCallback((name: string, enabled: boolean) => vscode.postMessage({ type: "set_tool_enabled", name, enabled }), []);
+  // Same contract as tools/MCP: ask on open, and every mutation answers with
+  // a fresh memory_status, so the panel never renders a stale optimistic row.
+  const requestMemoryStatus = useCallback(() => vscode.postMessage({ type: "memory_status" }), []);
+  // `type` is already the message kind in this protocol, so the note's own
+  // type travels as `memoryType` (same reason it can't be spread in).
+  const saveMemory = useCallback(
+    (entry: MemoryEntry) =>
+      vscode.postMessage({
+        type: "save_memory",
+        name: entry.name,
+        description: entry.description,
+        memoryType: entry.type,
+        content: entry.content,
+        scope: entry.scope,
+      }),
+    [],
+  );
+  const deleteMemory = useCallback((name: string, scope: MemoryScope) => vscode.postMessage({ type: "delete_memory", name, scope }), []);
+  const saveSkill = useCallback(
+    (entry: SkillEntry) =>
+      vscode.postMessage({ type: "save_skill", name: entry.name, description: entry.description, content: entry.content, scope: entry.scope }),
+    [],
+  );
+  const deleteSkill = useCallback((name: string, scope: MemoryScope) => vscode.postMessage({ type: "delete_skill", name, scope }), []);
 
   return {
     connected,
@@ -396,5 +451,12 @@ export function useAgentBridge() {
     toolsStatus,
     requestToolsStatus,
     setToolEnabled,
+    memoryStatus,
+    memoryLoaded,
+    requestMemoryStatus,
+    saveMemory,
+    deleteMemory,
+    saveSkill,
+    deleteSkill,
   };
 }

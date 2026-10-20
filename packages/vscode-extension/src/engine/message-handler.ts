@@ -1,7 +1,20 @@
 import type { NeutralImage } from "@finanfa/core/src/core/types.js";
+import type { MemoryType } from "@finanfa/core/src/memory/loader.js";
 import type { SessionRunner } from "./session-runner.js";
 import { buildHistoryReplay } from "./history.js";
 import { runCompactCommand } from "@finanfa/core/src/core/loop.js";
+
+const MEMORY_TYPES = new Set(["user", "feedback", "project", "reference"]);
+
+/** Defensive: the panel only offers the four core types, so anything else (a hand-crafted message) becomes "user" instead of being written into frontmatter as-is. */
+function memoryType(value: unknown): MemoryType {
+  return typeof value === "string" && MEMORY_TYPES.has(value) ? (value as MemoryType) : "user";
+}
+
+/** A missing/unknown scope means the project copy, same as the web API. */
+function scopeOf(value: unknown): "project" | "global" {
+  return value === "global" ? "global" : "project";
+}
 
 export interface WebviewMessage {
   type: string;
@@ -186,6 +199,75 @@ export function createChatMessageHandler(
     post({ type: "tools_status", tools: runner.listToolStatus() });
   }
 
+  async function handleMemoryStatus(): Promise<void> {
+    try {
+      const status = await runner.listMemoryStatus();
+      post({ type: "memory_status", memories: status.memories, skills: status.skills });
+    } catch (err) {
+      reportMemoryError("load memory", err);
+    }
+  }
+
+  function reportMemoryError(action: string, err: unknown): void {
+    post({ type: "error", text: `Could not ${action}: ${err instanceof Error ? err.message : String(err)}` });
+  }
+
+  async function handleSaveMemory(msg: WebviewMessage): Promise<void> {
+    if (typeof msg.name !== "string" || typeof msg.content !== "string") return;
+    if (!msg.name.trim() || !msg.content.trim()) return;
+    try {
+      await runner.saveMemory({
+        name: msg.name,
+        description: typeof msg.description === "string" ? msg.description : "",
+        type: memoryType(msg.memoryType),
+        content: msg.content,
+        scope: scopeOf(msg.scope),
+      });
+      // Every mutation answers with both refreshed lists, like the MCP and
+      // tools handlers: the panel renders what the extension read back, not
+      // what it hoped the click wrote.
+      await handleMemoryStatus();
+    } catch (err) {
+      reportMemoryError("save memory", err);
+    }
+  }
+
+  async function handleDeleteMemory(msg: WebviewMessage): Promise<void> {
+    if (typeof msg.name !== "string" || !msg.name.trim()) return;
+    try {
+      await runner.deleteMemory(msg.name, scopeOf(msg.scope));
+      await handleMemoryStatus();
+    } catch (err) {
+      reportMemoryError("delete memory", err);
+    }
+  }
+
+  async function handleSaveSkill(msg: WebviewMessage): Promise<void> {
+    if (typeof msg.name !== "string" || typeof msg.content !== "string") return;
+    if (!msg.name.trim() || !msg.content.trim()) return;
+    try {
+      await runner.saveSkill({
+        name: msg.name,
+        description: typeof msg.description === "string" ? msg.description : "",
+        content: msg.content,
+        scope: scopeOf(msg.scope),
+      });
+      await handleMemoryStatus();
+    } catch (err) {
+      reportMemoryError("save skill", err);
+    }
+  }
+
+  async function handleDeleteSkill(msg: WebviewMessage): Promise<void> {
+    if (typeof msg.name !== "string" || !msg.name.trim()) return;
+    try {
+      await runner.deleteSkill(msg.name, scopeOf(msg.scope));
+      await handleMemoryStatus();
+    } catch (err) {
+      reportMemoryError("delete skill", err);
+    }
+  }
+
   function handleInterrupt(): void {
     // Real reported regression this must not repeat (see git log: "Fix
     // Stop/interrupt being queued behind..."): interrupt has to preempt an
@@ -233,6 +315,16 @@ export function createChatMessageHandler(
         return handleToolsStatus();
       case "set_tool_enabled":
         return handleSetToolEnabled(msg);
+      case "memory_status":
+        return handleMemoryStatus();
+      case "save_memory":
+        return handleSaveMemory(msg);
+      case "delete_memory":
+        return handleDeleteMemory(msg);
+      case "save_skill":
+        return handleSaveSkill(msg);
+      case "delete_skill":
+        return handleDeleteSkill(msg);
       case "permission_response":
         return handlePermissionResponse(msg);
       default:

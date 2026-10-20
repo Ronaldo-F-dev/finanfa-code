@@ -14,8 +14,16 @@ import { loadMcpServers } from "@finanfa/core/src/mcp/config.js";
 import { MCP_CATALOG } from "@finanfa/core/src/mcp/catalog.js";
 import { connectMcpServer, reloadMcpTools as reloadMcpToolsCore } from "@finanfa/core/src/mcp/connect.js";
 import { loadPlugins } from "@finanfa/core/src/plugins/loader.js";
-import { formatSkillIndex } from "@finanfa/core/src/skills/loader.js";
-import { formatMemoryIndex } from "@finanfa/core/src/memory/loader.js";
+import { formatSkillIndex, loadSkills, writeSkill, deleteSkill as deleteSkillCore, type Skill, type SkillScope, type WriteSkillInput } from "@finanfa/core/src/skills/loader.js";
+import {
+  formatMemoryIndex,
+  loadMemories,
+  writeMemory,
+  deleteMemory as deleteMemoryCore,
+  type Memory,
+  type MemoryScope,
+  type WriteMemoryInput,
+} from "@finanfa/core/src/memory/loader.js";
 import { formatProjectInstructions } from "@finanfa/core/src/core/project-instructions.js";
 import { formatScopedInstructions } from "@finanfa/core/src/core/scoped-instructions.js";
 import { BrowserManager } from "@finanfa/core/src/browser/manager.js";
@@ -135,6 +143,11 @@ export interface McpServerStatus {
   inProject: boolean;
 }
 
+export interface MemoryStatus {
+  memories: Memory[];
+  skills: Skill[];
+}
+
 export interface SessionRunner {
   session: AgentSession;
   provider: LlmProvider;
@@ -167,6 +180,15 @@ export interface SessionRunner {
   listToolStatus(): { name: string; riskLevel: ToolRiskLevel; enabled: boolean }[];
   /** Mirrors web-server's "set_tool_enabled" handler — session.disabledTools is what persist() already stores, so the choice survives a resume. */
   setToolEnabled(name: string, enabled: boolean): void;
+  /** Mirrors web-server's GET /api/memory and /api/skills — the same core loaders the system prompt is built from, so the panel shows exactly what the agent sees. */
+  listMemoryStatus(): Promise<MemoryStatus>;
+  /** Writes through the same core function the agent's write_memory tool uses, so both stay byte-identical on disk. */
+  saveMemory(input: WriteMemoryInput): Promise<void>;
+  /** Deletes from the entry's own scope, since a project note can shadow a global one of the same name. */
+  deleteMemory(name: string, scope: MemoryScope): Promise<void>;
+  /** Mirrors web-server's POST /api/skills — the same write path as a hand-authored .finanfa-code/skills file. */
+  saveSkill(input: WriteSkillInput): Promise<void>;
+  deleteSkill(name: string, scope: SkillScope): Promise<void>;
   /** Mirrors web-server's GET /api/ollama-models/pull SSE endpoint, minus the transport (no HTTP server here) — progress is reported via the callback instead of writing SSE frames. */
   pullOllamaModel(name: string, onProgress: (completed: number | undefined, total: number | undefined) => void): Promise<void>;
   /** Persists the session and closes MCP/browser connections — call once, on extension deactivate or webview panel disposal, never awaited from a path that itself must stay responsive to shutdown. */
@@ -363,6 +385,22 @@ export async function createSessionRunner(cwd: string, ui: UIAdapter, opts: Crea
     setToolEnabled(name, enabled) {
       if (enabled) session.disabledTools.delete(name);
       else session.disabledTools.add(name);
+    },
+    async listMemoryStatus() {
+      const [memories, skills] = await Promise.all([loadMemories(cwd), loadSkills(cwd)]);
+      return { memories, skills };
+    },
+    async saveMemory(input) {
+      await writeMemory(cwd, input);
+    },
+    async deleteMemory(name, scope) {
+      await deleteMemoryCore(cwd, name, scope);
+    },
+    async saveSkill(input) {
+      await writeSkill(cwd, input);
+    },
+    async deleteSkill(name, scope) {
+      await deleteSkillCore(cwd, name, scope);
     },
     async listEffortTiers(): Promise<EffortTierInfo[]> {
       const ollamaModels = (await isOllamaAvailable().catch(() => false)) ? await listOllamaModels().catch(() => []) : [];

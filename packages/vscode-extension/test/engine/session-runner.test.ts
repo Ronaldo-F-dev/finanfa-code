@@ -1,7 +1,7 @@
 import { describe, expect, it, vi, beforeAll, afterAll, beforeEach, afterEach } from "vitest";
 import http from "node:http";
 import type { AddressInfo } from "node:net";
-import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
+import { mkdtemp, readFile, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import { createSessionRunner } from "../../src/engine/session-runner.js";
@@ -171,6 +171,45 @@ describe("createSessionRunner (real local SSE server, no VS Code involved)", () 
 
     expect(runner.session.disabledTools.has(target.name)).toBe(false);
     expect(runner.listToolStatus().find((t) => t.name === target.name)?.enabled).toBe(true);
+    await runner.dispose();
+  });
+
+  it("round-trips real memory and skill files through the runner's own scopes", async () => {
+    const runner = await createSessionRunner(projectDir, makeStubUi());
+
+    expect(await runner.listMemoryStatus()).toEqual({ memories: [], skills: [] });
+
+    await runner.saveMemory({
+      name: "Deploy notes",
+      description: "How we ship",
+      type: "project",
+      content: "Run the release workflow.",
+      scope: "project",
+    });
+    await runner.saveSkill({
+      name: "Release checklist",
+      description: "Steps to tag a release",
+      content: "1. Tag\n2. Push",
+      scope: "global",
+    });
+
+    const status = await runner.listMemoryStatus();
+    expect(status.memories).toEqual([
+      expect.objectContaining({ name: "deploy-notes", description: "How we ship", type: "project", scope: "project", content: "Run the release workflow." }),
+    ]);
+    expect(status.skills).toEqual([
+      expect.objectContaining({ name: "release-checklist", description: "Steps to tag a release", scope: "global", content: "1. Tag\n2. Push" }),
+    ]);
+
+    // The real files land where the agent's own tools would put them, under
+    // the project's .finanfa-code and the (test-scoped) $HOME.
+    expect(await readFile(path.join(projectDir, ".finanfa-code", "memory", "deploy-notes.md"), "utf-8")).toContain("Run the release workflow.");
+    expect(await readFile(path.join(homeDir, ".finanfa-code", "skills", "release-checklist.md"), "utf-8")).toContain("1. Tag");
+
+    await runner.deleteMemory("deploy-notes", "project");
+    await runner.deleteSkill("release-checklist", "global");
+
+    expect(await runner.listMemoryStatus()).toEqual({ memories: [], skills: [] });
     await runner.dispose();
   });
 
