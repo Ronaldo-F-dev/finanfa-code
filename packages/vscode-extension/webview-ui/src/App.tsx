@@ -20,6 +20,7 @@ export function App() {
     timeline,
     busy,
     permissionRequest,
+    status,
     sessionInfo,
     models,
     effortTiers,
@@ -30,6 +31,7 @@ export function App() {
     interrupt,
     newChat,
     compact,
+    setPlanMode,
     switchModel,
     setEffort,
     pullOllamaModel,
@@ -150,6 +152,15 @@ export function App() {
               Compacter
             </button>
           )}
+          <button
+            type="button"
+            className={`btn btn-ghost btn-plan-mode${status?.planMode ? " btn-plan-mode-active" : ""}`}
+            onClick={() => setPlanMode(!status?.planMode)}
+            disabled={!connected}
+            title="Mode plan : tant qu'actif, seuls les outils en lecture seule fonctionnent jusqu'à ce que l'agent présente un plan à valider"
+          >
+            {status?.planMode ? "◆ Mode plan" : "Mode plan"}
+          </button>
           <button type="button" className="btn btn-ghost" onClick={handleNewChat} disabled={!connected} title="Démarrer une nouvelle conversation">
             + Nouvelle conversation
           </button>

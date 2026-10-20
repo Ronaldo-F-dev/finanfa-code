@@ -199,6 +199,54 @@ describe("createChatMessageHandler", () => {
     }
   });
 
+  it("set_plan_mode enables plan mode and immediately posts a fresh status", async () => {
+    const { runner, dir } = await makeFakeRunner();
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "set_plan_mode", enabled: true });
+
+      expect(runner.session.planMode).toBe(true);
+      // No turn needed: the toggle button has to reflect the click right away.
+      expect(post).toHaveBeenCalledWith({ type: "status", status: expect.objectContaining({ model: "m", planMode: true }) });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("set_plan_mode turns plan mode back off and posts the updated status", async () => {
+    const { runner, dir } = await makeFakeRunner();
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "set_plan_mode", enabled: true });
+      await handle({ type: "set_plan_mode", enabled: false });
+
+      expect(runner.session.planMode).toBe(false);
+      expect(post).toHaveBeenLastCalledWith({ type: "status", status: expect.objectContaining({ model: "m", planMode: false }) });
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("set_plan_mode ignores a non-boolean enabled without posting a status", async () => {
+    const { runner, dir } = await makeFakeRunner();
+    try {
+      const post = vi.fn();
+      const handle = createChatMessageHandler(runner, vi.fn(), post);
+
+      await handle({ type: "set_plan_mode", enabled: "yes" });
+      await handle({ type: "set_plan_mode" });
+
+      expect(runner.session.planMode).toBe(false);
+      expect(post).not.toHaveBeenCalledWith(expect.objectContaining({ type: "status" }));
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("interrupt aborts every active controller on the session", async () => {
     const { runner, dir } = await makeFakeRunner();
     try {

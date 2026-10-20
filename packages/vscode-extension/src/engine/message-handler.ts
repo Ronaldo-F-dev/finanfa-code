@@ -174,6 +174,24 @@ export function createChatMessageHandler(
     await handleMcpStatus();
   }
 
+  function handleSetPlanMode(msg: WebviewMessage): void {
+    if (typeof msg.enabled !== "boolean") return;
+    runner.session.planMode = msg.enabled;
+    // Push a status right away instead of waiting for the next turn's own
+    // status update: the toggle button should reflect the click immediately,
+    // not only once the user sends another message. Same shape web-server's
+    // handleSetPlanMode sends.
+    post({
+      type: "status",
+      status: {
+        tokens: runner.session.usage.inputTokens + runner.session.usage.outputTokens,
+        costUsd: runner.session.costUsd,
+        model: runner.session.model,
+        planMode: runner.session.planMode,
+      },
+    });
+  }
+
   function handleToolsStatus(): void {
     post({ type: "tools_status", tools: runner.listToolStatus() });
   }
@@ -217,6 +235,8 @@ export function createChatMessageHandler(
         return handlePullOllamaModel(msg);
       case "compact":
         return handleCompact();
+      case "set_plan_mode":
+        return handleSetPlanMode(msg);
       case "interrupt":
         return handleInterrupt();
       case "mcp_status":
