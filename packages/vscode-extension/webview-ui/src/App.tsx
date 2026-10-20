@@ -7,6 +7,7 @@ import { Composer } from "./components/Composer";
 import { SessionHistory } from "./components/SessionHistory";
 import { McpPanel } from "./components/McpPanel";
 import { ToolsPanel } from "./components/ToolsPanel";
+import { TodoBoard } from "./components/TodoBoard";
 
 /**
  * Root component — the webview equivalent of web-client's App.tsx, minus
@@ -46,6 +47,7 @@ export function App() {
     mcpConnect,
     mcpToggle,
     mcpReload,
+    todos,
     toolsStatus,
     requestToolsStatus,
     setToolEnabled,
@@ -54,6 +56,7 @@ export function App() {
   const [input, setInput] = useState("");
   const [pendingImages, setPendingImages] = useState<Attachment[]>([]);
   const [mcpOpen, setMcpOpen] = useState(false);
+  const [todosOpen, setTodosOpen] = useState(false);
   const [toolsOpen, setToolsOpen] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const wasNeedingDownloadRef = useRef(false);
@@ -139,6 +142,15 @@ export function App() {
           >
             Outils
           </button>
+          <button
+            type="button"
+            className="btn btn-ghost"
+            onClick={() => setTodosOpen(true)}
+            disabled={!connected}
+            title="Voir la liste des tâches que l'agent suit pour ce tour"
+          >
+            Tâches{todos.length > 0 ? ` · ${todos.length}` : ""}
+          </button>
           {timeline.length > 0 && (
             <button
               type="button"
@@ -193,6 +205,7 @@ export function App() {
       />
 
       {permissionRequest && <PermissionModal request={permissionRequest} onAnswer={(answer) => answerPermission(permissionRequest.requestId, answer)} />}
+      {todosOpen && <TodoBoard todos={todos} onClose={() => setTodosOpen(false)} />}
       {mcpOpen && (
         <McpPanel
           servers={mcpServers}

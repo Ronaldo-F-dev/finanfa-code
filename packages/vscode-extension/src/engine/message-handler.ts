@@ -48,6 +48,10 @@ export function createChatMessageHandler(
   async function handleWebviewReady(): Promise<void> {
     sendSessionInfo();
     post({ type: "history", messages: buildHistoryReplay(runner.session) });
+    // Replayed like web-server does on WS connect: session.todos is persisted
+    // with the session, so a resumed conversation keeps its board instead of
+    // showing an empty one until the next todo_write call.
+    post({ type: "todos", todos: runner.session.todos.list() });
     // Replaces web-client's fetch("/api/models")/fetch("/api/effort-tiers")
     // — no HTTP API in the extension, so both are pushed once up front
     // instead (see the plan's §1 on model_list being new vocabulary).

@@ -75,6 +75,9 @@ export function createVscodeUiAdapter(
     writeMedia(media) {
       send("media", { ...media, webviewUri: resolveMediaUri?.(media.path) });
     },
+    writeTodos(todos) {
+      send("todos", { todos });
+    },
     setStatus(status) {
       currentStatus = status;
       send("status", { status });

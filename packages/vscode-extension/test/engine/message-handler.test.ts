@@ -47,10 +47,11 @@ async function makeFakeRunner(
 }
 
 describe("createChatMessageHandler", () => {
-  it("webview_ready posts session_info followed by the replayed history, then model_list/effort_tiers", async () => {
+  it("webview_ready posts session_info, the replayed history and todo list, then model_list/effort_tiers", async () => {
     const { runner, dir } = await makeFakeRunner();
     try {
       runner.session.messages = [{ role: "user", content: "earlier" }, { role: "assistant", content: "reply" }];
+      runner.session.todos.set([{ content: "ship the todo board", status: "in_progress" }]);
       const post = vi.fn();
       const handle = createChatMessageHandler(runner, vi.fn(), post);
 
@@ -66,6 +67,7 @@ describe("createChatMessageHandler", () => {
           { role: "assistant", content: "reply" },
         ],
       });
+      expect(post).toHaveBeenCalledWith({ type: "todos", todos: [{ content: "ship the todo board", status: "in_progress" }] });
       expect(runner.listModels).toHaveBeenCalled();
       expect(post).toHaveBeenCalledWith(expect.objectContaining({ type: "model_list", models: [] }));
       expect(post).toHaveBeenCalledWith(expect.objectContaining({ type: "effort_tiers", tiers: [] }));

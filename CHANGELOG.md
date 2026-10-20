@@ -19,6 +19,9 @@ first tagged release.
 - Desktop installers: the **Desktop installers** workflow builds a `.dmg` and `.zip` (macOS, Apple silicon and
   Intel), an installer for Windows, and an `.AppImage` and `.deb` for Linux, each with the server bundled inside;
   a `v*` tag also publishes them as a GitHub release. They are not signed yet. See `docs/desktop.md`.
+- VS Code: the webview shows the agent's **todo_write checklist** as a three-column **Tâches** board
+  (pending, in progress, completed), replayed on session resume. The agent stays its only writer, same as
+  the web and app panels.
 - Desktop app: it is named **Finanfa** with the brand icon in the Dock, menu bar and Cmd-Tab (on macOS the dev
   run uses a generated, renamed copy of Electron), opens straight into `~/Finanfa` instead of asking for a folder
   at launch, shows that folder in the window title, and has **File → Show workspace in Finder**.
