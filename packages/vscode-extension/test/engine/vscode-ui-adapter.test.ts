@@ -15,6 +15,7 @@ describe("createVscodeUiAdapter", () => {
     adapter.writeToolCall?.({ toolCallId: "t1", toolName: "bash", description: "ls", riskLevel: "dangerous" });
     adapter.writeToolResult?.({ toolCallId: "t1", toolName: "bash", isError: false, content: "file1\nfile2" });
     adapter.writeMedia?.({ kind: "image", path: "/tmp/x.png", mimeType: "image/png" });
+    adapter.writeTodos?.([{ content: "ship it", status: "in_progress" }]);
     adapter.setStatus({ tokens: 10, costUsd: 0.01, model: "m" });
     adapter.setCommands([{ name: "cost", description: "show cost" }]);
     adapter.setBusy(true, "thinking");
@@ -28,6 +29,7 @@ describe("createVscodeUiAdapter", () => {
     expect(post).toHaveBeenCalledWith({ type: "tool_call", toolCallId: "t1", toolName: "bash", description: "ls", riskLevel: "dangerous" });
     expect(post).toHaveBeenCalledWith({ type: "tool_result", toolCallId: "t1", toolName: "bash", isError: false, content: "file1\nfile2" });
     expect(post).toHaveBeenCalledWith({ type: "media", kind: "image", path: "/tmp/x.png", mimeType: "image/png" });
+    expect(post).toHaveBeenCalledWith({ type: "todos", todos: [{ content: "ship it", status: "in_progress" }] });
     expect(post).toHaveBeenCalledWith({ type: "status", status: { tokens: 10, costUsd: 0.01, model: "m" } });
     expect(post).toHaveBeenCalledWith({ type: "commands", commands: [{ name: "cost", description: "show cost" }] });
     expect(post).toHaveBeenCalledWith({ type: "busy", busy: true, label: "thinking" });

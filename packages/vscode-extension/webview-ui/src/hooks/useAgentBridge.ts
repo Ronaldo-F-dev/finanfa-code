@@ -47,6 +47,14 @@ export interface McpServerStatus {
   inProject: boolean;
 }
 
+export type TodoStatus = "pending" | "in_progress" | "completed";
+
+/** One row of the "todos" payload — a live mirror of the agent's own todo_write checklist, same shape web-client's TodoPanel consumes. */
+export interface TodoItem {
+  content: string;
+  status: TodoStatus;
+}
+
 /** One row of the "tools_status" payload the panel groups by riskLevel — enabled mirrors the session's disabledTools set on the extension side. */
 export interface ToolStatus {
   name: string;
@@ -155,6 +163,7 @@ export function useAgentBridge() {
   // Distinguishes "the extension hasn't answered yet" from "the panel is
   // genuinely empty" — same loaded flag web-client's own MCP panel uses.
   const [mcpLoaded, setMcpLoaded] = useState(false);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
   const [toolsStatus, setToolsStatus] = useState<ToolStatus[]>([]);
   const streamingIdRef = useRef<string | null>(null);
   const composerInsertNonceRef = useRef(0);
@@ -265,6 +274,9 @@ export function useAgentBridge() {
         case "mcp_status":
           setMcpServers(msg.servers);
           setMcpLoaded(true);
+          break;
+        case "todos":
+          setTodos(msg.todos ?? []);
           break;
         case "tools_status":
           setToolsStatus(msg.tools);
@@ -393,6 +405,7 @@ export function useAgentBridge() {
     mcpConnect,
     mcpToggle,
     mcpReload,
+    todos,
     toolsStatus,
     requestToolsStatus,
     setToolEnabled,
