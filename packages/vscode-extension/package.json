@@ -61,7 +61,7 @@
   },
   "dependencies": {
     "@finanfa/core": "*",
-    "undici": "^8.10.2",
+    "undici": "^8.12.2",
     "web-tree-sitter": "^0.25.6"
   },
   "devDependencies": {
