@@ -13,7 +13,8 @@
     "esbuild": "^0.28.2",
     "marked": "^18.0.14",
     "react": "^19.2.8",
-    "react-dom": "^19.2.8"
+    "react-dom": "^19.2.8",
+    "undici": "^8.12.3"
   },
   "devDependencies": {
     "@types/react": "^19.2.18",
